@@ -1,6 +1,6 @@
 # Invox CLI
 
-This directory contains the Go implementation of the invoice pipeline.
+`invox` is a command-line invoice workflow tool. It creates invoice YAML files, validates them against customer and issuer data, renders LaTeX, builds PDFs, and manages the invoice lifecycle from draft to built to archived, including reopening archived invoices for editing.
 
 Run it directly:
 
