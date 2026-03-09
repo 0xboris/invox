@@ -35,6 +35,10 @@ func Run(args []string) int {
 		return runValidate(args[1:])
 	case "render":
 		return runRender(args[1:])
+	case "email":
+		return runEmail(args[1:])
+	case "send":
+		return runEmail(args[1:])
 	case "build":
 		return runBuild(args[1:])
 	case "archive":

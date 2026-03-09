@@ -10,17 +10,21 @@ BINARY_PATH ?= $(BIN_DIR)/$(BINARY_NAME)
 CLI ?= ./$(BINARY_PATH)
 
 INPUT ?= invoice.yaml
+PDF_INPUT ?= $(basename $(INPUT)).pdf
 CUSTOMERS ?=
 ISSUER ?=
 TEMPLATE ?=
 TEX_OUTPUT ?= invoice.tex
 PDF_OUTPUT ?= $(basename $(INPUT)).pdf
+EMAIL_OUTPUT ?= $(basename $(INPUT)).eml
+EMAIL_TO ?=
+EMAIL_SUBJECT ?=
 ARGS ?=
 
 COMMON_FLAGS = -i "$(INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)")
 RENDER_FLAGS = $(COMMON_FLAGS) $(if $(strip $(TEMPLATE)),-t "$(TEMPLATE)")
 
-.PHONY: help build test vet install init validate render pdf clean
+.PHONY: help build test vet install init validate render email send pdf clean
 .PHONY: archive
 
 help: ## Show available targets and overridable variables.
@@ -28,12 +32,16 @@ help: ## Show available targets and overridable variables.
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' "$(lastword $(MAKEFILE_LIST))"
 	@printf "\nVariables:\n"
 	@printf "  INPUT       Invoice YAML input path (default: invoice.yaml)\n"
+	@printf "  PDF_INPUT   PDF attachment path for email (default: INPUT with .pdf extension)\n"
 	@printf "  CUSTOMERS   Optional customers.yaml path override\n"
 	@printf "  ISSUER      Optional issuer.yaml path override\n"
 	@printf "  TEMPLATE    Optional template.tex path override for render/pdf\n"
 	@printf "  TEX_OUTPUT  TeX output path for render (default: invoice.tex)\n"
 	@printf "  PDF_OUTPUT  PDF output path for pdf (default: INPUT with .pdf extension)\n"
-	@printf "  CLI         CLI executable for validate/render/pdf (default: ./bin/invox)\n"
+	@printf "  EMAIL_OUTPUT Temporary draft email path for email (default: INPUT with .eml extension)\n"
+	@printf "  EMAIL_TO    Optional recipient override for email\n"
+	@printf "  EMAIL_SUBJECT Optional subject override for email\n"
+	@printf "  CLI         CLI executable for validate/render/email/pdf/archive (default: ./bin/invox)\n"
 	@printf "  ARGS        Extra CLI arguments appended to the command\n"
 	@printf "\nExamples:\n"
 	@printf "  make build\n"
@@ -42,6 +50,7 @@ help: ## Show available targets and overridable variables.
 	@printf "  make init\n"
 	@printf "  make validate\n"
 	@printf "  make render CUSTOMERS=customers.yaml ISSUER=issuer.yaml TEMPLATE=invoice_template.tex\n"
+	@printf "  make email INPUT=invoice.yaml\n"
 	@printf "  make pdf CLI=invox INPUT=invoice.yaml\n"
 	@printf "  make archive CLI=invox INPUT=invoice.yaml\n"
 
@@ -68,6 +77,11 @@ validate: $(BINARY_PATH) ## Validate INPUT with the local CLI.
 
 render: $(BINARY_PATH) ## Render INPUT to TEX_OUTPUT with the local CLI.
 	$(CLI) render $(RENDER_FLAGS) -o "$(TEX_OUTPUT)" $(ARGS)
+
+email: $(BINARY_PATH) ## Create, open, and remove an email draft for INPUT with the built PDF attached.
+	$(CLI) email -i "$(INPUT)" -p "$(PDF_INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)") -o "$(EMAIL_OUTPUT)" $(if $(strip $(EMAIL_TO)),--to "$(EMAIL_TO)") $(if $(strip $(EMAIL_SUBJECT)),--subject "$(EMAIL_SUBJECT)") $(ARGS)
+
+send: email ## Alias for email.
 
 pdf: $(BINARY_PATH) ## Build INPUT to PDF_OUTPUT with the local CLI.
 	$(CLI) build $(RENDER_FLAGS) -o "$(PDF_OUTPUT)" $(ARGS)

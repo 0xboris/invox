@@ -119,6 +119,76 @@ func runRender(args []string) int {
 	return 0
 }
 
+func runEmail(args []string) int {
+	args = reorderArgs(args, map[string]bool{
+		"-i":          true,
+		"--input":     true,
+		"-p":          true,
+		"--pdf":       true,
+		"-o":          true,
+		"--output":    true,
+		"-c":          true,
+		"--customers": true,
+		"-u":          true,
+		"--issuer":    true,
+		"--to":        true,
+		"--subject":   true,
+	})
+
+	spec := emailSpec()
+
+	opts, _, exitCode, ok := parseCommand(spec, args)
+	if !ok {
+		return exitCode
+	}
+
+	paths, err := invoice.ResolveEmailDraftPaths(opts.InvoicePath, opts.PDFPath, opts.OutputPath)
+	if err != nil {
+		printCommandError(os.Stderr, spec, err.Error())
+		return 2
+	}
+
+	draft, err := invoice.CreateInvoiceEmailDraft(
+		opts.CustomersPath,
+		opts.IssuerPath,
+		paths.InvoicePath,
+		paths.PDFPath,
+		paths.OutputPath,
+		opts.EmailTo,
+		opts.EmailSubject,
+	)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if err := openDocument(draft.OutputPath); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"created %s but failed to open it: %v\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			err,
+		)
+		return 1
+	}
+	if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"opened %s but failed to schedule cleanup: %v\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			err,
+		)
+		return 1
+	}
+
+	fmt.Printf(
+		"Opened email draft for %s (%s) to %s\n",
+		draft.CustomerID,
+		draft.InvoiceNumber,
+		draft.Recipient,
+	)
+	return 0
+}
+
 func runBuild(args []string) int {
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,

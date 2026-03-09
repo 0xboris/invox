@@ -20,6 +20,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  increment      Increment the invoice number in an existing invoice YAML file\n")
 	fmt.Fprintf(w, "  validate       Validate invoice YAML against customers and issuer data\n")
 	fmt.Fprintf(w, "  render         Render a LaTeX invoice file\n")
+	fmt.Fprintf(w, "  email          Create and open an email draft with the invoice PDF attached\n")
 	fmt.Fprintf(w, "  build          Render and compile an invoice PDF with Tectonic\n")
 	fmt.Fprintf(w, "  archive        Archive invoices and manage archived invoices\n\n")
 	fmt.Fprintf(w, "Required inputs by command:\n")
@@ -27,14 +28,18 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  increment  -i, --input\n")
 	fmt.Fprintf(w, "  validate   -i, --input\n")
 	fmt.Fprintf(w, "  render     -i, --input\n")
+	fmt.Fprintf(w, "  email      INVOICE.yaml, INVOICE.pdf, or -i, --input\n")
 	fmt.Fprintf(w, "  build      INVOICE.yaml or -i, --input\n")
 	fmt.Fprintf(w, "  archive    INVOICE.yaml or -i, --input\n\n")
 	fmt.Fprintf(w, "Optional flags:\n")
 	fmt.Fprintf(w, "  -h, --help              Show help\n")
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n")
 	fmt.Fprintf(w, "  -o, --output PATH       Output file path (defaults vary by command)\n")
+	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")
 	fmt.Fprintf(w, "  --archive               Archive after a successful PDF build (build)\n")
 	fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)\n")
+	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
+	fmt.Fprintf(w, "  --subject TEXT          Email subject override (email)\n")
 	fmt.Fprintf(w, "  -s, --source PATH       Path to invoice_defaults.yaml (new)\n")
 	fmt.Fprintf(w, "  -u, --issuer PATH       Path to issuer.yaml\n")
 	fmt.Fprintf(w, "  -t, --template PATH     Path to invoice_template.tex (render/build)\n\n")
@@ -45,6 +50,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
 	fmt.Fprintf(w, "  new output: ./<invoice.number>.yaml\n")
 	fmt.Fprintf(w, "  render output: ./invoice.tex\n")
+	fmt.Fprintf(w, "  email draft path: input path with .eml extension\n")
 	fmt.Fprintf(w, "  build output: input path with .pdf extension\n\n")
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
@@ -56,6 +62,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("increment -i invoice.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("validate -i invoice.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("render -i invoice.yaml"))
+	fmt.Fprintf(w, "  %s\n", commandExample("email invoice.pdf"))
 	fmt.Fprintf(w, "  %s\n", commandExample("build invoice.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("archive invoice.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("archive edit 2026-03-06.yaml"))
@@ -98,7 +105,11 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	fmt.Fprintf(w, "Required inputs:\n")
 	if spec.RequiresInput {
 		if spec.AcceptsPositionalInput {
-			fmt.Fprintf(w, "  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file\n")
+			if spec.AcceptsPDFInput {
+				fmt.Fprintf(w, "  INVOICE.yaml, INVOICE.pdf, or -i, --input PATH  Path to the invoice YAML or built PDF file\n")
+			} else {
+				fmt.Fprintf(w, "  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file\n")
+			}
 		} else {
 			fmt.Fprintf(w, "  -i, --input PATH        Path to the invoice YAML file\n")
 		}
@@ -118,6 +129,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.NeedsIssuer {
 		fmt.Fprintf(w, "  -u, --issuer PATH       Path to issuer.yaml\n")
 	}
+	if spec.NeedsPDF {
+		fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF\n")
+	}
 	if spec.NeedsDefaults {
 		fmt.Fprintf(w, "  -s, --source PATH       Path to invoice_defaults.yaml\n")
 	}
@@ -126,6 +140,12 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	}
 	if spec.SupportsFromLastFlag {
 		fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID as the source document\n")
+	}
+	if spec.SupportsEmailToFlag {
+		fmt.Fprintf(w, "  --to EMAIL              Recipient email override\n")
+	}
+	if spec.SupportsSubjectFlag {
+		fmt.Fprintf(w, "  --subject TEXT          Email subject override\n")
 	}
 	if spec.SupportsArchiveFlag {
 		fmt.Fprintf(w, "  --archive               Archive the invoice after a successful PDF build\n")
@@ -140,6 +160,13 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.NeedsIssuer {
 		fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", invoice.GlobalIssuerPath())
 	}
+	if spec.NeedsPDF {
+		if spec.AcceptsPDFInput {
+			fmt.Fprintf(w, "  invoice PDF: input path with .pdf extension by default, or the input itself when the input is a PDF\n")
+		} else {
+			fmt.Fprintf(w, "  invoice PDF: input path with .pdf extension by default\n")
+		}
+	}
 	if spec.NeedsDefaults {
 		fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", invoice.GlobalInvoiceDefaultsPath())
 	}
@@ -152,6 +179,8 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.Name == "customer config" {
 		fmt.Fprintf(w, "\nCommon customer fields:\n")
 		fmt.Fprintf(w, "  <customer>.name             Preferred customer name\n")
+		fmt.Fprintf(w, "  <customer>.contact_person   Optional contact used by email.body templates\n")
+		fmt.Fprintf(w, "  <customer>.email_greeting   Optional greeting used by email.body templates\n")
 		fmt.Fprintf(w, "  <customer>.email            Preferred invoice email\n")
 		fmt.Fprintf(w, "  <customer>.status           Optional status shown by customer list\n")
 		fmt.Fprintf(w, "  <customer>.address.*        Billing address used for rendering\n")
@@ -170,6 +199,16 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  Copies the archived invoice from archive.dir into the current directory.\n")
 		fmt.Fprintf(w, "  The working copy is written as YAML with invoice.status set to editing.\n")
 		fmt.Fprintf(w, "  Re-running %s archive on that working copy replaces the archived invoice.\n", commandName)
+	}
+	if spec.Name == "email" {
+		fmt.Fprintf(w, "\nBehavior:\n")
+		fmt.Fprintf(w, "  Accepts either the invoice YAML file or the built PDF as input.\n")
+		fmt.Fprintf(w, "  When the input is a PDF, the matching YAML file is resolved from the same basename.\n")
+		fmt.Fprintf(w, "  The PDF lookup checks next to the PDF first, then archive.dir.\n")
+		fmt.Fprintf(w, "  Requires invoice.status to be built or archived and the PDF attachment to exist.\n")
+		fmt.Fprintf(w, "  Writes a .eml draft file with the PDF attached.\n")
+		fmt.Fprintf(w, "  Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.\n")
+		fmt.Fprintf(w, "  Does not send the email and does not change invoice.status.\n")
 	}
 	fmt.Fprintf(w, "\nExamples:\n")
 	for _, example := range spec.Examples {
@@ -211,7 +250,20 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "  paths.template     Override the default template.tex lookup path\n")
 	fmt.Fprintf(w, "  numbering.pattern  Override the invoice-number pattern\n")
 	fmt.Fprintf(w, "  numbering.start    Global starting counter when no archived invoice matches\n")
-	fmt.Fprintf(w, "  archive.dir        Override the archive directory for archived invoice files\n\n")
+	fmt.Fprintf(w, "  archive.dir        Override the archive directory for archived invoice files\n")
+	fmt.Fprintf(w, "  email.body         Override the plain-text body template for the email command\n\n")
+	fmt.Fprintf(w, "email.body placeholders:\n")
+	fmt.Fprintf(w, "  {customer_name}        Customer display name\n")
+	fmt.Fprintf(w, "  {email_greeting}       Customer-specific greeting, defaults to Hello,\n")
+	fmt.Fprintf(w, "  {contact_person}       Customer contact person\n")
+	fmt.Fprintf(w, "  {customer_id}          Customer ID from the invoice\n")
+	fmt.Fprintf(w, "  {invoice_number}       Invoice number\n")
+	fmt.Fprintf(w, "  {issue_date}           Invoice issue date\n")
+	fmt.Fprintf(w, "  {due_date}             Invoice due date\n")
+	fmt.Fprintf(w, "  {total_amount}         Invoice total with currency\n")
+	fmt.Fprintf(w, "  {outstanding_amount}   Outstanding amount with currency\n")
+	fmt.Fprintf(w, "  {payment_terms_text}   issuer.payment.payment_terms_text\n")
+	fmt.Fprintf(w, "  {issuer_name}          issuer.company.legal_company_name\n\n")
 	fmt.Fprintf(w, "Customer overrides:\n")
 	fmt.Fprintf(w, "  customers.<CUSTOMER_ID>.numbering.start  Override numbering.start for one customer\n\n")
 	fmt.Fprintf(w, "Support file precedence:\n")

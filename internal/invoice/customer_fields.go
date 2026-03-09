@@ -29,6 +29,30 @@ func customerEmail(customer map[string]any) string {
 	return ""
 }
 
+func customerContactPerson(customer map[string]any) string {
+	for _, path := range []string{
+		"billing.contact_person",
+		"contact_person",
+	} {
+		if contactPerson := strings.TrimSpace(asString(getPath(customer, path))); contactPerson != "" {
+			return contactPerson
+		}
+	}
+	return ""
+}
+
+func customerEmailGreeting(customer map[string]any) string {
+	for _, path := range []string{
+		"billing.email_greeting",
+		"email_greeting",
+	} {
+		if greeting := strings.TrimSpace(asString(getPath(customer, path))); greeting != "" {
+			return greeting
+		}
+	}
+	return "Hello,"
+}
+
 func customerCurrency(customer map[string]any) string {
 	for _, path := range []string{
 		"billing.currency",

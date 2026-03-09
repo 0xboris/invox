@@ -169,6 +169,297 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 	}
 }
 
+func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
+
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
+
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	if err != nil {
+		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
+	}
+	if draft.OutputPath != outputPath {
+		t.Fatalf("OutputPath = %q, want %q", draft.OutputPath, outputPath)
+	}
+	if draft.Recipient != "office@appsters.example" {
+		t.Fatalf("Recipient = %q, want %q", draft.Recipient, "office@appsters.example")
+	}
+	if draft.Subject != "Invoice CUST-001-001" {
+		t.Fatalf("Subject = %q, want %q", draft.Subject, "Invoice CUST-001-001")
+	}
+
+	eml, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(eml)
+	for _, want := range []string{
+		"hello@example.com",
+		"office@appsters.example",
+		"Subject: Invoice CUST-001-001",
+		"X-Unsent: 1",
+		`filename="invoice.pdf"`,
+		"Dear Jane Doe,",
+		"Please find attached invoice CUST-001-001.",
+		"Outstanding amount: 252,00 EUR",
+		"Regards,\r\nBoris Consulting\r\n\r\n\r\n--invox-boundary-",
+		"JVBERi0xLjQKZmFrZQ==",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("draft email does not contain %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: archived", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
+
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	if err != nil {
+		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
+	}
+	if draft.OutputPath != outputPath {
+		t.Fatalf("OutputPath = %q, want %q", draft.OutputPath, outputPath)
+	}
+}
+
+func TestCreateInvoiceEmailDraftUsesConfiguredBodyTemplate(t *testing.T) {
+	writeConfigFile(t, strings.TrimSpace(`
+email:
+  body: |
+    {email_greeting}
+
+    Invoice {invoice_number} is due on {due_date}.
+    Open amount: {outstanding_amount}
+    Terms: {payment_terms_text}
+
+    Regards,
+    {issuer_name}
+`)+"\n")
+
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
+
+	if _, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", ""); err != nil {
+		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
+	}
+
+	eml, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(eml)
+	for _, want := range []string{
+		"Dear Jane Doe,",
+		"Invoice CUST-001-001 is due on 2026-04-05.",
+		"Open amount: 252,00 EUR",
+		"Terms: Pay within 30 days",
+		"Regards,",
+		"Regards,\r\nBoris Consulting\r\n\r\n\r\n--invox-boundary-",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("draft email does not contain %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "Please find attached invoice CUST-001-001.") {
+		t.Fatalf("draft email should not contain the default body:\n%s", text)
+	}
+}
+
+func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	_, err := CreateInvoiceEmailDraft(
+		customersPath,
+		issuerPath,
+		invoicePath,
+		pdfPath,
+		filepath.Join(t.TempDir(), "invoice.eml"),
+		"",
+		"",
+	)
+	if err == nil {
+		t.Fatal("CreateInvoiceEmailDraft returned nil error for non-built invoice")
+	}
+	if !strings.Contains(err.Error(), "invoice.status must be `built` or `archived` before creating an email draft") {
+		t.Fatalf("error %q does not contain sendable status validation", err.Error())
+	}
+}
+
+func TestResolveEmailDraftPaths(t *testing.T) {
+	rootDir := t.TempDir()
+	yamlInput := filepath.Join(rootDir, "BL00210001.yaml")
+	pdfInput := filepath.Join(rootDir, "BL00210001.pdf")
+	if err := os.WriteFile(yamlInput, []byte("invoice:\n  number: BL00210001\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(yamlInput) returned error: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		inputPath     string
+		pdfPath       string
+		outputPath    string
+		wantInvoice   string
+		wantPDF       string
+		wantOutput    string
+		wantErrSubstr string
+	}{
+		{
+			name:        "yaml input derives sibling pdf and eml",
+			inputPath:   yamlInput,
+			wantInvoice: yamlInput,
+			wantPDF:     pdfInput,
+			wantOutput:  filepath.Join(rootDir, "BL00210001.eml"),
+		},
+		{
+			name:        "pdf input derives sibling yaml and eml",
+			inputPath:   pdfInput,
+			wantInvoice: yamlInput,
+			wantPDF:     pdfInput,
+			wantOutput:  filepath.Join(rootDir, "BL00210001.eml"),
+		},
+		{
+			name:        "explicit overrides are preserved",
+			inputPath:   pdfInput,
+			pdfPath:     filepath.Join(rootDir, "outgoing.pdf"),
+			outputPath:  filepath.Join(rootDir, "drafts", "outgoing.eml"),
+			wantInvoice: yamlInput,
+			wantPDF:     filepath.Join(rootDir, "outgoing.pdf"),
+			wantOutput:  filepath.Join(rootDir, "drafts", "outgoing.eml"),
+		},
+		{
+			name:          "unsupported input extension",
+			inputPath:     filepath.Join(rootDir, "BL00210001.txt"),
+			wantErrSubstr: "input must end with .yaml, .yml, or .pdf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths, err := ResolveEmailDraftPaths(tt.inputPath, tt.pdfPath, tt.outputPath)
+			if tt.wantErrSubstr != "" {
+				if err == nil {
+					t.Fatal("ResolveEmailDraftPaths returned nil error")
+				}
+				if !strings.Contains(err.Error(), tt.wantErrSubstr) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErrSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
+			}
+			if paths.InvoicePath != tt.wantInvoice {
+				t.Fatalf("InvoicePath = %q, want %q", paths.InvoicePath, tt.wantInvoice)
+			}
+			if paths.PDFPath != tt.wantPDF {
+				t.Fatalf("PDFPath = %q, want %q", paths.PDFPath, tt.wantPDF)
+			}
+			if paths.OutputPath != tt.wantOutput {
+				t.Fatalf("OutputPath = %q, want %q", paths.OutputPath, tt.wantOutput)
+			}
+		})
+	}
+}
+
+func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivedInvoicePath := filepath.Join(archiveDir, "customer-a", "BL00210001.yaml")
+	if err := os.MkdirAll(filepath.Dir(archivedInvoicePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(filepath.Dir(archivedInvoicePath)) returned error: %v", err)
+	}
+	if err := os.WriteFile(archivedInvoicePath, []byte("invoice:\n  number: BL00210001\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivedInvoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "BL00210001.pdf")
+	paths, err := ResolveEmailDraftPaths(pdfPath, "", "")
+	if err != nil {
+		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
+	}
+	if paths.InvoicePath != archivedInvoicePath {
+		t.Fatalf("InvoicePath = %q, want %q", paths.InvoicePath, archivedInvoicePath)
+	}
+	if paths.PDFPath != pdfPath {
+		t.Fatalf("PDFPath = %q, want %q", paths.PDFPath, pdfPath)
+	}
+	if paths.OutputPath != filepath.Join(filepath.Dir(pdfPath), "BL00210001.eml") {
+		t.Fatalf("OutputPath = %q, want %q", paths.OutputPath, filepath.Join(filepath.Dir(pdfPath), "BL00210001.eml"))
+	}
+}
+
+func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	for _, path := range []string{
+		filepath.Join(archiveDir, "customer-a", "BL00210001.yaml"),
+		filepath.Join(archiveDir, "customer-b", "BL00210001.yaml"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(filepath.Dir(path)) returned error: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("invoice:\n  number: BL00210001\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
+		}
+	}
+
+	_, err := ResolveEmailDraftPaths(filepath.Join(t.TempDir(), "BL00210001.pdf"), "", "")
+	if err == nil {
+		t.Fatal("ResolveEmailDraftPaths returned nil error for ambiguous archive matches")
+	}
+	if !strings.Contains(err.Error(), "multiple archived invoice YAML files match") {
+		t.Fatalf("error %q does not contain ambiguity message", err.Error())
+	}
+}
+
 func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -598,6 +889,9 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#   numbering.pattern",
 		"#   numbering.start",
 		"#   archive.dir",
+		"#   email.body",
+		"#       {email_greeting}",
+		"#       {contact_person}",
 		"# - Per-customer numbering overrides live in customers.yaml at:",
 		"#   <customer>.numbering.start",
 		"# paths:",
@@ -610,6 +904,9 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#   start: 1",
 		"# archive:",
 		"#   dir: '~/Library/Application Support/invox/invoices'",
+		"# email:",
+		"#   body: |",
+		"#     Please find attached invoice {invoice_number}.",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config template %q does not contain %q", text, want)
@@ -1167,6 +1464,8 @@ CUST-001:
   name: Appsters GmbH
   status: active
   email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
   address:
     street: Hauptstrasse 1
     postal_code: 1010

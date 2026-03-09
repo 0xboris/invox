@@ -61,6 +61,7 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		return invoice.Options{}, nil, 1, false
 	}
 	opts.InvoicePath = ""
+	opts.PDFPath = ""
 	opts.OutputPath = ""
 
 	fs := flag.NewFlagSet(spec.Name, flag.ContinueOnError)
@@ -82,6 +83,9 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 	}
 	if spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
 		opts.OutputPath = replacePathExtension(opts.InvoicePath, spec.OutputExtension)
+	}
+	if spec.NeedsPDF && strings.TrimSpace(opts.PDFPath) == "" {
+		opts.PDFPath = replacePathExtension(opts.InvoicePath, ".pdf")
 	}
 	if spec.DefaultOutput != "" && !spec.DynamicDefaultOutput && !spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
 		opts.OutputPath = filepath.Join(opts.BaseDir, spec.DefaultOutput)
@@ -109,8 +113,12 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 
 func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec) {
 	if spec.RequiresInput {
-		fs.StringVar(&opts.InvoicePath, "i", opts.InvoicePath, "input invoice YAML file")
-		fs.StringVar(&opts.InvoicePath, "input", opts.InvoicePath, "input invoice YAML file")
+		description := "input invoice YAML file"
+		if spec.AcceptsPDFInput {
+			description = "input invoice YAML or PDF file"
+		}
+		fs.StringVar(&opts.InvoicePath, "i", opts.InvoicePath, description)
+		fs.StringVar(&opts.InvoicePath, "input", opts.InvoicePath, description)
 	}
 	if spec.NeedsCustomers {
 		fs.StringVar(&opts.CustomersPath, "c", opts.CustomersPath, "path to customers.yaml")
@@ -119,6 +127,10 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 	if spec.NeedsIssuer {
 		fs.StringVar(&opts.IssuerPath, "u", opts.IssuerPath, "path to issuer.yaml")
 		fs.StringVar(&opts.IssuerPath, "issuer", opts.IssuerPath, "path to issuer.yaml")
+	}
+	if spec.NeedsPDF {
+		fs.StringVar(&opts.PDFPath, "p", opts.PDFPath, "path to invoice PDF")
+		fs.StringVar(&opts.PDFPath, "pdf", opts.PDFPath, "path to invoice PDF")
 	}
 	if spec.NeedsDefaults {
 		fs.StringVar(&opts.DefaultsPath, "s", opts.DefaultsPath, "path to invoice_defaults.yaml")
@@ -135,6 +147,12 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 	if spec.SupportsFromLastFlag {
 		fs.BoolVar(&opts.FromLastInvoice, "from-last", opts.FromLastInvoice, "use the latest archived invoice for this customer as the source document")
 	}
+	if spec.SupportsEmailToFlag {
+		fs.StringVar(&opts.EmailTo, "to", opts.EmailTo, "recipient email override")
+	}
+	if spec.SupportsSubjectFlag {
+		fs.StringVar(&opts.EmailSubject, "subject", opts.EmailSubject, "email subject override")
+	}
 	if spec.SupportsArchiveFlag {
 		fs.BoolVar(&opts.ArchiveAfterBuild, "archive", opts.ArchiveAfterBuild, "archive the invoice after a successful build")
 	}
@@ -143,7 +161,7 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 func validateRequiredInputs(spec commandSpec, opts invoice.Options) error {
 	if spec.RequiresInput && strings.TrimSpace(opts.InvoicePath) == "" {
 		if spec.AcceptsPositionalInput {
-			return fmt.Errorf("missing required input: INVOICE.yaml or -i, --input")
+			return fmt.Errorf("missing required input: %s", requiredInputSynopsis(spec))
 		}
 		return fmt.Errorf("missing required flags: -i, --input")
 	}
@@ -179,13 +197,30 @@ func validateSupportPaths(spec commandSpec, opts invoice.Options) error {
 
 func validateCommandOptions(spec commandSpec, opts invoice.Options) error {
 	if spec.OutputExtension == "" || strings.TrimSpace(opts.OutputPath) == "" {
-		return nil
+	} else {
+		ext := filepath.Ext(opts.OutputPath)
+		if ext != spec.OutputExtension {
+			return fmt.Errorf("-o, --output must end with %s", spec.OutputExtension)
+		}
 	}
-	ext := filepath.Ext(opts.OutputPath)
-	if ext != spec.OutputExtension {
-		return fmt.Errorf("-o, --output must end with %s", spec.OutputExtension)
+	if spec.AcceptsPDFInput && strings.TrimSpace(opts.InvoicePath) != "" {
+		switch strings.ToLower(filepath.Ext(opts.InvoicePath)) {
+		case ".yaml", ".yml", ".pdf":
+		default:
+			return fmt.Errorf("input must end with .yaml, .yml, or .pdf")
+		}
+	}
+	if spec.NeedsPDF && strings.TrimSpace(opts.PDFPath) != "" && filepath.Ext(opts.PDFPath) != ".pdf" {
+		return fmt.Errorf("-p, --pdf must end with .pdf")
 	}
 	return nil
+}
+
+func requiredInputSynopsis(spec commandSpec) string {
+	if spec.AcceptsPDFInput {
+		return "INVOICE.yaml, INVOICE.pdf, or -i, --input"
+	}
+	return "INVOICE.yaml or -i, --input"
 }
 
 func replacePathExtension(path, ext string) string {

@@ -2,6 +2,8 @@ CUST-001:
   name: Appsters GmbH
   status: active
   email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
   address:
     street: Hauptstrasse 1
     postal_code: "1010"

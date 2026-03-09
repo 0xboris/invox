@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -138,6 +139,11 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		"numbering.pattern",
 		"numbering.start",
 		"archive.dir",
+		"email.body",
+		"email.body placeholders:",
+		"{email_greeting}",
+		"{contact_person}",
+		"{outstanding_amount}",
 		"Customer overrides:",
 		"customers.<CUSTOMER_ID>.numbering.start",
 		"Support file precedence:",
@@ -266,9 +272,14 @@ func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 		"numbering.pattern",
 		"customers.<CUSTOMER_ID>.numbering.start",
 		"archive.dir",
+		"email.body",
+		"email.body placeholders:",
+		"{email_greeting}",
+		"{contact_person}",
 		"Template:",
 		"# paths:",
 		"# archive:",
+		"# email:",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -653,6 +664,271 @@ func TestRenderHelpShowsShortFlags(t *testing.T) {
 		"-u, --issuer PATH",
 		"-t, --template PATH",
 		"invoice.tex in the current directory",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"email", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"INVOICE.yaml, INVOICE.pdf, or -i, --input PATH",
+		"-p, --pdf PATH",
+		"-o, --output PATH",
+		"--to EMAIL",
+		"--subject TEXT",
+		"the input path with .eml extension",
+		"Accepts either the invoice YAML file or the built PDF as input.",
+		"The PDF lookup checks next to the PDF first, then archive.dir.",
+		"Requires invoice.status to be built or archived and the PDF attachment to exist.",
+		"Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.",
+		"Does not send the email and does not change invoice.status.",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210001.yaml")
+	if err := os.WriteFile(customInvoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+	pdfPath := filepath.Join(inputDir, "BL00210001.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	openedPath := ""
+	openedSource := ""
+	cleanupPath := ""
+	oldOpenDocument := openDocument
+	oldCleanupOpenedDocument := cleanupOpenedDocument
+	openDocument = func(path string) error {
+		openedPath = path
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		openedSource = string(source)
+		return nil
+	}
+	cleanupOpenedDocument = func(path string) error {
+		cleanupPath = path
+		return os.Remove(path)
+	}
+	t.Cleanup(func() {
+		openDocument = oldOpenDocument
+		cleanupOpenedDocument = oldCleanupOpenedDocument
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email",
+		customInvoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	outputPath := filepath.Join(inputDir, "BL00210001.eml")
+	if openedPath != outputPath {
+		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	}
+	if cleanupPath != outputPath {
+		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	}
+	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
+		t.Fatalf("stdout %q does not contain email summary", stdout)
+	}
+	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
+		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
+	}
+	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(outputPath) error = %v, want not exists", err)
+	}
+}
+
+func TestEmailAcceptsPDFInputFile(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210001.yaml")
+	if err := os.WriteFile(customInvoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+	pdfPath := filepath.Join(inputDir, "BL00210001.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	openedPath := ""
+	openedSource := ""
+	cleanupPath := ""
+	oldOpenDocument := openDocument
+	oldCleanupOpenedDocument := cleanupOpenedDocument
+	openDocument = func(path string) error {
+		openedPath = path
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		openedSource = string(source)
+		return nil
+	}
+	cleanupOpenedDocument = func(path string) error {
+		cleanupPath = path
+		return os.Remove(path)
+	}
+	t.Cleanup(func() {
+		openDocument = oldOpenDocument
+		cleanupOpenedDocument = oldCleanupOpenedDocument
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email",
+		pdfPath,
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	outputPath := filepath.Join(inputDir, "BL00210001.eml")
+	if openedPath != outputPath {
+		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	}
+	if cleanupPath != outputPath {
+		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	}
+	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
+		t.Fatalf("stdout %q does not contain email summary", stdout)
+	}
+	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
+		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
+	}
+	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(outputPath) error = %v, want not exists", err)
+	}
+}
+
+func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivedInvoicePath := filepath.Join(archiveDir, "customer-a", "BL00210001.yaml")
+	if err := os.MkdirAll(filepath.Dir(archivedInvoicePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(filepath.Dir(archivedInvoicePath)) returned error: %v", err)
+	}
+	if err := os.WriteFile(archivedInvoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivedInvoicePath) returned error: %v", err)
+	}
+
+	inputDir := t.TempDir()
+	pdfPath := filepath.Join(inputDir, "BL00210001.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	openedPath := ""
+	cleanupPath := ""
+	oldOpenDocument := openDocument
+	oldCleanupOpenedDocument := cleanupOpenedDocument
+	openDocument = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	cleanupOpenedDocument = func(path string) error {
+		cleanupPath = path
+		return os.Remove(path)
+	}
+	t.Cleanup(func() {
+		openDocument = oldOpenDocument
+		cleanupOpenedDocument = oldCleanupOpenedDocument
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email",
+		pdfPath,
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	outputPath := filepath.Join(inputDir, "BL00210001.eml")
+	if openedPath != outputPath {
+		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	}
+	if cleanupPath != outputPath {
+		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	}
+	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
+		t.Fatalf("stdout %q does not contain email summary", stdout)
+	}
+	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(outputPath) error = %v, want not exists", err)
+	}
+}
+
+func TestSendAliasUsesEmailCommand(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"send", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT)",
+		"Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -1505,6 +1781,8 @@ CUST-001:
   name: Appsters GmbH
   status: active
   email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
   address:
     street: Hauptstrasse 1
     postal_code: 1010

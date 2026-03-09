@@ -8,13 +8,17 @@ type commandSpec struct {
 	Usage                  string
 	Examples               []string
 	RequiresInput          bool
+	AcceptsPDFInput        bool
 	RequiredArgs           []string
 	NeedsCustomers         bool
 	NeedsIssuer            bool
 	NeedsDefaults          bool
+	NeedsPDF               bool
 	NeedsTemplate          bool
 	SupportsArchiveFlag    bool
 	SupportsFromLastFlag   bool
+	SupportsEmailToFlag    bool
+	SupportsSubjectFlag    bool
 	AcceptsPositionalInput bool
 	DynamicDefaultOutput   bool
 	InputBasedOutput       bool
@@ -141,6 +145,30 @@ func renderSpec() commandSpec {
 	}
 }
 
+func emailSpec() commandSpec {
+	return commandSpec{
+		Name:                   "email",
+		Summary:                "Create an email draft, open it in the default mail app, and remove the draft file.",
+		Usage:                  "email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]",
+		RequiresInput:          true,
+		AcceptsPDFInput:        true,
+		NeedsCustomers:         true,
+		NeedsIssuer:            true,
+		NeedsPDF:               true,
+		SupportsEmailToFlag:    true,
+		SupportsSubjectFlag:    true,
+		AcceptsPositionalInput: true,
+		InputBasedOutput:       true,
+		OutputExtension:        ".eml",
+		Examples: []string{
+			commandExample("email invoice.yaml"),
+			commandExample("email invoice.pdf"),
+			commandExample("email invoice.yaml --to billing@example.com"),
+			commandExample("email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml"),
+		},
+	}
+}
+
 func buildSpec() commandSpec {
 	return commandSpec{
 		Name:                   "build",
@@ -218,6 +246,8 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return validateSpec(), true
 	case "render":
 		return renderSpec(), true
+	case "email", "send":
+		return emailSpec(), true
 	case "build":
 		return buildSpec(), true
 	case "archive":

@@ -7,6 +7,7 @@ Run it directly:
 ```sh
 go run ./cmd/invox validate -i invoice.yaml
 go run ./cmd/invox render -i invoice.yaml
+go run ./cmd/invox email invoice.pdf
 go run ./cmd/invox build invoice.yaml
 go run ./cmd/invox customer list
 go run ./cmd/invox config
@@ -26,6 +27,7 @@ Build a local binary:
 go build -o invox ./cmd/invox
 ./invox validate -i invoice.yaml
 ./invox render -i invoice.yaml
+./invox email invoice.pdf
 ./invox build invoice.yaml
 ./invox customer list
 ./invox config
@@ -55,6 +57,7 @@ make install
 make init
 make validate
 make render
+make email
 make pdf
 make archive
 ```
@@ -64,15 +67,17 @@ The Makefile is only contributor convenience around the real CLI. The user-facin
 - `make build` builds `./bin/invox`
 - `make install` runs `go install ./cmd/invox`
 - `make init` runs `./bin/invox init`
-- `make validate`, `make render`, `make pdf`, and `make archive` run the local `./bin/invox` by default
-- those targets accept `INPUT`, `CUSTOMERS`, `ISSUER`, `TEMPLATE`, `TEX_OUTPUT`, `PDF_OUTPUT`, `CLI`, and `ARGS`
+- `make validate`, `make render`, `make email`, `make pdf`, and `make archive` run the local `./bin/invox` by default
+- those targets accept `INPUT`, `PDF_INPUT`, `CUSTOMERS`, `ISSUER`, `TEMPLATE`, `TEX_OUTPUT`, `PDF_OUTPUT`, `EMAIL_OUTPUT`, `EMAIL_TO`, `EMAIL_SUBJECT`, `CLI`, and `ARGS`
 - `PDF_OUTPUT` defaults to the `INPUT` path with a `.pdf` extension
+- `EMAIL_OUTPUT` defaults to the `INPUT` path with a `.eml` extension
 - if `invox` is already installed and on `PATH`, you can use `CLI=invox`
 
 Examples:
 
 ```sh
 make render CUSTOMERS=customers.yaml ISSUER=issuer.yaml TEMPLATE=invoice_template.tex
+make email INPUT=invoice.yaml
 make pdf CLI=invox INPUT=invoice.yaml
 make archive CLI=invox INPUT=invoice.yaml
 ```
@@ -87,20 +92,25 @@ go run ./cmd/invox init -h
 go run ./cmd/invox customer -h
 go run ./cmd/invox customer config -h
 go run ./cmd/invox render -h
+go run ./cmd/invox email -h
 go run ./cmd/invox build -h
 go run ./cmd/invox archive -h
 ```
 
 Flag aliases:
 
-- `-i, --input` for the invoice YAML file
+- `-i, --input` for the invoice YAML file, or the built PDF on `email`
 - `-o, --output` for the render/build output path
+- `-o, --output` for the render/build/email output path
 - `-c, --customers` for `customers.yaml`
 - `-u, --issuer` for `issuer.yaml`
+- `-p, --pdf` for the built invoice PDF on `email`
 - `-s, --source` for `invoice_defaults.yaml` on `new`
 - `--from-last` for cloning the latest archived invoice of the requested customer on `new`
+- `--to` for overriding the recipient email on `email`
+- `--subject` for overriding the draft email subject on `email`
 - `-t, --template` for the LaTeX template
-- `build` and `archive` also accept the invoice path positionally, for example `invox build invoice.yaml`
+- `email`, `build`, and `archive` also accept the invoice path positionally, for example `invox email invoice.pdf` or `invox build invoice.yaml`
 - `build` also supports `--archive` to archive the invoice after a successful PDF build
 - `archive edit` copies an archived invoice into the current directory as YAML with `invoice.status: editing`
 - `archive list` prints one archived invoice per line as `FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS`
@@ -109,7 +119,7 @@ Customer commands:
 
 - `customer list` prints one customer per line as `CUSTOMER_ID<TAB>NAME<TAB>STATUS`
 - `customer config` opens the resolved `customers.yaml` file in the default shell editor
-- Preferred customer fields are `name`, `email`, `address.*`, and `tax.vat_tax_id`
+- Preferred customer fields are `name`, `email_greeting`, `contact_person`, `email`, `address.*`, and `tax.vat_tax_id`
 - `billing.currency` is optional and defaults to `EUR`
 - Legacy aliases `legal_company_name` and `billing.email` are still accepted
 
@@ -120,6 +130,8 @@ Other commands:
 - `config` opens the resolved `config.yaml` file in the default shell editor
 - if `config.yaml` does not exist yet, `config` creates it with a commented template
 - `help config` prints the supported `config.yaml` keys and the commented template without modifying the file
+- `email` creates a `.eml` draft with the invoice PDF attached, opens it in the default mail app, and then schedules the `.eml` file for cleanup shortly after
+- `email` accepts either the invoice YAML or the built PDF as input; when given the PDF, it looks for the same-basename YAML next to the PDF first, then in `archive.dir`
 
 Defaults:
 
@@ -143,6 +155,7 @@ Defaults:
   - `numbering.pattern`
   - `numbering.start` as the global fallback start
   - `archive.dir`
+  - `email.body`
 - `customers.yaml` can override the global numbering start per customer via `<customer>.numbering.start`
 - A freshly created `config.yaml` is seeded with a commented template like:
 
@@ -166,8 +179,13 @@ Defaults:
 - `new` defaults to `./<invoice.number>.yaml` if `-o` is omitted.
 - `new --from-last` uses the latest archived invoice for that customer as the source document instead of `invoice_defaults.yaml`.
 - `render` defaults to `./invoice.tex` if `-o` is omitted.
+- `email` defaults to the input path with a `.eml` extension if `-o` is omitted.
 - `build` defaults to the input path with a `.pdf` extension if `-o` is omitted.
 - `build` renders in a temporary directory and leaves only the final PDF at the output path.
+- `email` defaults to the input path with a `.pdf` extension for the attachment if `-p` is omitted, or uses the input file itself when the input is already a PDF.
+- when `email` gets a PDF input, it resolves the invoice YAML from the same directory first and then falls back to `archive.dir`
+- `email` requires `invoice.status: built` or `archived`, writes an `X-Unsent: 1` email draft, opens it in the default mail app, schedules the `.eml` file for cleanup shortly after, and leaves the invoice status unchanged.
+- `email.body` in `config.yaml` can override the plain-text draft body and supports placeholders like `{customer_name}`, `{email_greeting}`, `{contact_person}`, `{customer_id}`, `{invoice_number}`, `{issue_date}`, `{due_date}`, `{total_amount}`, `{outstanding_amount}`, `{payment_terms_text}`, and `{issuer_name}`.
 - `build` updates `invoice.status` to `built` after a successful PDF build.
 - `build --archive` archives the invoice immediately after a successful PDF build.
 - `archive` moves a built invoice into `archive.dir`, or replaces an archived invoice when the working copy came from `archive edit`.
@@ -205,6 +223,8 @@ Customer entry example:
 0021:
   status: active
   name: Appsters GmbH
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
   email: office@appsters.at
   address:
     street: Griesgasse 19
@@ -239,6 +259,9 @@ go run ./cmd/invox customer list -c customers.yaml
 go run ./cmd/invox customer config -c customers.yaml
 go run ./cmd/invox validate -i invoice.yaml -c customers.yaml -u issuer.yaml
 go run ./cmd/invox render -i invoice.yaml -o out/invoice.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox email invoice.yaml -c customers.yaml -u issuer.yaml
+go run ./cmd/invox email invoice.pdf -c customers.yaml -u issuer.yaml
+go run ./cmd/invox email invoice.yaml --to billing@example.com --subject "Invoice CUST-001-001" -c customers.yaml -u issuer.yaml
 go run ./cmd/invox build invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
 go run ./cmd/invox build invoice.yaml --archive -c customers.yaml -u issuer.yaml -t invoice_template.tex
 go run ./cmd/invox archive invoice.yaml
@@ -257,6 +280,7 @@ go run ./cmd/invox config
 go run ./cmd/invox customer config
 go run ./cmd/invox validate -i invoice.yaml
 go run ./cmd/invox render -i invoice.yaml
+go run ./cmd/invox email invoice.pdf
 go run ./cmd/invox build invoice.yaml --archive
 go run ./cmd/invox archive edit 2026-03-06.yaml
 go run ./cmd/invox archive 2026-03-06.yaml

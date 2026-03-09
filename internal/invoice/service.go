@@ -21,8 +21,11 @@ type Options struct {
 	IssuerPath        string
 	DefaultsPath      string
 	InvoicePath       string
+	PDFPath           string
 	TemplatePath      string
 	OutputPath        string
+	EmailTo           string
+	EmailSubject      string
 	ArchiveAfterBuild bool
 	FromLastInvoice   bool
 }
@@ -116,6 +119,11 @@ func NormalizeOptions(opts *Options) error {
 	}
 	if opts.InvoicePath != "" {
 		if opts.InvoicePath, err = filepath.Abs(opts.InvoicePath); err != nil {
+			return err
+		}
+	}
+	if opts.PDFPath != "" {
+		if opts.PDFPath, err = filepath.Abs(opts.PDFPath); err != nil {
 			return err
 		}
 	}
@@ -269,6 +277,20 @@ func defaultConfigTemplate() string {
 #   numbering.start
 #   archive.dir
 #     Directory where archived invoice files are stored.
+#   email.body
+#     Plain-text body template for the email command.
+#     Supported placeholders:
+#       {customer_name}
+#       {email_greeting}
+#       {contact_person}
+#       {customer_id}
+#       {invoice_number}
+#       {issue_date}
+#       {due_date}
+#       {total_amount}
+#       {outstanding_amount}
+#       {payment_terms_text}
+#       {issuer_name}
 #
 # Notes:
 # - Top-level keys must not be indented.
@@ -294,6 +316,18 @@ func defaultConfigTemplate() string {
 #
 # archive:
 #   dir: '%s'
+#
+# email:
+#   body: |
+#     {email_greeting}
+#     
+#     Please find attached invoice {invoice_number}.
+#     Issue date: {issue_date}
+#     Due date: {due_date}
+#     Outstanding amount: {outstanding_amount}
+#     
+#     Regards,
+#     {issuer_name}
 `, defaultArchiveDir), "\n")
 }
 
@@ -383,6 +417,29 @@ func resolveConfiguredPath(section, key string) (string, error) {
 	}
 
 	return normalizeConfiguredPath(configPath, rawPath)
+}
+
+func resolveConfiguredString(section, key string) (string, error) {
+	configPath, root, err := loadConfigRoot()
+	if err != nil || strings.TrimSpace(configPath) == "" {
+		return "", err
+	}
+
+	block, ok := root[section].(map[string]any)
+	if !ok {
+		return "", nil
+	}
+
+	rawValue, ok := block[key]
+	if !ok || rawValue == nil {
+		return "", nil
+	}
+
+	value, ok := rawValue.(string)
+	if !ok {
+		return "", fmt.Errorf("%s: %s.%s: expected a string", configPath, section, key)
+	}
+	return strings.TrimSpace(value), nil
 }
 
 func loadConfigRoot() (string, map[string]any, error) {
