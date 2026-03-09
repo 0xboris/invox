@@ -25,6 +25,8 @@ func Run(args []string) int {
 		return runCustomer(args[1:])
 	case "config":
 		return runConfig(args[1:])
+	case "init":
+		return runInit(args[1:])
 	case "new":
 		return runNew(args[1:])
 	case "increment":

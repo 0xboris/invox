@@ -151,6 +151,105 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 	}
 }
 
+func TestInitCreatesStarterFilesAndAllowsNewWithGlobalDefaults(t *testing.T) {
+	configHome := filepath.Join(t.TempDir(), "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	exitCode, stdout, stderr := captureRun(t, []string{"init"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Initialized "+configDir) {
+		t.Fatalf("stdout %q does not contain initialized config dir", stdout)
+	}
+	for _, want := range []string{
+		"created config.yaml",
+		"created customers.yaml",
+		"created issuer.yaml",
+		"created invoice_defaults.yaml",
+		"created template.tex",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+
+	for _, file := range []struct {
+		name string
+		want string
+	}{
+		{name: "config.yaml", want: "# Invox user configuration."},
+		{name: "customers.yaml", want: "CUST-001:"},
+		{name: "issuer.yaml", want: "payment_terms_text: Pay within 30 days"},
+		{name: "invoice_defaults.yaml", want: "status: draft"},
+		{name: "template.tex", want: "\\documentclass"},
+	} {
+		path := filepath.Join(configDir, file.name)
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) returned error: %v", path, err)
+		}
+		if !strings.Contains(string(source), file.want) {
+			t.Fatalf("%s does not contain %q:\n%s", path, file.want, string(source))
+		}
+	}
+
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr = captureRun(t, []string{"new", "CUST-001"})
+	if exitCode != 0 {
+		t.Fatalf("new exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("new stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)") {
+		t.Fatalf("stdout %q does not contain created invoice summary", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, "CUST-001-001.yaml")); err != nil {
+		t.Fatalf("starter config should allow invoice creation: %v", err)
+	}
+}
+
+func TestInitDoesNotOverwriteExistingSupportFiles(t *testing.T) {
+	configHome := filepath.Join(t.TempDir(), "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
+	}
+
+	customCustomers := "CUSTOM:\n  name: Custom Customer\n"
+	customersPath := filepath.Join(configDir, "customers.yaml")
+	if err := os.WriteFile(customersPath, []byte(customCustomers), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"init"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "exists customers.yaml") {
+		t.Fatalf("stdout %q does not contain existing customers.yaml status", stdout)
+	}
+
+	source, err := os.ReadFile(customersPath)
+	if err != nil {
+		t.Fatalf("ReadFile(customers.yaml) returned error: %v", err)
+	}
+	if string(source) != customCustomers {
+		t.Fatalf("customers.yaml was overwritten:\n%s", string(source))
+	}
+}
+
 func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"help", "config"})
 	if exitCode != 0 {

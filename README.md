@@ -11,6 +11,7 @@ go run ./cmd/invox build invoice.yaml
 go run ./cmd/invox customer list
 go run ./cmd/invox config
 go run ./cmd/invox customer config
+go run ./cmd/invox init
 go run ./cmd/invox new CUST-001
 go run ./cmd/invox new CUST-001 --from-last
 go run ./cmd/invox increment -i invoice.yaml
@@ -29,6 +30,7 @@ go build -o invox ./cmd/invox
 ./invox customer list
 ./invox config
 ./invox customer config
+./invox init
 ./invox new CUST-001
 ./invox new CUST-001 --from-last
 ./invox increment -i invoice.yaml
@@ -41,6 +43,7 @@ Install it from this repository checkout:
 
 ```sh
 go install ./cmd/invox
+invox init
 ```
 
 Make shortcuts for contributors:
@@ -49,6 +52,7 @@ Make shortcuts for contributors:
 make build
 make test
 make install
+make init
 make validate
 make render
 make pdf
@@ -59,6 +63,7 @@ The Makefile is only contributor convenience around the real CLI. The user-facin
 
 - `make build` builds `./bin/invox`
 - `make install` runs `go install ./cmd/invox`
+- `make init` runs `./bin/invox init`
 - `make validate`, `make render`, `make pdf`, and `make archive` run the local `./bin/invox` by default
 - those targets accept `INPUT`, `CUSTOMERS`, `ISSUER`, `TEMPLATE`, `TEX_OUTPUT`, `PDF_OUTPUT`, `CLI`, and `ARGS`
 - `PDF_OUTPUT` defaults to the `INPUT` path with a `.pdf` extension
@@ -78,6 +83,7 @@ Help:
 go run ./cmd/invox -h
 go run ./cmd/invox help config
 go run ./cmd/invox config -h
+go run ./cmd/invox init -h
 go run ./cmd/invox customer -h
 go run ./cmd/invox customer config -h
 go run ./cmd/invox render -h
@@ -109,6 +115,8 @@ Customer commands:
 
 Other commands:
 
+- `init` creates starter versions of `config.yaml`, `customers.yaml`, `issuer.yaml`, `invoice_defaults.yaml`, and `template.tex` in the global config directory
+- existing non-empty support files are left unchanged by `init`
 - `config` opens the resolved `config.yaml` file in the default shell editor
 - if `config.yaml` does not exist yet, `config` creates it with a commented template
 - `help config` prints the supported `config.yaml` keys and the commented template without modifying the file
@@ -241,22 +249,7 @@ go run ./cmd/invox archive list
 Example using global defaults only:
 
 ```sh
-mkdir -p ~/.config/invox
-cp customers.yaml ~/.config/invox/customers.yaml
-cp issuer.yaml ~/.config/invox/issuer.yaml
-cp invoice_defaults.yaml ~/.config/invox/invoice_defaults.yaml
-cp invoice_template.tex ~/.config/invox/template.tex
-cp logo.png ~/.config/invox/logo.png
-cp -R fonts ~/.config/invox/fonts
-
-cat > ~/.config/invox/config.yaml <<'EOF'
-numbering:
-  pattern: "{customer_code}-{counter:03}"
-  start: 1
-archive:
-  dir: ~/Documents/Invox/Invoices
-EOF
-
+go run ./cmd/invox init
 go run ./cmd/invox new CUST-001
 go run ./cmd/invox increment -i invoice.yaml
 go run ./cmd/invox customer list

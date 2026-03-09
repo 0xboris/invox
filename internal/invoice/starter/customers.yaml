@@ -1,0 +1,13 @@
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR

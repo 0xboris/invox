@@ -1,0 +1,13 @@
+invoice:
+  number: ""
+  issue_date: ""
+  due_date: ""
+  status: draft
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1

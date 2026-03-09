@@ -63,6 +63,17 @@ func configSpec() commandSpec {
 	}
 }
 
+func initSpec() commandSpec {
+	return commandSpec{
+		Name:    "init",
+		Summary: "Create starter support files in the global config directory.",
+		Usage:   "init",
+		Examples: []string{
+			commandExample("init"),
+		},
+	}
+}
+
 func newSpec() commandSpec {
 	return commandSpec{
 		Name:                 "new",
@@ -197,6 +208,8 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return customerConfigSpec(), true
 	case "config":
 		return configSpec(), true
+	case "init":
+		return initSpec(), true
 	case "new":
 		return newSpec(), true
 	case "increment":

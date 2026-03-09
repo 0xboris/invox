@@ -15,6 +15,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "Subcommands:\n")
 	fmt.Fprintf(w, "  customer       Customer-related commands\n")
 	fmt.Fprintf(w, "  config         Open config.yaml in the default shell editor\n")
+	fmt.Fprintf(w, "  init           Create starter support files in the global config directory\n")
 	fmt.Fprintf(w, "  new            Create a new invoice YAML file with a generated number\n")
 	fmt.Fprintf(w, "  increment      Increment the invoice number in an existing invoice YAML file\n")
 	fmt.Fprintf(w, "  validate       Validate invoice YAML against customers and issuer data\n")
@@ -48,6 +49,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
+	fmt.Fprintf(w, "  %s\n", commandExample("init"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 --from-last"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 -u issuer.yaml"))
@@ -83,6 +85,10 @@ func printCustomerHelp(w io.Writer) {
 func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.Name == "config" {
 		printConfigHelp(w)
+		return
+	}
+	if spec.Name == "init" {
+		printInitHelp(w)
 		return
 	}
 
@@ -218,6 +224,22 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "\nExamples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
 	fmt.Fprintf(w, "  %s\n", commandExample("help config"))
+}
+
+func printInitHelp(w io.Writer) {
+	fmt.Fprintf(w, "Create starter support files in the global config directory.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s init\n", commandName)
+	fmt.Fprintf(w, "  %s help init\n\n", commandName)
+	fmt.Fprintf(w, "Behavior:\n")
+	fmt.Fprintf(w, "  Creates the global config directory if it does not exist yet.\n")
+	fmt.Fprintf(w, "  Writes starter versions of config.yaml, customers.yaml, issuer.yaml,\n")
+	fmt.Fprintf(w, "  invoice_defaults.yaml, and template.tex.\n")
+	fmt.Fprintf(w, "  Existing non-empty files are left unchanged.\n\n")
+	fmt.Fprintf(w, "Config directory:\n")
+	fmt.Fprintf(w, "  %s\n\n", invoice.ConfigDir())
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("init"))
 }
 
 func printCommandError(w io.Writer, spec commandSpec, message string) {

@@ -20,7 +20,7 @@ ARGS ?=
 COMMON_FLAGS = -i "$(INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)")
 RENDER_FLAGS = $(COMMON_FLAGS) $(if $(strip $(TEMPLATE)),-t "$(TEMPLATE)")
 
-.PHONY: help build test vet install validate render pdf clean
+.PHONY: help build test vet install init validate render pdf clean
 .PHONY: archive
 
 help: ## Show available targets and overridable variables.
@@ -39,6 +39,7 @@ help: ## Show available targets and overridable variables.
 	@printf "  make build\n"
 	@printf "  make test\n"
 	@printf "  make install\n"
+	@printf "  make init\n"
 	@printf "  make validate\n"
 	@printf "  make render CUSTOMERS=customers.yaml ISSUER=issuer.yaml TEMPLATE=invoice_template.tex\n"
 	@printf "  make pdf CLI=invox INPUT=invoice.yaml\n"
@@ -58,6 +59,9 @@ vet: ## Run go vet across the module.
 
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.
 	$(GO) install "$(PACKAGE)"
+
+init: $(BINARY_PATH) ## Create starter support files in the global config directory.
+	$(CLI) init $(ARGS)
 
 validate: $(BINARY_PATH) ## Validate INPUT with the local CLI.
 	$(CLI) validate $(COMMON_FLAGS) $(ARGS)

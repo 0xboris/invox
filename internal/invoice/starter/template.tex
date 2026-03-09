@@ -1,0 +1,66 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{eurosym}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+{\LARGE \textbf{Invoice}} \hfill {\large @@INVOICE_NUMBER@@}
+
+\vspace{1cm}
+\textbf{Issuer}\\
+@@ISSUER_NAME@@\\
+@@ISSUER_STREET@@\\
+@@ISSUER_CITY_AND_POSTAL_CODE@@\\
+@@ISSUER_COUNTRY@@\\
+UID: @@ISSUER_VAT_TAX_ID@@\\
+FN: @@ISSUER_COMPANY_REG_NO@@\\
+@@ISSUER_WEBSITE@@\\
+@@ISSUER_EMAIL@@
+
+\vspace{0.8cm}
+\textbf{Bill To}\\
+@@CUSTOMER_NAME@@\\
+@@CUSTOMER_STREET@@\\
+@@CUSTOMER_CITY_AND_POSTAL_CODE@@\\
+@@CUSTOMER_COUNTRY@@\\
+UID: @@CUSTOMER_VAT_TAX_ID@@\\
+@@CUSTOMER_EMAIL@@
+
+\vspace{0.8cm}
+Issue date: @@ISSUE_DATE@@\\
+Due date: @@DUE_DATE@@\\
+@@PERIOD_LABEL@@
+
+\vspace{0.8cm}
+\begin{longtable}{p{3cm}p{5.5cm}r r r}
+\toprule
+Item & Description & Unit Price & Qty & Total\\
+\midrule
+\endhead
+@@LINE_ITEMS_ROWS@@
+\end{longtable}
+
+\vspace{0.8cm}
+\begin{tabular}{lr}
+Subtotal: & @@SUBTOTAL@@\\
+VAT (@@VAT_RATE@@\%): & @@VAT_AMOUNT@@\\
+Total: & @@TOTAL@@\\
+Paid: & @@PAID_AMOUNT@@\\
+Outstanding: & @@OUTSTANDING_AMOUNT@@\\
+\end{tabular}
+
+\vfill
+@@PAYMENT_TERMS_TEXT@@
+
+\vspace{0.5cm}
+Bank: @@BANK_NAME@@\\
+IBAN: @@IBAN@@\\
+BIC: @@BIC@@
+
+\end{document}
