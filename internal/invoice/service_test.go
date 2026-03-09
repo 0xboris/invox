@@ -52,6 +52,42 @@ func TestLoadContextWithCurrentInvoice(t *testing.T) {
 	}
 }
 
+func TestLoadContextSupportsLegacyInvoiceAliases(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+
+	mutated := strings.NewReplacer(
+		"  period: Leistungszeitraum", "  period_label: Leistungszeitraum",
+		"  vat_percent: 20", "  vat_rate_percent: 20",
+		"positions:", "line_items:",
+	).Replace(string(source))
+	legacyPath := filepath.Join(t.TempDir(), "legacy-invoice.yaml")
+	if err := os.WriteFile(legacyPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(legacyPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(
+		customersPath,
+		issuerPath,
+		legacyPath,
+	)
+	if err != nil {
+		t.Fatalf("LoadContext returned error for legacy aliases: %v", err)
+	}
+	if got := asString(ctx.Invoice["period"]); got != "Leistungszeitraum" {
+		t.Fatalf("Invoice[period] = %q, want %q", got, "Leistungszeitraum")
+	}
+	if got := asString(ctx.Invoice["vat_percent"]); got != "20" {
+		t.Fatalf("Invoice[vat_percent] = %q, want %q", got, "20")
+	}
+	if len(ctx.LineItems) != 2 {
+		t.Fatalf("len(LineItems) = %d, want 2", len(ctx.LineItems))
+	}
+}
+
 func TestLoadContextRejectsMissingInvoiceNumber(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	invoicePath = writeInvoiceWithoutNumber(t, invoicePath)
@@ -247,7 +283,7 @@ paths:
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	opts, err := DefaultOptions()
 	if err != nil {
@@ -293,7 +329,7 @@ func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	opts, err := DefaultOptions()
 	if err != nil {
@@ -351,7 +387,7 @@ paths:
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	opts, err := DefaultOptions()
 	if err != nil {
@@ -391,7 +427,7 @@ func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	opts, err := DefaultOptions()
 	if err != nil {
@@ -640,12 +676,13 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-001")
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
-	invoiceNumber, err := CreateNewInvoice(
+	invoiceNumber, _, err := CreateNewInvoice(
 		defaultsPath,
 		outputPath,
 		customersPath,
 		issuerPath,
 		"CUST-001",
+		false,
 	)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
@@ -664,7 +701,8 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 		"number: CUST-001-002",
 		"issue_date: \"2026-03-06\"",
 		"due_date: \"2026-04-05\"",
-		"period_label: \"Leistungszeitraum: \"",
+		"period: \"Leistungszeitraum: \"",
+		"vat_percent: 20",
 		"paid_amount: \"0\"",
 		"name: Beispielposition",
 		"description: Beschreibung der Leistung",
@@ -677,6 +715,11 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	}
 	if strings.Contains(text, "payment_terms_text:") {
 		t.Fatalf("created invoice should not contain payment_terms_text anymore:\n%s", text)
+	}
+	for _, forbidden := range []string{"period_label:", "vat_rate_percent:", "line_items:"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("created invoice should not contain legacy key %q:\n%s", forbidden, text)
+		}
 	}
 }
 
@@ -694,18 +737,102 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, err := CreateNewInvoice(
+	invoiceNumber, _, err := CreateNewInvoice(
 		defaultsPath,
 		outputPath,
 		customersPath,
 		issuerPath,
 		"CUST-001",
+		false,
 	)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
 	if invoiceNumber != "CUST-001-007" {
 		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-007")
+	}
+}
+
+func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivePath := filepath.Join(archiveDir, "2026-03-05.md")
+	if err := os.WriteFile(archivePath, []byte(strings.Join([]string{
+		"---",
+		"invoice:",
+		"  number: CUST-001-010",
+		"  broken: [",
+		"---",
+		"",
+		"# Archived invoice",
+		"",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) returned error: %v", archivePath, err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	_, _, err := CreateNewInvoice(
+		defaultsPath,
+		outputPath,
+		customersPath,
+		issuerPath,
+		"CUST-001",
+		false,
+	)
+	if err == nil {
+		t.Fatal("CreateNewInvoice returned nil error for invalid archived invoice front matter")
+	}
+	if !strings.Contains(err.Error(), archivePath) {
+		t.Fatalf("error %q does not contain archived invoice path %q", err.Error(), archivePath)
+	}
+	if !strings.Contains(err.Error(), "yaml") {
+		t.Fatalf("error %q does not contain YAML parse context", err.Error())
+	}
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf("output file should not be created, stat error = %v", statErr)
+	}
+}
+
+func TestCreateNewInvoiceRenamesLegacyDefaultKeys(t *testing.T) {
+	oldCurrentDate := currentDate
+	currentDate = func() time.Time {
+		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
+	}
+	t.Cleanup(func() {
+		currentDate = oldCurrentDate
+	})
+
+	customersPath, issuerPath, defaultsPath := writeLegacyDraftFixtures(t)
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+
+	_, _, err := CreateNewInvoice(
+		defaultsPath,
+		outputPath,
+		customersPath,
+		issuerPath,
+		"CUST-001",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("CreateNewInvoice returned error: %v", err)
+	}
+
+	source, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(source)
+	for _, want := range []string{"period:", "vat_percent: 20", "positions:"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("created invoice does not contain %q:\n%s", want, text)
+		}
+	}
+	for _, forbidden := range []string{"period_label:", "vat_rate_percent:", "line_items:"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("created invoice still contains legacy key %q:\n%s", forbidden, text)
+		}
 	}
 }
 
@@ -723,18 +850,252 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, err := CreateNewInvoice(
+	invoiceNumber, _, err := CreateNewInvoice(
 		defaultsPath,
 		outputPath,
 		customersPath,
 		issuerPath,
 		"CUST-001",
+		false,
 	)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
 	if invoiceNumber != "CUST-001-007" {
 		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-007")
+	}
+}
+
+func TestCreateNewInvoiceFromLastArchivedInvoice(t *testing.T) {
+	oldCurrentDate := currentDate
+	currentDate = func() time.Time {
+		return time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
+	}
+	t.Cleanup(func() {
+		currentDate = oldCurrentDate
+	})
+
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	olderArchivePath := filepath.Join(archiveDir, "2026-03-01.yaml")
+	if err := os.WriteFile(olderArchivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-01
+  due_date: 2026-03-31
+  status: archived
+  period: February 2026
+  vat_percent: 19
+  paid_amount: 500
+positions:
+  - name: Older position
+    description: From older invoice
+    unit_price: 50
+    quantity: 1
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(olderArchivePath) returned error: %v", err)
+	}
+
+	latestArchivePath := filepath.Join(archiveDir, "2026-03-08.yaml")
+	if err := os.WriteFile(latestArchivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: archived
+  period: March 2026
+  vat_percent: 10
+  paid_amount: 999
+positions:
+  - name: Latest position
+    description: From latest invoice
+    unit_price: 120
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(latestArchivePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	invoiceNumber, _, err := CreateNewInvoice(
+		defaultsPath,
+		outputPath,
+		customersPath,
+		issuerPath,
+		"CUST-001",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateNewInvoice returned error: %v", err)
+	}
+	if invoiceNumber != "CUST-001-003" {
+		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-003")
+	}
+
+	source, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(source)
+	for _, want := range []string{
+		"number: CUST-001-003",
+		"issue_date: \"2026-03-10\"",
+		"due_date: \"2026-04-09\"",
+		"status: draft",
+		"paid_amount: \"0\"",
+		"period: March 2026",
+		"vat_percent: 10",
+		"name: Latest position",
+		"description: From latest invoice",
+		"unit_price: 120",
+		"quantity: 2",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("created invoice does not contain %q:\n%s", want, text)
+		}
+	}
+	for _, forbidden := range []string{
+		"Older position",
+		"From older invoice",
+		"status: archived",
+		"paid_amount: 999",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("created invoice should not contain %q:\n%s", forbidden, text)
+		}
+	}
+}
+
+func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	_, _, err := CreateNewInvoice(
+		defaultsPath,
+		outputPath,
+		customersPath,
+		issuerPath,
+		"CUST-001",
+		true,
+	)
+	if err == nil {
+		t.Fatal("CreateNewInvoice returned nil error without archived invoice match")
+	}
+	if !strings.Contains(err.Error(), "no archived invoice found for customer_id `CUST-001`") {
+		t.Fatalf("error %q does not contain missing archived invoice message", err.Error())
+	}
+}
+
+func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivedMarkdownPath := filepath.Join(archiveDir, "customer-a", "2026-03-06.md")
+	if err := os.MkdirAll(filepath.Dir(archivedMarkdownPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(archive subdir) returned error: %v", err)
+	}
+	if err := os.WriteFile(archivedMarkdownPath, []byte(strings.Join([]string{
+		"---",
+		"customer_id: CUST-001",
+		"invoice:",
+		"  number: CUST-001-001",
+		"  issue_date: 2026-03-06",
+		"  due_date: 2026-04-05",
+		"  status: archived",
+		"  period: March 2026",
+		"  vat_percent: 20",
+		"  paid_amount: 0",
+		"positions:",
+		"  - name: Development",
+		"    description: Markdown archive",
+		"    unit_price: 100",
+		"    quantity: 2",
+		"---",
+		"",
+		"# Archived invoice",
+		"",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivedMarkdownPath) returned error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	outputPath, archivePath, err := EditArchivedInvoice("customer-a/2026-03-06.md", workDir)
+	if err != nil {
+		t.Fatalf("EditArchivedInvoice returned error: %v", err)
+	}
+	if archivePath != archivedMarkdownPath {
+		t.Fatalf("archivePath = %q, want %q", archivePath, archivedMarkdownPath)
+	}
+
+	wantOutputPath := filepath.Join(workDir, "2026-03-06.yaml")
+	if outputPath != wantOutputPath {
+		t.Fatalf("outputPath = %q, want %q", outputPath, wantOutputPath)
+	}
+	editedSource, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	editedText := string(editedSource)
+	for _, want := range []string{
+		"status: editing",
+		"archive_path: customer-a/2026-03-06.yaml",
+		"archive_replace_path: customer-a/2026-03-06.md",
+		"Markdown archive",
+	} {
+		if !strings.Contains(editedText, want) {
+			t.Fatalf("edited invoice does not contain %q:\n%s", want, editedText)
+		}
+	}
+
+	mutated := strings.Replace(editedText, "Markdown archive", "Edited markdown archive", 1)
+	if err := os.WriteFile(outputPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
+	}
+
+	finalArchivePath, err := ArchiveInvoice(outputPath)
+	if err != nil {
+		t.Fatalf("ArchiveInvoice returned error: %v", err)
+	}
+	wantArchivePath := filepath.Join(archiveDir, "customer-a", "2026-03-06.yaml")
+	if finalArchivePath != wantArchivePath {
+		t.Fatalf("finalArchivePath = %q, want %q", finalArchivePath, wantArchivePath)
+	}
+	if _, err := os.Stat(archivedMarkdownPath); err == nil {
+		t.Fatalf("legacy markdown archive should have been removed: %s", archivedMarkdownPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(archivedMarkdownPath) returned unexpected error: %v", err)
+	}
+	if _, err := os.Stat(outputPath); err == nil {
+		t.Fatalf("working copy should have been removed: %s", outputPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(outputPath) returned unexpected error: %v", err)
+	}
+
+	finalSource, err := os.ReadFile(finalArchivePath)
+	if err != nil {
+		t.Fatalf("ReadFile(finalArchivePath) returned error: %v", err)
+	}
+	finalText := string(finalSource)
+	for _, want := range []string{
+		"status: archived",
+		"Edited markdown archive",
+	} {
+		if !strings.Contains(finalText, want) {
+			t.Fatalf("final archive does not contain %q:\n%s", want, finalText)
+		}
+	}
+	for _, forbidden := range []string{
+		"status: editing",
+		"_invox:",
+	} {
+		if strings.Contains(finalText, forbidden) {
+			t.Fatalf("final archive should not contain %q:\n%s", forbidden, finalText)
+		}
 	}
 }
 
@@ -845,10 +1206,10 @@ invoice:
   number: CUST-001-001
   issue_date: 2026-03-06
   due_date: 2026-04-05
-  period_label: Leistungszeitraum
-  vat_rate_percent: 20
+  period: Leistungszeitraum
+  vat_percent: 20
   paid_amount: 0
-line_items:
+positions:
   - name: Development
     description: Sprint work
     unit_price: 100
@@ -905,6 +1266,42 @@ func writeDraftFixturesWithCustomerStart(t *testing.T, customerStart string) (st
 CUST-001:
   name: Appsters GmbH
 `+customerNumbering)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
+	if err := os.WriteFile(issuerPath, []byte(strings.TrimSpace(`
+payment:
+  due_days: 30
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuer.yaml) returned error: %v", err)
+	}
+	if err := os.WriteFile(defaultsPath, []byte(strings.TrimSpace(`
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+positions:
+  - name: Beispielposition
+    description: Beschreibung der Leistung
+    unit_price: 100
+    quantity: 1
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoice_defaults.yaml) returned error: %v", err)
+	}
+
+	return customersPath, issuerPath, defaultsPath
+}
+
+func writeLegacyDraftFixtures(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	customersPath := filepath.Join(dir, "customers.yaml")
+	issuerPath := filepath.Join(dir, "issuer.yaml")
+	defaultsPath := filepath.Join(dir, "invoice_defaults.yaml")
+
+	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+CUST-001:
+  name: Appsters GmbH
+`)+"\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 	if err := os.WriteFile(issuerPath, []byte(strings.TrimSpace(`

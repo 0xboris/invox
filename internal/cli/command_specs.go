@@ -3,18 +3,23 @@ package cli
 const commandName = "invox"
 
 type commandSpec struct {
-	Name            string
-	Summary         string
-	Usage           string
-	Examples        []string
-	RequiresInput   bool
-	RequiredArgs    []string
-	NeedsCustomers  bool
-	NeedsIssuer     bool
-	NeedsDefaults   bool
-	NeedsTemplate   bool
-	DefaultOutput   string
-	OutputExtension string
+	Name                   string
+	Summary                string
+	Usage                  string
+	Examples               []string
+	RequiresInput          bool
+	RequiredArgs           []string
+	NeedsCustomers         bool
+	NeedsIssuer            bool
+	NeedsDefaults          bool
+	NeedsTemplate          bool
+	SupportsArchiveFlag    bool
+	SupportsFromLastFlag   bool
+	AcceptsPositionalInput bool
+	DynamicDefaultOutput   bool
+	InputBasedOutput       bool
+	DefaultOutput          string
+	OutputExtension        string
 }
 
 func commandExample(args string) string {
@@ -60,17 +65,19 @@ func configSpec() commandSpec {
 
 func newSpec() commandSpec {
 	return commandSpec{
-		Name:            "new",
-		Summary:         "Create a new invoice YAML file with a generated number and prefilled defaults.",
-		Usage:           "new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml]",
-		RequiredArgs:    []string{"CUSTOMER_ID"},
-		NeedsCustomers:  true,
-		NeedsIssuer:     true,
-		NeedsDefaults:   true,
-		DefaultOutput:   "invoice.yaml",
-		OutputExtension: ".yaml",
+		Name:                 "new",
+		Summary:              "Create a new invoice YAML file with a generated number and prefilled defaults.",
+		Usage:                "new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--from-last]",
+		RequiredArgs:         []string{"CUSTOMER_ID"},
+		NeedsCustomers:       true,
+		NeedsIssuer:          true,
+		NeedsDefaults:        true,
+		SupportsFromLastFlag: true,
+		DynamicDefaultOutput: true,
+		OutputExtension:      ".yaml",
 		Examples: []string{
 			commandExample("new CUST-001"),
+			commandExample("new CUST-001 --from-last"),
 			commandExample("new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml"),
 		},
 	}
@@ -125,18 +132,59 @@ func renderSpec() commandSpec {
 
 func buildSpec() commandSpec {
 	return commandSpec{
-		Name:            "build",
-		Summary:         "Render and compile an invoice PDF with Tectonic.",
-		Usage:           "build -i INVOICE.yaml [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]",
-		RequiresInput:   true,
-		NeedsCustomers:  true,
-		NeedsIssuer:     true,
-		NeedsTemplate:   true,
-		DefaultOutput:   "invoice.pdf",
-		OutputExtension: ".pdf",
+		Name:                   "build",
+		Summary:                "Render and compile an invoice PDF with Tectonic.",
+		Usage:                  "build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive]",
+		RequiresInput:          true,
+		NeedsCustomers:         true,
+		NeedsIssuer:            true,
+		NeedsTemplate:          true,
+		SupportsArchiveFlag:    true,
+		AcceptsPositionalInput: true,
+		InputBasedOutput:       true,
+		OutputExtension:        ".pdf",
 		Examples: []string{
-			commandExample("build -i invoice.yaml"),
-			commandExample("build -i invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex"),
+			commandExample("build invoice.yaml"),
+			commandExample("build invoice.yaml --archive"),
+			commandExample("build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex"),
+		},
+	}
+}
+
+func archiveSpec() commandSpec {
+	return commandSpec{
+		Name:                   "archive",
+		Summary:                "Archive a built or edited invoice YAML file into the configured archive directory.",
+		Usage:                  "archive (INVOICE.yaml | -i INVOICE.yaml)",
+		RequiresInput:          true,
+		AcceptsPositionalInput: true,
+		Examples: []string{
+			commandExample("archive invoice.yaml"),
+			commandExample("archive invoices/2026-0021.yaml"),
+		},
+	}
+}
+
+func archiveEditSpec() commandSpec {
+	return commandSpec{
+		Name:         "archive edit",
+		Summary:      "Copy an archived invoice into the current directory and mark it as editing.",
+		Usage:        "archive edit FILENAME",
+		RequiredArgs: []string{"FILENAME"},
+		Examples: []string{
+			commandExample("archive edit 2026-03-06.yaml"),
+			commandExample("archive edit customer-a/2026-03-06.yaml"),
+		},
+	}
+}
+
+func archiveListSpec() commandSpec {
+	return commandSpec{
+		Name:    "archive list",
+		Summary: "List archived invoices from the configured archive directory.",
+		Usage:   "archive list",
+		Examples: []string{
+			commandExample("archive list"),
 		},
 	}
 }
@@ -159,6 +207,12 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return renderSpec(), true
 	case "build":
 		return buildSpec(), true
+	case "archive":
+		return archiveSpec(), true
+	case "archive edit":
+		return archiveEditSpec(), true
+	case "archive list":
+		return archiveListSpec(), true
 	default:
 		return commandSpec{}, false
 	}

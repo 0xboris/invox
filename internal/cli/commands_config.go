@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"invox/internal/invoice"
 )
@@ -10,9 +12,13 @@ import (
 func runConfig(args []string) int {
 	spec := configSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
-	if !ok {
-		return exitCode
+	if wantsHelp(args) {
+		printConfigHelp(os.Stdout)
+		return 0
+	}
+	if len(args) > 0 {
+		printCommandError(os.Stderr, spec, fmt.Sprintf("unexpected arguments: %s", strings.Join(args, " ")))
+		return 2
 	}
 
 	configPath, err := invoice.EditableConfigPath()
@@ -26,6 +32,17 @@ func runConfig(args []string) int {
 		return 1
 	}
 
-	fmt.Printf("Opened %s\n", invoice.DisplayPath(configPath, opts.BaseDir))
+	baseDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	baseDir, err = filepath.Abs(baseDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	fmt.Printf("Opened %s\n", invoice.DisplayPath(configPath, baseDir))
 	return 0
 }

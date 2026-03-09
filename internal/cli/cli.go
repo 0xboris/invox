@@ -35,6 +35,8 @@ func Run(args []string) int {
 		return runRender(args[1:])
 	case "build":
 		return runBuild(args[1:])
+	case "archive":
+		return runArchive(args[1:])
 	default:
 		return rootUsageError(fmt.Sprintf("unknown subcommand %q", args[0]))
 	}
@@ -53,6 +55,20 @@ func runHelp(args []string) int {
 		}
 		if len(args) == 2 && (args[1] == "list" || args[1] == "config") {
 			spec, _ := lookupCommand("customer " + args[1])
+			printCommandHelp(os.Stdout, spec)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
+	if args[0] == "archive" {
+		if len(args) == 1 {
+			spec, _ := lookupCommand("archive")
+			printCommandHelp(os.Stdout, spec)
+			return 0
+		}
+		if len(args) == 2 && (args[1] == "edit" || args[1] == "list") {
+			spec, _ := lookupCommand("archive " + args[1])
 			printCommandHelp(os.Stdout, spec)
 			return 0
 		}

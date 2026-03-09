@@ -18,6 +18,7 @@ func runNew(args []string) int {
 		"--source":    true,
 		"-o":          true,
 		"--output":    true,
+		"--from-last": false,
 	})
 
 	spec := newSpec()
@@ -28,7 +29,7 @@ func runNew(args []string) int {
 	}
 
 	customerID := strings.TrimSpace(extraArgs[0])
-	invoiceNumber, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID)
+	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -36,7 +37,7 @@ func runNew(args []string) int {
 
 	fmt.Printf(
 		"Created %s for %s (%s)\n",
-		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
+		invoice.DisplayPath(outputPath, opts.BaseDir),
 		customerID,
 		invoiceNumber,
 	)
@@ -119,6 +120,20 @@ func runRender(args []string) int {
 }
 
 func runBuild(args []string) int {
+	args = reorderArgs(args, map[string]bool{
+		"-i":          true,
+		"--input":     true,
+		"-o":          true,
+		"--output":    true,
+		"-c":          true,
+		"--customers": true,
+		"-u":          true,
+		"--issuer":    true,
+		"-t":          true,
+		"--template":  true,
+		"--archive":   false,
+	})
+
 	spec := buildSpec()
 
 	opts, _, exitCode, ok := parseCommand(spec, args)
@@ -136,6 +151,38 @@ func runBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	if err := invoice.SetInvoiceStatus(opts.InvoicePath, "built"); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"built %s but failed to update %s: %v\n",
+			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
+			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
+			err,
+		)
+		return 1
+	}
+	if opts.ArchiveAfterBuild {
+		archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
+		if err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"built %s but failed to archive %s: %v\n",
+				invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
+				invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
+				err,
+			)
+			return 1
+		}
+		fmt.Printf(
+			"Built %s for %s (%s)\nArchived %s -> %s\n",
+			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
+			ctx.CustomerID,
+			ctx.InvoiceNumber,
+			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
+			invoice.DisplayPath(archivePath, opts.BaseDir),
+		)
+		return 0
+	}
 
 	fmt.Printf(
 		"Built %s for %s (%s)\n",
@@ -143,5 +190,84 @@ func runBuild(args []string) int {
 		ctx.CustomerID,
 		ctx.InvoiceNumber,
 	)
+	return 0
+}
+
+func runArchive(args []string) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case "edit":
+			return runArchiveEdit(args[1:])
+		case "list":
+			return runArchiveList(args[1:])
+		}
+	}
+
+	spec := archiveSpec()
+
+	opts, _, exitCode, ok := parseCommand(spec, args)
+	if !ok {
+		return exitCode
+	}
+
+	archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	fmt.Printf(
+		"Archived %s -> %s\n",
+		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
+		invoice.DisplayPath(archivePath, opts.BaseDir),
+	)
+	return 0
+}
+
+func runArchiveEdit(args []string) int {
+	spec := archiveEditSpec()
+
+	opts, extraArgs, exitCode, ok := parseCommand(spec, args)
+	if !ok {
+		return exitCode
+	}
+
+	outputPath, archivePath, err := invoice.EditArchivedInvoice(strings.TrimSpace(extraArgs[0]), opts.BaseDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	fmt.Printf(
+		"Editing %s -> %s\n",
+		invoice.DisplayPath(archivePath, opts.BaseDir),
+		invoice.DisplayPath(outputPath, opts.BaseDir),
+	)
+	return 0
+}
+
+func runArchiveList(args []string) int {
+	spec := archiveListSpec()
+
+	_, _, exitCode, ok := parseCommand(spec, args)
+	if !ok {
+		return exitCode
+	}
+
+	archivedInvoices, err := invoice.ListArchivedInvoices()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	for _, archivedInvoice := range archivedInvoices {
+		fmt.Printf(
+			"%s\t%s\t%s\t%s\n",
+			archivedInvoice.Filename,
+			archivedInvoice.CustomerID,
+			archivedInvoice.IssueDate,
+			archivedInvoice.Status,
+		)
+	}
 	return 0
 }

@@ -91,6 +91,34 @@ func TestConfigOpensConfigFile(t *testing.T) {
 	}
 }
 
+func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
+	configPath := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\n")
+
+	openedPath := ""
+	oldOpenTextFile := openTextFile
+	openTextFile = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	t.Cleanup(func() {
+		openTextFile = oldOpenTextFile
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{"config"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if openedPath != configPath {
+		t.Fatalf("openedPath = %q, want %q", openedPath, configPath)
+	}
+	if !strings.Contains(stdout, "Opened "+configPath) {
+		t.Fatalf("stdout %q does not contain opened path", stdout)
+	}
+}
+
 func TestConfigHelpShowsUsage(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"config", "-h"})
 	if exitCode != 0 {
@@ -302,7 +330,8 @@ func TestNewHelpShowsShortFlags(t *testing.T) {
 		"-u, --issuer PATH",
 		"-s, --source PATH",
 		"-o, --output PATH",
-		"invoice.yaml in the current directory",
+		"--from-last",
+		"<invoice.number>.yaml in the current directory",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -314,7 +343,7 @@ func TestNewCreatesDefaultOutputInvoiceFile(t *testing.T) {
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	workDir := t.TempDir()
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"new",
@@ -329,11 +358,11 @@ func TestNewCreatesDefaultOutputInvoiceFile(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
-	if !strings.Contains(stdout, "Created invoice.yaml for CUST-001") {
+	if !strings.Contains(stdout, "Created CUST-001-002.yaml for CUST-001") {
 		t.Fatalf("stdout %q does not contain success output", stdout)
 	}
-	if _, err := os.Stat(filepath.Join(workDir, "invoice.yaml")); err != nil {
-		t.Fatalf("default invoice.yaml was not created: %v", err)
+	if _, err := os.Stat(filepath.Join(workDir, "CUST-001-002.yaml")); err != nil {
+		t.Fatalf("default invoice file was not created: %v", err)
 	}
 }
 
@@ -341,7 +370,7 @@ func TestNewUsesCustomerSpecificStartFromCustomersFile(t *testing.T) {
 	customersPath, issuerPath, defaultsPath := writeDraftFixturesWithCustomerStart(t, "7")
 	workDir := t.TempDir()
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"new",
@@ -356,8 +385,128 @@ func TestNewUsesCustomerSpecificStartFromCustomersFile(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
-	if !strings.Contains(stdout, "Created invoice.yaml for CUST-001 (CUST-001-007)") {
+	if !strings.Contains(stdout, "Created CUST-001-007.yaml for CUST-001 (CUST-001-007)") {
 		t.Fatalf("stdout %q does not contain customer-specific invoice number", stdout)
+	}
+}
+
+func TestNewAcceptsInlineLongFlagsAfterCustomerID(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	outputPath := filepath.Join(t.TempDir(), "out.yaml")
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"new",
+		"CUST-001",
+		"--output=" + outputPath,
+		"--customers=" + customersPath,
+		"--issuer=" + issuerPath,
+		"--source=" + defaultsPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Created "+outputPath+" for CUST-001") {
+		t.Fatalf("stdout %q does not contain created output path", stdout)
+	}
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("output file was not created: %v", err)
+	}
+}
+
+func TestNewFromLastUsesLatestArchivedInvoiceForCustomer(t *testing.T) {
+	customersPath, issuerPath, _ := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	if err := os.WriteFile(filepath.Join(archiveDir, "2026-03-01.yaml"), []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-01
+  due_date: 2026-03-31
+  status: archived
+  period: February 2026
+  vat_percent: 19
+  paid_amount: 500
+positions:
+  - name: Older position
+    description: Keep me old
+    unit_price: 50
+    quantity: 1
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(older archived invoice) returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(archiveDir, "2026-03-08.yaml"), []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: archived
+  period: March 2026
+  vat_percent: 10
+  paid_amount: 999
+positions:
+  - name: Latest position
+    description: Keep me latest
+    unit_price: 120
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(latest archived invoice) returned error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"new",
+		"CUST-001",
+		"--from-last",
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)") {
+		t.Fatalf("stdout %q does not contain cloned invoice output", stdout)
+	}
+
+	createdPath := filepath.Join(workDir, "CUST-001-003.yaml")
+	createdSource, err := os.ReadFile(createdPath)
+	if err != nil {
+		t.Fatalf("ReadFile(createdPath) returned error: %v", err)
+	}
+	createdText := string(createdSource)
+	for _, want := range []string{
+		"number: CUST-001-003",
+		"status: draft",
+		"paid_amount: \"0\"",
+		"period: March 2026",
+		"name: Latest position",
+		"description: Keep me latest",
+		"unit_price: 120",
+		"quantity: 2",
+	} {
+		if !strings.Contains(createdText, want) {
+			t.Fatalf("created invoice does not contain %q:\n%s", want, createdText)
+		}
+	}
+	for _, forbidden := range []string{
+		"Older position",
+		"Keep me old",
+		"paid_amount: 999",
+		"status: archived",
+	} {
+		if strings.Contains(createdText, forbidden) {
+			t.Fatalf("created invoice should not contain %q:\n%s", forbidden, createdText)
+		}
 	}
 }
 
@@ -412,6 +561,158 @@ func TestRenderHelpShowsShortFlags(t *testing.T) {
 	}
 }
 
+func TestBuildHelpShowsInputBasedDefaultOutput(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"build", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"INVOICE.yaml or -i, --input PATH",
+		"-o, --output PATH",
+		"--archive",
+		"-c, --customers PATH",
+		"-u, --issuer PATH",
+		"-t, --template PATH",
+		"the input path with .pdf extension",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestBuildRequiresPositionalOrFlagInput(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"build"})
+	if exitCode != 2 {
+		t.Fatalf("exitCode = %d, want 2", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
+		t.Fatalf("stderr %q does not contain missing input message", stderr)
+	}
+}
+
+func TestArchiveHelpShowsShortFlags(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"INVOICE.yaml or -i, --input PATH",
+		"invox archive (INVOICE.yaml | -i INVOICE.yaml)",
+		"invox archive invoice.yaml",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestArchiveListHelpShowsOutputFormat(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "list", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"invox archive list",
+		"FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestArchiveEditHelpShowsUsage(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "edit", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"invox archive edit FILENAME",
+		"archive.dir",
+		"invoice.status set to editing",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestArchiveRequiresPositionalOrFlagInput(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"archive"})
+	if exitCode != 2 {
+		t.Fatalf("exitCode = %d, want 2", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
+		t.Fatalf("stderr %q does not contain missing input message", stderr)
+	}
+}
+
+func TestArchiveListPrintsArchivedInvoices(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	yamlArchivePath := filepath.Join(archiveDir, "2026-03-06.yaml")
+	if err := os.WriteFile(yamlArchivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-YAML
+invoice:
+  number: CUST-YAML-001
+  issue_date: 2026-03-06
+  status: archived
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(yamlArchivePath) returned error: %v", err)
+	}
+
+	markdownArchivePath := filepath.Join(archiveDir, "2026-03-05.md")
+	if err := os.WriteFile(markdownArchivePath, []byte(strings.Join([]string{
+		"---",
+		"customer_id: CUST-MD",
+		"invoice:",
+		"  number: CUST-MD-001",
+		"  issue_date: 2026-03-05",
+		"---",
+		"",
+		"# Archived invoice",
+		"",
+	}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile(markdownArchivePath) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "list"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	want := strings.Join([]string{
+		"2026-03-05.md\tCUST-MD\t2026-03-05\tarchived",
+		"2026-03-06.yaml\tCUST-YAML\t2026-03-06\tarchived",
+	}, "\n") + "\n"
+	if stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
+	}
+}
+
 func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
 	exitCode, stdout, stderr := captureRun(t, []string{
@@ -434,7 +735,7 @@ func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
 func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 	workDir := t.TempDir()
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"render",
@@ -501,7 +802,7 @@ func TestValidateSuggestsGlobalDefaultsWhenSupportFilesMissing(t *testing.T) {
 	workDir := t.TempDir()
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"validate",
@@ -540,7 +841,7 @@ func TestBuildRejectsNonPDFOutput(t *testing.T) {
 	}
 }
 
-func TestBuildLeavesOnlyPDFInWorkingDirectory(t *testing.T) {
+func TestBuildDefaultsPDFPathFromInputFile(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 	workDir := t.TempDir()
 	fakeBinDir := t.TempDir()
@@ -551,11 +852,21 @@ func TestBuildLeavesOnlyPDFInWorkingDirectory(t *testing.T) {
 	}
 
 	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Chdir(workDir)
+	chdirForTest(t, workDir)
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210001.yaml")
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	if err := os.WriteFile(customInvoicePath, source, 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"build",
-		"-i", invoicePath,
+		customInvoicePath,
 		"-c", customersPath,
 		"-u", issuerPath,
 		"-t", templatePath,
@@ -566,23 +877,461 @@ func TestBuildLeavesOnlyPDFInWorkingDirectory(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
-	if !strings.Contains(stdout, "Built invoice.pdf") {
+	if !strings.Contains(stdout, "Built "+customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))]+".pdf") {
 		t.Fatalf("stdout %q does not contain build output", stdout)
 	}
 
-	if _, err := os.Stat(filepath.Join(workDir, "invoice.pdf")); err != nil {
-		t.Fatalf("invoice.pdf was not created: %v", err)
+	outputPath := customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))] + ".pdf"
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("default output PDF was not created: %v", err)
+	}
+	updatedInvoice, err := os.ReadFile(customInvoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(customInvoicePath) returned error: %v", err)
+	}
+	if !strings.Contains(string(updatedInvoice), "status: built") {
+		t.Fatalf("invoice file was not marked built:\n%s", string(updatedInvoice))
+	}
+	if _, err := os.Stat(filepath.Join(workDir, "invoice.pdf")); err == nil {
+		t.Fatal("build should not write invoice.pdf into the current working directory")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(workDir/invoice.pdf) returned unexpected error: %v", err)
 	}
 	for _, path := range []string{
-		filepath.Join(workDir, "invoice.tex"),
-		filepath.Join(workDir, "logo.png"),
-		filepath.Join(workDir, "fonts"),
+		filepath.Join(inputDir, "BL00210001.tex"),
+		filepath.Join(inputDir, "logo.png"),
+		filepath.Join(inputDir, "fonts"),
 	} {
 		if _, err := os.Stat(path); err == nil {
 			t.Fatalf("unexpected build artifact left behind: %s", path)
 		} else if !os.IsNotExist(err) {
 			t.Fatalf("Stat(%s) returned unexpected error: %v", path, err)
 		}
+	}
+}
+
+func TestBuildWithArchiveMovesInvoiceToArchiveDir(t *testing.T) {
+	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	fakeBinDir := t.TempDir()
+	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
+	script := "#!/bin/sh\nset -eu\ninput=\"$1\"\npdf=\"${input%.tex}.pdf\"\n: > \"$pdf\"\n"
+	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
+	}
+
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210002.yaml")
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	if err := os.WriteFile(customInvoicePath, source, 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"build",
+		customInvoicePath,
+		"--archive",
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-t", templatePath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	outputPath := customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))] + ".pdf"
+	archivePath := filepath.Join(archiveDir, filepath.Base(customInvoicePath))
+	if !strings.Contains(stdout, "Built "+outputPath) {
+		t.Fatalf("stdout %q does not contain build output", stdout)
+	}
+	if !strings.Contains(stdout, "Archived "+customInvoicePath+" -> "+archivePath) {
+		t.Fatalf("stdout %q does not contain archive output", stdout)
+	}
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("output PDF was not created: %v", err)
+	}
+	if _, err := os.Stat(customInvoicePath); err == nil {
+		t.Fatalf("source invoice should have been archived: %s", customInvoicePath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(customInvoicePath) returned unexpected error: %v", err)
+	}
+	archivedSource, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("ReadFile(archivePath) returned error: %v", err)
+	}
+	if !strings.Contains(string(archivedSource), "status: archived") {
+		t.Fatalf("archived invoice does not contain archived status:\n%s", string(archivedSource))
+	}
+}
+
+func TestBuildDoesNotMarkInvoiceBuiltWhenPDFBuildFails(t *testing.T) {
+	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	fakeBinDir := t.TempDir()
+	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
+	script := "#!/bin/sh\nset -eu\nexit 1\n"
+	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
+	}
+
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	sourceBefore, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"build",
+		"-i", invoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-t", templatePath,
+	})
+	if exitCode != 1 {
+		t.Fatalf("exitCode = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if stderr == "" {
+		t.Fatal("stderr should contain build failure output")
+	}
+
+	sourceAfter, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	if string(sourceAfter) != string(sourceBefore) {
+		t.Fatalf("failed build should not modify invoice file:\nbefore:\n%s\nafter:\n%s", string(sourceBefore), string(sourceAfter))
+	}
+	if strings.Contains(string(sourceAfter), "status: built") {
+		t.Fatalf("failed build should not mark invoice built:\n%s", string(sourceAfter))
+	}
+}
+
+func TestBuildWithArchiveLeavesInvoiceBuiltWhenArchiveFails(t *testing.T) {
+	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	fakeBinDir := t.TempDir()
+	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
+	script := "#!/bin/sh\nset -eu\ninput=\"$1\"\npdf=\"${input%.tex}.pdf\"\n: > \"$pdf\"\n"
+	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
+	}
+
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210003.yaml")
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	if err := os.WriteFile(customInvoicePath, source, 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+	archivePath := filepath.Join(archiveDir, filepath.Base(customInvoicePath))
+	if err := os.WriteFile(archivePath, []byte("existing"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"build",
+		customInvoicePath,
+		"--archive",
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-t", templatePath,
+	})
+	if exitCode != 1 {
+		t.Fatalf("exitCode = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "built "+customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))]+".pdf but failed to archive "+customInvoicePath) {
+		t.Fatalf("stderr %q does not contain archive failure context", stderr)
+	}
+
+	outputPath := customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))] + ".pdf"
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("output PDF should still exist: %v", err)
+	}
+	sourceAfter, err := os.ReadFile(customInvoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(customInvoicePath) returned error: %v", err)
+	}
+	if !strings.Contains(string(sourceAfter), "status: built") {
+		t.Fatalf("invoice should remain built after archive failure:\n%s", string(sourceAfter))
+	}
+	archivedSource, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("ReadFile(archivePath) returned error: %v", err)
+	}
+	if string(archivedSource) != "existing" {
+		t.Fatalf("existing archive file should remain unchanged, got %q", string(archivedSource))
+	}
+}
+
+func TestArchiveMovesBuiltInvoiceToArchiveDir(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
+	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: built
+  period: Leistungszeitraum
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"archive",
+		invoicePath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
+	if !strings.Contains(stdout, "Archived "+invoicePath+" -> "+archivePath) {
+		t.Fatalf("stdout %q does not contain archive summary", stdout)
+	}
+	if _, err := os.Stat(invoicePath); err == nil {
+		t.Fatalf("source invoice should have been removed: %s", invoicePath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(invoicePath) returned unexpected error: %v", err)
+	}
+
+	archivedSource, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("ReadFile(archivePath) returned error: %v", err)
+	}
+	if !strings.Contains(string(archivedSource), "status: archived") {
+		t.Fatalf("archived invoice does not contain archived status:\n%s", string(archivedSource))
+	}
+}
+
+func TestArchiveEditCopiesArchivedInvoiceToCurrentDir(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivedPath := filepath.Join(archiveDir, "customer-a", "2026-03-06.yaml")
+	if err := os.MkdirAll(filepath.Dir(archivedPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(archive subdir) returned error: %v", err)
+	}
+	if err := os.WriteFile(archivedPath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: archived
+  period: March 2026
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivedPath) returned error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"archive",
+		"edit",
+		"customer-a/2026-03-06.yaml",
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
+	if !strings.Contains(stdout, "Editing "+archivedPath+" -> 2026-03-06.yaml") {
+		t.Fatalf("stdout %q does not contain edit summary", stdout)
+	}
+	editedSource, err := os.ReadFile(editedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(editedPath) returned error: %v", err)
+	}
+	editedText := string(editedSource)
+	for _, want := range []string{
+		"status: editing",
+		"_invox:",
+		"archive_path: customer-a/2026-03-06.yaml",
+	} {
+		if !strings.Contains(editedText, want) {
+			t.Fatalf("edited invoice does not contain %q:\n%s", want, editedText)
+		}
+	}
+	if _, err := os.Stat(archivedPath); err != nil {
+		t.Fatalf("archived invoice should remain in place: %v", err)
+	}
+}
+
+func TestArchiveReplacesEditedArchivedInvoice(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivedPath := filepath.Join(archiveDir, "2026-03-06.yaml")
+	if err := os.WriteFile(archivedPath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: archived
+  period: March 2026
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Original archive
+    unit_price: 100
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivedPath) returned error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"archive",
+		"edit",
+		"2026-03-06.yaml",
+	})
+	if exitCode != 0 {
+		t.Fatalf("edit exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("edit stderr = %q, want empty", stderr)
+	}
+	if stdout == "" {
+		t.Fatal("edit stdout should not be empty")
+	}
+
+	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
+	editedSource, err := os.ReadFile(editedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(editedPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(editedSource), "Original archive", "Updated archive", 1)
+	if err := os.WriteFile(editedPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(editedPath) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr = captureRun(t, []string{
+		"archive",
+		editedPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("archive exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("archive stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Archived 2026-03-06.yaml -> "+archivedPath) {
+		t.Fatalf("stdout %q does not contain re-archive summary", stdout)
+	}
+	if _, err := os.Stat(editedPath); err == nil {
+		t.Fatalf("edited working copy should have been removed: %s", editedPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(editedPath) returned unexpected error: %v", err)
+	}
+
+	archivedSource, err := os.ReadFile(archivedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(archivedPath) returned error: %v", err)
+	}
+	archivedText := string(archivedSource)
+	for _, want := range []string{
+		"status: archived",
+		"Updated archive",
+	} {
+		if !strings.Contains(archivedText, want) {
+			t.Fatalf("archived invoice does not contain %q:\n%s", want, archivedText)
+		}
+	}
+	for _, forbidden := range []string{
+		"status: editing",
+		"_invox:",
+	} {
+		if strings.Contains(archivedText, forbidden) {
+			t.Fatalf("archived invoice should not contain %q:\n%s", forbidden, archivedText)
+		}
+	}
+}
+
+func TestArchiveRejectsInvoiceWithoutBuiltStatus(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
+	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"archive",
+		invoicePath,
+	})
+	if exitCode != 1 {
+		t.Fatalf("exitCode = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "invoice.status must be `built` before archiving") {
+		t.Fatalf("stderr %q does not contain status validation", stderr)
+	}
+	if _, err := os.Stat(invoicePath); err != nil {
+		t.Fatalf("source invoice should remain in place: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(archiveDir, filepath.Base(invoicePath))); err == nil {
+		t.Fatal("invoice should not be moved into archive dir")
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("Stat(archivePath) returned unexpected error: %v", err)
 	}
 }
 
@@ -618,9 +1367,9 @@ payment:
 	}
 	if err := os.WriteFile(defaultsPath, []byte(strings.TrimSpace(`
 invoice:
-  period_label: "Leistungszeitraum: "
-  vat_rate_percent: 20
-line_items:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+positions:
   - name: Beispielposition
     description: Beschreibung der Leistung
     unit_price: 100
@@ -694,10 +1443,10 @@ invoice:
   number: CUST-001-001
   issue_date: 2026-03-06
   due_date: 2026-04-05
-  period_label: Leistungszeitraum
-  vat_rate_percent: 20
+  period: Leistungszeitraum
+  vat_percent: 20
   paid_amount: 0
-line_items:
+positions:
   - name: Development
     description: Sprint work
     unit_price: 100

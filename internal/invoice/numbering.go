@@ -224,31 +224,12 @@ func isArchivedInvoicePath(path string) bool {
 }
 
 func archivedInvoiceNumber(path string) (string, bool, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		value, err := loadYAML(path)
-		if err != nil {
-			return "", false, nil
-		}
-		return invoiceNumberFromValue(value), invoiceNumberFromValue(value) != "", nil
-	case ".md", ".markdown":
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return "", false, err
-		}
-		frontMatter, ok := markdownFrontMatter(source)
-		if !ok {
-			return "", false, nil
-		}
-
-		value, err := parseYAMLSource(frontMatter, path)
-		if err != nil {
-			return "", false, nil
-		}
-		return invoiceNumberFromValue(value), invoiceNumberFromValue(value) != "", nil
-	default:
-		return "", false, nil
+	value, ok, err := archivedInvoiceValue(path)
+	if err != nil || !ok {
+		return "", ok, err
 	}
+	invoiceNumber := invoiceNumberFromValue(value)
+	return invoiceNumber, invoiceNumber != "", nil
 }
 
 func markdownFrontMatter(source []byte) ([]byte, bool) {

@@ -16,13 +16,15 @@ import (
 )
 
 type Options struct {
-	BaseDir       string
-	CustomersPath string
-	IssuerPath    string
-	DefaultsPath  string
-	InvoicePath   string
-	TemplatePath  string
-	OutputPath    string
+	BaseDir           string
+	CustomersPath     string
+	IssuerPath        string
+	DefaultsPath      string
+	InvoicePath       string
+	TemplatePath      string
+	OutputPath        string
+	ArchiveAfterBuild bool
+	FromLastInvoice   bool
 }
 
 type Context struct {
@@ -266,7 +268,7 @@ func defaultConfigTemplate() string {
 #   numbering.pattern
 #   numbering.start
 #   archive.dir
-#     Directory where archived invoice Markdown files are stored.
+#     Directory where archived invoice files are stored.
 #
 # Notes:
 # - Top-level keys must not be indented.
@@ -492,9 +494,9 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
 		issuerPayment = map[string]any{}
 	}
-	rawLineItems, ok := invoiceData["line_items"].([]any)
+	rawLineItems, ok := firstPresentPath(invoiceData, "positions", "line_items").([]any)
 	if !ok || len(rawLineItems) == 0 {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: `line_items` must be a non-empty list", invoicePath))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
 		rawLineItems = nil
 	}
 
@@ -526,8 +528,8 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		"number",
 		"issue_date",
 		"due_date",
-		"period_label",
 	}, &validationErrors)
+	requireAnyPath(invoiceBlock, "invoice", "period", []string{"period", "period_label"}, &validationErrors)
 	requirePaths(issuerPayment, "issuer.payment", []string{
 		"bank_name",
 		"iban",
@@ -545,24 +547,24 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 
 	paidAmount := coerceDecimal(getPath(invoiceBlock, "paid_amount"), "invoice.paid_amount", &validationErrors, true)
-	vatRate := coerceVATRate(invoiceBlock["vat_rate_percent"], customer, &validationErrors)
+	vatRate := coerceVATRate(firstNonEmptyPath(invoiceBlock, "vat_percent", "vat_rate_percent"), customer, &validationErrors)
 	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
 
 	normalizedItems := make([]LineItem, 0, len(rawLineItems))
 	for index, rawItem := range rawLineItems {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
-			validationErrors = append(validationErrors, fmt.Sprintf("line_items[%d]: each line item must be a mapping", index+1))
+			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d]: each position must be a mapping", index+1))
 			continue
 		}
-		requirePaths(item, fmt.Sprintf("line_items[%d]", index+1), []string{"name", "description", "unit_price", "quantity"}, &validationErrors)
-		unitPrice := coerceDecimal(item["unit_price"], fmt.Sprintf("line_items[%d].unit_price", index+1), &validationErrors, false)
-		quantity := coerceDecimal(item["quantity"], fmt.Sprintf("line_items[%d].quantity", index+1), &validationErrors, false)
+		requirePaths(item, fmt.Sprintf("positions[%d]", index+1), []string{"name", "description", "unit_price", "quantity"}, &validationErrors)
+		unitPrice := coerceDecimal(item["unit_price"], fmt.Sprintf("positions[%d].unit_price", index+1), &validationErrors, false)
+		quantity := coerceDecimal(item["quantity"], fmt.Sprintf("positions[%d].quantity", index+1), &validationErrors, false)
 		if unitPrice != nil && unitPrice.Sign() < 0 {
-			validationErrors = append(validationErrors, fmt.Sprintf("line_items[%d].unit_price: must be >= 0", index+1))
+			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].unit_price: must be >= 0", index+1))
 		}
 		if quantity != nil && quantity.Sign() <= 0 {
-			validationErrors = append(validationErrors, fmt.Sprintf("line_items[%d].quantity: must be > 0", index+1))
+			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].quantity: must be > 0", index+1))
 		}
 		normalizedItems = append(normalizedItems, LineItem{
 			Name:        asString(item["name"]),
@@ -597,13 +599,20 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	currency := customerCurrency(customer)
 	resolvedCustomerEmail := customerEmail(customer)
 	invoiceNumber := strings.TrimSpace(asString(getPath(invoiceBlock, "number")))
+	normalizedInvoice := cloneMap(invoiceBlock)
+	if period := firstNonEmptyPath(invoiceBlock, "period", "period_label"); period != nil {
+		normalizedInvoice["period"] = period
+	}
+	if vatPercent := firstNonEmptyPath(invoiceBlock, "vat_percent", "vat_rate_percent"); vatPercent != nil {
+		normalizedInvoice["vat_percent"] = vatPercent
+	}
 
 	return &Context{
 		CustomerID:       customerID,
 		Customer:         customer,
 		IssuerCompany:    issuerCompany,
 		IssuerPayment:    issuerPayment,
-		Invoice:          invoiceBlock,
+		Invoice:          normalizedInvoice,
 		LineItems:        renderedItems,
 		Currency:         currency,
 		VATRatePercent:   vatRate,
@@ -769,7 +778,7 @@ func buildTemplateValues(ctx *Context) map[string]string {
 		"@@CUSTOMER_VAT_TAX_ID@@":           latexEscape(asString(getPath(ctx.Customer, "tax.vat_tax_id"))),
 		"@@CUSTOMER_EMAIL@@":                latexEscape(ctx.CustomerEmail),
 		"@@LINE_ITEMS_ROWS@@":               renderLineItems(ctx.LineItems, ctx.Currency),
-		"@@PERIOD_LABEL@@":                  latexEscape(asString(ctx.Invoice["period_label"])),
+		"@@PERIOD_LABEL@@":                  latexEscape(asString(firstNonEmptyPath(ctx.Invoice, "period", "period_label"))),
 		"@@PAYMENT_TERMS_TEXT@@":            latexEscape(asString(ctx.IssuerPayment["payment_terms_text"])),
 		"@@SUBTOTAL@@":                      FormatCurrency(ctx.SubtotalCents, ctx.Currency),
 		"@@VAT_RATE@@":                      latexEscape(formatQuantity(ctx.VATRatePercent)),
@@ -813,6 +822,13 @@ func requirePaths(source map[string]any, prefix string, paths []string, errors *
 	}
 }
 
+func requireAnyPath(source map[string]any, prefix, label string, paths []string, errors *[]string) {
+	if firstNonEmptyPath(source, paths...) != nil {
+		return
+	}
+	*errors = append(*errors, fmt.Sprintf("%s.%s: missing value", prefix, label))
+}
+
 func getPath(source any, path string) any {
 	value := source
 	for _, part := range strings.Split(path, ".") {
@@ -827,6 +843,33 @@ func getPath(source any, path string) any {
 		value = next
 	}
 	return value
+}
+
+func firstPresentPath(source map[string]any, paths ...string) any {
+	for _, path := range paths {
+		if value := getPath(source, path); value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+func firstNonEmptyPath(source map[string]any, paths ...string) any {
+	for _, path := range paths {
+		value := getPath(source, path)
+		if value != nil && strings.TrimSpace(asString(value)) != "" {
+			return value
+		}
+	}
+	return nil
+}
+
+func cloneMap(source map[string]any) map[string]any {
+	cloned := make(map[string]any, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func coerceDecimal(value any, label string, errors *[]string, allowDefault bool) *big.Rat {
@@ -851,13 +894,13 @@ func coerceVATRate(value any, customer map[string]any, errors *[]string) *big.Ra
 		raw = strings.TrimSpace(asString(getPath(customer, "tax.default_vat_rate")))
 	}
 	if raw == "" {
-		*errors = append(*errors, "invoice.vat_rate_percent: missing value")
+		*errors = append(*errors, "invoice.vat_percent: missing value")
 		return big.NewRat(0, 1)
 	}
 	raw = strings.TrimSuffix(raw, "%")
 	rat, ok := parseDecimal(strings.TrimSpace(raw))
 	if !ok {
-		*errors = append(*errors, fmt.Sprintf("invoice.vat_rate_percent: expected a number or percent string, got `%v`", value))
+		*errors = append(*errors, fmt.Sprintf("invoice.vat_percent: expected a number or percent string, got `%v`", value))
 		return big.NewRat(0, 1)
 	}
 	return rat

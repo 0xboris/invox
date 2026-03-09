@@ -11,7 +11,7 @@ import (
 	"invox/internal/invoice"
 )
 
-func reorderArgs(args []string, valueFlags map[string]bool) []string {
+func reorderArgs(args []string, flagSpecs map[string]bool) []string {
 	if len(args) <= 1 {
 		return args
 	}
@@ -20,17 +20,33 @@ func reorderArgs(args []string, valueFlags map[string]bool) []string {
 	positionals := make([]string, 0, len(args))
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
-		if valueFlags[arg] {
+		if takesValue, ok := flagSpecs[arg]; ok {
 			flags = append(flags, arg)
-			if index+1 < len(args) {
+			if takesValue && index+1 < len(args) {
 				index++
 				flags = append(flags, args[index])
 			}
 			continue
 		}
+		if hasInlineFlagValue(arg, flagSpecs) {
+			flags = append(flags, arg)
+			continue
+		}
 		positionals = append(positionals, arg)
 	}
 	return append(flags, positionals...)
+}
+
+func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
+	if !strings.HasPrefix(arg, "-") {
+		return false
+	}
+	for flagName := range flagSpecs {
+		if strings.HasPrefix(arg, flagName+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, int, bool) {
@@ -54,17 +70,25 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
-	if err := validatePositionalArgs(spec, fs.Args()); err != nil {
+
+	remainingArgs := fs.Args()
+	if spec.AcceptsPositionalInput && strings.TrimSpace(opts.InvoicePath) == "" && len(remainingArgs) > 0 {
+		opts.InvoicePath = remainingArgs[0]
+		remainingArgs = remainingArgs[1:]
+	}
+	if err := validatePositionalArgs(spec, remainingArgs); err != nil {
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
-	if spec.DefaultOutput != "" && strings.TrimSpace(opts.OutputPath) == "" {
+	if spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
+		opts.OutputPath = replacePathExtension(opts.InvoicePath, spec.OutputExtension)
+	}
+	if spec.DefaultOutput != "" && !spec.DynamicDefaultOutput && !spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
 		opts.OutputPath = filepath.Join(opts.BaseDir, spec.DefaultOutput)
 	}
 
-	missing := missingRequiredFlags(spec, opts)
-	if len(missing) > 0 {
-		printCommandError(os.Stderr, spec, fmt.Sprintf("missing required flags: %s", strings.Join(missing, ", ")))
+	if err := validateRequiredInputs(spec, opts); err != nil {
+		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 	if err := validateSupportPaths(spec, opts); err != nil {
@@ -80,7 +104,7 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		return invoice.Options{}, nil, 1, false
 	}
 
-	return opts, fs.Args(), 0, true
+	return opts, remainingArgs, 0, true
 }
 
 func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec) {
@@ -104,18 +128,26 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 		fs.StringVar(&opts.TemplatePath, "t", opts.TemplatePath, "path to invoice_template.tex")
 		fs.StringVar(&opts.TemplatePath, "template", opts.TemplatePath, "path to invoice_template.tex")
 	}
-	if spec.DefaultOutput != "" {
+	if spec.OutputExtension != "" {
 		fs.StringVar(&opts.OutputPath, "o", opts.OutputPath, "output file path")
 		fs.StringVar(&opts.OutputPath, "output", opts.OutputPath, "output file path")
 	}
+	if spec.SupportsFromLastFlag {
+		fs.BoolVar(&opts.FromLastInvoice, "from-last", opts.FromLastInvoice, "use the latest archived invoice for this customer as the source document")
+	}
+	if spec.SupportsArchiveFlag {
+		fs.BoolVar(&opts.ArchiveAfterBuild, "archive", opts.ArchiveAfterBuild, "archive the invoice after a successful build")
+	}
 }
 
-func missingRequiredFlags(spec commandSpec, opts invoice.Options) []string {
-	missing := make([]string, 0, 2)
+func validateRequiredInputs(spec commandSpec, opts invoice.Options) error {
 	if spec.RequiresInput && strings.TrimSpace(opts.InvoicePath) == "" {
-		missing = append(missing, "-i, --input")
+		if spec.AcceptsPositionalInput {
+			return fmt.Errorf("missing required input: INVOICE.yaml or -i, --input")
+		}
+		return fmt.Errorf("missing required flags: -i, --input")
 	}
-	return missing
+	return nil
 }
 
 func validatePositionalArgs(spec commandSpec, args []string) error {
@@ -136,7 +168,7 @@ func validateSupportPaths(spec commandSpec, opts invoice.Options) error {
 	if spec.NeedsIssuer && strings.TrimSpace(opts.IssuerPath) == "" {
 		return fmt.Errorf("issuer file not found; pass -u/--issuer, set paths.issuer in config.yaml, or place issuer.yaml at %s", invoice.GlobalIssuerPath())
 	}
-	if spec.NeedsDefaults && strings.TrimSpace(opts.DefaultsPath) == "" {
+	if spec.NeedsDefaults && !opts.FromLastInvoice && strings.TrimSpace(opts.DefaultsPath) == "" {
 		return fmt.Errorf("defaults file not found; pass -s/--source, set paths.defaults in config.yaml, or place invoice_defaults.yaml at %s", invoice.GlobalInvoiceDefaultsPath())
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) == "" {
@@ -146,7 +178,7 @@ func validateSupportPaths(spec commandSpec, opts invoice.Options) error {
 }
 
 func validateCommandOptions(spec commandSpec, opts invoice.Options) error {
-	if spec.DefaultOutput == "" || strings.TrimSpace(opts.OutputPath) == "" {
+	if spec.OutputExtension == "" || strings.TrimSpace(opts.OutputPath) == "" {
 		return nil
 	}
 	ext := filepath.Ext(opts.OutputPath)
@@ -154,4 +186,15 @@ func validateCommandOptions(spec commandSpec, opts invoice.Options) error {
 		return fmt.Errorf("-o, --output must end with %s", spec.OutputExtension)
 	}
 	return nil
+}
+
+func replacePathExtension(path, ext string) string {
+	if strings.TrimSpace(path) == "" || strings.TrimSpace(ext) == "" {
+		return ""
+	}
+	currentExt := filepath.Ext(path)
+	if currentExt == "" {
+		return path + ext
+	}
+	return strings.TrimSuffix(path, currentExt) + ext
 }

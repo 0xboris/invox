@@ -5,37 +5,71 @@ This directory contains the Go implementation of the invoice pipeline.
 Run it directly:
 
 ```sh
-cd go
 go run ./cmd/invox validate -i invoice.yaml
 go run ./cmd/invox render -i invoice.yaml
-go run ./cmd/invox build -i invoice.yaml
+go run ./cmd/invox build invoice.yaml
 go run ./cmd/invox customer list
 go run ./cmd/invox config
 go run ./cmd/invox customer config
 go run ./cmd/invox new CUST-001
+go run ./cmd/invox new CUST-001 --from-last
 go run ./cmd/invox increment -i invoice.yaml
+go run ./cmd/invox archive invoice.yaml
+go run ./cmd/invox archive edit 2026-03-06.yaml
+go run ./cmd/invox archive list
 ```
 
 Build a local binary:
 
 ```sh
-cd go
 go build -o invox ./cmd/invox
 ./invox validate -i invoice.yaml
 ./invox render -i invoice.yaml
-./invox build -i invoice.yaml
+./invox build invoice.yaml
 ./invox customer list
 ./invox config
 ./invox customer config
 ./invox new CUST-001
+./invox new CUST-001 --from-last
 ./invox increment -i invoice.yaml
+./invox archive invoice.yaml
+./invox archive edit 2026-03-06.yaml
+./invox archive list
 ```
 
 Install it from this repository checkout:
 
 ```sh
-cd go
 go install ./cmd/invox
+```
+
+Make shortcuts for contributors:
+
+```sh
+make build
+make test
+make install
+make validate
+make render
+make pdf
+make archive
+```
+
+The Makefile is only contributor convenience around the real CLI. The user-facing interface remains `invox ...`.
+
+- `make build` builds `./bin/invox`
+- `make install` runs `go install ./cmd/invox`
+- `make validate`, `make render`, `make pdf`, and `make archive` run the local `./bin/invox` by default
+- those targets accept `INPUT`, `CUSTOMERS`, `ISSUER`, `TEMPLATE`, `TEX_OUTPUT`, `PDF_OUTPUT`, `CLI`, and `ARGS`
+- `PDF_OUTPUT` defaults to the `INPUT` path with a `.pdf` extension
+- if `invox` is already installed and on `PATH`, you can use `CLI=invox`
+
+Examples:
+
+```sh
+make render CUSTOMERS=customers.yaml ISSUER=issuer.yaml TEMPLATE=invoice_template.tex
+make pdf CLI=invox INPUT=invoice.yaml
+make archive CLI=invox INPUT=invoice.yaml
 ```
 
 Help:
@@ -48,6 +82,7 @@ go run ./cmd/invox customer -h
 go run ./cmd/invox customer config -h
 go run ./cmd/invox render -h
 go run ./cmd/invox build -h
+go run ./cmd/invox archive -h
 ```
 
 Flag aliases:
@@ -57,7 +92,12 @@ Flag aliases:
 - `-c, --customers` for `customers.yaml`
 - `-u, --issuer` for `issuer.yaml`
 - `-s, --source` for `invoice_defaults.yaml` on `new`
+- `--from-last` for cloning the latest archived invoice of the requested customer on `new`
 - `-t, --template` for the LaTeX template
+- `build` and `archive` also accept the invoice path positionally, for example `invox build invoice.yaml`
+- `build` also supports `--archive` to archive the invoice after a successful PDF build
+- `archive edit` copies an archived invoice into the current directory as YAML with `invoice.status: editing`
+- `archive list` prints one archived invoice per line as `FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS`
 
 Customer commands:
 
@@ -83,7 +123,7 @@ Defaults:
   - `issuer.yaml`
   - `invoice_defaults.yaml`
   - `template.tex`
-- Archive markdown directory:
+- Archive directory:
   - defaults to `~/Library/Application Support/invox/invoices` on macOS
   - can be overridden in `config.yaml` via `archive.dir`
   - resolution is: `config.yaml`, then platform default
@@ -113,14 +153,21 @@ Defaults:
 #   dir: '~/Library/Application Support/invox/invoices'
 ```
 - Resolution order for support files is: explicit flag, upward project search, `paths.*` from `config.yaml`, then global config files.
-- `-i, --input` is still required.
+- `-i, --input` is required for `increment`, `validate`, and `render`.
 - `invoice.number` is required for `validate`, `render`, and `build`.
-- `new` defaults to `./invoice.yaml` if `-o` is omitted.
+- `new` defaults to `./<invoice.number>.yaml` if `-o` is omitted.
+- `new --from-last` uses the latest archived invoice for that customer as the source document instead of `invoice_defaults.yaml`.
 - `render` defaults to `./invoice.tex` if `-o` is omitted.
-- `build` defaults to `./invoice.pdf` if `-o` is omitted.
+- `build` defaults to the input path with a `.pdf` extension if `-o` is omitted.
 - `build` renders in a temporary directory and leaves only the final PDF at the output path.
+- `build` updates `invoice.status` to `built` after a successful PDF build.
+- `build --archive` archives the invoice immediately after a successful PDF build.
+- `archive` moves a built invoice into `archive.dir`, or replaces an archived invoice when the working copy came from `archive edit`.
+- `archive edit <FILENAME>` uses the relative filename from `archive list`, copies that archived invoice into the current directory, and marks the working copy as `editing`.
+- Re-archiving a working copy created by `archive edit` replaces the archived invoice and rewrites the status back to `archived`.
 - When rendering outside the template directory, the CLI copies referenced assets like `fonts/` and `logo.png` next to the generated TeX so Tectonic can build successfully.
 - `new` creates a fresh invoice YAML from `invoice_defaults.yaml` and derives the next number by scanning archived invoices.
+- `new --from-last` keeps the previous invoice content for that customer but regenerates `invoice.number`, `invoice.issue_date`, `invoice.due_date`, `invoice.status`, and `invoice.paid_amount`.
 - `new` calculates and prefills `invoice.due_date` from `issuer.yaml -> payment.due_days`.
 - `increment` updates `invoice.number` in place using the larger of the current invoice counter and the archived-invoice counter.
 - `payment_terms_text` now comes from `issuer.yaml -> payment.payment_terms_text`, not from invoice input files.
@@ -178,12 +225,17 @@ Examples with explicit overrides:
 
 ```sh
 go run ./cmd/invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+go run ./cmd/invox new CUST-001 --from-last -c customers.yaml -u issuer.yaml
 go run ./cmd/invox increment -i invoices/2026-0022.yaml -c customers.yaml
 go run ./cmd/invox customer list -c customers.yaml
 go run ./cmd/invox customer config -c customers.yaml
 go run ./cmd/invox validate -i invoice.yaml -c customers.yaml -u issuer.yaml
 go run ./cmd/invox render -i invoice.yaml -o out/invoice.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
-go run ./cmd/invox build -i invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox build invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox build invoice.yaml --archive -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox archive invoice.yaml
+go run ./cmd/invox archive edit 2026-03-06.yaml
+go run ./cmd/invox archive list
 ```
 
 Example using global defaults only:
@@ -212,5 +264,8 @@ go run ./cmd/invox config
 go run ./cmd/invox customer config
 go run ./cmd/invox validate -i invoice.yaml
 go run ./cmd/invox render -i invoice.yaml
-go run ./cmd/invox build -i invoice.yaml
+go run ./cmd/invox build invoice.yaml --archive
+go run ./cmd/invox archive edit 2026-03-06.yaml
+go run ./cmd/invox archive 2026-03-06.yaml
+go run ./cmd/invox archive list
 ```
