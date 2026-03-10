@@ -99,6 +99,14 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
+	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) != "" {
+		resolvedTemplatePath, err := invoice.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
+		if err != nil {
+			printCommandError(os.Stderr, spec, err.Error())
+			return invoice.Options{}, nil, 2, false
+		}
+		opts.TemplatePath = resolvedTemplatePath
+	}
 	if err := validateCommandOptions(spec, opts); err != nil {
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false

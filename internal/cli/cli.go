@@ -27,6 +27,10 @@ func Run(args []string) int {
 		return runConfig(args[1:])
 	case "init":
 		return runInit(args[1:])
+	case "template":
+		return runTemplate(args[1:])
+	case "completion":
+		return runCompletion(args[1:])
 	case "new":
 		return runNew(args[1:])
 	case "increment":
@@ -62,6 +66,26 @@ func runHelp(args []string) int {
 		if len(args) == 2 && (args[1] == "list" || args[1] == "config") {
 			spec, _ := lookupCommand("customer " + args[1])
 			printCommandHelp(os.Stdout, spec)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
+	if args[0] == "template" {
+		if len(args) == 1 {
+			printTemplateHelp(os.Stdout)
+			return 0
+		}
+		if len(args) == 2 && args[1] == "list" {
+			printTemplateListHelp(os.Stdout)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
+	if args[0] == "completion" {
+		if len(args) == 1 || (len(args) == 2 && args[1] == "zsh") {
+			printCompletionHelp(os.Stdout)
 			return 0
 		}
 		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
@@ -118,6 +142,12 @@ func rootUsageError(message string) int {
 func customerUsageError(message string) int {
 	fmt.Fprintf(os.Stderr, "error: %s\n\n", message)
 	printCustomerHelp(os.Stderr)
+	return 2
+}
+
+func templateUsageError(message string) int {
+	fmt.Fprintf(os.Stderr, "error: %s\n\n", message)
+	printTemplateHelp(os.Stderr)
 	return 2
 }
 

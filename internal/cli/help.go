@@ -16,6 +16,8 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  customer       Customer-related commands\n")
 	fmt.Fprintf(w, "  config         Open config.yaml in the default shell editor\n")
 	fmt.Fprintf(w, "  init           Create starter support files in the global config directory\n")
+	fmt.Fprintf(w, "  template       Template-related commands\n")
+	fmt.Fprintf(w, "  completion     Generate shell completion scripts\n")
 	fmt.Fprintf(w, "  new            Create a new invoice YAML file with a generated number\n")
 	fmt.Fprintf(w, "  increment      Increment the invoice number in an existing invoice YAML file\n")
 	fmt.Fprintf(w, "  validate       Validate invoice YAML against customers and issuer data\n")
@@ -56,6 +58,8 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
 	fmt.Fprintf(w, "  %s\n", commandExample("init"))
+	fmt.Fprintf(w, "  %s\n", commandExample("template list"))
+	fmt.Fprintf(w, "  %s\n", commandExample("completion zsh"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 --from-last"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 -u issuer.yaml"))
@@ -87,6 +91,59 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list -c customers.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
+}
+
+func printTemplateHelp(w io.Writer) {
+	fmt.Fprintf(w, "Template-related commands.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s template <subcommand> [options]\n", commandName)
+	fmt.Fprintf(w, "  %s help template [subcommand]\n\n", commandName)
+	fmt.Fprintf(w, "Subcommands:\n")
+	fmt.Fprintf(w, "  list          List available invoice templates\n\n")
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("template list"))
+	fmt.Fprintf(w, "  %s\n", commandExample("template list --names"))
+}
+
+func printTemplateListHelp(w io.Writer) {
+	fmt.Fprintf(w, "List available LaTeX invoice templates from the same directory as the resolved default template.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s template list [--names]\n\n", commandName)
+	fmt.Fprintf(w, "Optional flags:\n")
+	fmt.Fprintf(w, "  -h, --help              Show this help page\n")
+	fmt.Fprintf(w, "  --names                 Print only template names\n\n")
+	fmt.Fprintf(w, "Output:\n")
+	fmt.Fprintf(w, "  Default: NAME<TAB>ABSOLUTE_PATH\n")
+	fmt.Fprintf(w, "  --names: TEMPLATE_NAME per line\n\n")
+	fmt.Fprintf(w, "Lookup:\n")
+	fmt.Fprintf(w, "  The directory is derived from the resolved default template path.\n")
+	fmt.Fprintf(w, "  Name-only -t/--template values are resolved in that same directory.\n\n")
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("template list"))
+	fmt.Fprintf(w, "  %s\n", commandExample("template list --names"))
+	fmt.Fprintf(w, "  %s\n", commandExample("build invoice.yaml -t multi_vat.tex"))
+}
+
+func printCompletionHelp(w io.Writer) {
+	fmt.Fprintf(w, "Generate shell completion scripts.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s completion zsh\n\n", commandName)
+	fmt.Fprintf(w, "Supported shells:\n")
+	fmt.Fprintf(w, "  zsh\n\n")
+	fmt.Fprintf(w, "Notes:\n")
+	fmt.Fprintf(w, "  The generated Zsh completion script completes subcommands and template names for render/build.\n")
+	fmt.Fprintf(w, "  Template-name completion is backed by `%s template list --names`.\n\n", commandName)
+	fmt.Fprintf(w, "Quick start:\n")
+	fmt.Fprintf(w, "  source <(%s completion zsh)\n\n", commandName)
+	fmt.Fprintf(w, "Persistent Zsh install:\n")
+	fmt.Fprintf(w, "  mkdir -p ~/.zsh/completions\n")
+	fmt.Fprintf(w, "  %s completion zsh > ~/.zsh/completions/_%s\n", commandName, commandName)
+	fmt.Fprintf(w, "  Add this before compinit in ~/.zshrc:\n")
+	fmt.Fprintf(w, "    fpath=(~/.zsh/completions $fpath)\n")
+	fmt.Fprintf(w, "    autoload -Uz compinit\n")
+	fmt.Fprintf(w, "    compinit\n\n")
+	fmt.Fprintf(w, "Example:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("completion zsh"))
 }
 
 func printCommandHelp(w io.Writer, spec commandSpec) {

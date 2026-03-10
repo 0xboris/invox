@@ -430,6 +430,139 @@ func TestCustomerListPreservesUnquotedNumericLookingCustomerID(t *testing.T) {
 	}
 }
 
+func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"template", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"invox template <subcommand> [options]",
+		"list          List available invoice templates",
+		"invox template list --names",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestTemplateListPrintsAvailableTemplates(t *testing.T) {
+	configPath := writeConfigFile(t, "")
+	configDir := filepath.Dir(configPath)
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	for _, path := range []string{
+		filepath.Join(configDir, "multi_vat.tex"),
+		filepath.Join(configDir, "template.tex"),
+		filepath.Join(workDir, "project.tex"),
+	} {
+		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
+		}
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"template", "list"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"multi_vat.tex\t" + filepath.Join(configDir, "multi_vat.tex"),
+		"template.tex\t" + filepath.Join(configDir, "template.tex"),
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+	if strings.Contains(stdout, "project.tex\t"+filepath.Join(workDir, "project.tex")) {
+		t.Fatalf("stdout %q should not contain project template outside default template dir", stdout)
+	}
+}
+
+func TestRenderAcceptsTemplateFilenameFromGlobalConfig(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	configPath := writeConfigFile(t, "")
+	configDir := filepath.Dir(configPath)
+
+	templatePath := filepath.Join(configDir, "multi_vat.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+Invoice @@INVOICE_NUMBER@@
+Customer @@CUSTOMER_NAME@@
+@@VAT_SUMMARY_ROWS@@
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "template.tex"), []byte("starter\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(template.tex) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"render",
+		"-i", invoicePath,
+		"-o", outputPath,
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-t", "multi_vat.tex",
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Rendered "+outputPath+" for CUST-001 (CUST-001-001)") {
+		t.Fatalf("stdout %q does not contain rendered output path", stdout)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	for _, want := range []string{
+		"Invoice CUST-001-001",
+		"Customer Appsters GmbH",
+		"VAT (20\\%):",
+	} {
+		if !strings.Contains(string(rendered), want) {
+			t.Fatalf("rendered output %q does not contain %q", string(rendered), want)
+		}
+	}
+}
+
+func TestCompletionZshOutputsTemplateAutocomplete(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"completion", "zsh"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"#compdef invox",
+		"template list --names",
+		"_invox_template_values",
+		"_invox_invoice_files()",
+		"_invox_shift_words()",
+		"_invox_shift_words 1",
+		"_invox_shift_words 2",
+		"if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then",
+		"{-t+,--template=}",
+		"(-i --input)1::invoice:_files",
+		"compdef _invox invox",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
 func TestNewHelpShowsShortFlags(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"new", "-h"})
 	if exitCode != 0 {

@@ -2,6 +2,7 @@ package invoice
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,9 +115,6 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 	setMappingString(root, "customer_id", customerID)
 
 	invoiceNode := getOrCreateMappingNode(root, "invoice")
-	renameMappingKey(invoiceNode, "period_label", "period")
-	renameMappingKey(invoiceNode, "vat_rate_percent", "vat_percent")
-	renameMappingKey(root, "line_items", "positions")
 	dueDays, err := issuerDueDays(issuerPath, issuerPayment)
 	if err != nil {
 		return "", "", err
@@ -128,8 +126,10 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 	setMappingString(invoiceNode, "status", "draft")
 	setMappingString(invoiceNode, "paid_amount", "0")
 
-	if vatRate := strings.TrimSuffix(strings.TrimSpace(asString(getPath(customer, "tax.default_vat_rate"))), "%"); vatRate != "" {
-		setMappingString(invoiceNode, "vat_percent", vatRate)
+	if strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "vat_percent")))) == "" {
+		if vatRate := strings.TrimSuffix(strings.TrimSpace(asString(getPath(customer, "tax.default_vat_rate"))), "%"); vatRate != "" {
+			setMappingString(invoiceNode, "vat_percent", vatRate)
+		}
 	}
 
 	if findMappingValue(root, "positions") == nil {
@@ -146,6 +146,9 @@ func loadNewInvoiceDocument(defaultsPath, customerID string, fromLast bool) (*ya
 	if !fromLast {
 		document, err := loadYAMLDocument(defaultsPath)
 		if err != nil {
+			return nil, "", err
+		}
+		if err := validateCanonicalInvoiceDocument(document, defaultsPath); err != nil {
 			return nil, "", err
 		}
 		return document, defaultsPath, nil
@@ -165,6 +168,9 @@ func loadNewInvoiceDocument(defaultsPath, customerID string, fromLast bool) (*ya
 	}
 	if !ok {
 		return nil, "", fmt.Errorf("%s: archived invoice could not be loaded", archivePath)
+	}
+	if err := validateCanonicalInvoiceDocument(document, archivePath); err != nil {
+		return nil, "", err
 	}
 	return document, archivePath, nil
 }
@@ -215,6 +221,9 @@ func EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
 	if !ok {
 		return "", "", fmt.Errorf("%s: archived invoice could not be loaded", archivePath)
 	}
+	if err := validateCanonicalInvoiceDocument(document, archivePath); err != nil {
+		return "", "", err
+	}
 
 	root, err := documentRootMapping(document, archivePath)
 	if err != nil {
@@ -227,10 +236,6 @@ func EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
 	if invoiceNode.Kind != yaml.MappingNode {
 		return "", "", fmt.Errorf("%s: `invoice` must be a mapping", archivePath)
 	}
-
-	renameMappingKey(invoiceNode, "period_label", "period")
-	renameMappingKey(invoiceNode, "vat_rate_percent", "vat_percent")
-	renameMappingKey(root, "line_items", "positions")
 
 	outputFilename, archiveTargetPath, archiveReplacePath := editableArchivePaths(relativeArchivePath)
 	outputPath := filepath.Join(workDir, outputFilename)
@@ -437,6 +442,24 @@ func parseYAMLDocumentSource(source []byte, label string) (*yaml.Node, error) {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
 	return &document, nil
+}
+
+func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) error {
+	root, ok := normalizeYAMLNode(document).(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	var validationErrors []string
+	appendUnsupportedInvoiceKeyErrors(root, &validationErrors)
+	if len(validationErrors) == 0 {
+		return nil
+	}
+
+	for index, validationError := range validationErrors {
+		validationErrors[index] = fmt.Sprintf("%s: %s", sourceLabel, validationError)
+	}
+	return errors.New(strings.Join(validationErrors, "\n"))
 }
 
 func writeYAMLDocument(path string, document *yaml.Node) error {
