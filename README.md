@@ -127,6 +127,9 @@ Other commands:
 
 - `init` creates starter versions of `config.yaml`, `customers.yaml`, `issuer.yaml`, `invoice_defaults.yaml`, and `template.tex` in the global config directory
 - existing non-empty support files are left unchanged by `init`
+- `template list` prints available templates from the same directory as the resolved default template as `TEMPLATE_NAME<TAB>ABSOLUTE_PATH`
+- `template list --names` prints just template names, one per line
+- `completion zsh` prints a Zsh completion script with template-name completion for `render` and `build`
 - `config` opens the resolved `config.yaml` file in the default shell editor
 - if `config.yaml` does not exist yet, `config` creates it with a commented template
 - `help config` prints the supported `config.yaml` keys and the commented template without modifying the file
@@ -175,6 +178,7 @@ Defaults:
 #   dir: '~/Library/Application Support/invox/invoices'
 ```
 - Resolution order for support files is: explicit flag, upward project search, `paths.*` from `config.yaml`, then global config files.
+- `-t, --template` accepts either a path or a known template filename such as `multi_vat.tex`; filename-only lookup uses the same directory as the resolved default template.
 - `-i, --input` is required for `increment`, `validate`, and `render`.
 - `invoice.number` is required for `validate`, `render`, and `build`.
 - `new` defaults to `./<invoice.number>.yaml` if `-o` is omitted.
@@ -246,17 +250,43 @@ Customer entry example:
 
 Basic workflow:
 
-1. Put your template in `template.tex` or pass it explicitly with `-t, --template`.
+1. Put your template in `template.tex`, keep it in the config directory, or pass it explicitly with `-t, --template`.
 2. Use literal placeholder tokens like `@@INVOICE_NUMBER@@` directly in the LaTeX source.
 3. Run `invox render invoice.yaml` to inspect the generated `.tex`.
 4. Run `invox build invoice.yaml` once the rendered LaTeX looks correct.
+
+Template discovery:
+
+- `invox template list` shows `.tex` files from the same directory as the resolved default template.
+- `-t, --template` accepts either a full path or a listed filename like `multi_vat.tex`.
+- `invox completion zsh` emits a Zsh completion script that completes template names for `render` and `build`.
+
+Shell completion:
+
+- Temporary in the current shell: `source <(invox completion zsh)`
+- Persistent Zsh install:
+
+```zsh
+mkdir -p ~/.zsh/completions
+invox completion zsh > ~/.zsh/completions/_invox
+```
+
+Add this before `compinit` in `~/.zshrc`:
+
+```zsh
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit
+compinit
+```
 
 Important rules:
 
 - Placeholder names are case-sensitive and must match exactly.
 - Unknown placeholders are left unchanged in the rendered TeX.
+- `@@VAT_RATE@@` and `@@VAT_AMOUNT@@` are no longer supported; use `@@VAT_SUMMARY_ROWS@@`.
 - Most placeholders are LaTeX-escaped automatically, so customer names, addresses, and free text are safe to insert directly.
 - `@@LINE_ITEMS_ROWS@@` is different: it expands to multiple LaTeX table rows and must be placed inside a table environment with five columns.
+- `@@LINE_ITEMS_ROWS_WITH_VAT@@` expands to multiple LaTeX table rows and must be placed inside a table environment with six columns.
 - Dates from YAML like `2026-03-10` are rendered as `10.03.2026`.
 - Money values are rendered like `1.234,56 \euro` for EUR, or `1.234,56 USD` for other currencies.
 
@@ -320,12 +350,15 @@ Line items:
 - `@@LINE_ITEMS_ROWS@@`
   Expands to all invoice positions as LaTeX rows in this order:
   `name`, `description`, `unit price`, `quantity`, `line total`
+- `@@LINE_ITEMS_ROWS_WITH_VAT@@`
+  Expands to all invoice positions as LaTeX rows in this order:
+  `name`, `description`, `unit price`, `quantity`, `VAT rate`, `line total`
 
 Totals:
 
 - `@@SUBTOTAL@@`
-- `@@VAT_RATE@@`
-- `@@VAT_AMOUNT@@`
+- `@@VAT_SUMMARY_ROWS@@`
+  Expands to one or more LaTeX rows like `VAT (20\%): & 40,00 \euro\\`
 - `@@TOTAL@@`
 - `@@PAID_AMOUNT@@`
 - `@@OUTSTANDING_AMOUNT@@`
@@ -343,7 +376,7 @@ Payment:
 
 ### Using `@@LINE_ITEMS_ROWS@@`
 
-`@@LINE_ITEMS_ROWS@@` is the only placeholder that renders structured LaTeX instead of a single text value.
+`@@LINE_ITEMS_ROWS@@`, `@@LINE_ITEMS_ROWS_WITH_VAT@@`, and `@@VAT_SUMMARY_ROWS@@` render structured LaTeX instead of a single text value.
 
 It currently emits rows for a five-column table:
 
@@ -358,6 +391,28 @@ Item & Description & Unit Price & Qty & Total\\
 ```
 
 If you change the table to fewer or more columns, you also need to change how rows are generated in the Go code.
+
+For a VAT-aware table, use `@@LINE_ITEMS_ROWS_WITH_VAT@@` in a six-column layout:
+
+```tex
+\begin{longtable}{p{3cm}p{5.5cm}r r r r}
+\toprule
+Item & Description & Unit Price & Qty & VAT & Total\\
+\midrule
+\endhead
+@@LINE_ITEMS_ROWS_WITH_VAT@@
+\end{longtable}
+```
+
+For totals, use `@@VAT_SUMMARY_ROWS@@` inside a two-column table:
+
+```tex
+\begin{tabular}{lr}
+Subtotal: & @@SUBTOTAL@@\\
+@@VAT_SUMMARY_ROWS@@
+Total: & @@TOTAL@@\\
+\end{tabular}
+```
 
 ### Assets and Relative Paths
 
@@ -403,13 +458,15 @@ go run ./cmd/invox new CUST-001 --from-last -c customers.yaml -u issuer.yaml
 go run ./cmd/invox increment -i invoices/2026-0022.yaml -c customers.yaml
 go run ./cmd/invox customer list -c customers.yaml
 go run ./cmd/invox customer config -c customers.yaml
+go run ./cmd/invox template list
+go run ./cmd/invox completion zsh
 go run ./cmd/invox validate -i invoice.yaml -c customers.yaml -u issuer.yaml
-go run ./cmd/invox render -i invoice.yaml -o out/invoice.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox render -i invoice.yaml -o out/invoice.tex -c customers.yaml -u issuer.yaml -t multi_vat.tex
 go run ./cmd/invox email invoice.yaml -c customers.yaml -u issuer.yaml
 go run ./cmd/invox email invoice.pdf -c customers.yaml -u issuer.yaml
 go run ./cmd/invox email invoice.yaml --to billing@example.com --subject "Invoice {invoice_number} for {customer_name}" -c customers.yaml -u issuer.yaml
-go run ./cmd/invox build invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
-go run ./cmd/invox build invoice.yaml --archive -c customers.yaml -u issuer.yaml -t invoice_template.tex
+go run ./cmd/invox build invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t multi_vat.tex
+go run ./cmd/invox build invoice.yaml --archive -c customers.yaml -u issuer.yaml -t multi_vat.tex
 go run ./cmd/invox archive invoice.yaml
 go run ./cmd/invox archive edit 2026-03-06.yaml
 go run ./cmd/invox archive list

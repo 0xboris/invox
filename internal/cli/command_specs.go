@@ -78,6 +78,29 @@ func initSpec() commandSpec {
 	}
 }
 
+func templateListSpec() commandSpec {
+	return commandSpec{
+		Name:    "template list",
+		Summary: "List available LaTeX invoice templates from the current project and config directories.",
+		Usage:   "template list [--names]",
+		Examples: []string{
+			commandExample("template list"),
+			commandExample("template list --names"),
+		},
+	}
+}
+
+func completionSpec() commandSpec {
+	return commandSpec{
+		Name:    "completion",
+		Summary: "Generate shell completion scripts.",
+		Usage:   "completion zsh",
+		Examples: []string{
+			commandExample("completion zsh"),
+		},
+	}
+}
+
 func newSpec() commandSpec {
 	return commandSpec{
 		Name:                 "new",
@@ -238,6 +261,10 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return configSpec(), true
 	case "init":
 		return initSpec(), true
+	case "template list":
+		return templateListSpec(), true
+	case "completion":
+		return completionSpec(), true
 	case "new":
 		return newSpec(), true
 	case "increment":

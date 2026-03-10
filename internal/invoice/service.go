@@ -38,7 +38,7 @@ type Context struct {
 	Invoice          map[string]any
 	LineItems        []LineItem
 	Currency         string
-	VATRatePercent   *big.Rat
+	VATBreakdowns    []VATBreakdown
 	SubtotalCents    int64
 	VATAmountCents   int64
 	TotalCents       int64
@@ -53,7 +53,19 @@ type LineItem struct {
 	Description    string
 	UnitPrice      *big.Rat
 	Quantity       *big.Rat
+	VATRatePercent *big.Rat
 	LineTotalCents int64
+}
+
+type VATBreakdown struct {
+	RatePercent    *big.Rat
+	NetCents       int64
+	VATAmountCents int64
+}
+
+type vatRateField struct {
+	Present bool
+	Value   *big.Rat
 }
 
 const (
@@ -554,7 +566,9 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
 		issuerPayment = map[string]any{}
 	}
-	rawLineItems, ok := firstPresentPath(invoiceData, "positions", "line_items").([]any)
+	appendUnsupportedInvoiceKeyErrors(invoiceData, &validationErrors)
+
+	rawLineItems, ok := invoiceData["positions"].([]any)
 	if !ok || len(rawLineItems) == 0 {
 		validationErrors = append(validationErrors, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
 		rawLineItems = nil
@@ -588,8 +602,8 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		"number",
 		"issue_date",
 		"due_date",
+		"period",
 	}, &validationErrors)
-	requireAnyPath(invoiceBlock, "invoice", "period", []string{"period", "period_label"}, &validationErrors)
 	requirePaths(issuerPayment, "issuer.payment", []string{
 		"bank_name",
 		"iban",
@@ -607,10 +621,12 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 
 	paidAmount := coerceDecimal(getPath(invoiceBlock, "paid_amount"), "invoice.paid_amount", &validationErrors, true)
-	vatRate := coerceVATRate(firstNonEmptyPath(invoiceBlock, "vat_percent", "vat_rate_percent"), customer, &validationErrors)
+	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
+	customerVATRate := parseOptionalVATRate(getPath(customer, "tax.default_vat_rate"), "customer.tax.default_vat_rate", &validationErrors)
 	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
 
 	normalizedItems := make([]LineItem, 0, len(rawLineItems))
+	missingInvoiceVATReported := false
 	for index, rawItem := range rawLineItems {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
@@ -626,11 +642,18 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		if quantity != nil && quantity.Sign() <= 0 {
 			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].quantity: must be > 0", index+1))
 		}
+		positionVATRate := parseOptionalVATRate(item["vat_percent"], fmt.Sprintf("positions[%d].vat_percent", index+1), &validationErrors)
+		effectiveVATRate, missingVATRate := resolveEffectiveVATRate(positionVATRate, invoiceVATRate, customerVATRate)
+		if missingVATRate && !missingInvoiceVATReported {
+			validationErrors = append(validationErrors, "invoice.vat_percent: missing value")
+			missingInvoiceVATReported = true
+		}
 		normalizedItems = append(normalizedItems, LineItem{
-			Name:        asString(item["name"]),
-			Description: asString(item["description"]),
-			UnitPrice:   unitPrice,
-			Quantity:    quantity,
+			Name:           asString(item["name"]),
+			Description:    asString(item["description"]),
+			UnitPrice:      unitPrice,
+			Quantity:       quantity,
+			VATRatePercent: effectiveVATRate,
 		})
 	}
 
@@ -640,14 +663,34 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 
 	var subtotalCents int64
 	renderedItems := make([]LineItem, 0, len(normalizedItems))
+	vatBuckets := make(map[string]*VATBreakdown, len(normalizedItems))
 	for _, item := range normalizedItems {
 		lineTotal := quantizeMoney(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
 		subtotalCents += lineTotal
 		item.LineTotalCents = lineTotal
 		renderedItems = append(renderedItems, item)
+		key := item.VATRatePercent.RatString()
+		bucket, ok := vatBuckets[key]
+		if !ok {
+			bucket = &VATBreakdown{
+				RatePercent: new(big.Rat).Set(item.VATRatePercent),
+			}
+			vatBuckets[key] = bucket
+		}
+		bucket.NetCents += lineTotal
 	}
 
-	vatAmountCents := quantizeMoney(percentOfMoney(subtotalCents, vatRate))
+	vatBreakdowns := make([]VATBreakdown, 0, len(vatBuckets))
+	var vatAmountCents int64
+	for _, bucket := range vatBuckets {
+		bucket.VATAmountCents = quantizeMoney(percentOfMoney(bucket.NetCents, bucket.RatePercent))
+		vatAmountCents += bucket.VATAmountCents
+		vatBreakdowns = append(vatBreakdowns, *bucket)
+	}
+	sort.Slice(vatBreakdowns, func(left, right int) bool {
+		return vatBreakdowns[left].RatePercent.Cmp(vatBreakdowns[right].RatePercent) < 0
+	})
+
 	totalCents := subtotalCents + vatAmountCents
 	paidAmountCents := quantizeMoney(paidAmount)
 	outstandingCents := totalCents - paidAmountCents
@@ -660,12 +703,6 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	resolvedCustomerEmail := customerEmail(customer)
 	invoiceNumber := strings.TrimSpace(asString(getPath(invoiceBlock, "number")))
 	normalizedInvoice := cloneMap(invoiceBlock)
-	if period := firstNonEmptyPath(invoiceBlock, "period", "period_label"); period != nil {
-		normalizedInvoice["period"] = period
-	}
-	if vatPercent := firstNonEmptyPath(invoiceBlock, "vat_percent", "vat_rate_percent"); vatPercent != nil {
-		normalizedInvoice["vat_percent"] = vatPercent
-	}
 
 	return &Context{
 		CustomerID:       customerID,
@@ -675,7 +712,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		Invoice:          normalizedInvoice,
 		LineItems:        renderedItems,
 		Currency:         currency,
-		VATRatePercent:   vatRate,
+		VATBreakdowns:    vatBreakdowns,
 		SubtotalCents:    subtotalCents,
 		VATAmountCents:   vatAmountCents,
 		TotalCents:       totalCents,
@@ -691,7 +728,11 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err != nil {
 		return err
 	}
-	rendered := string(content)
+	template := migrateLegacyTemplatePlaceholders(string(content))
+	if err := validateTemplatePlaceholders(template); err != nil {
+		return fmt.Errorf("%s: %w", templatePath, err)
+	}
+	rendered := template
 	for placeholder, value := range buildTemplateValues(ctx) {
 		rendered = strings.ReplaceAll(rendered, placeholder, value)
 	}
@@ -816,6 +857,27 @@ func PDFPathForOutput(outputPath string) string {
 	return strings.TrimSuffix(outputPath, ext) + ".pdf"
 }
 
+func validateTemplatePlaceholders(template string) error {
+	var validationErrors []string
+	for placeholder, replacement := range map[string]string{
+		"@@VAT_RATE@@":   "@@VAT_SUMMARY_ROWS@@",
+		"@@VAT_AMOUNT@@": "@@VAT_SUMMARY_ROWS@@",
+	} {
+		if strings.Contains(template, placeholder) {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))
+		}
+	}
+	if len(validationErrors) > 0 {
+		return errors.New(strings.Join(validationErrors, "\n"))
+	}
+	return nil
+}
+
+func migrateLegacyTemplatePlaceholders(template string) string {
+	legacyVATRowPattern := regexp.MustCompile(`(?m)^([ \t]*)VAT \(@@VAT_RATE@@\\%\): & @@VAT_AMOUNT@@\\\\[ \t]*$`)
+	return legacyVATRowPattern.ReplaceAllString(template, `${1}@@VAT_SUMMARY_ROWS@@`)
+}
+
 func buildTemplateValues(ctx *Context) map[string]string {
 	return map[string]string{
 		"@@ISSUER_NAME@@":                   latexEscape(asString(ctx.IssuerCompany["legal_company_name"])),
@@ -838,11 +900,11 @@ func buildTemplateValues(ctx *Context) map[string]string {
 		"@@CUSTOMER_VAT_TAX_ID@@":           latexEscape(asString(getPath(ctx.Customer, "tax.vat_tax_id"))),
 		"@@CUSTOMER_EMAIL@@":                latexEscape(ctx.CustomerEmail),
 		"@@LINE_ITEMS_ROWS@@":               renderLineItems(ctx.LineItems, ctx.Currency),
-		"@@PERIOD_LABEL@@":                  latexEscape(asString(firstNonEmptyPath(ctx.Invoice, "period", "period_label"))),
+		"@@LINE_ITEMS_ROWS_WITH_VAT@@":      renderLineItemsWithVAT(ctx.LineItems, ctx.Currency),
+		"@@PERIOD_LABEL@@":                  latexEscape(asString(ctx.Invoice["period"])),
 		"@@PAYMENT_TERMS_TEXT@@":            latexEscape(asString(ctx.IssuerPayment["payment_terms_text"])),
 		"@@SUBTOTAL@@":                      FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_RATE@@":                      latexEscape(formatQuantity(ctx.VATRatePercent)),
-		"@@VAT_AMOUNT@@":                    FormatCurrency(ctx.VATAmountCents, ctx.Currency),
+		"@@VAT_SUMMARY_ROWS@@":              renderVATSummaryRows(ctx.VATBreakdowns, ctx.Currency),
 		"@@TOTAL@@":                         FormatCurrency(ctx.TotalCents, ctx.Currency),
 		"@@PAID_AMOUNT@@":                   FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
 		"@@OUTSTANDING_AMOUNT@@":            FormatCurrency(ctx.OutstandingCents, ctx.Currency),
@@ -853,17 +915,28 @@ func buildTemplateValues(ctx *Context) map[string]string {
 }
 
 func renderLineItems(items []LineItem, currency string) string {
+	return renderLineItemRows(items, currency, false)
+}
+
+func renderLineItemsWithVAT(items []LineItem, currency string) string {
+	return renderLineItemRows(items, currency, true)
+}
+
+func renderLineItemRows(items []LineItem, currency string, includeVAT bool) string {
 	rows := make([]string, 0, len(items)*2)
 	lastIndex := len(items) - 1
 	for index, item := range items {
-		rows = append(rows, fmt.Sprintf(
-			"    %s & %s & %s & %s & %s\\\\",
+		parts := []string{
 			latexEscape(item.Name),
 			latexEscape(item.Description),
 			FormatCurrency(quantizeMoney(item.UnitPrice), currency),
 			latexEscape(formatQuantity(item.Quantity)),
-			FormatCurrency(item.LineTotalCents, currency),
-		))
+		}
+		if includeVAT {
+			parts = append(parts, formatVATRate(item.VATRatePercent))
+		}
+		parts = append(parts, FormatCurrency(item.LineTotalCents, currency))
+		rows = append(rows, "    "+strings.Join(parts, " & ")+`\\`)
 		ruleWidth := "0.2pt"
 		if index == lastIndex {
 			ruleWidth = "0.4pt"
@@ -871,6 +944,22 @@ func renderLineItems(items []LineItem, currency string) string {
 		rows = append(rows, fmt.Sprintf("    \\specialrule{%s}{0pt}{0pt}", ruleWidth))
 	}
 	return strings.Join(rows, "\n")
+}
+
+func renderVATSummaryRows(breakdowns []VATBreakdown, currency string) string {
+	rows := make([]string, 0, len(breakdowns))
+	for _, breakdown := range breakdowns {
+		rows = append(rows, fmt.Sprintf(
+			"VAT (%s): & %s\\\\",
+			formatVATRate(breakdown.RatePercent),
+			FormatCurrency(breakdown.VATAmountCents, currency),
+		))
+	}
+	return strings.Join(rows, "\n")
+}
+
+func formatVATRate(value *big.Rat) string {
+	return latexEscape(formatQuantity(value)) + `\%`
 }
 
 func requirePaths(source map[string]any, prefix string, paths []string, errors *[]string) {
@@ -882,11 +971,21 @@ func requirePaths(source map[string]any, prefix string, paths []string, errors *
 	}
 }
 
-func requireAnyPath(source map[string]any, prefix, label string, paths []string, errors *[]string) {
-	if firstNonEmptyPath(source, paths...) != nil {
+func appendUnsupportedInvoiceKeyErrors(source map[string]any, errors *[]string) {
+	if _, ok := source["line_items"]; ok {
+		*errors = append(*errors, "line_items: unsupported key; use positions")
+	}
+
+	invoiceBlock, ok := source["invoice"].(map[string]any)
+	if !ok {
 		return
 	}
-	*errors = append(*errors, fmt.Sprintf("%s.%s: missing value", prefix, label))
+	if _, ok := invoiceBlock["period_label"]; ok {
+		*errors = append(*errors, "invoice.period_label: unsupported key; use invoice.period")
+	}
+	if _, ok := invoiceBlock["vat_rate_percent"]; ok {
+		*errors = append(*errors, "invoice.vat_rate_percent: unsupported key; use invoice.vat_percent")
+	}
 }
 
 func getPath(source any, path string) any {
@@ -948,22 +1047,35 @@ func coerceDecimal(value any, label string, errors *[]string, allowDefault bool)
 	return rat
 }
 
-func coerceVATRate(value any, customer map[string]any, errors *[]string) *big.Rat {
+func parseOptionalVATRate(value any, label string, errors *[]string) vatRateField {
 	raw := strings.TrimSpace(asString(value))
 	if raw == "" {
-		raw = strings.TrimSpace(asString(getPath(customer, "tax.default_vat_rate")))
-	}
-	if raw == "" {
-		*errors = append(*errors, "invoice.vat_percent: missing value")
-		return big.NewRat(0, 1)
+		return vatRateField{}
 	}
 	raw = strings.TrimSuffix(raw, "%")
 	rat, ok := parseDecimal(strings.TrimSpace(raw))
 	if !ok {
-		*errors = append(*errors, fmt.Sprintf("invoice.vat_percent: expected a number or percent string, got `%v`", value))
-		return big.NewRat(0, 1)
+		*errors = append(*errors, fmt.Sprintf("%s: expected a number or percent string, got `%v`", label, value))
+		return vatRateField{Present: true}
 	}
-	return rat
+	if rat.Sign() < 0 {
+		*errors = append(*errors, fmt.Sprintf("%s: must be >= 0", label))
+		return vatRateField{Present: true}
+	}
+	return vatRateField{Present: true, Value: rat}
+}
+
+func resolveEffectiveVATRate(position, invoice, customer vatRateField) (*big.Rat, bool) {
+	switch {
+	case position.Present:
+		return position.Value, false
+	case invoice.Present:
+		return invoice.Value, false
+	case customer.Present:
+		return customer.Value, false
+	default:
+		return nil, true
+	}
 }
 
 func coerceNonNegativeInt(value any, label string, errors *[]string) int64 {

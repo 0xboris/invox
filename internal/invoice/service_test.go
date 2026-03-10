@@ -53,7 +53,7 @@ func TestLoadContextWithCurrentInvoice(t *testing.T) {
 	}
 }
 
-func TestLoadContextSupportsLegacyInvoiceAliases(t *testing.T) {
+func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -70,22 +70,121 @@ func TestLoadContextSupportsLegacyInvoiceAliases(t *testing.T) {
 		t.Fatalf("WriteFile(legacyPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(
+	_, err = LoadContext(
 		customersPath,
 		issuerPath,
 		legacyPath,
 	)
+	if err == nil {
+		t.Fatal("LoadContext returned nil error for legacy aliases")
+	}
+	for _, want := range []string{
+		"invoice.period_label: unsupported key; use invoice.period",
+		"invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		"line_items: unsupported key; use positions",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+}
+
+func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
 	if err != nil {
-		t.Fatalf("LoadContext returned error for legacy aliases: %v", err)
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
-	if got := asString(ctx.Invoice["period"]); got != "Leistungszeitraum" {
-		t.Fatalf("Invoice[period] = %q, want %q", got, "Leistungszeitraum")
+
+	mutated := strings.Replace(string(source), "    quantity: 1\n", "    quantity: 1\n    vat_percent: 10\n", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
-	if got := asString(ctx.Invoice["vat_percent"]); got != "20" {
-		t.Fatalf("Invoice[vat_percent] = %q, want %q", got, "20")
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
 	}
-	if len(ctx.LineItems) != 2 {
-		t.Fatalf("len(LineItems) = %d, want 2", len(ctx.LineItems))
+
+	if got := len(ctx.VATBreakdowns); got != 2 {
+		t.Fatalf("len(VATBreakdowns) = %d, want 2", got)
+	}
+	if got := formatQuantity(ctx.LineItems[0].VATRatePercent); got != "20" {
+		t.Fatalf("LineItems[0].VATRatePercent = %q, want %q", got, "20")
+	}
+	if got := formatQuantity(ctx.LineItems[1].VATRatePercent); got != "10" {
+		t.Fatalf("LineItems[1].VATRatePercent = %q, want %q", got, "10")
+	}
+	if ctx.SubtotalCents != 21000 {
+		t.Fatalf("SubtotalCents = %d, want %d", ctx.SubtotalCents, 21000)
+	}
+	if ctx.VATAmountCents != 4100 {
+		t.Fatalf("VATAmountCents = %d, want %d", ctx.VATAmountCents, 4100)
+	}
+	if ctx.TotalCents != 25100 {
+		t.Fatalf("TotalCents = %d, want %d", ctx.TotalCents, 25100)
+	}
+	if got := formatQuantity(ctx.VATBreakdowns[0].RatePercent); got != "10" {
+		t.Fatalf("VATBreakdowns[0].RatePercent = %q, want %q", got, "10")
+	}
+	if ctx.VATBreakdowns[0].NetCents != 1000 || ctx.VATBreakdowns[0].VATAmountCents != 100 {
+		t.Fatalf("VATBreakdowns[0] = %+v, want net=1000 vat=100", ctx.VATBreakdowns[0])
+	}
+	if got := formatQuantity(ctx.VATBreakdowns[1].RatePercent); got != "20" {
+		t.Fatalf("VATBreakdowns[1].RatePercent = %q, want %q", got, "20")
+	}
+	if ctx.VATBreakdowns[1].NetCents != 20000 || ctx.VATBreakdowns[1].VATAmountCents != 4000 {
+		t.Fatalf("VATBreakdowns[1] = %+v, want net=20000 vat=4000", ctx.VATBreakdowns[1])
+	}
+}
+
+func TestLoadContextFallsBackToCustomerDefaultVATRate(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+
+	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: 1010
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+    default_vat_rate: 13
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
+
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  vat_percent: 20\n", "", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	if got := len(ctx.VATBreakdowns); got != 1 {
+		t.Fatalf("len(VATBreakdowns) = %d, want 1", got)
+	}
+	if got := formatQuantity(ctx.LineItems[0].VATRatePercent); got != "13" {
+		t.Fatalf("LineItems[0].VATRatePercent = %q, want %q", got, "13")
+	}
+	if ctx.VATAmountCents != 2730 {
+		t.Fatalf("VATAmountCents = %d, want %d", ctx.VATAmountCents, 2730)
+	}
+	if ctx.TotalCents != 23730 {
+		t.Fatalf("TotalCents = %d, want %d", ctx.TotalCents, 23730)
 	}
 }
 
@@ -140,6 +239,117 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 	}
 	if strings.Contains(text, "@@INVOICE_NUMBER@@") {
 		t.Fatalf("rendered output still contains placeholder: %q", text)
+	}
+}
+
+func TestRenderInvoiceRendersVATSummaryRowsAndPerLineVATRows(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "    quantity: 1\n", "    quantity: 1\n    vat_percent: 10\n", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+Rows:
+@@LINE_ITEMS_ROWS_WITH_VAT@@
+Totals:
+@@VAT_SUMMARY_ROWS@@
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"Development & Sprint work & 100,00 \\euro & 2 & 20\\% & 200,00 \\euro",
+		"Support & QA & 10,00 \\euro & 1 & 10\\% & 10,00 \\euro",
+		"VAT (10\\%): & 1,00 \\euro",
+		"VAT (20\\%): & 40,00 \\euro",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "invoice_template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+\begin{tabular}{lr}
+Subtotal: & @@SUBTOTAL@@\\
+VAT (@@VAT_RATE@@\%): & @@VAT_AMOUNT@@\\
+Total: & @@TOTAL@@\\
+\end{tabular}
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	if strings.Contains(text, "@@VAT_RATE@@") || strings.Contains(text, "@@VAT_AMOUNT@@") {
+		t.Fatalf("rendered output still contains legacy VAT placeholders: %q", text)
+	}
+	if !strings.Contains(text, "VAT (20\\%): & 42,00 \\euro\\\\") {
+		t.Fatalf("rendered output %q does not contain migrated VAT summary row", text)
+	}
+}
+
+func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("VAT @@VAT_RATE@@ @@VAT_AMOUNT@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	err = RenderInvoice(templatePath, outputPath, ctx)
+	if err == nil {
+		t.Fatal("RenderInvoice returned nil error for legacy VAT placeholders")
+	}
+	for _, want := range []string{
+		"@@VAT_RATE@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
+		"@@VAT_AMOUNT@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }
 
@@ -777,6 +987,150 @@ paths:
 	}
 }
 
+func TestListTemplatesUsesDefaultTemplateDirectoryOnly(t *testing.T) {
+	rootDir := t.TempDir()
+	configHome := filepath.Join(rootDir, "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	customDir := filepath.Join(rootDir, "custom-templates")
+	workDir := filepath.Join(rootDir, "work")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(customDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(customDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workDir) returned error: %v", err)
+	}
+
+	for _, file := range []string{
+		filepath.Join(workDir, "project.tex"),
+		filepath.Join(configDir, "template.tex"),
+		filepath.Join(customDir, "custom.tex"),
+		filepath.Join(customDir, "multi_vat.tex"),
+	} {
+		if err := os.WriteFile(file, []byte("test"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", file, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(strings.TrimSpace(`
+paths:
+  template: ../../custom-templates/custom.tex
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	templates, err := ListTemplates(workDir)
+	if err != nil {
+		t.Fatalf("ListTemplates returned error: %v", err)
+	}
+
+	got := make([]string, 0, len(templates))
+	for _, template := range templates {
+		got = append(got, template.Name+"\t"+template.Path)
+	}
+	for _, want := range []string{
+		"custom.tex\t" + filepath.Join(customDir, "custom.tex"),
+		"multi_vat.tex\t" + filepath.Join(customDir, "multi_vat.tex"),
+	} {
+		if !containsString(got, want) {
+			t.Fatalf("template list %q does not contain %q", got, want)
+		}
+	}
+	for _, forbidden := range []string{
+		"project.tex\t" + filepath.Join(workDir, "project.tex"),
+		"template.tex\t" + filepath.Join(configDir, "template.tex"),
+	} {
+		if containsString(got, forbidden) {
+			t.Fatalf("template list %q should not contain %q", got, forbidden)
+		}
+	}
+}
+
+func TestResolveTemplateReferenceFindsNamedConfigTemplate(t *testing.T) {
+	rootDir := t.TempDir()
+	configHome := filepath.Join(rootDir, "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	customDir := filepath.Join(rootDir, "custom-templates")
+	workDir := filepath.Join(rootDir, "work")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(customDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(customDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workDir) returned error: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(strings.TrimSpace(`
+paths:
+  template: ../../custom-templates/custom.tex
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(customDir, "multi_vat.tex")
+	if err := os.WriteFile(templatePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(customDir, "custom.tex"), []byte("test"), 0o644); err != nil {
+		t.Fatalf("WriteFile(custom.tex) returned error: %v", err)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	resolvedPath, err := ResolveTemplateReference(workDir, "multi_vat.tex")
+	if err != nil {
+		t.Fatalf("ResolveTemplateReference returned error: %v", err)
+	}
+	if resolvedPath != templatePath {
+		t.Fatalf("resolvedPath = %q, want %q", resolvedPath, templatePath)
+	}
+}
+
+func TestResolveTemplateReferenceDoesNotSearchOutsideDefaultTemplateDirectory(t *testing.T) {
+	rootDir := t.TempDir()
+	configHome := filepath.Join(rootDir, "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	customDir := filepath.Join(rootDir, "custom-templates")
+	workDir := filepath.Join(rootDir, "work")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(customDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(customDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workDir) returned error: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(strings.TrimSpace(`
+paths:
+  template: ../../custom-templates/custom.tex
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(customDir, "custom.tex"), []byte("test"), 0o644); err != nil {
+		t.Fatalf("WriteFile(custom.tex) returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "outside.tex"), []byte("test"), 0o644); err != nil {
+		t.Fatalf("WriteFile(outside.tex) returned error: %v", err)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+
+	_, err := ResolveTemplateReference(workDir, "outside.tex")
+	if err == nil {
+		t.Fatal("ResolveTemplateReference returned nil error for template outside default template directory")
+	}
+	if !strings.Contains(err.Error(), "template \"outside.tex\" not found") {
+		t.Fatalf("error %q does not contain not-found message", err.Error())
+	}
+}
+
 func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	legacyDir := filepath.Join(configHome, "invoice-tool")
@@ -1100,6 +1454,89 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	}
 }
 
+func TestCreateNewInvoicePrefillsVATFromCustomerDefaultWhenMissing(t *testing.T) {
+	oldCurrentDate := currentDate
+	currentDate = func() time.Time {
+		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
+	}
+	t.Cleanup(func() {
+		currentDate = oldCurrentDate
+	})
+
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+CUST-001:
+  name: Appsters GmbH
+  tax:
+    default_vat_rate: 13
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
+	if err := os.WriteFile(defaultsPath, []byte(strings.TrimSpace(`
+invoice:
+  period: "Leistungszeitraum: "
+positions:
+  - name: Beispielposition
+    description: Beschreibung der Leistung
+    unit_price: 100
+    quantity: 1
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoice_defaults.yaml) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	if err != nil {
+		t.Fatalf("CreateNewInvoice returned error: %v", err)
+	}
+
+	source, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	if !strings.Contains(string(source), "vat_percent: \"13\"") {
+		t.Fatalf("created invoice does not contain customer VAT default:\n%s", string(source))
+	}
+}
+
+func TestCreateNewInvoicePreservesSourceVATWhenCustomerHasDefault(t *testing.T) {
+	oldCurrentDate := currentDate
+	currentDate = func() time.Time {
+		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
+	}
+	t.Cleanup(func() {
+		currentDate = oldCurrentDate
+	})
+
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+CUST-001:
+  name: Appsters GmbH
+  tax:
+    default_vat_rate: 13
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	if err != nil {
+		t.Fatalf("CreateNewInvoice returned error: %v", err)
+	}
+
+	source, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(source)
+	if !strings.Contains(text, "vat_percent: 20") {
+		t.Fatalf("created invoice does not preserve source VAT:\n%s", text)
+	}
+	if strings.Contains(text, "vat_percent: \"13\"") {
+		t.Fatalf("created invoice should not overwrite source VAT with customer default:\n%s", text)
+	}
+}
+
 func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testing.T) {
 	oldCurrentDate := currentDate
 	currentDate = func() time.Time {
@@ -1172,7 +1609,7 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 	}
 }
 
-func TestCreateNewInvoiceRenamesLegacyDefaultKeys(t *testing.T) {
+func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 	oldCurrentDate := currentDate
 	currentDate = func() time.Time {
 		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
@@ -1192,23 +1629,16 @@ func TestCreateNewInvoiceRenamesLegacyDefaultKeys(t *testing.T) {
 		"CUST-001",
 		false,
 	)
-	if err != nil {
-		t.Fatalf("CreateNewInvoice returned error: %v", err)
+	if err == nil {
+		t.Fatal("CreateNewInvoice returned nil error for legacy default keys")
 	}
-
-	source, err := os.ReadFile(outputPath)
-	if err != nil {
-		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
-	}
-	text := string(source)
-	for _, want := range []string{"period:", "vat_percent: 20", "positions:"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("created invoice does not contain %q:\n%s", want, text)
-		}
-	}
-	for _, forbidden := range []string{"period_label:", "vat_rate_percent:", "line_items:"} {
-		if strings.Contains(text, forbidden) {
-			t.Fatalf("created invoice still contains legacy key %q:\n%s", forbidden, text)
+	for _, want := range []string{
+		defaultsPath + ": invoice.period_label: unsupported key; use invoice.period",
+		defaultsPath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		defaultsPath + ": line_items: unsupported key; use positions",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
 		}
 	}
 }
@@ -1368,6 +1798,47 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 	}
 }
 
+func TestCreateNewInvoiceFromLastRejectsLegacyArchivedInvoiceKeys(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivePath := filepath.Join(archiveDir, "2026-03-08.yaml")
+	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: archived
+  period_label: March 2026
+  vat_rate_percent: 10
+  paid_amount: 999
+line_items:
+  - name: Latest position
+    description: From latest invoice
+    unit_price: 120
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
+	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
+	if err == nil {
+		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
+	}
+	for _, want := range []string{
+		archivePath + ": invoice.period_label: unsupported key; use invoice.period",
+		archivePath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		archivePath + ": line_items: unsupported key; use positions",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+}
+
 func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
@@ -1472,6 +1943,45 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 	} {
 		if strings.Contains(finalText, forbidden) {
 			t.Fatalf("final archive should not contain %q:\n%s", forbidden, finalText)
+		}
+	}
+}
+
+func TestEditArchivedInvoiceRejectsLegacyKeys(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	archivePath := filepath.Join(archiveDir, "2026-03-06.yaml")
+	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: archived
+  period_label: March 2026
+  vat_rate_percent: 20
+  paid_amount: 0
+line_items:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
+	}
+
+	_, _, err := EditArchivedInvoice("2026-03-06.yaml", t.TempDir())
+	if err == nil {
+		t.Fatal("EditArchivedInvoice returned nil error for legacy keys")
+	}
+	for _, want := range []string{
+		archivePath + ": invoice.period_label: unsupported key; use invoice.period",
+		archivePath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		archivePath + ": line_items: unsupported key; use positions",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
 		}
 	}
 }
@@ -1779,4 +2289,13 @@ func writeArchivedInvoiceMarkdown(t *testing.T, dir, name, invoiceNumber string)
 
 func quoteYAMLString(value string) string {
 	return strconv.Quote(value)
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
