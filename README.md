@@ -240,6 +240,151 @@ Customer entry example:
 
 `billing.currency` is optional and defaults to `EUR`.
 
+## Template Authoring
+
+`invox render` and `invox build` read a LaTeX template file, replace known placeholders, and write the rendered `.tex` before optionally compiling it to PDF.
+
+Basic workflow:
+
+1. Put your template in `template.tex` or pass it explicitly with `-t, --template`.
+2. Use literal placeholder tokens like `@@INVOICE_NUMBER@@` directly in the LaTeX source.
+3. Run `invox render invoice.yaml` to inspect the generated `.tex`.
+4. Run `invox build invoice.yaml` once the rendered LaTeX looks correct.
+
+Important rules:
+
+- Placeholder names are case-sensitive and must match exactly.
+- Unknown placeholders are left unchanged in the rendered TeX.
+- Most placeholders are LaTeX-escaped automatically, so customer names, addresses, and free text are safe to insert directly.
+- `@@LINE_ITEMS_ROWS@@` is different: it expands to multiple LaTeX table rows and must be placed inside a table environment with five columns.
+- Dates from YAML like `2026-03-10` are rendered as `10.03.2026`.
+- Money values are rendered like `1.234,56 \euro` for EUR, or `1.234,56 USD` for other currencies.
+
+Minimal example:
+
+```tex
+\documentclass{article}
+\usepackage{longtable}
+\usepackage{eurosym}
+\begin{document}
+
+Invoice @@INVOICE_NUMBER@@
+
+\textbf{Bill To}\\
+@@CUSTOMER_NAME@@\\
+@@CUSTOMER_STREET@@\\
+@@CUSTOMER_CITY_AND_POSTAL_CODE@@\\
+@@CUSTOMER_COUNTRY@@
+
+\begin{longtable}{p{3cm}p{5.5cm}r r r}
+Item & Description & Unit Price & Qty & Total\\
+@@LINE_ITEMS_ROWS@@
+\end{longtable}
+
+Total: @@TOTAL@@
+
+\end{document}
+```
+
+### Available Placeholders
+
+Issuer:
+
+- `@@ISSUER_NAME@@`
+- `@@ISSUER_COMPANY_REG_NO@@`
+- `@@ISSUER_VAT_TAX_ID@@`
+- `@@ISSUER_WEBSITE@@`
+- `@@ISSUER_EMAIL@@`
+- `@@ISSUER_STREET@@`
+- `@@ISSUER_CITY_AND_POSTAL_CODE@@`
+- `@@ISSUER_COUNTRY@@`
+
+Customer:
+
+- `@@CUSTOMER_NAME@@`
+- `@@CUSTOMER_STREET@@`
+- `@@CUSTOMER_CITY_AND_POSTAL_CODE@@`
+- `@@CUSTOMER_COUNTRY@@`
+- `@@CUSTOMER_VAT_TAX_ID@@`
+- `@@CUSTOMER_EMAIL@@`
+
+Invoice metadata:
+
+- `@@INVOICE_NUMBER@@`
+- `@@ISSUE_DATE@@`
+- `@@DUE_DATE@@`
+- `@@PERIOD_LABEL@@`
+
+Line items:
+
+- `@@LINE_ITEMS_ROWS@@`
+  Expands to all invoice positions as LaTeX rows in this order:
+  `name`, `description`, `unit price`, `quantity`, `line total`
+
+Totals:
+
+- `@@SUBTOTAL@@`
+- `@@VAT_RATE@@`
+- `@@VAT_AMOUNT@@`
+- `@@TOTAL@@`
+- `@@PAID_AMOUNT@@`
+- `@@OUTSTANDING_AMOUNT@@`
+- `@@INVOICE_TOTAL@@`
+  Alias for the invoice total amount
+- `@@OUTSTANDING_TOTAL@@`
+  Alias for the outstanding amount
+
+Payment:
+
+- `@@PAYMENT_TERMS_TEXT@@`
+- `@@BANK_NAME@@`
+- `@@IBAN@@`
+- `@@BIC@@`
+
+### Using `@@LINE_ITEMS_ROWS@@`
+
+`@@LINE_ITEMS_ROWS@@` is the only placeholder that renders structured LaTeX instead of a single text value.
+
+It currently emits rows for a five-column table:
+
+```tex
+\begin{longtable}{p{3cm}p{5.5cm}r r r}
+\toprule
+Item & Description & Unit Price & Qty & Total\\
+\midrule
+\endhead
+@@LINE_ITEMS_ROWS@@
+\end{longtable}
+```
+
+If you change the table to fewer or more columns, you also need to change how rows are generated in the Go code.
+
+### Assets and Relative Paths
+
+If your template references local assets and you render into another directory, `invox` copies supported relative assets next to the generated TeX automatically.
+
+Supported patterns:
+
+- `\includegraphics{logo.png}`
+- font directory references like `Path=fonts/`
+
+Rules:
+
+- Relative paths work best
+- Absolute paths are not copied
+- Parent-directory paths like `../assets/logo.png` are not copied
+- If you keep your template, fonts, and images together, `render` and `build` work more predictably
+
+### Recommended Workflow
+
+When creating or adjusting a template:
+
+1. Start from the generated starter `template.tex`.
+2. Edit the layout and placeholders there.
+3. Run `invox render invoice.yaml -t template.tex`.
+4. Inspect the generated `.tex` if something looks wrong.
+5. Run `invox build invoice.yaml -t template.tex` once the TeX renders correctly.
+
 Supported pattern tokens:
 
 - `{customer_id}` from `invoice.customer_id`
