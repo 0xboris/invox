@@ -277,9 +277,11 @@ func defaultConfigTemplate() string {
 #   numbering.start
 #   archive.dir
 #     Directory where archived invoice files are stored.
+#   email.subject
+#     Subject template for the email command.
 #   email.body
 #     Plain-text body template for the email command.
-#     Supported placeholders:
+#     Supported placeholders for email.subject and email.body:
 #       {customer_name}
 #       {email_greeting}
 #       {contact_person}
@@ -318,6 +320,7 @@ func defaultConfigTemplate() string {
 #   dir: '%s'
 #
 # email:
+#   subject: 'Invoice {invoice_number}'
 #   body: |
 #     {email_greeting}
 #     

@@ -108,7 +108,7 @@ Flag aliases:
 - `-s, --source` for `invoice_defaults.yaml` on `new`
 - `--from-last` for cloning the latest archived invoice of the requested customer on `new`
 - `--to` for overriding the recipient email on `email`
-- `--subject` for overriding the draft email subject on `email`
+- `--subject` for overriding the draft email subject on `email`; placeholder expansion is supported there too
 - `-t, --template` for the LaTeX template
 - `email`, `build`, and `archive` also accept the invoice path positionally, for example `invox email invoice.pdf` or `invox build invoice.yaml`
 - `build` also supports `--archive` to archive the invoice after a successful PDF build
@@ -130,7 +130,7 @@ Other commands:
 - `config` opens the resolved `config.yaml` file in the default shell editor
 - if `config.yaml` does not exist yet, `config` creates it with a commented template
 - `help config` prints the supported `config.yaml` keys and the commented template without modifying the file
-- `email` creates a `.eml` draft with the invoice PDF attached, opens it in the default mail app, and then schedules the `.eml` file for cleanup shortly after
+- `email` opens an editable compose window in Apple Mail on macOS; if `-o` is set, or on other platforms, it creates a `.eml` draft with the invoice PDF attached, opens it, and then schedules the `.eml` file for cleanup shortly after
 - `email` accepts either the invoice YAML or the built PDF as input; when given the PDF, it looks for the same-basename YAML next to the PDF first, then in `archive.dir`
 
 Defaults:
@@ -155,6 +155,7 @@ Defaults:
   - `numbering.pattern`
   - `numbering.start` as the global fallback start
   - `archive.dir`
+  - `email.subject`
   - `email.body`
 - `customers.yaml` can override the global numbering start per customer via `<customer>.numbering.start`
 - A freshly created `config.yaml` is seeded with a commented template like:
@@ -185,7 +186,7 @@ Defaults:
 - `email` defaults to the input path with a `.pdf` extension for the attachment if `-p` is omitted, or uses the input file itself when the input is already a PDF.
 - when `email` gets a PDF input, it resolves the invoice YAML from the same directory first and then falls back to `archive.dir`
 - `email` requires `invoice.status: built` or `archived`, writes an `X-Unsent: 1` email draft, opens it in the default mail app, schedules the `.eml` file for cleanup shortly after, and leaves the invoice status unchanged.
-- `email.body` in `config.yaml` can override the plain-text draft body and supports placeholders like `{customer_name}`, `{email_greeting}`, `{contact_person}`, `{customer_id}`, `{invoice_number}`, `{issue_date}`, `{due_date}`, `{total_amount}`, `{outstanding_amount}`, `{payment_terms_text}`, and `{issuer_name}`.
+- `email.subject` and `email.body` in `config.yaml` can override the draft subject and plain-text body. Both support `{customer_name}`, `{email_greeting}`, `{contact_person}`, `{customer_id}`, `{invoice_number}`, `{issue_date}`, `{due_date}`, `{total_amount}`, `{outstanding_amount}`, `{payment_terms_text}`, and `{issuer_name}`.
 - `build` updates `invoice.status` to `built` after a successful PDF build.
 - `build --archive` archives the invoice immediately after a successful PDF build.
 - `archive` moves a built invoice into `archive.dir`, or replaces an archived invoice when the working copy came from `archive edit`.
@@ -261,7 +262,7 @@ go run ./cmd/invox validate -i invoice.yaml -c customers.yaml -u issuer.yaml
 go run ./cmd/invox render -i invoice.yaml -o out/invoice.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
 go run ./cmd/invox email invoice.yaml -c customers.yaml -u issuer.yaml
 go run ./cmd/invox email invoice.pdf -c customers.yaml -u issuer.yaml
-go run ./cmd/invox email invoice.yaml --to billing@example.com --subject "Invoice CUST-001-001" -c customers.yaml -u issuer.yaml
+go run ./cmd/invox email invoice.yaml --to billing@example.com --subject "Invoice {invoice_number} for {customer_name}" -c customers.yaml -u issuer.yaml
 go run ./cmd/invox build invoice.yaml -o out/invoice.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
 go run ./cmd/invox build invoice.yaml --archive -c customers.yaml -u issuer.yaml -t invoice_template.tex
 go run ./cmd/invox archive invoice.yaml

@@ -39,7 +39,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  --archive               Archive after a successful PDF build (build)\n")
 	fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)\n")
 	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
-	fmt.Fprintf(w, "  --subject TEXT          Email subject override (email)\n")
+	fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders (email)\n")
 	fmt.Fprintf(w, "  -s, --source PATH       Path to invoice_defaults.yaml (new)\n")
 	fmt.Fprintf(w, "  -u, --issuer PATH       Path to issuer.yaml\n")
 	fmt.Fprintf(w, "  -t, --template PATH     Path to invoice_template.tex (render/build)\n\n")
@@ -145,7 +145,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  --to EMAIL              Recipient email override\n")
 	}
 	if spec.SupportsSubjectFlag {
-		fmt.Fprintf(w, "  --subject TEXT          Email subject override\n")
+		fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders\n")
 	}
 	if spec.SupportsArchiveFlag {
 		fmt.Fprintf(w, "  --archive               Archive the invoice after a successful PDF build\n")
@@ -179,8 +179,8 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.Name == "customer config" {
 		fmt.Fprintf(w, "\nCommon customer fields:\n")
 		fmt.Fprintf(w, "  <customer>.name             Preferred customer name\n")
-		fmt.Fprintf(w, "  <customer>.contact_person   Optional contact used by email.body templates\n")
-		fmt.Fprintf(w, "  <customer>.email_greeting   Optional greeting used by email.body templates\n")
+		fmt.Fprintf(w, "  <customer>.contact_person   Optional contact used by email templates\n")
+		fmt.Fprintf(w, "  <customer>.email_greeting   Optional greeting used by email templates\n")
 		fmt.Fprintf(w, "  <customer>.email            Preferred invoice email\n")
 		fmt.Fprintf(w, "  <customer>.status           Optional status shown by customer list\n")
 		fmt.Fprintf(w, "  <customer>.address.*        Billing address used for rendering\n")
@@ -206,8 +206,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  When the input is a PDF, the matching YAML file is resolved from the same basename.\n")
 		fmt.Fprintf(w, "  The PDF lookup checks next to the PDF first, then archive.dir.\n")
 		fmt.Fprintf(w, "  Requires invoice.status to be built or archived and the PDF attachment to exist.\n")
-		fmt.Fprintf(w, "  Writes a .eml draft file with the PDF attached.\n")
-		fmt.Fprintf(w, "  Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.\n")
+		fmt.Fprintf(w, "  On macOS, opens an editable compose window in Apple Mail with the PDF attached.\n")
+		fmt.Fprintf(w, "  If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.\n")
+		fmt.Fprintf(w, "  File-based drafts are scheduled for cleanup shortly after they are opened.\n")
 		fmt.Fprintf(w, "  Does not send the email and does not change invoice.status.\n")
 	}
 	fmt.Fprintf(w, "\nExamples:\n")
@@ -251,8 +252,9 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "  numbering.pattern  Override the invoice-number pattern\n")
 	fmt.Fprintf(w, "  numbering.start    Global starting counter when no archived invoice matches\n")
 	fmt.Fprintf(w, "  archive.dir        Override the archive directory for archived invoice files\n")
+	fmt.Fprintf(w, "  email.subject      Override the draft email subject template for the email command\n")
 	fmt.Fprintf(w, "  email.body         Override the plain-text body template for the email command\n\n")
-	fmt.Fprintf(w, "email.body placeholders:\n")
+	fmt.Fprintf(w, "email template placeholders:\n")
 	fmt.Fprintf(w, "  {customer_name}        Customer display name\n")
 	fmt.Fprintf(w, "  {email_greeting}       Customer-specific greeting, defaults to Hello,\n")
 	fmt.Fprintf(w, "  {contact_person}       Customer contact person\n")

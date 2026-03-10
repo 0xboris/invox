@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"mime"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -304,6 +305,83 @@ email:
 	}
 	if strings.Contains(text, "Please find attached invoice CUST-001-001.") {
 		t.Fatalf("draft email should not contain the default body:\n%s", text)
+	}
+}
+
+func TestCreateInvoiceEmailDraftUsesConfiguredSubjectTemplateWithAllPlaceholders(t *testing.T) {
+	writeConfigFile(t, strings.TrimSpace(`
+email:
+  subject: "{customer_name} | {email_greeting} | {contact_person} | {customer_id} | {invoice_number} | {issue_date} | {due_date} | {total_amount} | {outstanding_amount} | {payment_terms_text} | {issuer_name}"
+`)+"\n")
+
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
+
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	if err != nil {
+		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
+	}
+
+	wantSubject := "Appsters GmbH | Dear Jane Doe, | Jane Doe | CUST-001 | CUST-001-001 | 2026-03-06 | 2026-04-05 | 252,00 EUR | 252,00 EUR | Pay within 30 days | Boris Consulting"
+	if draft.Subject != wantSubject {
+		t.Fatalf("Subject = %q, want %q", draft.Subject, wantSubject)
+	}
+
+	eml, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	wantHeader := "Subject: " + mime.QEncoding.Encode("utf-8", wantSubject)
+	if !strings.Contains(string(eml), wantHeader) {
+		t.Fatalf("draft email does not contain %q:\n%s", wantHeader, string(eml))
+	}
+}
+
+func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
+
+	draft, err := CreateInvoiceEmailDraft(
+		customersPath,
+		issuerPath,
+		invoicePath,
+		pdfPath,
+		outputPath,
+		"",
+		"Invoice {invoice_number} for {contact_person}",
+	)
+	if err != nil {
+		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
+	}
+
+	if draft.Subject != "Invoice CUST-001-001 for Jane Doe" {
+		t.Fatalf("Subject = %q, want %q", draft.Subject, "Invoice CUST-001-001 for Jane Doe")
 	}
 }
 
@@ -889,6 +967,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#   numbering.pattern",
 		"#   numbering.start",
 		"#   archive.dir",
+		"#   email.subject",
 		"#   email.body",
 		"#       {email_greeting}",
 		"#       {contact_person}",
@@ -905,6 +984,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"# archive:",
 		"#   dir: '~/Library/Application Support/invox/invoices'",
 		"# email:",
+		"#   subject: 'Invoice {invoice_number}'",
 		"#   body: |",
 		"#     Please find attached invoice {invoice_number}.",
 	} {

@@ -134,6 +134,13 @@ func runEmail(args []string) int {
 		"--to":        true,
 		"--subject":   true,
 	})
+	explicitOutputPath := false
+	for _, arg := range args {
+		if arg == "-o" || arg == "--output" || strings.HasPrefix(arg, "-o=") || strings.HasPrefix(arg, "--output=") {
+			explicitOutputPath = true
+			break
+		}
+	}
 
 	spec := emailSpec()
 
@@ -148,12 +155,11 @@ func runEmail(args []string) int {
 		return 2
 	}
 
-	draft, err := invoice.CreateInvoiceEmailDraft(
+	emailMessage, err := invoice.PrepareInvoiceEmail(
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
 		paths.PDFPath,
-		paths.OutputPath,
 		opts.EmailTo,
 		opts.EmailSubject,
 	)
@@ -161,30 +167,51 @@ func runEmail(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err := openDocument(draft.OutputPath); err != nil {
-		fmt.Fprintf(
-			os.Stderr,
-			"created %s but failed to open it: %v\n",
-			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-			err,
+
+	if preferNativeMailCompose && !explicitOutputPath {
+		if err := openNativeEmailDraft(emailMessage); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
+			return 1
+		}
+	} else {
+		draft, err := invoice.CreateInvoiceEmailDraft(
+			opts.CustomersPath,
+			opts.IssuerPath,
+			paths.InvoicePath,
+			paths.PDFPath,
+			paths.OutputPath,
+			opts.EmailTo,
+			opts.EmailSubject,
 		)
-		return 1
-	}
-	if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
-		fmt.Fprintf(
-			os.Stderr,
-			"opened %s but failed to schedule cleanup: %v\n",
-			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-			err,
-		)
-		return 1
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if err := openDocument(draft.OutputPath); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"created %s but failed to open it: %v\n",
+				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+				err,
+			)
+			return 1
+		}
+		if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"opened %s but failed to schedule cleanup: %v\n",
+				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+				err,
+			)
+			return 1
+		}
 	}
 
 	fmt.Printf(
 		"Opened email draft for %s (%s) to %s\n",
-		draft.CustomerID,
-		draft.InvoiceNumber,
-		draft.Recipient,
+		emailMessage.CustomerID,
+		emailMessage.InvoiceNumber,
+		emailMessage.Recipient,
 	)
 	return 0
 }

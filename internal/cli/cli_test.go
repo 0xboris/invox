@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"invox/internal/invoice"
 )
 
 func TestNewRequiresCustomerID(t *testing.T) {
@@ -139,8 +141,9 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		"numbering.pattern",
 		"numbering.start",
 		"archive.dir",
+		"email.subject",
 		"email.body",
-		"email.body placeholders:",
+		"email template placeholders:",
 		"{email_greeting}",
 		"{contact_person}",
 		"{outstanding_amount}",
@@ -272,8 +275,9 @@ func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 		"numbering.pattern",
 		"customers.<CUSTOMER_ID>.numbering.start",
 		"archive.dir",
+		"email.subject",
 		"email.body",
-		"email.body placeholders:",
+		"email template placeholders:",
 		"{email_greeting}",
 		"{contact_person}",
 		"Template:",
@@ -689,7 +693,8 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 		"Accepts either the invoice YAML file or the built PDF as input.",
 		"The PDF lookup checks next to the PDF first, then archive.dir.",
 		"Requires invoice.status to be built or archived and the PDF attachment to exist.",
-		"Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.",
+		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
+		"If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.",
 		"Does not send the email and does not change invoice.status.",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -724,6 +729,7 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	cleanupPath := ""
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
+	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(path string) error {
 		openedPath = path
 		source, err := os.ReadFile(path)
@@ -737,9 +743,11 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 		cleanupPath = path
 		return os.Remove(path)
 	}
+	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
 		cleanupOpenedDocument = oldCleanupOpenedDocument
+		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
 	exitCode, stdout, stderr := captureRun(t, []string{
@@ -799,6 +807,7 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	cleanupPath := ""
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
+	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(path string) error {
 		openedPath = path
 		source, err := os.ReadFile(path)
@@ -812,9 +821,11 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 		cleanupPath = path
 		return os.Remove(path)
 	}
+	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
 		cleanupOpenedDocument = oldCleanupOpenedDocument
+		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
 	exitCode, stdout, stderr := captureRun(t, []string{
@@ -877,6 +888,7 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	cleanupPath := ""
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
+	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(path string) error {
 		openedPath = path
 		return nil
@@ -885,9 +897,11 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 		cleanupPath = path
 		return os.Remove(path)
 	}
+	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
 		cleanupOpenedDocument = oldCleanupOpenedDocument
+		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
 	exitCode, stdout, stderr := captureRun(t, []string{
@@ -928,11 +942,93 @@ func TestSendAliasUsesEmailCommand(t *testing.T) {
 	}
 	for _, want := range []string{
 		"invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT)",
-		"Opens the draft in the default mail app and schedules the .eml file for cleanup shortly after.",
+		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
 		}
+	}
+}
+
+func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210001.yaml")
+	if err := os.WriteFile(customInvoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+	pdfPath := filepath.Join(inputDir, "BL00210001.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	oldPreferNativeMailCompose := preferNativeMailCompose
+	oldOpenNativeEmailDraft := openNativeEmailDraft
+	oldOpenDocument := openDocument
+	oldCleanupOpenedDocument := cleanupOpenedDocument
+	preferNativeMailCompose = true
+
+	var opened invoice.EmailMessage
+	openNativeEmailDraft = func(message invoice.EmailMessage) error {
+		opened = message
+		return nil
+	}
+	openDocument = func(path string) error {
+		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
+		return nil
+	}
+	cleanupOpenedDocument = func(path string) error {
+		t.Fatalf("cleanupOpenedDocument(%q) should not be called when native compose is enabled", path)
+		return nil
+	}
+	t.Cleanup(func() {
+		preferNativeMailCompose = oldPreferNativeMailCompose
+		openNativeEmailDraft = oldOpenNativeEmailDraft
+		openDocument = oldOpenDocument
+		cleanupOpenedDocument = oldCleanupOpenedDocument
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email",
+		customInvoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if opened.Recipient != "office@appsters.example" {
+		t.Fatalf("Recipient = %q, want %q", opened.Recipient, "office@appsters.example")
+	}
+	if opened.Subject != "Invoice CUST-001-001" {
+		t.Fatalf("Subject = %q, want %q", opened.Subject, "Invoice CUST-001-001")
+	}
+	if opened.AttachmentPath != pdfPath {
+		t.Fatalf("AttachmentPath = %q, want %q", opened.AttachmentPath, pdfPath)
+	}
+	if !strings.Contains(opened.Body, "Please find attached invoice CUST-001-001.") {
+		t.Fatalf("Body %q does not contain the default invoice text", opened.Body)
+	}
+	if strings.Contains(opened.Body, "\r") {
+		t.Fatalf("Body = %q, want LF-only newlines", opened.Body)
+	}
+	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
+		t.Fatalf("stdout %q does not contain email summary", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(inputDir, "BL00210001.eml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(default .eml path) error = %v, want not exists", err)
 	}
 }
 

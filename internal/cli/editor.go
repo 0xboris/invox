@@ -7,11 +7,15 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"invox/internal/invoice"
 )
 
 var openTextFile = defaultOpenTextFile
 var openDocument = defaultOpenDocument
 var cleanupOpenedDocument = defaultCleanupOpenedDocument
+var preferNativeMailCompose = runtime.GOOS == "darwin"
+var openNativeEmailDraft = defaultOpenNativeEmailDraft
 
 func defaultOpenTextFile(path string) error {
 	cmd := shellEditorCommand(path)
@@ -23,6 +27,48 @@ func defaultOpenTextFile(path string) error {
 
 func defaultOpenDocument(path string) error {
 	cmd := defaultOpenDocumentCommand(path)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func defaultOpenNativeEmailDraft(message invoice.EmailMessage) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("native mail compose is unsupported on %s", runtime.GOOS)
+	}
+
+	args := []string{
+		"-e", `on run argv`,
+		"-e", `set recipientAddress to item 1 of argv`,
+		"-e", `set messageSubject to item 2 of argv`,
+		"-e", `set messageBody to item 3 of argv`,
+		"-e", `set attachmentPath to item 4 of argv`,
+		"-e", `set senderAddress to item 5 of argv`,
+		"-e", `tell application "Mail"`,
+		"-e", `activate`,
+		"-e", `set draftMessage to make new outgoing message with properties {visible:true, subject:messageSubject, content:messageBody}`,
+		"-e", `tell draftMessage`,
+		"-e", `make new to recipient at end of to recipients with properties {address:recipientAddress}`,
+		"-e", `if senderAddress is not "" then`,
+		"-e", `try`,
+		"-e", `set sender to senderAddress`,
+		"-e", `end try`,
+		"-e", `end if`,
+		"-e", `delay 0.2`,
+		"-e", `make new attachment with properties {file name:(POSIX file attachmentPath)} at after the last paragraph`,
+		"-e", `set visible to true`,
+		"-e", `end tell`,
+		"-e", `end tell`,
+		"-e", `end run`,
+		"--",
+		message.Recipient,
+		message.Subject,
+		message.Body,
+		message.AttachmentPath,
+		message.SenderAddress,
+	}
+
+	cmd := exec.Command("osascript", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

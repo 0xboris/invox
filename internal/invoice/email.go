@@ -26,7 +26,20 @@ type EmailDraftResult struct {
 	InvoiceNumber string
 }
 
-const defaultEmailBodyTemplate = `{email_greeting}
+type EmailMessage struct {
+	Recipient      string
+	Subject        string
+	Body           string
+	SenderName     string
+	SenderAddress  string
+	AttachmentPath string
+	CustomerID     string
+	InvoiceNumber  string
+}
+
+const (
+	defaultEmailSubjectTemplate = "Invoice {invoice_number}"
+	defaultEmailBodyTemplate    = `{email_greeting}
 
 Please find attached invoice {invoice_number}.
 Issue date: {issue_date}
@@ -36,6 +49,7 @@ Outstanding amount: {outstanding_amount}
 Regards,
 {issuer_name}
 `
+)
 
 type EmailDraftPaths struct {
 	InvoicePath string
@@ -170,38 +184,17 @@ func archivedInvoicePathForPDF(pdfPath string) (string, error) {
 }
 
 func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	emailMessage, err := PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride)
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
 
-	status := strings.TrimSpace(asString(ctx.Invoice["status"]))
-	if status != "built" && status != "archived" {
-		if status == "" {
-			return EmailDraftResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)
-		}
-		return EmailDraftResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", invoicePath, status)
-	}
-
-	pdfBytes, err := os.ReadFile(pdfPath)
+	pdfBytes, err := os.ReadFile(emailMessage.AttachmentPath)
 	if err != nil {
-		return EmailDraftResult{}, fmt.Errorf("read %s: %w", pdfPath, err)
+		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
 
-	recipient := strings.TrimSpace(recipientOverride)
-	if recipient == "" {
-		recipient = strings.TrimSpace(ctx.CustomerEmail)
-	}
-	if recipient == "" {
-		return EmailDraftResult{}, fmt.Errorf("%s: recipient email is unavailable", invoicePath)
-	}
-
-	subject := strings.TrimSpace(subjectOverride)
-	if subject == "" {
-		subject = "Invoice " + ctx.InvoiceNumber
-	}
-
-	message, err := buildInvoiceEmailDraft(ctx, pdfPath, recipient, subject, pdfBytes)
+	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes)
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -211,21 +204,66 @@ func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, ou
 
 	return EmailDraftResult{
 		OutputPath:    outputPath,
-		Recipient:     recipient,
-		Subject:       subject,
-		CustomerID:    ctx.CustomerID,
-		InvoiceNumber: ctx.InvoiceNumber,
+		Recipient:     emailMessage.Recipient,
+		Subject:       emailMessage.Subject,
+		CustomerID:    emailMessage.CustomerID,
+		InvoiceNumber: emailMessage.InvoiceNumber,
 	}, nil
 }
 
-func buildInvoiceEmailDraft(ctx *Context, pdfPath, recipient, subject string, pdfBytes []byte) ([]byte, error) {
+func PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride string) (EmailMessage, error) {
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		return EmailMessage{}, err
+	}
+
+	status := strings.TrimSpace(asString(ctx.Invoice["status"]))
+	if status != "built" && status != "archived" {
+		if status == "" {
+			return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)
+		}
+		return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", invoicePath, status)
+	}
+	if _, err := os.Stat(pdfPath); err != nil {
+		return EmailMessage{}, fmt.Errorf("read %s: %w", pdfPath, err)
+	}
+
+	recipient := strings.TrimSpace(recipientOverride)
+	if recipient == "" {
+		recipient = strings.TrimSpace(ctx.CustomerEmail)
+	}
+	if recipient == "" {
+		return EmailMessage{}, fmt.Errorf("%s: recipient email is unavailable", invoicePath)
+	}
+
+	subject, err := invoiceEmailSubject(ctx, invoicePath, subjectOverride)
+	if err != nil {
+		return EmailMessage{}, err
+	}
+	body, err := invoiceEmailBodyText(ctx)
+	if err != nil {
+		return EmailMessage{}, err
+	}
+
+	return EmailMessage{
+		Recipient:      recipient,
+		Subject:        subject,
+		Body:           body,
+		SenderName:     strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"])),
+		SenderAddress:  strings.TrimSpace(asString(ctx.IssuerCompany["email"])),
+		AttachmentPath: pdfPath,
+		CustomerID:     ctx.CustomerID,
+		InvoiceNumber:  ctx.InvoiceNumber,
+	}, nil
+}
+
+func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte, error) {
 	fromAddress := mail.Address{
-		Name:    strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"])),
-		Address: strings.TrimSpace(asString(ctx.IssuerCompany["email"])),
+		Name:    emailMessage.SenderName,
+		Address: emailMessage.SenderAddress,
 	}
 	toAddress := mail.Address{
-		Name:    customerName(ctx.Customer),
-		Address: recipient,
+		Address: emailMessage.Recipient,
 	}
 
 	var buffer bytes.Buffer
@@ -233,7 +271,7 @@ func buildInvoiceEmailDraft(ctx *Context, pdfPath, recipient, subject string, pd
 
 	fmt.Fprintf(&buffer, "From: %s\r\n", fromAddress.String())
 	fmt.Fprintf(&buffer, "To: %s\r\n", toAddress.String())
-	fmt.Fprintf(&buffer, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", subject))
+	fmt.Fprintf(&buffer, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", emailMessage.Subject))
 	fmt.Fprintf(&buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(&buffer, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&buffer, "X-Unsent: 1\r\n")
@@ -252,15 +290,11 @@ func buildInvoiceEmailDraft(ctx *Context, pdfPath, recipient, subject string, pd
 	if err != nil {
 		return nil, err
 	}
-	body, err := invoiceEmailBody(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := textPart.Write([]byte(body)); err != nil {
+	if _, err := textPart.Write([]byte(strings.ReplaceAll(emailMessage.Body, "\n", "\r\n"))); err != nil {
 		return nil, err
 	}
 
-	filename := filepath.Base(pdfPath)
+	filename := filepath.Base(emailMessage.AttachmentPath)
 	attachmentPart, err := writer.CreatePart(textproto.MIMEHeader{
 		"Content-Type":              {fmt.Sprintf(`application/pdf; name="%s"`, filename)},
 		"Content-Transfer-Encoding": {"base64"},
@@ -279,7 +313,38 @@ func buildInvoiceEmailDraft(ctx *Context, pdfPath, recipient, subject string, pd
 	return buffer.Bytes(), nil
 }
 
+func invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (string, error) {
+	template := strings.TrimSpace(subjectOverride)
+	if template == "" {
+		configured, err := resolveConfiguredString("email", "subject")
+		if err != nil {
+			return "", err
+		}
+		template = configured
+	}
+	if strings.TrimSpace(template) == "" {
+		template = defaultEmailSubjectTemplate
+	}
+
+	subject := strings.TrimSpace(renderEmailTemplate(template, ctx))
+	if subject == "" {
+		return "", fmt.Errorf("%s: email subject resolved to empty value", invoicePath)
+	}
+	if strings.ContainsAny(subject, "\r\n") {
+		return "", fmt.Errorf("%s: email subject must be a single line", invoicePath)
+	}
+	return subject, nil
+}
+
 func invoiceEmailBody(ctx *Context) (string, error) {
+	body, err := invoiceEmailBodyText(ctx)
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(body, "\n", "\r\n"), nil
+}
+
+func invoiceEmailBodyText(ctx *Context) (string, error) {
 	template, err := resolveConfiguredString("email", "body")
 	if err != nil {
 		return "", err
@@ -288,10 +353,19 @@ func invoiceEmailBody(ctx *Context) (string, error) {
 		template = defaultEmailBodyTemplate
 	}
 
-	body := strings.ReplaceAll(template, "\r\n", "\n")
-	body = strings.ReplaceAll(body, "\r", "\n")
+	body := renderEmailTemplate(template, ctx)
+	body = strings.TrimRight(body, "\n") + "\n\n"
+	return body, nil
+}
 
-	replacer := strings.NewReplacer(
+func renderEmailTemplate(template string, ctx *Context) string {
+	template = strings.ReplaceAll(template, "\r\n", "\n")
+	template = strings.ReplaceAll(template, "\r", "\n")
+	return emailTemplateReplacer(ctx).Replace(template)
+}
+
+func emailTemplateReplacer(ctx *Context) *strings.Replacer {
+	return strings.NewReplacer(
 		"{customer_name}", customerName(ctx.Customer),
 		"{email_greeting}", customerEmailGreeting(ctx.Customer),
 		"{contact_person}", customerContactPerson(ctx.Customer),
@@ -304,9 +378,6 @@ func invoiceEmailBody(ctx *Context) (string, error) {
 		"{payment_terms_text}", strings.TrimSpace(asString(ctx.IssuerPayment["payment_terms_text"])),
 		"{issuer_name}", strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"])),
 	)
-	body = replacer.Replace(body)
-	body = strings.TrimRight(body, "\n") + "\n\n"
-	return strings.ReplaceAll(body, "\n", "\r\n"), nil
 }
 
 func emailMoney(cents int64, currency string) string {
