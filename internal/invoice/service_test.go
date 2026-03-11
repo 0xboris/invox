@@ -290,6 +290,51 @@ Totals:
 	}
 }
 
+func TestRenderInvoiceUsesCustomVATLabelInSummaryRows(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  payment_terms_text: Pay within 30 days\n", "  payment_terms_text: Pay within 30 days\n  vat_label: VAT & GST\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+Totals:
+Label: @@VAT_LABEL@@
+@@VAT_SUMMARY_ROWS@@
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"Label: VAT \\& GST",
+		"VAT \\& GST (20\\%): & 42,00 \\euro",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
 func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)

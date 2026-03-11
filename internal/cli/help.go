@@ -7,6 +7,79 @@ import (
 	"invox/internal/invoice"
 )
 
+type templatePlaceholder struct {
+	Token       string
+	Description string
+}
+
+var templatePlaceholderGroups = []struct {
+	Title   string
+	Entries []templatePlaceholder
+}{
+	{
+		Title: "Issuer",
+		Entries: []templatePlaceholder{
+			{Token: "@@ISSUER_NAME@@", Description: "issuer.company.legal_company_name"},
+			{Token: "@@ISSUER_COMPANY_REG_NO@@", Description: "issuer.company.company_registration_number"},
+			{Token: "@@ISSUER_VAT_TAX_ID@@", Description: "issuer.company.vat_tax_id"},
+			{Token: "@@ISSUER_WEBSITE@@", Description: "issuer.company.website"},
+			{Token: "@@ISSUER_EMAIL@@", Description: "issuer.company.email"},
+			{Token: "@@ISSUER_STREET@@", Description: "issuer.company.address.street"},
+			{Token: "@@ISSUER_CITY_AND_POSTAL_CODE@@", Description: "issuer.company.address.city + postal_code"},
+			{Token: "@@ISSUER_COUNTRY@@", Description: "issuer.company.address.country"},
+		},
+	},
+	{
+		Title: "Customer",
+		Entries: []templatePlaceholder{
+			{Token: "@@CUSTOMER_NAME@@", Description: "Preferred customer name"},
+			{Token: "@@CUSTOMER_STREET@@", Description: "customer.address.street"},
+			{Token: "@@CUSTOMER_CITY_AND_POSTAL_CODE@@", Description: "customer.address.city + postal_code"},
+			{Token: "@@CUSTOMER_COUNTRY@@", Description: "customer.address.country"},
+			{Token: "@@CUSTOMER_VAT_TAX_ID@@", Description: "customer.tax.vat_tax_id"},
+			{Token: "@@CUSTOMER_EMAIL@@", Description: "Preferred invoice email"},
+		},
+	},
+	{
+		Title: "Invoice metadata",
+		Entries: []templatePlaceholder{
+			{Token: "@@INVOICE_NUMBER@@", Description: "invoice.number"},
+			{Token: "@@ISSUE_DATE@@", Description: "invoice.issue_date formatted as DD.MM.YYYY"},
+			{Token: "@@DUE_DATE@@", Description: "invoice.due_date formatted as DD.MM.YYYY"},
+			{Token: "@@PERIOD_LABEL@@", Description: "invoice.period"},
+		},
+	},
+	{
+		Title: "Line items",
+		Entries: []templatePlaceholder{
+			{Token: "@@LINE_ITEMS_ROWS@@", Description: "Structured rows: name, description, unit price, quantity, line total"},
+			{Token: "@@LINE_ITEMS_ROWS_WITH_VAT@@", Description: "Structured rows: name, description, unit price, quantity, VAT rate, line total"},
+		},
+	},
+	{
+		Title: "Totals",
+		Entries: []templatePlaceholder{
+			{Token: "@@SUBTOTAL@@", Description: "Formatted net subtotal"},
+			{Token: "@@VAT_SUMMARY_ROWS@@", Description: "Structured VAT summary rows, one row per VAT bucket"},
+			{Token: "@@TOTAL@@", Description: "Formatted invoice total"},
+			{Token: "@@PAID_AMOUNT@@", Description: "Formatted paid amount"},
+			{Token: "@@OUTSTANDING_AMOUNT@@", Description: "Formatted outstanding amount"},
+			{Token: "@@INVOICE_TOTAL@@", Description: "Alias for @@TOTAL@@"},
+			{Token: "@@OUTSTANDING_TOTAL@@", Description: "Alias for @@OUTSTANDING_AMOUNT@@"},
+		},
+	},
+	{
+		Title: "Payment",
+		Entries: []templatePlaceholder{
+			{Token: "@@PAYMENT_TERMS_TEXT@@", Description: "issuer.payment.payment_terms_text"},
+			{Token: "@@VAT_LABEL@@", Description: "VAT label from issuer.payment.vat_label, defaults to VAT"},
+			{Token: "@@BANK_NAME@@", Description: "issuer.payment.bank_name"},
+			{Token: "@@IBAN@@", Description: "issuer.payment.iban"},
+			{Token: "@@BIC@@", Description: "issuer.payment.bic"},
+		},
+	},
+}
+
 func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "%s generates LaTeX and PDF invoices from YAML data.\n\n", commandName)
 	fmt.Fprintf(w, "Usage:\n")
@@ -95,14 +168,36 @@ func printCustomerHelp(w io.Writer) {
 
 func printTemplateHelp(w io.Writer) {
 	fmt.Fprintf(w, "Template-related commands.\n\n")
+	fmt.Fprintf(w, "Description:\n")
+	fmt.Fprintf(w, "  Author and discover the LaTeX templates used by render and build.\n")
+	fmt.Fprintf(w, "  Templates are regular .tex files with literal @@PLACEHOLDER@@ tokens.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s template <subcommand> [options]\n", commandName)
 	fmt.Fprintf(w, "  %s help template [subcommand]\n\n", commandName)
 	fmt.Fprintf(w, "Subcommands:\n")
 	fmt.Fprintf(w, "  list          List available invoice templates\n\n")
+	fmt.Fprintf(w, "Important rules:\n")
+	fmt.Fprintf(w, "  Placeholder names are case-sensitive and must match exactly.\n")
+	fmt.Fprintf(w, "  Unknown placeholders are left unchanged in the rendered TeX.\n")
+	fmt.Fprintf(w, "  @@VAT_RATE@@ and @@VAT_AMOUNT@@ are unsupported; use @@VAT_SUMMARY_ROWS@@.\n")
+	fmt.Fprintf(w, "  Most placeholders are LaTeX-escaped automatically.\n")
+	fmt.Fprintf(w, "  Dates render as DD.MM.YYYY.\n")
+	fmt.Fprintf(w, "  Money renders as 1.234,56 \\euro for EUR, or with the currency code otherwise.\n\n")
+	fmt.Fprintf(w, "Structured placeholders:\n")
+	fmt.Fprintf(w, "  @@LINE_ITEMS_ROWS@@ requires a five-column table.\n")
+	fmt.Fprintf(w, "  @@LINE_ITEMS_ROWS_WITH_VAT@@ requires a six-column table.\n")
+	fmt.Fprintf(w, "  @@VAT_SUMMARY_ROWS@@ belongs inside a two-column totals table.\n")
+	fmt.Fprintf(w, "  Use @@VAT_LABEL@@ anywhere you want the same VAT label text in the template.\n\n")
+	fmt.Fprintf(w, "Template workflow:\n")
+	fmt.Fprintf(w, "  Run `%s render -i invoice.yaml` to inspect the generated .tex.\n", commandName)
+	fmt.Fprintf(w, "  Run `%s build invoice.yaml` after the rendered LaTeX looks correct.\n", commandName)
+	fmt.Fprintf(w, "  Run `%s template list` to discover templates addressable by name with -t/--template.\n\n", commandName)
+	printTemplatePlaceholderReference(w)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("template list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("template list --names"))
+	fmt.Fprintf(w, "  %s\n", commandExample("render -i invoice.yaml -t multi_vat.tex"))
+	fmt.Fprintf(w, "  %s\n", commandExample("build invoice.yaml -t multi_vat.tex"))
 }
 
 func printTemplateListHelp(w io.Writer) {
@@ -144,6 +239,17 @@ func printCompletionHelp(w io.Writer) {
 	fmt.Fprintf(w, "    compinit\n\n")
 	fmt.Fprintf(w, "Example:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("completion zsh"))
+}
+
+func printTemplatePlaceholderReference(w io.Writer) {
+	fmt.Fprintf(w, "Available .tex placeholders:\n")
+	for _, group := range templatePlaceholderGroups {
+		fmt.Fprintf(w, "  %s:\n", group.Title)
+		for _, entry := range group.Entries {
+			fmt.Fprintf(w, "    %-32s %s\n", entry.Token, entry.Description)
+		}
+	}
+	fmt.Fprintf(w, "\n")
 }
 
 func printCommandHelp(w io.Writer, spec commandSpec) {

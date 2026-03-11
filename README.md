@@ -203,6 +203,7 @@ Defaults:
 - `increment` updates `invoice.number` in place using the larger of the current invoice counter and the archived-invoice counter.
 - `payment_terms_text` now comes from `issuer.yaml -> payment.payment_terms_text`, not from invoice input files.
 - `due_days` now comes from `issuer.yaml -> payment.due_days` and must be a non-negative integer day count.
+- `vat_label` can be set at `issuer.yaml -> payment.vat_label` to override the label used by `@@VAT_SUMMARY_ROWS@@`. It defaults to `VAT`.
 
 Numbering config in `config.yaml`:
 
@@ -359,6 +360,7 @@ Totals:
 - `@@SUBTOTAL@@`
 - `@@VAT_SUMMARY_ROWS@@`
   Expands to one or more LaTeX rows like `VAT (20\%): & 40,00 \euro\\`
+  The row label defaults to `VAT` and can be overridden with `issuer.yaml -> payment.vat_label`.
 - `@@TOTAL@@`
 - `@@PAID_AMOUNT@@`
 - `@@OUTSTANDING_AMOUNT@@`
@@ -370,6 +372,7 @@ Totals:
 Payment:
 
 - `@@PAYMENT_TERMS_TEXT@@`
+- `@@VAT_LABEL@@`
 - `@@BANK_NAME@@`
 - `@@IBAN@@`
 - `@@BIC@@`
@@ -397,7 +400,7 @@ For a VAT-aware table, use `@@LINE_ITEMS_ROWS_WITH_VAT@@` in a six-column layout
 ```tex
 \begin{longtable}{p{3cm}p{5.5cm}r r r r}
 \toprule
-Item & Description & Unit Price & Qty & VAT & Total\\
+Item & Description & Unit Price & Qty & @@VAT_LABEL@@ & Total\\
 \midrule
 \endhead
 @@LINE_ITEMS_ROWS_WITH_VAT@@
@@ -413,6 +416,8 @@ Subtotal: & @@SUBTOTAL@@\\
 Total: & @@TOTAL@@\\
 \end{tabular}
 ```
+
+If you want the same label elsewhere in the template, reuse `@@VAT_LABEL@@`.
 
 ### Assets and Relative Paths
 

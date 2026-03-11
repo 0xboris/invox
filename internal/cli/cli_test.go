@@ -193,7 +193,7 @@ func TestInitCreatesStarterFilesAndAllowsNewWithGlobalDefaults(t *testing.T) {
 	}{
 		{name: "config.yaml", want: "# Invox user configuration."},
 		{name: "customers.yaml", want: "CUST-001:"},
-		{name: "issuer.yaml", want: "payment_terms_text: Pay within 30 days"},
+		{name: "issuer.yaml", want: "vat_label: VAT"},
 		{name: "invoice_defaults.yaml", want: "status: draft"},
 		{name: "template.tex", want: "\\documentclass"},
 	} {
@@ -439,12 +439,59 @@ func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
+		"Description:",
+		"Author and discover the LaTeX templates used by render and build.",
 		"invox template <subcommand> [options]",
 		"list          List available invoice templates",
+		"Important rules:",
+		"Placeholder names are case-sensitive and must match exactly.",
+		"Structured placeholders:",
+		"Template workflow:",
+		"Available .tex placeholders:",
+		"Use @@VAT_LABEL@@ anywhere you want the same VAT label text in the template.",
+		"render -i invoice.yaml -t multi_vat.tex",
 		"invox template list --names",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+	for _, placeholder := range []string{
+		"@@ISSUER_NAME@@",
+		"@@ISSUER_COMPANY_REG_NO@@",
+		"@@ISSUER_VAT_TAX_ID@@",
+		"@@ISSUER_WEBSITE@@",
+		"@@ISSUER_EMAIL@@",
+		"@@ISSUER_STREET@@",
+		"@@ISSUER_CITY_AND_POSTAL_CODE@@",
+		"@@ISSUER_COUNTRY@@",
+		"@@CUSTOMER_NAME@@",
+		"@@CUSTOMER_STREET@@",
+		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@",
+		"@@CUSTOMER_COUNTRY@@",
+		"@@CUSTOMER_VAT_TAX_ID@@",
+		"@@CUSTOMER_EMAIL@@",
+		"@@INVOICE_NUMBER@@",
+		"@@ISSUE_DATE@@",
+		"@@DUE_DATE@@",
+		"@@PERIOD_LABEL@@",
+		"@@LINE_ITEMS_ROWS@@",
+		"@@LINE_ITEMS_ROWS_WITH_VAT@@",
+		"@@SUBTOTAL@@",
+		"@@VAT_SUMMARY_ROWS@@",
+		"@@TOTAL@@",
+		"@@PAID_AMOUNT@@",
+		"@@OUTSTANDING_AMOUNT@@",
+		"@@INVOICE_TOTAL@@",
+		"@@OUTSTANDING_TOTAL@@",
+		"@@PAYMENT_TERMS_TEXT@@",
+		"@@VAT_LABEL@@",
+		"@@BANK_NAME@@",
+		"@@IBAN@@",
+		"@@BIC@@",
+	} {
+		if !strings.Contains(stdout, placeholder) {
+			t.Fatalf("stdout %q does not contain placeholder %q", stdout, placeholder)
 		}
 	}
 }

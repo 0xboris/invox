@@ -903,8 +903,9 @@ func buildTemplateValues(ctx *Context) map[string]string {
 		"@@LINE_ITEMS_ROWS_WITH_VAT@@":      renderLineItemsWithVAT(ctx.LineItems, ctx.Currency),
 		"@@PERIOD_LABEL@@":                  latexEscape(asString(ctx.Invoice["period"])),
 		"@@PAYMENT_TERMS_TEXT@@":            latexEscape(asString(ctx.IssuerPayment["payment_terms_text"])),
+		"@@VAT_LABEL@@":                     latexEscape(issuerVATLabel(ctx.IssuerPayment)),
 		"@@SUBTOTAL@@":                      FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_SUMMARY_ROWS@@":              renderVATSummaryRows(ctx.VATBreakdowns, ctx.Currency),
+		"@@VAT_SUMMARY_ROWS@@":              renderVATSummaryRows(issuerVATLabel(ctx.IssuerPayment), ctx.VATBreakdowns, ctx.Currency),
 		"@@TOTAL@@":                         FormatCurrency(ctx.TotalCents, ctx.Currency),
 		"@@PAID_AMOUNT@@":                   FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
 		"@@OUTSTANDING_AMOUNT@@":            FormatCurrency(ctx.OutstandingCents, ctx.Currency),
@@ -946,11 +947,13 @@ func renderLineItemRows(items []LineItem, currency string, includeVAT bool) stri
 	return strings.Join(rows, "\n")
 }
 
-func renderVATSummaryRows(breakdowns []VATBreakdown, currency string) string {
+func renderVATSummaryRows(label string, breakdowns []VATBreakdown, currency string) string {
 	rows := make([]string, 0, len(breakdowns))
+	escapedLabel := latexEscape(label)
 	for _, breakdown := range breakdowns {
 		rows = append(rows, fmt.Sprintf(
-			"VAT (%s): & %s\\\\",
+			"%s (%s): & %s\\\\",
+			escapedLabel,
 			formatVATRate(breakdown.RatePercent),
 			FormatCurrency(breakdown.VATAmountCents, currency),
 		))

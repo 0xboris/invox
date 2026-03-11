@@ -15,3 +15,4 @@ payment:
   bic: BKAUATWW
   due_days: 30
   payment_terms_text: Pay within 30 days
+  vat_label: VAT
