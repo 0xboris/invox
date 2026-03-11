@@ -12,6 +12,11 @@ type templatePlaceholder struct {
 	Description string
 }
 
+type customerField struct {
+	Path        string
+	Description string
+}
+
 var templatePlaceholderGroups = []struct {
 	Title   string
 	Entries []templatePlaceholder
@@ -78,6 +83,89 @@ var templatePlaceholderGroups = []struct {
 			{Token: "@@BIC@@", Description: "issuer.payment.bic"},
 		},
 	},
+}
+
+var customerFieldGroups = []struct {
+	Title   string
+	Entries []customerField
+}{
+	{
+		Title: "Preferred fields",
+		Entries: []customerField{
+			{Path: "<customer>.name", Description: "Preferred display name used on invoices and in emails"},
+			{Path: "<customer>.status", Description: "Optional status shown by customer list"},
+			{Path: "<customer>.contact_person", Description: "Preferred contact used by email templates"},
+			{Path: "<customer>.email_greeting", Description: "Preferred greeting used by email templates"},
+			{Path: "<customer>.email", Description: "Invoice email when billing.send_invoice_to is unset"},
+			{Path: "<customer>.address.street", Description: "Billing address street"},
+			{Path: "<customer>.address.postal_code", Description: "Billing address postal code"},
+			{Path: "<customer>.address.city", Description: "Billing address city"},
+			{Path: "<customer>.address.country", Description: "Billing address country"},
+			{Path: "<customer>.tax.vat_tax_id", Description: "VAT number shown on the invoice"},
+			{Path: "<customer>.tax.default_vat_rate", Description: "Optional default VAT used by new/validate/render/build/email"},
+			{Path: "<customer>.billing.send_invoice_to", Description: "Preferred invoice-recipient email override"},
+			{Path: "<customer>.billing.currency", Description: "Optional billing currency, defaults to EUR"},
+			{Path: "<customer>.numbering.code", Description: "Value used by {customer_code}"},
+			{Path: "<customer>.numbering.start", Description: "Override numbering.start for this customer"},
+		},
+	},
+	{
+		Title: "Alternate supported paths",
+		Entries: []customerField{
+			{Path: "<customer>.legal_company_name", Description: "Alternate path for the customer display name"},
+			{Path: "<customer>.billing.email", Description: "Alternate path for the invoice email"},
+			{Path: "<customer>.billing.contact_person", Description: "Alternate path for the customer contact"},
+			{Path: "<customer>.billing.email_greeting", Description: "Alternate path for the email greeting"},
+			{Path: "<customer>.currency", Description: "Alternate path for billing.currency"},
+		},
+	},
+}
+
+const customerYAMLExample = `CUST-001:
+  name: Appsters GmbH
+  status: active
+  contact_person: Jane Doe
+  email_greeting: Dear Jane Doe,
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+    default_vat_rate: 20
+  billing:
+    send_invoice_to: accounting@appsters.example
+    currency: EUR
+    # email: invoices@appsters.example
+    # contact_person: Jane Billing
+    # email_greeting: Dear Accounts Team,
+  numbering:
+    code: APP
+    start: 100
+  # legal_company_name: Appsters GmbH
+  # currency: EUR
+`
+
+func printCustomerFieldReference(w io.Writer) {
+	fmt.Fprintf(w, "Customer fields:\n")
+	fmt.Fprintf(w, "  customers.yaml maps CUSTOMER_ID keys to customer data.\n")
+	fmt.Fprintf(w, "  Use the preferred paths below unless you need an alternate supported path.\n\n")
+	for groupIndex, group := range customerFieldGroups {
+		if groupIndex > 0 {
+			fmt.Fprintf(w, "\n")
+		}
+		fmt.Fprintf(w, "%s:\n", group.Title)
+		for _, entry := range group.Entries {
+			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
+		}
+	}
+}
+
+func printCustomerYAMLExample(w io.Writer) {
+	fmt.Fprintf(w, "customers.yaml example:\n")
+	fmt.Fprint(w, customerYAMLExample)
 }
 
 func printRootHelp(w io.Writer) {
@@ -160,10 +248,14 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n\n")
 	fmt.Fprintf(w, "Default lookup:\n")
 	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", invoice.GlobalCustomersPath())
+	printCustomerFieldReference(w)
+	fmt.Fprintf(w, "\n\n")
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list -c customers.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
+	fmt.Fprintf(w, "\n")
+	printCustomerYAMLExample(w)
 }
 
 func printTemplateHelp(w io.Writer) {
@@ -340,18 +432,8 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  archive.dir: config.yaml, then %s\n", invoice.DefaultArchiveDir())
 	}
 	if spec.Name == "customer config" {
-		fmt.Fprintf(w, "\nCommon customer fields:\n")
-		fmt.Fprintf(w, "  <customer>.name             Preferred customer name\n")
-		fmt.Fprintf(w, "  <customer>.contact_person   Optional contact used by email templates\n")
-		fmt.Fprintf(w, "  <customer>.email_greeting   Optional greeting used by email templates\n")
-		fmt.Fprintf(w, "  <customer>.email            Preferred invoice email\n")
-		fmt.Fprintf(w, "  <customer>.status           Optional status shown by customer list\n")
-		fmt.Fprintf(w, "  <customer>.address.*        Billing address used for rendering\n")
-		fmt.Fprintf(w, "  <customer>.tax.vat_tax_id   VAT number shown on the invoice\n")
-		fmt.Fprintf(w, "  <customer>.billing.currency Optional currency, defaults to EUR\n")
-		fmt.Fprintf(w, "\nOptional numbering fields:\n")
-		fmt.Fprintf(w, "  <customer>.numbering.code   Value used by {customer_code}\n")
-		fmt.Fprintf(w, "  <customer>.numbering.start  Override numbering.start for this customer\n")
+		fmt.Fprintf(w, "\n")
+		printCustomerFieldReference(w)
 	}
 	if spec.Name == "archive list" {
 		fmt.Fprintf(w, "\nOutput:\n")
@@ -377,6 +459,10 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	fmt.Fprintf(w, "\nExamples:\n")
 	for _, example := range spec.Examples {
 		fmt.Fprintf(w, "  %s\n", example)
+	}
+	if spec.Name == "customer config" {
+		fmt.Fprintf(w, "\n")
+		printCustomerYAMLExample(w)
 	}
 }
 

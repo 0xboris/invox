@@ -37,6 +37,13 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 		"list          List all customers",
 		"config        Open customers.yaml in the default shell editor",
 		"-c, --customers PATH",
+		"Customer fields:",
+		"<customer>.tax.default_vat_rate",
+		"<customer>.billing.send_invoice_to",
+		"<customer>.legal_company_name",
+		"customers.yaml example:",
+		"CUST-001:",
+		"send_invoice_to: accounting@appsters.example",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -340,9 +347,14 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 		"-c, --customers PATH",
 		"<customer>.name",
 		"<customer>.email",
+		"<customer>.billing.send_invoice_to",
+		"<customer>.tax.default_vat_rate",
 		"<customer>.billing.currency",
+		"<customer>.numbering.code",
 		"<customer>.numbering.start",
 		"invox customer config",
+		"customers.yaml example:",
+		"# legal_company_name: Appsters GmbH",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
