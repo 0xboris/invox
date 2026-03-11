@@ -28,6 +28,7 @@ type Options struct {
 	EmailSubject      string
 	ArchiveAfterBuild bool
 	FromLastInvoice   bool
+	EditNewInvoice    bool
 }
 
 type Context struct {

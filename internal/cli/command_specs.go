@@ -17,6 +17,7 @@ type commandSpec struct {
 	NeedsTemplate          bool
 	SupportsArchiveFlag    bool
 	SupportsFromLastFlag   bool
+	SupportsEditFlag       bool
 	SupportsEmailToFlag    bool
 	SupportsSubjectFlag    bool
 	AcceptsPositionalInput bool
@@ -105,16 +106,18 @@ func newSpec() commandSpec {
 	return commandSpec{
 		Name:                 "new",
 		Summary:              "Create a new invoice YAML file with a generated number and prefilled defaults.",
-		Usage:                "new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--from-last]",
+		Usage:                "new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-e] [--from-last]",
 		RequiredArgs:         []string{"CUSTOMER_ID"},
 		NeedsCustomers:       true,
 		NeedsIssuer:          true,
 		NeedsDefaults:        true,
 		SupportsFromLastFlag: true,
+		SupportsEditFlag:     true,
 		DynamicDefaultOutput: true,
 		OutputExtension:      ".yaml",
 		Examples: []string{
 			commandExample("new CUST-001"),
+			commandExample("new CUST-001 -e"),
 			commandExample("new CUST-001 --from-last"),
 			commandExample("new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml"),
 		},

@@ -19,6 +19,8 @@ func runNew(args []string) int {
 		"-o":          true,
 		"--output":    true,
 		"--from-last": false,
+		"-e":          false,
+		"--edit":      false,
 	})
 
 	spec := newSpec()
@@ -33,6 +35,17 @@ func runNew(args []string) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+	if opts.EditNewInvoice {
+		if err := openTextFile(outputPath); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"created %s but failed to open it: %v\n",
+				invoice.DisplayPath(outputPath, opts.BaseDir),
+				err,
+			)
+			return 1
+		}
 	}
 
 	fmt.Printf(

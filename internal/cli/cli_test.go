@@ -636,6 +636,7 @@ func TestNewHelpShowsShortFlags(t *testing.T) {
 		"-u, --issuer PATH",
 		"-s, --source PATH",
 		"-o, --output PATH",
+		"-e, --edit",
 		"--from-last",
 		"<invoice.number>.yaml in the current directory",
 	} {
@@ -669,6 +670,87 @@ func TestNewCreatesDefaultOutputInvoiceFile(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "CUST-001-002.yaml")); err != nil {
 		t.Fatalf("default invoice file was not created: %v", err)
+	}
+}
+
+func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	workDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	chdirForTest(t, workDir)
+
+	openedPath := ""
+	oldOpenTextFile := openTextFile
+	openTextFile = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	t.Cleanup(func() {
+		openTextFile = oldOpenTextFile
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"new",
+		"CUST-001",
+		"-e",
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-s", defaultsPath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	wantPath := filepath.Join(workDir, "CUST-001-002.yaml")
+	if openedPath != wantPath {
+		t.Fatalf("openedPath = %q, want %q", openedPath, wantPath)
+	}
+	if !strings.Contains(stdout, "Created CUST-001-002.yaml for CUST-001 (CUST-001-002)") {
+		t.Fatalf("stdout %q does not contain success output", stdout)
+	}
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("edited invoice file was not created: %v", err)
+	}
+}
+
+func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	workDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	chdirForTest(t, workDir)
+
+	oldOpenTextFile := openTextFile
+	openTextFile = func(path string) error {
+		return errors.New("editor unavailable")
+	}
+	t.Cleanup(func() {
+		openTextFile = oldOpenTextFile
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"new",
+		"CUST-001",
+		"--edit",
+		"-c", customersPath,
+		"-u", issuerPath,
+		"-s", defaultsPath,
+	})
+	if exitCode != 1 {
+		t.Fatalf("exitCode = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "created CUST-001-002.yaml but failed to open it: editor unavailable") {
+		t.Fatalf("stderr %q does not contain editor error", stderr)
+	}
+
+	wantPath := filepath.Join(workDir, "CUST-001-002.yaml")
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("invoice file should still have been created: %v", err)
 	}
 }
 

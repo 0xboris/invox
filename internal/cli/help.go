@@ -201,6 +201,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")
 	fmt.Fprintf(w, "  --archive               Archive after a successful PDF build (build)\n")
 	fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)\n")
+	fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor (new)\n")
 	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
 	fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders (email)\n")
 	fmt.Fprintf(w, "  -s, --source PATH       Path to invoice_defaults.yaml (new)\n")
@@ -222,6 +223,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("template list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("completion zsh"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001"))
+	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 -e"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 --from-last"))
 	fmt.Fprintf(w, "  %s\n", commandExample("new CUST-001 -u issuer.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("increment -i invoice.yaml"))
@@ -395,6 +397,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	}
 	if spec.SupportsFromLastFlag {
 		fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID as the source document\n")
+	}
+	if spec.SupportsEditFlag {
+		fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor\n")
 	}
 	if spec.SupportsEmailToFlag {
 		fmt.Fprintf(w, "  --to EMAIL              Recipient email override\n")
