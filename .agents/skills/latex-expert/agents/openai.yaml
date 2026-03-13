@@ -1,0 +1,4 @@
+interface:
+  display_name: "LaTeX Expert"
+  short_description: "Reference-driven LaTeX editing help"
+  default_prompt: "Use $latex-expert to answer a LaTeX syntax question or fix a .tex file with the bundled reference."
