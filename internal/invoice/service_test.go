@@ -242,6 +242,45 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 	}
 }
 
+func TestRenderInvoiceRendersSplitCityAndPostalCodePlaceholders(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(
+		customersPath,
+		issuerPath,
+		invoicePath,
+	)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+Issuer: @@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@
+Customer: @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"Issuer: 1010 Vienna",
+		"Customer: 1010 Vienna",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
 func TestRenderInvoiceRendersVATSummaryRowsAndPerLineVATRows(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
@@ -391,6 +430,33 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 	for _, want := range []string{
 		"@@VAT_RATE@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
 		"@@VAT_AMOUNT@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+}
+
+func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("@@ISSUER_CITY_AND_POSTAL_CODE@@ @@CUSTOMER_CITY_AND_POSTAL_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	err = RenderInvoice(templatePath, outputPath, ctx)
+	if err == nil {
+		t.Fatal("RenderInvoice returned nil error for legacy city/postal placeholders")
+	}
+	for _, want := range []string{
+		"@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@ISSUER_POSTAL_CODE@@ + @@ISSUER_CITY@@",
+		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@CUSTOMER_POSTAL_CODE@@ + @@CUSTOMER_CITY@@",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
