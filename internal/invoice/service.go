@@ -863,8 +863,8 @@ func validateTemplatePlaceholders(template string) error {
 	for placeholder, replacement := range map[string]string{
 		"@@VAT_RATE@@":                      "@@VAT_SUMMARY_ROWS@@",
 		"@@VAT_AMOUNT@@":                    "@@VAT_SUMMARY_ROWS@@",
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@":   "@@ISSUER_POSTAL_CODE@@ + @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@": "@@CUSTOMER_POSTAL_CODE@@ + @@CUSTOMER_CITY@@",
+		"@@ISSUER_CITY_AND_POSTAL_CODE@@":   "@@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
+		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@": "@@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
 	} {
 		if strings.Contains(template, placeholder) {
 			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))

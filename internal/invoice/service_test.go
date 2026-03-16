@@ -455,8 +455,8 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 		t.Fatal("RenderInvoice returned nil error for legacy city/postal placeholders")
 	}
 	for _, want := range []string{
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@ISSUER_POSTAL_CODE@@ + @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@CUSTOMER_POSTAL_CODE@@ + @@CUSTOMER_CITY@@",
+		"@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
+		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
