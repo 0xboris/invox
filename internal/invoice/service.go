@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 type Options struct {
@@ -70,10 +72,166 @@ type vatRateField struct {
 }
 
 const (
-	configDirName       = "invox"
-	legacyConfigDirName = "invoice-tool"
-	tempBuildDirPrefix  = "invox-build-"
+	configDirName             = "invox"
+	legacyConfigDirName       = "invoice-tool"
+	tempBuildDirPrefix        = "invox-build-"
+	epcQRAvailablePlaceholder = "@@EPC_QR_AVAILABLE@@"
+	epcQRLabelPlaceholder     = "@@EPC_QR_LABEL@@"
+	epcQRCodePlaceholder      = "@@EPC_QR_CODE@@"
+	epcQRMaxPayloadBytes      = 331
+	epcQRMaxNameChars         = 70
+	epcQRMaxPurposeChars      = 4
+	epcQRMaxTextChars         = 140
+	epcQRMaxInfoChars         = 70
+	epcQRMaxAmountCents       = 99999999999
 )
+
+var (
+	epcPurposePattern  = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
+	epcBICPattern      = regexp.MustCompile(`^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$`)
+	ibanCountryLengths = map[string]int{
+		"AD": 24,
+		"AE": 23,
+		"AL": 28,
+		"AT": 20,
+		"AZ": 28,
+		"BA": 20,
+		"BE": 16,
+		"BG": 22,
+		"BH": 22,
+		"BI": 16,
+		"BR": 29,
+		"BY": 28,
+		"CH": 21,
+		"CR": 22,
+		"CY": 28,
+		"CZ": 24,
+		"DE": 22,
+		"DJ": 27,
+		"DK": 18,
+		"DO": 28,
+		"EE": 20,
+		"EG": 29,
+		"ES": 24,
+		"FI": 18,
+		"FK": 18,
+		"FO": 18,
+		"FR": 27,
+		"GB": 22,
+		"GE": 22,
+		"GI": 23,
+		"GL": 18,
+		"GR": 27,
+		"GT": 28,
+		"HN": 28,
+		"HR": 21,
+		"HU": 28,
+		"IE": 22,
+		"IL": 23,
+		"IQ": 23,
+		"IS": 26,
+		"IT": 27,
+		"JO": 30,
+		"KW": 30,
+		"KZ": 20,
+		"LB": 28,
+		"LC": 32,
+		"LI": 21,
+		"LT": 20,
+		"LU": 20,
+		"LV": 21,
+		"LY": 25,
+		"MC": 27,
+		"MD": 24,
+		"ME": 22,
+		"MK": 19,
+		"MN": 20,
+		"MR": 27,
+		"MT": 31,
+		"MU": 30,
+		"NI": 32,
+		"NL": 18,
+		"NO": 15,
+		"OM": 23,
+		"PK": 24,
+		"PL": 28,
+		"PS": 29,
+		"PT": 25,
+		"QA": 29,
+		"RO": 24,
+		"RS": 22,
+		"RU": 33,
+		"SA": 24,
+		"SC": 31,
+		"SD": 18,
+		"SE": 24,
+		"SI": 19,
+		"SK": 24,
+		"SM": 27,
+		"SO": 23,
+		"ST": 25,
+		"SV": 28,
+		"TL": 23,
+		"TN": 24,
+		"TR": 26,
+		"UA": 29,
+		"VA": 22,
+		"VG": 24,
+		"XK": 20,
+		"YE": 30,
+	}
+	// The EPC SEPA scope document lists both BIC and IBAN country codes.
+	// This allowlist intentionally follows the IBAN code column because the
+	// EPC QR validation is based on the beneficiary IBAN prefix. For example,
+	// Guernsey, Jersey, and the Isle of Man are SEPA-reachable via the `GB`
+	// IBAN prefix, while Gibraltar uses `GI`.
+	sepaSchemeIBANCountryCodes = map[string]struct{}{
+		"AD": {},
+		"AL": {},
+		"AT": {},
+		"BE": {},
+		"BG": {},
+		"CH": {},
+		"CY": {},
+		"CZ": {},
+		"DE": {},
+		"DK": {},
+		"EE": {},
+		"ES": {},
+		"FI": {},
+		"FR": {},
+		"GB": {},
+		"GI": {},
+		"GR": {},
+		"HR": {},
+		"HU": {},
+		"IE": {},
+		"IS": {},
+		"IT": {},
+		"LI": {},
+		"LT": {},
+		"LU": {},
+		"LV": {},
+		"MC": {},
+		"MD": {},
+		"ME": {},
+		"MK": {},
+		"MT": {},
+		"NL": {},
+		"NO": {},
+		"PL": {},
+		"PT": {},
+		"RO": {},
+		"RS": {},
+		"SE": {},
+		"SI": {},
+		"SK": {},
+		"SM": {},
+		"VA": {},
+	}
+)
+
+const defaultEPCQRLabel = "Pay via EPC-QR"
 
 func DefaultOptions() (Options, error) {
 	cwd, err := os.Getwd()
@@ -733,10 +891,25 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err := validateTemplatePlaceholders(template); err != nil {
 		return fmt.Errorf("%s: %w", templatePath, err)
 	}
+	hasActiveEPCQRAvailable := strings.Contains(template, epcQRAvailablePlaceholder)
+	hasActiveEPCQRLabel := strings.Contains(template, epcQRLabelPlaceholder)
+	hasActiveEPCQRCode := strings.Contains(template, epcQRCodePlaceholder)
+	epcQRAvailable, epcQRLabel, epcQRCode, err := resolveEPCQRPlaceholders(
+		ctx,
+		hasActiveEPCQRAvailable,
+		hasActiveEPCQRLabel,
+		hasActiveEPCQRCode,
+	)
+	if err != nil {
+		return fmt.Errorf("%s: %w", templatePath, err)
+	}
 	rendered := template
 	for placeholder, value := range buildTemplateValues(ctx) {
 		rendered = strings.ReplaceAll(rendered, placeholder, value)
 	}
+	rendered = strings.ReplaceAll(rendered, epcQRAvailablePlaceholder, epcQRAvailable)
+	rendered = strings.ReplaceAll(rendered, epcQRLabelPlaceholder, epcQRLabel)
+	rendered = strings.ReplaceAll(rendered, epcQRCodePlaceholder, epcQRCode)
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
@@ -918,6 +1091,267 @@ func buildTemplateValues(ctx *Context) map[string]string {
 		"@@IBAN@@":                     latexEscape(asString(ctx.IssuerPayment["iban"])),
 		"@@BIC@@":                      latexEscape(asString(ctx.IssuerPayment["bic"])),
 	}
+}
+
+func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode bool) (string, string, string, error) {
+	if !wantAvailable && !wantLabel && !wantCode {
+		return "", "", "", nil
+	}
+	if !epcQRCodeEligible(ctx) {
+		return epcQRAvailabilityLiteral(wantAvailable, false), "", "", nil
+	}
+	if !wantCode {
+		return epcQRAvailabilityLiteral(wantAvailable, false), "", "", nil
+	}
+
+	payload, err := buildEPCPayload(ctx)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	label := ""
+	if wantLabel {
+		label = renderEPCQRCodeLabel(ctx)
+	}
+	return epcQRAvailabilityLiteral(wantAvailable, true), label, renderQRCodePayload(payload), nil
+}
+
+func epcQRAvailabilityLiteral(wantAvailable, available bool) string {
+	if !wantAvailable {
+		return ""
+	}
+	if available {
+		return "1"
+	}
+	return "0"
+}
+
+func renderEPCQRCodeLabel(ctx *Context) string {
+	label := defaultEPCQRLabel
+	if ctx != nil {
+		if configured := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.label"))); configured != "" {
+			label = configured
+		}
+	}
+	return latexEscape(label)
+}
+
+func epcQRCodeEligible(ctx *Context) bool {
+	return ctx != nil && ctx.OutstandingCents > 0 && strings.TrimSpace(ctx.Currency) == "EUR"
+}
+
+func buildEPCPayload(ctx *Context) ([]byte, error) {
+	if strings.TrimSpace(ctx.Currency) != "EUR" {
+		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
+	}
+	if ctx.OutstandingCents > epcQRMaxAmountCents {
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", formatMoneyCents(ctx.OutstandingCents), "999999999,99")
+	}
+
+	name := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.name")))
+	if name == "" {
+		name = strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"]))
+	}
+	if name == "" {
+		return nil, errors.New("issuer.payment.epc_qr.name: missing value")
+	}
+
+	iban := compactEPCAccountIdentifier(asString(ctx.IssuerPayment["iban"]))
+	if !isValidIBAN(iban) {
+		return nil, fmt.Errorf("issuer.payment.iban: invalid IBAN `%s`", asString(ctx.IssuerPayment["iban"]))
+	}
+	if !isSEPASchemeIBAN(iban) {
+		return nil, fmt.Errorf("issuer.payment.iban: IBAN `%s` is outside the current SEPA scheme scope", asString(ctx.IssuerPayment["iban"]))
+	}
+
+	bic := compactEPCAccountIdentifier(asString(ctx.IssuerPayment["bic"]))
+	if bic != "" && !epcBICPattern.MatchString(bic) {
+		return nil, fmt.Errorf("issuer.payment.bic: invalid BIC `%s`", asString(ctx.IssuerPayment["bic"]))
+	}
+
+	purpose := strings.ToUpper(strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.purpose"))))
+	if purpose != "" && !epcPurposePattern.MatchString(purpose) {
+		return nil, fmt.Errorf("issuer.payment.epc_qr.purpose: expected 1-4 letters or digits, got `%s`", purpose)
+	}
+
+	text := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.text")))
+	if text == "" {
+		text = strings.TrimSpace(asString(ctx.Invoice["number"]))
+	}
+	information := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.information")))
+
+	for _, field := range []struct {
+		label    string
+		value    string
+		maxChars int
+	}{
+		{label: "issuer.payment.epc_qr.name", value: name, maxChars: epcQRMaxNameChars},
+		{label: "issuer.payment.epc_qr.text", value: text, maxChars: epcQRMaxTextChars},
+		{label: "issuer.payment.epc_qr.information", value: information, maxChars: epcQRMaxInfoChars},
+	} {
+		if err := validateEPCTextField(field.label, field.value, field.maxChars); err != nil {
+			return nil, err
+		}
+	}
+
+	amount := "EUR" + formatEPCAmount(ctx.OutstandingCents)
+	fields := []string{
+		"BCD",
+		"002",
+		"1",
+		"SCT",
+		bic,
+		name,
+		iban,
+		amount,
+		purpose,
+		"",
+		text,
+		information,
+	}
+	for len(fields) > 0 && fields[len(fields)-1] == "" {
+		fields = fields[:len(fields)-1]
+	}
+
+	payload := strings.Join(fields, "\n")
+	payloadBytes := []byte(payload)
+	if len(payloadBytes) > epcQRMaxPayloadBytes {
+		return nil, fmt.Errorf("EPC QR code payload exceeds %d bytes", epcQRMaxPayloadBytes)
+	}
+	return payloadBytes, nil
+}
+
+func validateEPCTextField(label, value string, maxChars int) error {
+	if value == "" {
+		return nil
+	}
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("%s: line breaks are not allowed", label)
+	}
+	if utf8.RuneCountInString(value) > maxChars {
+		return fmt.Errorf("%s: exceeds %d characters", label, maxChars)
+	}
+	return nil
+}
+
+func compactEPCAccountIdentifier(value string) string {
+	value = strings.ToUpper(value)
+	var compact strings.Builder
+	compact.Grow(len(value))
+	for _, r := range value {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		compact.WriteRune(r)
+	}
+	return compact.String()
+}
+
+func isValidIBAN(value string) bool {
+	if len(value) < 15 || len(value) > 34 {
+		return false
+	}
+	countryCode := value[:2]
+	expectedLength, ok := ibanCountryLengths[countryCode]
+	if !ok || len(value) != expectedLength {
+		return false
+	}
+	if value[2] < '0' || value[2] > '9' || value[3] < '0' || value[3] > '9' {
+		return false
+	}
+	for _, r := range value {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'A' && r <= 'Z':
+		default:
+			return false
+		}
+	}
+	rearranged := value[4:] + value[:4]
+	remainder := 0
+	for _, r := range rearranged {
+		switch {
+		case r >= '0' && r <= '9':
+			remainder = (remainder*10 + int(r-'0')) % 97
+		case r >= 'A' && r <= 'Z':
+			digits := int(r-'A') + 10
+			remainder = (remainder*10 + digits/10) % 97
+			remainder = (remainder*10 + digits%10) % 97
+		default:
+			return false
+		}
+	}
+	return remainder == 1
+}
+
+func isSEPASchemeIBAN(value string) bool {
+	if len(value) < 2 {
+		return false
+	}
+	_, ok := sepaSchemeIBANCountryCodes[value[:2]]
+	return ok
+}
+
+func formatEPCAmount(cents int64) string {
+	if cents < 0 {
+		cents = -cents
+	}
+	return fmt.Sprintf("%d.%02d", cents/100, cents%100)
+}
+
+func renderQRCodePayload(payload []byte) string {
+	var rendered strings.Builder
+	rendered.WriteString("{%\n")
+	for value := 0x80; value <= 0xFF; value++ {
+		fmt.Fprintf(&rendered, "\\catcode`\\^^%02x=12\\relax\n", value)
+	}
+	rendered.WriteString(`\edef\invoxqrcodepayload{`)
+	rendered.WriteString(qrcodePayloadTeXSource(payload))
+	rendered.WriteString("}%\n")
+	rendered.WriteString(`\qrcode{\invoxqrcodepayload}`)
+	rendered.WriteString("}")
+	return rendered.String()
+}
+
+// qrcode parses a limited verbatim syntax in its argument. When the QR command
+// is nested inside another macro, the package documentation requires reserved
+// characters and LF to reach \qrcode as escaped control sequences like \%, \^,
+// \~, \\, \{, \}, and \? rather than as raw TeX tokens.
+func qrcodePayloadTeXSource(payload []byte) string {
+	var source strings.Builder
+	for _, value := range payload {
+		switch value {
+		case '\n':
+			source.WriteString(`\noexpand\?`)
+		case '\\':
+			source.WriteString(`\noexpand\\`)
+		case '%':
+			source.WriteString(`\noexpand\%`)
+		case '#':
+			source.WriteString(`\noexpand\#`)
+		case '&':
+			source.WriteString(`\noexpand\&`)
+		case '^':
+			source.WriteString(`\noexpand\^`)
+		case '_':
+			source.WriteString(`\noexpand\_`)
+		case '~':
+			source.WriteString(`\noexpand\~`)
+		case '$':
+			source.WriteString(`\noexpand\$`)
+		case '{':
+			source.WriteString(`\noexpand\{`)
+		case '}':
+			source.WriteString(`\noexpand\}`)
+		default:
+			if value >= 0x80 {
+				fmt.Fprintf(&source, "^^%02x", value)
+				continue
+			}
+			source.WriteByte(value)
+		}
+	}
+	return source.String()
 }
 
 func renderLineItems(items []LineItem, currency string) string {

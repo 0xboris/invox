@@ -15,4 +15,8 @@ payment:
   bic: BKAUATWW
   due_days: 30
   payment_terms_text: Pay within 30 days
+  epc_qr:
+    label: Pay via EPC-QR
+    purpose: SUPP
+    information: Scan to pay this invoice
   vat_label: VAT

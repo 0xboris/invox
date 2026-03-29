@@ -5,8 +5,10 @@
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{eurosym}
+\usepackage{qrcode}
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
+\qrset{height=2.2cm}
 
 \begin{document}
 
@@ -54,11 +56,15 @@ Total: & @@TOTAL@@\\
 Paid: & @@PAID_AMOUNT@@\\
 Outstanding: & @@OUTSTANDING_AMOUNT@@\\
 \end{tabular}
+\ifnum@@EPC_QR_AVAILABLE@@=1
+\vspace{0.5cm}
+@@EPC_QR_LABEL@@\\
+@@EPC_QR_CODE@@
+\fi
 
 \vfill
 @@PAYMENT_TERMS_TEXT@@
 
-\vspace{0.5cm}
 Bank: @@BANK_NAME@@\\
 IBAN: @@IBAN@@\\
 BIC: @@BIC@@
