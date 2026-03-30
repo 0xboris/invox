@@ -91,6 +91,14 @@ func runHelp(args []string) int {
 		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
 	}
 
+	if args[0] == "issuer" {
+		if len(args) == 1 {
+			printIssuerHelp(os.Stdout)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
 	if args[0] == "archive" {
 		if len(args) == 1 {
 			spec, _ := lookupCommand("archive")

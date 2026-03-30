@@ -17,6 +17,11 @@ type customerField struct {
 	Description string
 }
 
+type issuerField struct {
+	Path        string
+	Description string
+}
+
 var templatePlaceholderGroups = []struct {
 	Title   string
 	Entries []templatePlaceholder
@@ -126,6 +131,47 @@ var customerFieldGroups = []struct {
 	},
 }
 
+var issuerFieldGroups = []struct {
+	Title   string
+	Entries []issuerField
+}{
+	{
+		Title: "Required company fields",
+		Entries: []issuerField{
+			{Path: "company.legal_company_name", Description: "Company name used on invoices, in email placeholders, and as the default EPC QR recipient name"},
+			{Path: "company.company_registration_number", Description: "Company registration number shown on the invoice"},
+			{Path: "company.vat_tax_id", Description: "VAT/tax number shown on the invoice"},
+			{Path: "company.website", Description: "Website shown on the invoice"},
+			{Path: "company.email", Description: "Sender/contact email shown on the invoice"},
+			{Path: "company.address.street", Description: "Business address street"},
+			{Path: "company.address.postal_code", Description: "Business address postal code"},
+			{Path: "company.address.city", Description: "Business address city"},
+			{Path: "company.address.country", Description: "Business address country"},
+		},
+	},
+	{
+		Title: "Required payment fields",
+		Entries: []issuerField{
+			{Path: "payment.bank_name", Description: "Bank name rendered into the invoice template"},
+			{Path: "payment.iban", Description: "Bank account IBAN used on the invoice and for EPC QR generation"},
+			{Path: "payment.bic", Description: "Bank identifier code shown on the invoice"},
+			{Path: "payment.due_days", Description: "Non-negative integer day count used by `new` to prefill invoice.due_date"},
+			{Path: "payment.payment_terms_text", Description: "Payment terms text used by templates and email placeholders"},
+		},
+	},
+	{
+		Title: "Optional payment fields",
+		Entries: []issuerField{
+			{Path: "payment.vat_label", Description: "Overrides the VAT label used by @@VAT_SUMMARY_ROWS@@, defaults to VAT"},
+			{Path: "payment.epc_qr.label", Description: "Overrides the EPC QR label, defaults to Pay via EPC-QR"},
+			{Path: "payment.epc_qr.name", Description: "Overrides the EPC QR recipient name, defaults to company.legal_company_name"},
+			{Path: "payment.epc_qr.purpose", Description: "Optional EPC QR purpose code, must be 1-4 letters or digits"},
+			{Path: "payment.epc_qr.text", Description: "Optional EPC QR text line, defaults to invoice.number"},
+			{Path: "payment.epc_qr.information", Description: "Optional EPC QR unstructured remittance information"},
+		},
+	},
+}
+
 const customerYAMLExample = `CUST-001:
   name: Appsters GmbH
   status: active
@@ -153,6 +199,32 @@ const customerYAMLExample = `CUST-001:
   # currency: EUR
 `
 
+const issuerYAMLExample = `company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+  vat_label: VAT
+  epc_qr:
+    label: Pay via EPC-QR
+    purpose: SUPP
+    information: Scan to pay this invoice
+    # name: Boris Consulting
+    # text: 2026-0001
+`
+
 func printCustomerFieldReference(w io.Writer) {
 	fmt.Fprintf(w, "Customer fields:\n")
 	fmt.Fprintf(w, "  customers.yaml maps CUSTOMER_ID keys to customer data.\n")
@@ -168,9 +240,29 @@ func printCustomerFieldReference(w io.Writer) {
 	}
 }
 
+func printIssuerFieldReference(w io.Writer) {
+	fmt.Fprintf(w, "Issuer fields:\n")
+	fmt.Fprintf(w, "  issuer.yaml contains your own company and payment details.\n")
+	fmt.Fprintf(w, "  Required fields are validated by new, validate, render, build, and email.\n\n")
+	for groupIndex, group := range issuerFieldGroups {
+		if groupIndex > 0 {
+			fmt.Fprintf(w, "\n")
+		}
+		fmt.Fprintf(w, "%s:\n", group.Title)
+		for _, entry := range group.Entries {
+			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
+		}
+	}
+}
+
 func printCustomerYAMLExample(w io.Writer) {
 	fmt.Fprintf(w, "customers.yaml example:\n")
 	fmt.Fprint(w, customerYAMLExample)
+}
+
+func printIssuerYAMLExample(w io.Writer) {
+	fmt.Fprintf(w, "issuer.yaml example:\n")
+	fmt.Fprint(w, issuerYAMLExample)
 }
 
 func printRootHelp(w io.Writer) {
@@ -221,6 +313,10 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  render output: ./invoice.tex\n")
 	fmt.Fprintf(w, "  email draft path: input path with .eml extension\n")
 	fmt.Fprintf(w, "  build output: input path with .pdf extension\n\n")
+	fmt.Fprintf(w, "Documentation topics:\n")
+	fmt.Fprintf(w, "  %s help config      config.yaml keys, precedence, and email placeholders\n", commandName)
+	fmt.Fprintf(w, "  %s help issuer      issuer.yaml fields, validation rules, and example\n", commandName)
+	fmt.Fprintf(w, "  %s help template    template placeholders and authoring rules\n\n", commandName)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
@@ -263,6 +359,31 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
 	fmt.Fprintf(w, "\n")
 	printCustomerYAMLExample(w)
+}
+
+func printIssuerHelp(w io.Writer) {
+	fmt.Fprintf(w, "issuer.yaml reference.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s help issuer\n\n", commandName)
+	fmt.Fprintf(w, "Behavior:\n")
+	fmt.Fprintf(w, "  Shows the supported issuer.yaml shape used by new, validate, render, build, and email.\n")
+	fmt.Fprintf(w, "  `invox init` writes a starter issuer.yaml with this structure.\n\n")
+	fmt.Fprintf(w, "Formatting:\n")
+	fmt.Fprintf(w, "  Top-level keys must start at column 1 with no leading spaces.\n\n")
+	printIssuerFieldReference(w)
+	fmt.Fprintf(w, "\n\nRules:\n")
+	fmt.Fprintf(w, "  payment.due_days must be a non-negative integer.\n")
+	fmt.Fprintf(w, "  payment.vat_label defaults to VAT when omitted.\n")
+	fmt.Fprintf(w, "  payment.epc_qr.name defaults to company.legal_company_name.\n")
+	fmt.Fprintf(w, "  payment.epc_qr.text defaults to invoice.number.\n")
+	fmt.Fprintf(w, "  payment.epc_qr.label defaults to Pay via EPC-QR.\n")
+	fmt.Fprintf(w, "  EPC QR generation requires a valid SEPA-scope payment.iban.\n\n")
+	fmt.Fprintf(w, "Lookup:\n")
+	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n\n", invoice.GlobalIssuerPath())
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("help issuer"))
+	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -u issuer.yaml"))
+	printIssuerYAMLExample(w)
 }
 
 func printTemplateHelp(w io.Writer) {
@@ -424,6 +545,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	}
 	if spec.NeedsIssuer {
 		fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", invoice.GlobalIssuerPath())
+		fmt.Fprintf(w, "  schema/docs: run `%s help issuer`\n", commandName)
 	}
 	if spec.NeedsPDF {
 		if spec.AcceptsPDFInput {

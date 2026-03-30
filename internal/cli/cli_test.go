@@ -298,6 +298,44 @@ func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 	}
 }
 
+func TestHelpIssuerShowsIssuerDocumentation(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"help", "issuer"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"issuer.yaml reference.",
+		"invox help issuer",
+		"Formatting:",
+		"Top-level keys must start at column 1 with no leading spaces.",
+		"Issuer fields:",
+		"Required company fields:",
+		"company.legal_company_name",
+		"company.email",
+		"Required payment fields:",
+		"payment.due_days",
+		"payment.payment_terms_text",
+		"Optional payment fields:",
+		"payment.vat_label",
+		"payment.epc_qr.label",
+		"payment.epc_qr.text",
+		"Rules:",
+		"payment.due_days must be a non-negative integer.",
+		"EPC QR generation requires a valid SEPA-scope payment.iban.",
+		"issuer.yaml example:",
+		"company:",
+		"payment:",
+		"# name: Boris Consulting",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
 func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 	customersPath := filepath.Join(t.TempDir(), "customers.yaml")
 	if err := os.WriteFile(customersPath, []byte("CUST-001: {}\n"), 0o644); err != nil {

@@ -250,6 +250,81 @@ Customer entry example:
 
 `billing.currency` is optional and defaults to `EUR`.
 
+## Issuer Configuration
+
+`issuer.yaml` stores your own company details and payment defaults.
+
+You can print the same reference in the CLI with:
+
+```sh
+invox help issuer
+```
+
+`invox init` also creates a starter `issuer.yaml` in the global config directory.
+
+Supported shape:
+
+```yaml
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+  vat_label: VAT
+  epc_qr:
+    label: Pay via EPC-QR
+    purpose: SUPP
+    information: Scan to pay this invoice
+    # name: Boris Consulting
+    # text: 2026-0001
+```
+
+Required fields:
+
+- `company.legal_company_name`
+- `company.company_registration_number`
+- `company.vat_tax_id`
+- `company.website`
+- `company.email`
+- `company.address.street`
+- `company.address.postal_code`
+- `company.address.city`
+- `company.address.country`
+- `payment.bank_name`
+- `payment.iban`
+- `payment.bic`
+- `payment.due_days`
+- `payment.payment_terms_text`
+
+Optional fields:
+
+- `payment.vat_label` overrides the VAT label used by `@@VAT_SUMMARY_ROWS@@`; default is `VAT`
+- `payment.epc_qr.label` overrides the QR label; default is `Pay via EPC-QR`
+- `payment.epc_qr.name` overrides the QR recipient name; default is `company.legal_company_name`
+- `payment.epc_qr.purpose` sets the EPC QR purpose code
+- `payment.epc_qr.text` overrides the QR text line; default is `invoice.number`
+- `payment.epc_qr.information` sets EPC QR remittance information
+
+Rules:
+
+- `payment.due_days` must be a non-negative integer
+- `new` uses `payment.due_days` to prefill `invoice.due_date`
+- templates and email placeholders use `payment.payment_terms_text`
+- EPC QR output requires `payment.iban` to be a valid IBAN within the current SEPA scheme scope
+
 ## Template Authoring
 
 `invox render` and `invox build` read a LaTeX template file, replace known placeholders, and write the rendered `.tex` before optionally compiling it to PDF.
