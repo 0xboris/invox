@@ -91,9 +91,25 @@ func runHelp(args []string) int {
 		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
 	}
 
+	if args[0] == "customers" {
+		if len(args) == 1 {
+			printCustomersHelp(os.Stdout)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
 	if args[0] == "issuer" {
 		if len(args) == 1 {
 			printIssuerHelp(os.Stdout)
+			return 0
+		}
+		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
+	if args[0] == "defaults" || args[0] == "invoice-defaults" || args[0] == "invoice_defaults" {
+		if len(args) == 1 {
+			printDefaultsHelp(os.Stdout)
 			return 0
 		}
 		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))

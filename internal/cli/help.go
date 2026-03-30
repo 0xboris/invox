@@ -22,6 +22,11 @@ type issuerField struct {
 	Description string
 }
 
+type invoiceDefaultsField struct {
+	Path        string
+	Description string
+}
+
 var templatePlaceholderGroups = []struct {
 	Title   string
 	Entries []templatePlaceholder
@@ -172,6 +177,49 @@ var issuerFieldGroups = []struct {
 	},
 }
 
+var invoiceDefaultsFieldGroups = []struct {
+	Title   string
+	Entries []invoiceDefaultsField
+}{
+	{
+		Title: "Top-level keys",
+		Entries: []invoiceDefaultsField{
+			{Path: "invoice", Description: "Mapping of invoice defaults used as the source document for `new`"},
+			{Path: "positions", Description: "Line-item list copied into the created invoice; if omitted `new` creates an empty list"},
+		},
+	},
+	{
+		Title: "Invoice fields",
+		Entries: []invoiceDefaultsField{
+			{Path: "invoice.number", Description: "Usually blank in defaults; `new` always replaces it with the next generated invoice number"},
+			{Path: "invoice.issue_date", Description: "Usually blank in defaults; `new` always replaces it with the current date"},
+			{Path: "invoice.due_date", Description: "Usually blank in defaults; `new` always replaces it using issuer.payment.due_days"},
+			{Path: "invoice.status", Description: "Usually `draft`; `new` always resets it to `draft`"},
+			{Path: "invoice.period", Description: "Invoice period label copied into the created invoice and required by validate/render/build"},
+			{Path: "invoice.vat_percent", Description: "Optional default VAT rate for the whole invoice; can be filled from customer.tax.default_vat_rate"},
+			{Path: "invoice.paid_amount", Description: "Usually `0`; `new` always resets it to `0`"},
+		},
+	},
+	{
+		Title: "Position fields",
+		Entries: []invoiceDefaultsField{
+			{Path: "positions[].name", Description: "Line-item name"},
+			{Path: "positions[].description", Description: "Line-item description"},
+			{Path: "positions[].unit_price", Description: "Line-item net unit price; must be >= 0 on the final invoice"},
+			{Path: "positions[].quantity", Description: "Line-item quantity; must be > 0 on the final invoice"},
+			{Path: "positions[].vat_percent", Description: "Optional per-line VAT override"},
+		},
+	},
+	{
+		Title: "Unsupported legacy keys",
+		Entries: []invoiceDefaultsField{
+			{Path: "line_items", Description: "Unsupported; use positions"},
+			{Path: "invoice.period_label", Description: "Unsupported; use invoice.period"},
+			{Path: "invoice.vat_rate_percent", Description: "Unsupported; use invoice.vat_percent"},
+		},
+	},
+}
+
 const customerYAMLExample = `CUST-001:
   name: Appsters GmbH
   status: active
@@ -225,6 +273,22 @@ payment:
     # text: 2026-0001
 `
 
+const invoiceDefaultsYAMLExample = `invoice:
+  number: ""
+  issue_date: ""
+  due_date: ""
+  status: draft
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+    # vat_percent: 20
+`
+
 func printCustomerFieldReference(w io.Writer) {
 	fmt.Fprintf(w, "Customer fields:\n")
 	fmt.Fprintf(w, "  customers.yaml maps CUSTOMER_ID keys to customer data.\n")
@@ -255,6 +319,21 @@ func printIssuerFieldReference(w io.Writer) {
 	}
 }
 
+func printInvoiceDefaultsFieldReference(w io.Writer) {
+	fmt.Fprintf(w, "invoice_defaults.yaml fields:\n")
+	fmt.Fprintf(w, "  invoice_defaults.yaml is the source document for `invox new`.\n")
+	fmt.Fprintf(w, "  The created invoice later also gains a top-level customer_id.\n\n")
+	for groupIndex, group := range invoiceDefaultsFieldGroups {
+		if groupIndex > 0 {
+			fmt.Fprintf(w, "\n")
+		}
+		fmt.Fprintf(w, "%s:\n", group.Title)
+		for _, entry := range group.Entries {
+			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
+		}
+	}
+}
+
 func printCustomerYAMLExample(w io.Writer) {
 	fmt.Fprintf(w, "customers.yaml example:\n")
 	fmt.Fprint(w, customerYAMLExample)
@@ -263,6 +342,11 @@ func printCustomerYAMLExample(w io.Writer) {
 func printIssuerYAMLExample(w io.Writer) {
 	fmt.Fprintf(w, "issuer.yaml example:\n")
 	fmt.Fprint(w, issuerYAMLExample)
+}
+
+func printInvoiceDefaultsYAMLExample(w io.Writer) {
+	fmt.Fprintf(w, "invoice_defaults.yaml example:\n")
+	fmt.Fprint(w, invoiceDefaultsYAMLExample)
 }
 
 func printRootHelp(w io.Writer) {
@@ -315,7 +399,9 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  build output: input path with .pdf extension\n\n")
 	fmt.Fprintf(w, "Documentation topics:\n")
 	fmt.Fprintf(w, "  %s help config      config.yaml keys, precedence, and email placeholders\n", commandName)
+	fmt.Fprintf(w, "  %s help customers   customers.yaml fields, aliases, and example\n", commandName)
 	fmt.Fprintf(w, "  %s help issuer      issuer.yaml fields, validation rules, and example\n", commandName)
+	fmt.Fprintf(w, "  %s help defaults    invoice_defaults.yaml shape and new-command behavior\n", commandName)
 	fmt.Fprintf(w, "  %s help template    template placeholders and authoring rules\n\n", commandName)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list"))
@@ -351,6 +437,8 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n\n")
 	fmt.Fprintf(w, "Default lookup:\n")
 	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", invoice.GlobalCustomersPath())
+	fmt.Fprintf(w, "Documentation:\n")
+	fmt.Fprintf(w, "  Run `%s help customers` for the customers.yaml schema reference.\n\n", commandName)
 	printCustomerFieldReference(w)
 	fmt.Fprintf(w, "\n\n")
 	fmt.Fprintf(w, "Examples:\n")
@@ -358,6 +446,31 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("customer list -c customers.yaml"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
 	fmt.Fprintf(w, "\n")
+	printCustomerYAMLExample(w)
+}
+
+func printCustomersHelp(w io.Writer) {
+	fmt.Fprintf(w, "customers.yaml reference.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s help customers\n\n", commandName)
+	fmt.Fprintf(w, "Behavior:\n")
+	fmt.Fprintf(w, "  Shows the supported customers.yaml shape used by new, validate, render, build, and email.\n")
+	fmt.Fprintf(w, "  `invox customer config` opens the resolved file for editing.\n\n")
+	fmt.Fprintf(w, "Formatting:\n")
+	fmt.Fprintf(w, "  Top-level customer IDs must start at column 1 with no leading spaces.\n\n")
+	printCustomerFieldReference(w)
+	fmt.Fprintf(w, "\n\nRules:\n")
+	fmt.Fprintf(w, "  Preferred display name path is <customer>.name; <customer>.legal_company_name is also accepted.\n")
+	fmt.Fprintf(w, "  Email lookup order is billing.send_invoice_to, billing.email, then email.\n")
+	fmt.Fprintf(w, "  email_greeting defaults to Hello, when omitted.\n")
+	fmt.Fprintf(w, "  billing.currency defaults to EUR.\n")
+	fmt.Fprintf(w, "  numbering.code feeds {customer_code}; numbering.start overrides config.numbering.start for one customer.\n\n")
+	fmt.Fprintf(w, "Lookup:\n")
+	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", invoice.GlobalCustomersPath())
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("help customers"))
+	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
+	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -c customers.yaml"))
 	printCustomerYAMLExample(w)
 }
 
@@ -384,6 +497,31 @@ func printIssuerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("help issuer"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -u issuer.yaml"))
 	printIssuerYAMLExample(w)
+}
+
+func printDefaultsHelp(w io.Writer) {
+	fmt.Fprintf(w, "invoice_defaults.yaml reference.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s help defaults\n", commandName)
+	fmt.Fprintf(w, "  %s help invoice-defaults\n\n", commandName)
+	fmt.Fprintf(w, "Behavior:\n")
+	fmt.Fprintf(w, "  Shows the supported invoice_defaults.yaml shape used by `invox new`.\n")
+	fmt.Fprintf(w, "  `invox init` writes a starter invoice_defaults.yaml with this structure.\n")
+	fmt.Fprintf(w, "  `invox new --from-last` bypasses invoice_defaults.yaml and clones the latest archived invoice for that customer.\n\n")
+	fmt.Fprintf(w, "Formatting:\n")
+	fmt.Fprintf(w, "  Top-level keys must start at column 1 with no leading spaces.\n\n")
+	printInvoiceDefaultsFieldReference(w)
+	fmt.Fprintf(w, "\n\nRules:\n")
+	fmt.Fprintf(w, "  `new` sets customer_id, invoice.number, invoice.issue_date, invoice.due_date, invoice.status, and invoice.paid_amount.\n")
+	fmt.Fprintf(w, "  If positions is omitted, `new` creates an empty list.\n")
+	fmt.Fprintf(w, "  The final invoice used by validate/render/build/email still needs a non-empty positions list.\n")
+	fmt.Fprintf(w, "  Canonical keys are positions, invoice.period, and invoice.vat_percent.\n\n")
+	fmt.Fprintf(w, "Lookup:\n")
+	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", invoice.GlobalInvoiceDefaultsPath())
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("help defaults"))
+	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -s invoice_defaults.yaml"))
+	printInvoiceDefaultsYAMLExample(w)
 }
 
 func printTemplateHelp(w io.Writer) {
@@ -542,6 +680,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	fmt.Fprintf(w, "\nDefault lookup:\n")
 	if spec.NeedsCustomers {
 		fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n", invoice.GlobalCustomersPath())
+		fmt.Fprintf(w, "  schema/docs: run `%s help customers`\n", commandName)
 	}
 	if spec.NeedsIssuer {
 		fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", invoice.GlobalIssuerPath())
@@ -556,6 +695,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	}
 	if spec.NeedsDefaults {
 		fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", invoice.GlobalInvoiceDefaultsPath())
+		fmt.Fprintf(w, "  schema/docs: run `%s help defaults`\n", commandName)
 	}
 	if spec.NeedsTemplate {
 		fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
