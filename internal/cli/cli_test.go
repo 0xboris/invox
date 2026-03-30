@@ -51,6 +51,28 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 	}
 }
 
+func TestRootHelpShowsDocumentationTopics(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"Documentation topics:",
+		"invox help config",
+		"invox help customers",
+		"invox help issuer",
+		"invox help defaults",
+		"invox help template",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
 func TestConfigOpensConfigFile(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
@@ -291,6 +313,108 @@ func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 		"# paths:",
 		"# archive:",
 		"# email:",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestHelpCustomersShowsCustomersDocumentation(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"help", "customers"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"customers.yaml reference.",
+		"invox help customers",
+		"invox customer config",
+		"Formatting:",
+		"Top-level customer IDs must start at column 1 with no leading spaces.",
+		"Customer fields:",
+		"Preferred fields:",
+		"<customer>.name",
+		"<customer>.billing.send_invoice_to",
+		"Alternate supported paths:",
+		"<customer>.legal_company_name",
+		"Rules:",
+		"Email lookup order is billing.send_invoice_to, billing.email, then email.",
+		"billing.currency defaults to EUR.",
+		"customers.yaml example:",
+		"CUST-001:",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestHelpIssuerShowsIssuerDocumentation(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"help", "issuer"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"issuer.yaml reference.",
+		"invox help issuer",
+		"Formatting:",
+		"Top-level keys must start at column 1 with no leading spaces.",
+		"Issuer fields:",
+		"Required company fields:",
+		"company.legal_company_name",
+		"company.email",
+		"Required payment fields:",
+		"payment.due_days",
+		"payment.payment_terms_text",
+		"Optional payment fields:",
+		"payment.vat_label",
+		"payment.epc_qr.label",
+		"payment.epc_qr.text",
+		"Rules:",
+		"payment.due_days must be a non-negative integer.",
+		"EPC QR generation requires a valid SEPA-scope payment.iban.",
+		"issuer.yaml example:",
+		"company:",
+		"payment:",
+		"# name: Boris Consulting",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"help", "defaults"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"invoice_defaults.yaml reference.",
+		"invox help defaults",
+		"invox help invoice-defaults",
+		"Formatting:",
+		"Top-level keys must start at column 1 with no leading spaces.",
+		"invoice_defaults.yaml fields:",
+		"Top-level keys:",
+		"invoice.number",
+		"invoice.vat_percent",
+		"positions[].unit_price",
+		"Unsupported legacy keys:",
+		"line_items",
+		"Rules:",
+		"`new` sets customer_id, invoice.number, invoice.issue_date, invoice.due_date, invoice.status, and invoice.paid_amount.",
+		"invoice_defaults.yaml example:",
+		"positions:",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -946,7 +1070,31 @@ func TestRenderHelpShowsShortFlags(t *testing.T) {
 		"-c, --customers PATH",
 		"-u, --issuer PATH",
 		"-t, --template PATH",
+		"schema/docs: run `invox help customers`",
+		"schema/docs: run `invox help issuer`",
 		"invoice.tex in the current directory",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestNewHelpShowsSupportFileDocumentationHints(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"-c, --customers PATH",
+		"-u, --issuer PATH",
+		"-s, --source PATH",
+		"schema/docs: run `invox help customers`",
+		"schema/docs: run `invox help issuer`",
+		"schema/docs: run `invox help defaults`",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
