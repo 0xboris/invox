@@ -83,6 +83,9 @@ var templatePlaceholderGroups = []struct {
 			{Token: "@@BANK_NAME@@", Description: "issuer.payment.bank_name"},
 			{Token: "@@IBAN@@", Description: "issuer.payment.iban"},
 			{Token: "@@BIC@@", Description: "issuer.payment.bic"},
+			{Token: "@@EPC_QR_AVAILABLE@@", Description: "1 when an EPC QR code will be rendered, otherwise 0"},
+			{Token: "@@EPC_QR_LABEL@@", Description: "EPC QR label text"},
+			{Token: "@@EPC_QR_CODE@@", Description: "EPC QR code placeholder"},
 		},
 	},
 }

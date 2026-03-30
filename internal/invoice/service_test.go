@@ -374,6 +374,776 @@ Label: @@VAT_LABEL@@
 	}
 }
 
+func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+\documentclass{article}
+\usepackage{qrcode}
+\begin{document}
+@@EPC_QR_CODE@@
+\end{document}
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		`\edef\invoxqrcodepayload{BCD\noexpand\?002\noexpand\?1\noexpand\?SCT\noexpand\?BKAUATWW\noexpand\?Boris Consulting\noexpand\?AT611904300234573201\noexpand\?EUR252.00`,
+		`\noexpand\?\noexpand\?CUST-001-001}`,
+		`\qrcode{\invoxqrcodepayload}`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestQRCodePayloadTeXSourceUsesQrcodeEscapesForReservedCharacters(t *testing.T) {
+	payload := []byte("A\\B^C~D%E#F&G_H$I{J}K\n")
+
+	got := qrcodePayloadTeXSource(payload)
+	want := strings.Join([]string{
+		"A",
+		`\noexpand\\`,
+		"B",
+		`\noexpand\^`,
+		"C",
+		`\noexpand\~`,
+		"D",
+		`\noexpand\%`,
+		"E",
+		`\noexpand\#`,
+		"F",
+		`\noexpand\&`,
+		"G",
+		`\noexpand\_`,
+		"H",
+		`\noexpand\$`,
+		"I",
+		`\noexpand\{`,
+		"J",
+		`\noexpand\}`,
+		"K",
+		`\noexpand\?`,
+	}, "")
+	if got != want {
+		t.Fatalf("qrcodePayloadTeXSource(%q) = %q, want %q", payload, got, want)
+	}
+}
+
+func TestCompactEPCAccountIdentifierRemovesUnicodeWhitespace(t *testing.T) {
+	got := compactEPCAccountIdentifier(" \tAT61\u00a01904 3002\t3457 3201\n")
+	want := "AT611904300234573201"
+	if got != want {
+		t.Fatalf("compactEPCAccountIdentifier returned %q, want %q", got, want)
+	}
+}
+
+func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  number: CUST-001-001\n", "  number: 'INV-\\^~{}'\n", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+\documentclass{article}
+\usepackage{qrcode}
+\begin{document}
+@@EPC_QR_CODE@@
+\end{document}
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	want := `INV-\noexpand\\\noexpand\^\noexpand\~\noexpand\{\noexpand\}}`
+	if !strings.Contains(text, want) {
+		t.Fatalf("rendered output %q does not contain %q", text, want)
+	}
+}
+
+func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+\documentclass{article}
+\usepackage{qrcode}
+\begin{document}
+\fbox{@@EPC_QR_CODE@@}
+\end{document}
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		`\fbox{{%`,
+		`\qrcode{\invoxqrcodepayload}}}`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+	if strings.Contains(text, "}%}") {
+		t.Fatalf("rendered output %q unexpectedly comments out the trailing template brace", text)
+	}
+	if strings.Contains(text, `\qrcode{\invoxqrcodepayload}`+"\n") {
+		t.Fatalf("rendered output %q unexpectedly leaves inline QR content followed by a space-producing newline", text)
+	}
+}
+
+func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\nBefore\n@@EPC_QR_AVAILABLE@@\n@@EPC_QR_LABEL@@\n@@EPC_QR_CODE@@\nAfter\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"\n1\n",
+		`Pay via EPC-QR`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+	for _, unwanted := range []string{
+		`\vspace{0.5cm}`,
+		`Pay via EPC-QR\\`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("rendered output %q unexpectedly contains layout-specific EPC label LaTeX %q", text, unwanted)
+		}
+	}
+}
+
+func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  payment_terms_text: Pay within 30 days\n", ""+
+		"  payment_terms_text: Pay within 30 days\n"+
+		"  epc_qr:\n"+
+		"    label: Zahlung per QR-Code\n"+
+		"    purpose: SUPP\n"+
+		"    information: Scan to pay this invoice\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_AVAILABLE@@\n@@EPC_QR_LABEL@@\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		"\n1\n",
+		`Zahlung per QR-Code`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.ReplaceAll(string(source), "  iban: AT611904300234573201\n", "  iban: \"AT61\u00a01904\t3002 3457 3201\"\n")
+	mutated = strings.ReplaceAll(mutated, "  bic: BKAUATWW\n", "  bic: \"BKAU\u00a0AT\tWW\"\n")
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		`AT611904300234573201`,
+		`BKAUATWW`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: GI75NWBK000000007099453\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error for Gibraltar EPC QR code: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		`GI75NWBK000000007099453`,
+		`\qrcode{\invoxqrcodepayload}`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  payment_terms_text: Pay within 30 days\n", ""+
+		"  payment_terms_text: Pay within 30 days\n"+
+		"  epc_qr:\n"+
+		"    name: \"Boris Österreich & Co.\"\n"+
+		"    purpose: gdDs\n"+
+		"    text: \"Invoice CUST-001-001 & Überweisung\"\n"+
+		"    information: \"Grüße €\"\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, want := range []string{
+		`Boris ^^c3^^96sterreich \noexpand\& Co.`,
+		`Invoice CUST-001-001 \noexpand\& ^^c3^^9cberweisung`,
+		`Gr^^c3^^bc^^c3^^9fe ^^e2^^82^^ac}`,
+		`\noexpand\?GDDS\noexpand\?\noexpand\?`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("rendered output %q does not contain %q", text, want)
+		}
+	}
+}
+
+func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0\n", "  paid_amount: 252\n", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\nBefore\n@@EPC_QR_CODE@@\nAfter\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	if strings.Contains(text, `\qrcode{`) {
+		t.Fatalf("rendered output %q unexpectedly contains a QR code", text)
+	}
+	if !strings.Contains(text, "Before\n\nAfter") {
+		t.Fatalf("rendered output %q does not show the empty placeholder expansion", text)
+	}
+}
+
+func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(customersPath)
+	if err != nil {
+		t.Fatalf("ReadFile(customersPath) returned error: %v", err)
+	}
+	mutated := strings.TrimSpace(string(source)) + "\n  billing:\n    currency: USD\n"
+	if err := os.WriteFile(customersPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\nBefore\n@@EPC_QR_CODE@@\nAfter\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error for non-EUR EPC QR code: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	if strings.Contains(text, `\qrcode{`) {
+		t.Fatalf("rendered output %q unexpectedly contains a QR code", text)
+	}
+	if !strings.Contains(text, "Before\n\nAfter") {
+		t.Fatalf("rendered output %q does not show the empty placeholder expansion", text)
+	}
+}
+
+func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("Invoice @@INVOICE_NUMBER@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error without EPC placeholder: %v", err)
+	}
+}
+
+func TestRenderInvoiceLeavesEPCQRAvailabilityAndLabelInactiveWithoutQRCodePlaceholder(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
+\usepackage{qrcode}
+Before
+@@EPC_QR_AVAILABLE@@
+@@EPC_QR_LABEL@@
+After
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error when only the EPC QR label is active: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	for _, unwanted := range []string{
+		`Pay via EPC-QR`,
+		`\qrcode{`,
+		"\n1\n",
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("rendered output %q unexpectedly contains %q", text, unwanted)
+		}
+	}
+	if !strings.Contains(text, "Before\n0\n\nAfter") {
+		t.Fatalf("rendered output %q does not show the inactive EPC QR flag and empty label without a QR placeholder", text)
+	}
+}
+
+func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	err = RenderInvoice(templatePath, outputPath, ctx)
+	if err == nil {
+		t.Fatal("RenderInvoice returned nil error for invalid eligible EPC QR data")
+	}
+	if !strings.Contains(err.Error(), "issuer.payment.iban: invalid IBAN `INVALID`") {
+		t.Fatalf("error %q does not contain the invalid IBAN message", err.Error())
+	}
+}
+
+func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(issuerPath)
+	if err != nil {
+		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: BR150000000000000000000000000\n", 1)
+	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, []byte("\\usepackage{qrcode}\n@@EPC_QR_CODE@@\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	err = RenderInvoice(templatePath, outputPath, ctx)
+	if err == nil {
+		t.Fatal("RenderInvoice returned nil error for non-SEPA eligible EPC QR data")
+	}
+	if !strings.Contains(err.Error(), "outside the current SEPA scheme scope") {
+		t.Fatalf("error %q does not contain the non-SEPA IBAN message", err.Error())
+	}
+}
+
+func TestIsValidIBANRejectsUnknownCountryCodeAndWrongLength(t *testing.T) {
+	tests := []struct {
+		name  string
+		iban  string
+		valid bool
+	}{
+		{name: "valid Austria", iban: "AT611904300234573201", valid: true},
+		{name: "valid Poland", iban: "PL61109010140000071219812874", valid: true},
+		{name: "unknown country code", iban: "ZZ6600000000000", valid: false},
+		{name: "wrong Austria length", iban: "AT61190430023457320", valid: false},
+		{name: "non-numeric check digits", iban: "ATAA1904300234573201", valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidIBAN(tt.iban); got != tt.valid {
+				t.Fatalf("isValidIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
+			}
+		})
+	}
+}
+
+func TestIsSEPASchemeIBAN(t *testing.T) {
+	tests := []struct {
+		name  string
+		iban  string
+		valid bool
+	}{
+		{name: "sepa Austria", iban: "AT611904300234573201", valid: true},
+		{name: "sepa GB prefix covers Crown Dependencies", iban: "GB29NWBK60161331926819", valid: true},
+		{name: "sepa Gibraltar", iban: "GI75NWBK000000007099453", valid: true},
+		{name: "sepa Poland", iban: "PL61109010140000071219812874", valid: true},
+		{name: "non-sepa Brazil", iban: "BR150000000000000000000000000", valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isSEPASchemeIBAN(tt.iban); got != tt.valid {
+				t.Fatalf("isSEPASchemeIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
+			}
+		})
+	}
+}
+
+func TestSEPASchemeIBANCountryCodesMatchCurrentEPCIBANCodeList(t *testing.T) {
+	expected := []string{
+		"AD", "AL", "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK",
+		"EE", "ES", "FI", "FR", "GB", "GI", "GR", "HR", "HU", "IE",
+		"IS", "IT", "LI", "LT", "LU", "LV", "MC", "MD", "ME", "MK",
+		"MT", "NL", "NO", "PL", "PT", "RO", "RS", "SE", "SI", "SK",
+		"SM", "VA",
+	}
+
+	if got, want := len(sepaSchemeIBANCountryCodes), len(expected); got != want {
+		t.Fatalf("len(sepaSchemeIBANCountryCodes) = %d, want %d", got, want)
+	}
+	for _, code := range expected {
+		if _, ok := sepaSchemeIBANCountryCodes[code]; !ok {
+			t.Fatalf("sepaSchemeIBANCountryCodes is missing %q", code)
+		}
+	}
+}
+
+func TestSEPASchemeIBANCountryCodesHaveIBANLengthDefinitions(t *testing.T) {
+	for code := range sepaSchemeIBANCountryCodes {
+		if _, ok := ibanCountryLengths[code]; !ok {
+			t.Fatalf("ibanCountryLengths is missing SEPA IBAN country code %q", code)
+		}
+	}
+}
+
+func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(customersPath)
+	if err != nil {
+		t.Fatalf("ReadFile(customersPath) returned error: %v", err)
+	}
+	mutated := strings.TrimSpace(string(source)) + "\n  billing:\n    currency: USD\n"
+	if err := os.WriteFile(customersPath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templateSource, err := starterFiles.ReadFile("starter/template.tex")
+	if err != nil {
+		t.Fatalf("ReadFile(starter/template.tex) returned error: %v", err)
+	}
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, templateSource, 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error for non-EUR starter template: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	if !strings.Contains(text, `\ifnum0=1`) {
+		t.Fatalf("rendered starter template %q does not contain the inactive EPC QR conditional", text)
+	}
+	for _, unwanted := range []string{
+		"Pay via EPC-QR",
+		`\\qrcode{`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("rendered starter template %q unexpectedly contains %q", text, unwanted)
+		}
+	}
+}
+
+func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0\n", "  paid_amount: 252\n", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	if err != nil {
+		t.Fatalf("LoadContext returned error: %v", err)
+	}
+
+	templateSource, err := starterFiles.ReadFile("starter/template.tex")
+	if err != nil {
+		t.Fatalf("ReadFile(starter/template.tex) returned error: %v", err)
+	}
+	templatePath := filepath.Join(t.TempDir(), "template.tex")
+	if err := os.WriteFile(templatePath, templateSource, 0o644); err != nil {
+		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
+	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+		t.Fatalf("RenderInvoice returned error for settled starter template: %v", err)
+	}
+
+	rendered, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	text := string(rendered)
+	if !strings.Contains(text, `\ifnum0=1`) {
+		t.Fatalf("rendered starter template %q does not contain the inactive EPC QR conditional", text)
+	}
+	for _, unwanted := range []string{
+		"Pay via EPC-QR",
+		`\\qrcode{`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("rendered starter template %q unexpectedly contains %q", text, unwanted)
+		}
+	}
+}
+
 func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)

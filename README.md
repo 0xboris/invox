@@ -204,6 +204,11 @@ Defaults:
 - `payment_terms_text` now comes from `issuer.yaml -> payment.payment_terms_text`, not from invoice input files.
 - `due_days` now comes from `issuer.yaml -> payment.due_days` and must be a non-negative integer day count.
 - `vat_label` can be set at `issuer.yaml -> payment.vat_label` to override the label used by `@@VAT_SUMMARY_ROWS@@`. It defaults to `VAT`.
+- `issuer.yaml -> payment.epc_qr.*` can customize the EPC payment QR output emitted by `@@EPC_QR_LABEL@@` and `@@EPC_QR_CODE@@`.
+  Supported keys are `label`, `name`, `purpose`, `text`, and `information`.
+  `label` defaults to `Pay via EPC-QR`, `text` defaults to `invoice.number`, `name` defaults to `issuer.company.legal_company_name`, and the encoded amount uses the invoice outstanding amount.
+  EPC QR generation also requires `issuer.payment.iban` to be a valid IBAN within the current SEPA scheme scope.
+  The starter/default template uses `@@EPC_QR_AVAILABLE@@`, `@@EPC_QR_LABEL@@`, and `@@EPC_QR_CODE@@`, and the label/code stay empty unless a real QR code can be rendered.
 
 Numbering config in `config.yaml`:
 
@@ -378,6 +383,13 @@ Payment:
 - `@@BANK_NAME@@`
 - `@@IBAN@@`
 - `@@BIC@@`
+- `@@EPC_QR_AVAILABLE@@`
+  Expands to `1` when `@@EPC_QR_CODE@@` is active and a valid EPC QR code can be rendered, otherwise `0`.
+- `@@EPC_QR_LABEL@@`
+  Expands to the plain EPC QR label text, or to an empty string when `@@EPC_QR_CODE@@` is inactive or cannot be rendered.
+- `@@EPC_QR_CODE@@`
+  Expands to the low-level `\qrcode{...}` command carrying an EPC069-12 SEPA credit-transfer payload.
+  It expands to an empty string when EPC QR is not eligible and otherwise validates the eligible EPC data.
 
 ### Using `@@LINE_ITEMS_ROWS@@`
 
@@ -420,6 +432,57 @@ Total: & @@TOTAL@@\\
 ```
 
 If you want the same label elsewhere in the template, reuse `@@VAT_LABEL@@`.
+
+### Using `@@EPC_QR_AVAILABLE@@`, `@@EPC_QR_LABEL@@`, and `@@EPC_QR_CODE@@`
+
+`@@EPC_QR_AVAILABLE@@`, `@@EPC_QR_LABEL@@`, and `@@EPC_QR_CODE@@` are the recommended EPC QR placeholders for starter/default templates.
+
+Add the package and optional size setting in the template preamble:
+
+```tex
+\usepackage{qrcode}
+\qrset{height=2.2cm}
+```
+
+Place the placeholders where the EPC payment panel should appear:
+
+```tex
+\begin{tabular}{lr}
+Subtotal: & @@SUBTOTAL@@\\
+@@VAT_SUMMARY_ROWS@@
+Total: & @@TOTAL@@\\
+Paid: & @@PAID_AMOUNT@@\\
+Outstanding: & @@OUTSTANDING_AMOUNT@@\\
+\end{tabular}
+\ifnum@@EPC_QR_AVAILABLE@@=1
+  \vspace{0.5cm}
+  {\bfseries @@EPC_QR_LABEL@@\par}
+  @@EPC_QR_CODE@@
+\fi
+```
+
+Rules:
+
+- The payload follows EPC069-12 for SCT invoice-style QR codes.
+- `@@EPC_QR_AVAILABLE@@` expands to `0` for non-EUR invoices.
+- `@@EPC_QR_AVAILABLE@@` expands to `0` when the outstanding amount is `0` or below.
+- EPC QR generation requires the beneficiary IBAN to be within the current SEPA scheme scope.
+- `@@EPC_QR_LABEL@@` only renders when `@@EPC_QR_CODE@@` is also active and a valid EPC QR payload can be produced.
+- The label defaults to `Pay via EPC-QR` and can be overridden with `issuer.yaml -> payment.epc_qr.label`.
+- Size is controlled in the template with `\qrset{height=...}`.
+- EPC placeholders are resolved with plain text replacement, not TeX-aware parsing.
+- Do not place `@@EPC_QR_AVAILABLE@@`, `@@EPC_QR_LABEL@@`, or `@@EPC_QR_CODE@@` inside comments, verbatim/listing environments, or literal template examples unless you intend them to be treated as active placeholders.
+
+For custom templates, you can also use `@@EPC_QR_CODE@@` on its own when you do not need a label or a template-side conditional.
+
+- The QR code encodes the outstanding amount, not the invoice total.
+- The QR payload is encoded as real UTF-8 bytes.
+- Supported overrides in `issuer.yaml -> payment.epc_qr` are:
+  - `label`
+  - `name`
+  - `purpose`
+  - `text`
+  - `information`
 
 ### Assets and Relative Paths
 

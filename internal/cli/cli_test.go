@@ -503,6 +503,9 @@ func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
 		"@@BANK_NAME@@",
 		"@@IBAN@@",
 		"@@BIC@@",
+		"@@EPC_QR_AVAILABLE@@",
+		"@@EPC_QR_LABEL@@",
+		"@@EPC_QR_CODE@@",
 	} {
 		if !strings.Contains(stdout, placeholder) {
 			t.Fatalf("stdout %q does not contain placeholder %q", stdout, placeholder)
