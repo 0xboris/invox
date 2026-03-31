@@ -71,6 +71,15 @@ var templatePlaceholderGroups = []struct {
 		Entries: []templatePlaceholder{
 			{Token: "@@LINE_ITEMS_ROWS@@", Description: "Structured rows: name, description, unit price, quantity, line total"},
 			{Token: "@@LINE_ITEMS_ROWS_WITH_VAT@@", Description: "Structured rows: name, description, unit price, quantity, VAT rate, line total"},
+			{Token: "@@LINE_ITEMS_BEGIN@@", Description: "Begin custom line-item block; repeat enclosed snippet once per position"},
+			{Token: "@@LINE_ITEMS_END@@", Description: "End custom line-item block"},
+			{Token: "@@LINE_ITEM_NAME@@", Description: "Line-item name; only inside @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@"},
+			{Token: "@@LINE_ITEM_DESCRIPTION@@", Description: "Line-item description; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_UNIT_PRICE@@", Description: "Formatted unit price; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_QUANTITY@@", Description: "Formatted quantity; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_VAT_RATE@@", Description: "Formatted effective VAT rate; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_LINE_TOTAL@@", Description: "Formatted line total; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_RULE@@", Description: "Line separator rule; only inside the custom line-item block"},
 		},
 	},
 	{
@@ -544,8 +553,16 @@ func printTemplateHelp(w io.Writer) {
 	fmt.Fprintf(w, "Structured placeholders:\n")
 	fmt.Fprintf(w, "  @@LINE_ITEMS_ROWS@@ requires a five-column table.\n")
 	fmt.Fprintf(w, "  @@LINE_ITEMS_ROWS_WITH_VAT@@ requires a six-column table.\n")
+	fmt.Fprintf(w, "  @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@ repeats a custom snippet once per position.\n")
+	fmt.Fprintf(w, "  Inside that block, use @@LINE_ITEM_NAME@@, @@LINE_ITEM_DESCRIPTION@@, @@LINE_ITEM_UNIT_PRICE@@,\n")
+	fmt.Fprintf(w, "  @@LINE_ITEM_QUANTITY@@, @@LINE_ITEM_VAT_RATE@@, @@LINE_ITEM_LINE_TOTAL@@, and @@LINE_ITEM_RULE@@.\n")
 	fmt.Fprintf(w, "  @@VAT_SUMMARY_ROWS@@ belongs inside a two-column totals table.\n")
 	fmt.Fprintf(w, "  Use @@VAT_LABEL@@ anywhere you want the same VAT label text in the template.\n\n")
+	fmt.Fprintf(w, "Custom line-item block example:\n")
+	fmt.Fprintf(w, "  @@LINE_ITEMS_BEGIN@@\n")
+	fmt.Fprintf(w, "  @@LINE_ITEM_NAME@@ & @@LINE_ITEM_UNIT_PRICE@@ & @@LINE_ITEM_VAT_RATE@@ & @@LINE_ITEM_LINE_TOTAL@@\\\\\n")
+	fmt.Fprintf(w, "  @@LINE_ITEM_RULE@@\n")
+	fmt.Fprintf(w, "  @@LINE_ITEMS_END@@\n\n")
 	fmt.Fprintf(w, "Template workflow:\n")
 	fmt.Fprintf(w, "  Run `%s render -i invoice.yaml` to inspect the generated .tex.\n", commandName)
 	fmt.Fprintf(w, "  Run `%s build invoice.yaml` after the rendered LaTeX looks correct.\n", commandName)
