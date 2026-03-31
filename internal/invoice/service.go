@@ -1314,13 +1314,15 @@ func renderQRCodePayload(payload []byte) string {
 }
 
 // qrcode parses a limited verbatim syntax in its argument. When the QR command
-// is nested inside another macro, the package documentation requires reserved
-// characters and LF to reach \qrcode as escaped control sequences like \%, \^,
-// \~, \\, \{, \}, and \? rather than as raw TeX tokens.
+// is nested inside another macro, the package documentation requires spaces,
+// reserved characters, and LF to reach \qrcode as escaped control sequences
+// like \ , \%, \^, \~, \\, \{, \}, and \? rather than as raw TeX tokens.
 func qrcodePayloadTeXSource(payload []byte) string {
 	var source strings.Builder
 	for _, value := range payload {
 		switch value {
+		case ' ':
+			source.WriteString(`\noexpand\ `)
 		case '\n':
 			source.WriteString(`\noexpand\?`)
 		case '\\':
