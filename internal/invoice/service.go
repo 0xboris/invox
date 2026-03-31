@@ -72,24 +72,35 @@ type vatRateField struct {
 }
 
 const (
-	configDirName             = "invox"
-	legacyConfigDirName       = "invoice-tool"
-	tempBuildDirPrefix        = "invox-build-"
-	epcQRAvailablePlaceholder = "@@EPC_QR_AVAILABLE@@"
-	epcQRLabelPlaceholder     = "@@EPC_QR_LABEL@@"
-	epcQRCodePlaceholder      = "@@EPC_QR_CODE@@"
-	epcQRMaxPayloadBytes      = 331
-	epcQRMaxNameChars         = 70
-	epcQRMaxPurposeChars      = 4
-	epcQRMaxTextChars         = 140
-	epcQRMaxInfoChars         = 70
-	epcQRMaxAmountCents       = 99999999999
+	configDirName                  = "invox"
+	legacyConfigDirName            = "invoice-tool"
+	tempBuildDirPrefix             = "invox-build-"
+	epcQRAvailablePlaceholder      = "@@EPC_QR_AVAILABLE@@"
+	epcQRLabelPlaceholder          = "@@EPC_QR_LABEL@@"
+	epcQRCodePlaceholder           = "@@EPC_QR_CODE@@"
+	lineItemsBeginPlaceholder      = "@@LINE_ITEMS_BEGIN@@"
+	lineItemsEndPlaceholder        = "@@LINE_ITEMS_END@@"
+	lineItemNamePlaceholder        = "@@LINE_ITEM_NAME@@"
+	lineItemDescriptionPlaceholder = "@@LINE_ITEM_DESCRIPTION@@"
+	lineItemUnitPricePlaceholder   = "@@LINE_ITEM_UNIT_PRICE@@"
+	lineItemQuantityPlaceholder    = "@@LINE_ITEM_QUANTITY@@"
+	lineItemVATRatePlaceholder     = "@@LINE_ITEM_VAT_RATE@@"
+	lineItemLineTotalPlaceholder   = "@@LINE_ITEM_LINE_TOTAL@@"
+	lineItemRulePlaceholder        = "@@LINE_ITEM_RULE@@"
+	epcQRMaxPayloadBytes           = 331
+	epcQRMaxNameChars              = 70
+	epcQRMaxPurposeChars           = 4
+	epcQRMaxTextChars              = 140
+	epcQRMaxInfoChars              = 70
+	epcQRMaxAmountCents            = 99999999999
 )
 
 var (
-	epcPurposePattern  = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
-	epcBICPattern      = regexp.MustCompile(`^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$`)
-	ibanCountryLengths = map[string]int{
+	epcPurposePattern        = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
+	epcBICPattern            = regexp.MustCompile(`^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$`)
+	lineItemsBlockPattern    = regexp.MustCompile(`(?s)` + regexp.QuoteMeta(lineItemsBeginPlaceholder) + `(.*?)` + regexp.QuoteMeta(lineItemsEndPlaceholder))
+	lineItemsBoundaryPattern = regexp.MustCompile(regexp.QuoteMeta(lineItemsBeginPlaceholder) + `|` + regexp.QuoteMeta(lineItemsEndPlaceholder))
+	ibanCountryLengths       = map[string]int{
 		"AD": 24,
 		"AE": 23,
 		"AL": 28,
@@ -903,7 +914,7 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", templatePath, err)
 	}
-	rendered := template
+	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency)
 	for placeholder, value := range buildTemplateValues(ctx) {
 		rendered = strings.ReplaceAll(rendered, placeholder, value)
 	}
@@ -1043,6 +1054,9 @@ func validateTemplatePlaceholders(template string) error {
 			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))
 		}
 	}
+	if validateLineItemBlockPlaceholders(template, &validationErrors) {
+		validateLineItemPlaceholdersOutsideBlocks(template, &validationErrors)
+	}
 	if len(validationErrors) > 0 {
 		return errors.New(strings.Join(validationErrors, "\n"))
 	}
@@ -1091,6 +1105,173 @@ func buildTemplateValues(ctx *Context) map[string]string {
 		"@@IBAN@@":                     latexEscape(asString(ctx.IssuerPayment["iban"])),
 		"@@BIC@@":                      latexEscape(asString(ctx.IssuerPayment["bic"])),
 	}
+}
+
+func validateLineItemBlockPlaceholders(template string, validationErrors *[]string) bool {
+	depth := 0
+	for _, match := range lineItemsBoundaryPattern.FindAllStringIndex(template, -1) {
+		placeholder := template[match[0]:match[1]]
+		switch placeholder {
+		case lineItemsBeginPlaceholder:
+			if depth > 0 {
+				*validationErrors = append(*validationErrors, lineItemsBeginPlaceholder+": nested line-item blocks are unsupported")
+				return false
+			}
+			depth++
+		case lineItemsEndPlaceholder:
+			if depth == 0 {
+				*validationErrors = append(*validationErrors, lineItemsEndPlaceholder+": missing matching "+lineItemsBeginPlaceholder)
+				return false
+			}
+			depth--
+		}
+	}
+	if depth > 0 {
+		*validationErrors = append(*validationErrors, lineItemsBeginPlaceholder+": missing matching "+lineItemsEndPlaceholder)
+		return false
+	}
+	return true
+}
+
+func validateLineItemPlaceholdersOutsideBlocks(template string, validationErrors *[]string) {
+	stripped := lineItemsBlockPattern.ReplaceAllString(template, "")
+	for _, placeholder := range []string{
+		lineItemNamePlaceholder,
+		lineItemDescriptionPlaceholder,
+		lineItemUnitPricePlaceholder,
+		lineItemQuantityPlaceholder,
+		lineItemVATRatePlaceholder,
+		lineItemLineTotalPlaceholder,
+		lineItemRulePlaceholder,
+	} {
+		if strings.Contains(stripped, placeholder) {
+			*validationErrors = append(*validationErrors, fmt.Sprintf("%s: only supported inside %s ... %s", placeholder, lineItemsBeginPlaceholder, lineItemsEndPlaceholder))
+		}
+	}
+}
+
+func renderLineItemTemplateBlocks(template string, items []LineItem, currency string) string {
+	matches := lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1)
+	if len(matches) == 0 {
+		return template
+	}
+	var builder strings.Builder
+	lastEnd := 0
+	for _, match := range matches {
+		bounds := lineItemTemplateBlockBounds(template, match)
+		builder.WriteString(template[lastEnd:bounds.renderStart])
+		body := template[bounds.bodyStart:bounds.bodyEnd]
+		builder.WriteString(renderLineItemTemplateBlock(body, items, currency))
+		lastEnd = bounds.renderEnd
+	}
+	builder.WriteString(template[lastEnd:])
+	return builder.String()
+}
+
+type lineItemBlockBounds struct {
+	renderStart int
+	bodyStart   int
+	bodyEnd     int
+	renderEnd   int
+}
+
+func lineItemTemplateBlockBounds(template string, match []int) lineItemBlockBounds {
+	bounds := lineItemBlockBounds{
+		renderStart: match[0],
+		bodyStart:   match[2],
+		bodyEnd:     match[3],
+		renderEnd:   match[1],
+	}
+
+	if lineStart, lineAfter, ok := standaloneTemplateLineBounds(template, match[0], match[2]); ok {
+		bounds.renderStart = lineStart
+		bounds.bodyStart = lineAfter
+	}
+	if lineStart, lineAfter, ok := standaloneTemplateLineBounds(template, match[3], match[1]); ok {
+		bounds.bodyEnd = lineStart
+		bounds.renderEnd = lineAfter
+	}
+
+	return bounds
+}
+
+func standaloneTemplateLineBounds(template string, placeholderStart, placeholderEnd int) (int, int, bool) {
+	lineStart := templateLineStart(template, placeholderStart)
+	if !templateLineHasOnlyIndentation(template[lineStart:placeholderStart]) {
+		return 0, 0, false
+	}
+
+	lineEnd := templateLineEnd(template, placeholderEnd)
+	if !templateLineHasOnlyIndentation(template[placeholderEnd:lineEnd]) {
+		return 0, 0, false
+	}
+
+	return lineStart, templateLineAfterBreak(template, lineEnd), true
+}
+
+func templateLineStart(text string, index int) int {
+	for index > 0 {
+		switch text[index-1] {
+		case '\n', '\r':
+			return index
+		default:
+			index--
+		}
+	}
+	return 0
+}
+
+func templateLineEnd(text string, index int) int {
+	for index < len(text) {
+		switch text[index] {
+		case '\n', '\r':
+			return index
+		default:
+			index++
+		}
+	}
+	return len(text)
+}
+
+func templateLineAfterBreak(text string, lineEnd int) int {
+	if lineEnd >= len(text) {
+		return lineEnd
+	}
+	if text[lineEnd] == '\r' && lineEnd+1 < len(text) && text[lineEnd+1] == '\n' {
+		return lineEnd + 2
+	}
+	return lineEnd + 1
+}
+
+func templateLineHasOnlyIndentation(text string) bool {
+	for _, r := range text {
+		if r != ' ' && r != '\t' {
+			return false
+		}
+	}
+	return true
+}
+
+func renderLineItemTemplateBlock(body string, items []LineItem, currency string) string {
+	var builder strings.Builder
+	lastIndex := len(items) - 1
+	for index, item := range items {
+		builder.WriteString(renderLineItemTemplate(body, item, currency, lineItemRule(index, lastIndex)))
+	}
+	return builder.String()
+}
+
+func renderLineItemTemplate(body string, item LineItem, currency, rule string) string {
+	replacer := strings.NewReplacer(
+		lineItemNamePlaceholder, latexEscape(item.Name),
+		lineItemDescriptionPlaceholder, latexEscape(item.Description),
+		lineItemUnitPricePlaceholder, FormatCurrency(quantizeMoney(item.UnitPrice), currency),
+		lineItemQuantityPlaceholder, latexEscape(formatQuantity(item.Quantity)),
+		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
+		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
+		lineItemRulePlaceholder, rule,
+	)
+	return replacer.Replace(body)
 }
 
 func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode bool) (string, string, string, error) {
@@ -1377,13 +1558,17 @@ func renderLineItemRows(items []LineItem, currency string, includeVAT bool) stri
 		}
 		parts = append(parts, FormatCurrency(item.LineTotalCents, currency))
 		rows = append(rows, "    "+strings.Join(parts, " & ")+`\\`)
-		ruleWidth := "0.2pt"
-		if index == lastIndex {
-			ruleWidth = "0.4pt"
-		}
-		rows = append(rows, fmt.Sprintf("    \\specialrule{%s}{0pt}{0pt}", ruleWidth))
+		rows = append(rows, "    "+lineItemRule(index, lastIndex))
 	}
 	return strings.Join(rows, "\n")
+}
+
+func lineItemRule(index, lastIndex int) string {
+	ruleWidth := "0.2pt"
+	if index == lastIndex {
+		ruleWidth = "0.4pt"
+	}
+	return fmt.Sprintf(`\specialrule{%s}{0pt}{0pt}`, ruleWidth)
 }
 
 func renderVATSummaryRows(label string, breakdowns []VATBreakdown, currency string) string {
