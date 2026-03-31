@@ -403,7 +403,7 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		`\edef\invoxqrcodepayload{BCD\noexpand\?002\noexpand\?1\noexpand\?SCT\noexpand\?BKAUATWW\noexpand\?Boris Consulting\noexpand\?AT611904300234573201\noexpand\?EUR252.00`,
+		`\edef\invoxqrcodepayload{BCD\noexpand\?002\noexpand\?1\noexpand\?SCT\noexpand\?BKAUATWW\noexpand\?Boris\noexpand\ Consulting\noexpand\?AT611904300234573201\noexpand\?EUR252.00`,
 		`\noexpand\?\noexpand\?CUST-001-001}`,
 		`\qrcode{\invoxqrcodepayload}`,
 	} {
@@ -414,31 +414,33 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 }
 
 func TestQRCodePayloadTeXSourceUsesQrcodeEscapesForReservedCharacters(t *testing.T) {
-	payload := []byte("A\\B^C~D%E#F&G_H$I{J}K\n")
+	payload := []byte("A B\\C^D~E%F#G&H_I$J{K}L\n")
 
 	got := qrcodePayloadTeXSource(payload)
 	want := strings.Join([]string{
 		"A",
-		`\noexpand\\`,
+		`\noexpand\ `,
 		"B",
-		`\noexpand\^`,
+		`\noexpand\\`,
 		"C",
-		`\noexpand\~`,
+		`\noexpand\^`,
 		"D",
-		`\noexpand\%`,
+		`\noexpand\~`,
 		"E",
-		`\noexpand\#`,
+		`\noexpand\%`,
 		"F",
-		`\noexpand\&`,
+		`\noexpand\#`,
 		"G",
-		`\noexpand\_`,
+		`\noexpand\&`,
 		"H",
-		`\noexpand\$`,
+		`\noexpand\_`,
 		"I",
-		`\noexpand\{`,
+		`\noexpand\$`,
 		"J",
-		`\noexpand\}`,
+		`\noexpand\{`,
 		"K",
+		`\noexpand\}`,
+		"L",
 		`\noexpand\?`,
 	}, "")
 	if got != want {
@@ -748,9 +750,9 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		`Boris ^^c3^^96sterreich \noexpand\& Co.`,
-		`Invoice CUST-001-001 \noexpand\& ^^c3^^9cberweisung`,
-		`Gr^^c3^^bc^^c3^^9fe ^^e2^^82^^ac}`,
+		`Boris\noexpand\ ^^c3^^96sterreich\noexpand\ \noexpand\&\noexpand\ Co.`,
+		`Invoice\noexpand\ CUST-001-001\noexpand\ \noexpand\&\noexpand\ ^^c3^^9cberweisung`,
+		`Gr^^c3^^bc^^c3^^9fe\noexpand\ ^^e2^^82^^ac}`,
 		`\noexpand\?GDDS\noexpand\?\noexpand\?`,
 	} {
 		if !strings.Contains(text, want) {
