@@ -16,6 +16,11 @@ func Run(args []string) int {
 		return 0
 	}
 
+	if isVersionToken(args[0]) {
+		printVersion(os.Stdout)
+		return 0
+	}
+
 	if args[0] == "help" {
 		return runHelp(args[1:])
 	}
@@ -186,4 +191,8 @@ func wantsHelp(args []string) bool {
 
 func isHelpToken(arg string) bool {
 	return arg == "-h" || arg == "--help" || arg == "-help"
+}
+
+func isVersionToken(arg string) bool {
+	return arg == "--version"
 }

@@ -37,6 +37,7 @@ Or build a local binary:
 ```sh
 go build -o ./bin/invox ./cmd/invox
 ./bin/invox -h
+./bin/invox --version
 ```
 
 ## Quick Start
@@ -58,8 +59,8 @@ Create, validate, build, email, and archive an invoice:
 
 ```sh
 invox new CUST-001 -o invoice.yaml -e
-invox validate -i invoice.yaml
-invox render -i invoice.yaml -o invoice.tex
+invox validate invoice.yaml
+invox render invoice.yaml -o invoice.tex
 invox build invoice.yaml
 invox email invoice.pdf
 invox archive invoice.yaml
@@ -93,6 +94,13 @@ Support files resolve in this order:
 3. `paths.*` overrides in `config.yaml`
 4. Conventional files in the global config directory
 
+To choose a different default invoice template, set `paths.template` in `config.yaml`. Relative values are resolved next to that file, so a sibling template can be selected with:
+
+```yaml
+paths:
+  template: multi_vat.tex
+```
+
 ## Command Overview
 
 | Command | Purpose |
@@ -104,16 +112,16 @@ Support files resolve in this order:
 | `invox template list` | List available LaTeX templates |
 | `invox completion zsh` | Generate Zsh completion output |
 | `invox new CUSTOMER_ID` | Create a new invoice with a generated number |
-| `invox increment -i invoice.yaml` | Increment an existing invoice number in place |
-| `invox validate -i invoice.yaml` | Validate invoice data against customer and issuer files |
-| `invox render -i invoice.yaml` | Render a LaTeX invoice file |
+| `invox increment invoice.yaml` | Increment an existing invoice number in place |
+| `invox validate invoice.yaml` | Validate invoice data against customer and issuer files |
+| `invox render invoice.yaml` | Render a LaTeX invoice file |
 | `invox build invoice.yaml` | Render and compile a PDF with `tectonic` |
 | `invox email invoice.yaml` | Draft an email with the invoice PDF attached |
 | `invox archive invoice.yaml` | Move a built or edited invoice into the archive |
 | `invox archive edit FILENAME` | Copy an archived invoice into the current directory as an editable working copy |
 | `invox archive list` | List archived invoices |
 
-Run `invox -h` for the top-level command summary. The built-in help also includes focused references for the supported file formats and template system:
+Run `invox -h` for the top-level command summary and `invox --version` to print the installed version. The built-in help also includes focused references for the supported file formats and template system:
 
 ```sh
 invox help config
@@ -123,12 +131,23 @@ invox help defaults
 invox help template
 ```
 
+## Script-Friendly Output
+
+For scripts, prefer `--json` on these commands instead of parsing the default human-readable output:
+
+- `invox customer list --json`
+- `invox template list --json`
+- `invox archive list --json`
+- `invox validate invoice.yaml --json`
+
+`invox template list --names` remains available as a simple line-based output mode for shell completion and similar workflows.
+
 ## Notes
 
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
 - `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`.
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
-- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup.
+- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup. Use `--no-open` to keep the `.eml` draft on disk without opening any app.
 - The starter template already includes VAT summary support and EPC QR placeholders for eligible EUR invoices with a SEPA-scope IBAN.
 - When rendering outside the template directory, `invox` copies referenced assets such as `fonts/` and `logo.png` next to the generated TeX so `tectonic` can build successfully.
 - `invox` prefers the `invox` config directory but still falls back to the legacy `invoice-tool` directory when it already exists.

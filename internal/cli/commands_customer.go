@@ -21,6 +21,14 @@ func runCustomerList(args []string) int {
 		return 1
 	}
 
+	if opts.JSONOutput {
+		if err := writeJSON(os.Stdout, customerListJSON(customers)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
+	}
+
 	for _, customer := range customers {
 		fmt.Printf("%s\t%s\t%s\n", customer.ID, customer.LegalCompanyName, customer.Status)
 	}

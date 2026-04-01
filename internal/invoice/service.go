@@ -28,6 +28,8 @@ type Options struct {
 	OutputPath        string
 	EmailTo           string
 	EmailSubject      string
+	EmailNoOpen       bool
+	JSONOutput        bool
 	ArchiveAfterBuild bool
 	FromLastInvoice   bool
 	EditNewInvoice    bool
@@ -482,6 +484,8 @@ func defaultConfigTemplate() string {
 # - "~/" expands to your home directory.
 # - Per-customer numbering overrides live in customers.yaml at:
 #   <customer>.numbering.start
+# - Set paths.template to choose a different default invoice template.
+# - Relative paths like 'multi_vat.tex' are resolved next to this file.
 # - Support file resolution order is:
 #   1. explicit CLI flag
 #   2. upward project search

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -37,6 +38,7 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 		"list          List all customers",
 		"config        Open customers.yaml in the default shell editor",
 		"-c, --customers PATH",
+		"--json                  Print JSON output (customer list)",
 		"Customer fields:",
 		"<customer>.tax.default_vat_rate",
 		"<customer>.billing.send_invoice_to",
@@ -60,6 +62,9 @@ func TestRootHelpShowsDocumentationTopics(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
+		"--version",
+		"--json",
+		"--no-open",
 		"Documentation topics:",
 		"invox help config",
 		"invox help customers",
@@ -70,6 +75,25 @@ func TestRootHelpShowsDocumentationTopics(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
 		}
+	}
+}
+
+func TestRootVersionPrintsToStdout(t *testing.T) {
+	oldVersion := Version
+	Version = "1.2.3-test"
+	t.Cleanup(func() {
+		Version = oldVersion
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{"--version"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if stdout != "invox 1.2.3-test\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "invox 1.2.3-test\n")
 	}
 }
 
@@ -175,13 +199,15 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		"email template placeholders:",
 		"{email_greeting}",
 		"{contact_person}",
-		"{outstanding_amount}",
-		"Customer overrides:",
-		"customers.<CUSTOMER_ID>.numbering.start",
-		"Support file precedence:",
-		"Template:",
-		"# archive:",
-		"invox config",
+			"{outstanding_amount}",
+			"Customer overrides:",
+			"customers.<CUSTOMER_ID>.numbering.start",
+			"Support file precedence:",
+			"Template selection:",
+			"multi_vat.tex",
+			"Template:",
+			"# archive:",
+			"invox config",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -566,6 +592,38 @@ func TestCustomerListPreservesUnquotedNumericLookingCustomerID(t *testing.T) {
 	}
 }
 
+func TestCustomerListPrintsJSON(t *testing.T) {
+	customersPath, _, _, _ := writeContextFixtures(t)
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"customer",
+		"list",
+		"-c", customersPath,
+		"--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var customers []struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &customers); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) returned error: %v\nstdout=%q", err, stdout)
+	}
+	if len(customers) != 1 {
+		t.Fatalf("len(customers) = %d, want 1", len(customers))
+	}
+	if customers[0].ID != "CUST-001" || customers[0].Name != "Appsters GmbH" || customers[0].Status != "active" {
+		t.Fatalf("customers[0] = %+v, want CUST-001/Appsters GmbH/active", customers[0])
+	}
+}
+
 func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"template", "-h"})
 	if exitCode != 0 {
@@ -588,7 +646,7 @@ func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
 		"Custom line-item block example:",
 		"@@LINE_ITEM_NAME@@ & @@LINE_ITEM_UNIT_PRICE@@ & @@LINE_ITEM_VAT_RATE@@ & @@LINE_ITEM_LINE_TOTAL@@\\\\",
 		"Use @@VAT_LABEL@@ anywhere you want the same VAT label text in the template.",
-		"render -i invoice.yaml -t multi_vat.tex",
+		"render invoice.yaml -t multi_vat.tex",
 		"invox template list --names",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -685,6 +743,57 @@ func TestTemplateListPrintsAvailableTemplates(t *testing.T) {
 	}
 }
 
+func TestTemplateListPrintsJSON(t *testing.T) {
+	configPath := writeConfigFile(t, "")
+	configDir := filepath.Dir(configPath)
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	for _, path := range []string{
+		filepath.Join(configDir, "multi_vat.tex"),
+		filepath.Join(configDir, "template.tex"),
+	} {
+		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
+		}
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"template", "list", "--json"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var templates []struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &templates); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) returned error: %v\nstdout=%q", err, stdout)
+	}
+	if len(templates) != 2 {
+		t.Fatalf("len(templates) = %d, want 2", len(templates))
+	}
+	if templates[0].Name != "multi_vat.tex" || templates[1].Name != "template.tex" {
+		t.Fatalf("templates = %+v, want sorted template names", templates)
+	}
+}
+
+func TestTemplateListRejectsNamesAndJSON(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"template", "list", "--names", "--json"})
+	if exitCode != 2 {
+		t.Fatalf("exitCode = %d, want 2", exitCode)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "cannot combine --names with --json") {
+		t.Fatalf("stderr %q does not contain incompatible flags message", stderr)
+	}
+}
+
 func TestRenderAcceptsTemplateFilenameFromGlobalConfig(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
 	configPath := writeConfigFile(t, "")
@@ -736,7 +845,7 @@ Customer @@CUSTOMER_NAME@@
 	}
 }
 
-func TestCompletionZshOutputsTemplateAutocomplete(t *testing.T) {
+func TestCompletionZshCoversDocumentedCommands(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"completion", "zsh"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -746,16 +855,55 @@ func TestCompletionZshOutputsTemplateAutocomplete(t *testing.T) {
 	}
 	for _, want := range []string{
 		"#compdef invox",
+		"--version\\:show\\ version",
+		"--json[print JSON output]",
+		"--no-open[create the draft file without opening it]",
 		"template list --names",
+		"customer list 2>/dev/null",
+		"archive list 2>/dev/null",
+		"_invox_customer_ids()",
+		"_invox_archive_names()",
 		"_invox_template_values",
 		"_invox_invoice_files()",
+		"_invox_email_input_files()",
 		"_invox_shift_words()",
 		"_invox_shift_words 1",
 		"_invox_shift_words 2",
-		"if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then",
+		"_values 'help topic'",
+		"_values 'customer command'",
+		"new)",
+		"increment)",
+		"validate)",
+		"email|send)",
+		"archive)",
 		"{-t+,--template=}",
-		"(-i --input)1::invoice:_files",
+		"(-i --input)1::invoice:_invox_invoice_files",
+		"1:customer:_invox_customer_ids",
+		"1:archived invoice:_invox_archive_names",
+		"--from-last[use the latest archived invoice for this customer as the source document]",
+		"--subject[email subject override]:subject:",
 		"compdef _invox invox",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestCompletionHelpDescribesExpandedCoverage(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"completion", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"documented command tree and common flags",
+		"invoice, PDF, YAML, and template paths",
+		"`invox customer list`",
+		"`invox template list --names`",
+		"`invox archive list`",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -1047,12 +1195,12 @@ func TestIncrementRequiresInput(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "missing required flags: -i, --input") {
+	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
 		t.Fatalf("stderr %q does not contain missing input message", stderr)
 	}
 }
 
-func TestRenderRequiresInputOnly(t *testing.T) {
+func TestRenderRequiresPositionalOrFlagInput(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"render"})
 	if exitCode != 2 {
 		t.Fatalf("exitCode = %d, want 2", exitCode)
@@ -1060,10 +1208,10 @@ func TestRenderRequiresInputOnly(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "missing required flags: -i, --input") {
-		t.Fatalf("stderr %q does not contain missing flag message", stderr)
+	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
+		t.Fatalf("stderr %q does not contain missing input message", stderr)
 	}
-	if !strings.Contains(stderr, "invox render -i INVOICE.yaml [-o OUTPUT.tex]") {
+	if !strings.Contains(stderr, "invox render (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.tex]") {
 		t.Fatalf("stderr %q does not contain usage", stderr)
 	}
 }
@@ -1077,6 +1225,7 @@ func TestRenderHelpShowsShortFlags(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
+		"INVOICE.yaml or -i, --input PATH",
 		"-i, --input PATH",
 		"-o, --output PATH",
 		"-c, --customers PATH",
@@ -1128,12 +1277,14 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 		"-o, --output PATH",
 		"--to EMAIL",
 		"--subject TEXT",
+		"--no-open",
 		"the input path with .eml extension",
 		"Accepts either the invoice YAML file or the built PDF as input.",
 		"The PDF lookup checks next to the PDF first, then archive.dir.",
 		"Requires invoice.status to be built or archived and the PDF attachment to exist.",
 		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
 		"If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.",
+		"--no-open always writes a .eml draft file and leaves it on disk.",
 		"Does not send the email and does not change invoice.status.",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -1381,6 +1532,7 @@ func TestSendAliasUsesEmailCommand(t *testing.T) {
 	}
 	for _, want := range []string{
 		"invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT)",
+		"--no-open",
 		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -1471,6 +1623,79 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	}
 }
 
+func TestEmailNoOpenCreatesDraftWithoutLaunching(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	source, err := os.ReadFile(invoicePath)
+	if err != nil {
+		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
+	}
+	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	inputDir := t.TempDir()
+	customInvoicePath := filepath.Join(inputDir, "BL00210001.yaml")
+	if err := os.WriteFile(customInvoicePath, []byte(mutated), 0o644); err != nil {
+		t.Fatalf("WriteFile(customInvoicePath) returned error: %v", err)
+	}
+	pdfPath := filepath.Join(inputDir, "BL00210001.pdf")
+	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
+	}
+
+	oldPreferNativeMailCompose := preferNativeMailCompose
+	oldOpenNativeEmailDraft := openNativeEmailDraft
+	oldOpenDocument := openDocument
+	oldCleanupOpenedDocument := cleanupOpenedDocument
+	preferNativeMailCompose = true
+	openNativeEmailDraft = func(message invoice.EmailMessage) error {
+		t.Fatalf("openNativeEmailDraft(%+v) should not be called when --no-open is set", message)
+		return nil
+	}
+	openDocument = func(path string) error {
+		t.Fatalf("openDocument(%q) should not be called when --no-open is set", path)
+		return nil
+	}
+	cleanupOpenedDocument = func(path string) error {
+		t.Fatalf("cleanupOpenedDocument(%q) should not be called when --no-open is set", path)
+		return nil
+	}
+	t.Cleanup(func() {
+		preferNativeMailCompose = oldPreferNativeMailCompose
+		openNativeEmailDraft = oldOpenNativeEmailDraft
+		openDocument = oldOpenDocument
+		cleanupOpenedDocument = oldCleanupOpenedDocument
+	})
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email",
+		customInvoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+		"--no-open",
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	outputPath := filepath.Join(inputDir, "BL00210001.eml")
+	if !strings.Contains(stdout, "Created email draft "+outputPath+" for CUST-001 (CUST-001-001) to office@appsters.example") {
+		t.Fatalf("stdout %q does not contain created-draft summary", stdout)
+	}
+
+	eml, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
+	}
+	if !strings.Contains(string(eml), `filename="BL00210001.pdf"`) {
+		t.Fatalf("draft email does not contain attached PDF filename:\n%s", string(eml))
+	}
+}
+
 func TestBuildHelpShowsInputBasedDefaultOutput(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"build", "-h"})
 	if exitCode != 0 {
@@ -1537,6 +1762,7 @@ func TestArchiveListHelpShowsOutputFormat(t *testing.T) {
 	for _, want := range []string{
 		"invox archive list",
 		"FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS",
+		"--json: array of objects with filename, customer_id, issue_date, and status",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -1623,11 +1849,50 @@ invoice:
 	}
 }
 
+func TestArchiveListPrintsJSON(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	if err := os.WriteFile(filepath.Join(archiveDir, "2026-03-06.yaml"), []byte(strings.TrimSpace(`
+customer_id: CUST-YAML
+invoice:
+  number: CUST-YAML-001
+  issue_date: 2026-03-06
+  status: archived
+`)+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(yaml archive) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "list", "--json"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var archivedInvoices []struct {
+		Filename   string `json:"filename"`
+		CustomerID string `json:"customer_id"`
+		IssueDate  string `json:"issue_date"`
+		Status     string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &archivedInvoices); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) returned error: %v\nstdout=%q", err, stdout)
+	}
+	if len(archivedInvoices) != 1 {
+		t.Fatalf("len(archivedInvoices) = %d, want 1", len(archivedInvoices))
+	}
+	if archivedInvoices[0].Filename != "2026-03-06.yaml" || archivedInvoices[0].CustomerID != "CUST-YAML" || archivedInvoices[0].IssueDate != "2026-03-06" || archivedInvoices[0].Status != "archived" {
+		t.Fatalf("archivedInvoices[0] = %+v, want expected archive summary", archivedInvoices[0])
+	}
+}
+
 func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"validate",
-		"-i", invoicePath,
+		invoicePath,
 		"-c", customersPath,
 		"-u", issuerPath,
 	})
@@ -1642,6 +1907,68 @@ func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
 	}
 }
 
+func TestValidateHelpShowsJSONOutputContract(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"validate", "-h"})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0", exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	for _, want := range []string{
+		"--json                  Print JSON output",
+		"Validation OK summary line for humans",
+		"invoice_number, customer_id, line_item_count, currency",
+		"subtotal_cents, vat_amount_cents, total_cents, paid_amount_cents, and outstanding_cents",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout %q does not contain %q", stdout, want)
+		}
+	}
+}
+
+func TestValidatePrintsJSON(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"validate",
+		invoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+		"--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+
+	var result struct {
+		OK               bool   `json:"ok"`
+		InvoiceNumber    string `json:"invoice_number"`
+		CustomerID       string `json:"customer_id"`
+		LineItemCount    int    `json:"line_item_count"`
+		Currency         string `json:"currency"`
+		SubtotalCents    int64  `json:"subtotal_cents"`
+		VATAmountCents   int64  `json:"vat_amount_cents"`
+		TotalCents       int64  `json:"total_cents"`
+		PaidAmountCents  int64  `json:"paid_amount_cents"`
+		OutstandingCents int64  `json:"outstanding_cents"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("json.Unmarshal(stdout) returned error: %v\nstdout=%q", err, stdout)
+	}
+	if !result.OK {
+		t.Fatalf("result.OK = false, want true")
+	}
+	if result.InvoiceNumber != "CUST-001-001" || result.CustomerID != "CUST-001" || result.LineItemCount != 2 || result.Currency != "EUR" {
+		t.Fatalf("result = %+v, want expected identity fields", result)
+	}
+	if result.SubtotalCents != 21000 || result.VATAmountCents != 4200 || result.TotalCents != 25200 || result.PaidAmountCents != 0 || result.OutstandingCents != 25200 {
+		t.Fatalf("result = %+v, want expected cent values", result)
+	}
+}
+
 func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 	workDir := t.TempDir()
@@ -1649,7 +1976,7 @@ func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"render",
-		"-i", invoicePath,
+		invoicePath,
 		"-c", customersPath,
 		"-u", issuerPath,
 		"-t", templatePath,
@@ -1686,7 +2013,7 @@ invoice:
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"increment",
-		"-i", invoicePath,
+		invoicePath,
 		"-c", customersPath,
 	})
 	if exitCode != 0 {

@@ -2036,6 +2036,49 @@ paths:
 	}
 }
 
+func TestDefaultOptionsUseConfiguredTemplateNameRelativeToConfig(t *testing.T) {
+	rootDir := t.TempDir()
+	configHome := filepath.Join(rootDir, "config-home")
+	configDir := filepath.Join(configHome, "invox")
+	workDir := filepath.Join(rootDir, "work")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
+	}
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workDir) returned error: %v", err)
+	}
+
+	templatePath := filepath.Join(configDir, "multi_vat.tex")
+	if err := os.WriteFile(templatePath, []byte("configured"), 0o644); err != nil {
+		t.Fatalf("WriteFile(multi_vat.tex) returned error: %v", err)
+	}
+	for _, name := range []string{"customers.yaml", "issuer.yaml", "invoice_defaults.yaml"} {
+		if err := os.WriteFile(filepath.Join(configDir, name), []byte("global"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", name, err)
+		}
+	}
+
+	configSource := strings.TrimSpace(`
+paths:
+  template: multi_vat.tex
+`) + "\n"
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(configSource), 0o644); err != nil {
+		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	chdirForTest(t, workDir)
+
+	opts, err := DefaultOptions()
+	if err != nil {
+		t.Fatalf("DefaultOptions returned error: %v", err)
+	}
+
+	if opts.TemplatePath != templatePath {
+		t.Fatalf("TemplatePath = %q, want %q", opts.TemplatePath, templatePath)
+	}
+}
+
 func TestListTemplatesUsesDefaultTemplateDirectoryOnly(t *testing.T) {
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
@@ -2376,6 +2419,8 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#       {contact_person}",
 		"# - Per-customer numbering overrides live in customers.yaml at:",
 		"#   <customer>.numbering.start",
+		"# - Set paths.template to choose a different default invoice template.",
+		"# - Relative paths like 'multi_vat.tex' are resolved next to this file.",
 		"# paths:",
 		"#   customers: 'customers.yaml'",
 		"#   issuer: 'issuer.yaml'",

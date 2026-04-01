@@ -20,6 +20,8 @@ type commandSpec struct {
 	SupportsEditFlag       bool
 	SupportsEmailToFlag    bool
 	SupportsSubjectFlag    bool
+	SupportsNoOpenFlag     bool
+	SupportsJSONFlag       bool
 	AcceptsPositionalInput bool
 	DynamicDefaultOutput   bool
 	InputBasedOutput       bool
@@ -33,13 +35,15 @@ func commandExample(args string) string {
 
 func customerListSpec() commandSpec {
 	return commandSpec{
-		Name:           "customer list",
-		Summary:        "List all customers from customers.yaml.",
-		Usage:          "customer list [-c CUSTOMERS.yaml]",
-		NeedsCustomers: true,
+		Name:             "customer list",
+		Summary:          "List all customers from customers.yaml.",
+		Usage:            "customer list [-c CUSTOMERS.yaml] [--json]",
+		NeedsCustomers:   true,
+		SupportsJSONFlag: true,
 		Examples: []string{
 			commandExample("customer list"),
 			commandExample("customer list -c customers.yaml"),
+			commandExample("customer list --json"),
 		},
 	}
 }
@@ -83,10 +87,11 @@ func templateListSpec() commandSpec {
 	return commandSpec{
 		Name:    "template list",
 		Summary: "List available LaTeX invoice templates from the current project and config directories.",
-		Usage:   "template list [--names]",
+		Usage:   "template list [--names | --json]",
 		Examples: []string{
 			commandExample("template list"),
 			commandExample("template list --names"),
+			commandExample("template list --json"),
 		},
 	}
 }
@@ -126,13 +131,14 @@ func newSpec() commandSpec {
 
 func incrementSpec() commandSpec {
 	return commandSpec{
-		Name:           "increment",
-		Summary:        "Increment the invoice number in an existing invoice YAML file.",
-		Usage:          "increment -i INVOICE.yaml [-c CUSTOMERS.yaml]",
-		RequiresInput:  true,
-		NeedsCustomers: true,
+		Name:                   "increment",
+		Summary:                "Increment the invoice number in an existing invoice YAML file.",
+		Usage:                  "increment (INVOICE.yaml | -i INVOICE.yaml) [-c CUSTOMERS.yaml]",
+		RequiresInput:          true,
+		NeedsCustomers:         true,
+		AcceptsPositionalInput: true,
 		Examples: []string{
-			commandExample("increment -i invoice.yaml"),
+			commandExample("increment invoice.yaml"),
 			commandExample("increment -i invoices/2026-0022.yaml -c customers.yaml"),
 		},
 	}
@@ -140,32 +146,36 @@ func incrementSpec() commandSpec {
 
 func validateSpec() commandSpec {
 	return commandSpec{
-		Name:           "validate",
-		Summary:        "Validate invoice YAML against customers and issuer data.",
-		Usage:          "validate -i INVOICE.yaml [-c CUSTOMERS.yaml] [-u ISSUER.yaml]",
-		RequiresInput:  true,
-		NeedsCustomers: true,
-		NeedsIssuer:    true,
+		Name:                   "validate",
+		Summary:                "Validate invoice YAML against customers and issuer data.",
+		Usage:                  "validate (INVOICE.yaml | -i INVOICE.yaml) [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--json]",
+		RequiresInput:          true,
+		NeedsCustomers:         true,
+		NeedsIssuer:            true,
+		SupportsJSONFlag:       true,
+		AcceptsPositionalInput: true,
 		Examples: []string{
-			commandExample("validate -i invoice.yaml"),
+			commandExample("validate invoice.yaml"),
 			commandExample("validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml"),
+			commandExample("validate invoice.yaml --json"),
 		},
 	}
 }
 
 func renderSpec() commandSpec {
 	return commandSpec{
-		Name:            "render",
-		Summary:         "Render a LaTeX invoice file from YAML data.",
-		Usage:           "render -i INVOICE.yaml [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]",
-		RequiresInput:   true,
-		NeedsCustomers:  true,
-		NeedsIssuer:     true,
-		NeedsTemplate:   true,
-		DefaultOutput:   "invoice.tex",
-		OutputExtension: ".tex",
+		Name:                   "render",
+		Summary:                "Render a LaTeX invoice file from YAML data.",
+		Usage:                  "render (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]",
+		RequiresInput:          true,
+		NeedsCustomers:         true,
+		NeedsIssuer:            true,
+		NeedsTemplate:          true,
+		AcceptsPositionalInput: true,
+		DefaultOutput:          "invoice.tex",
+		OutputExtension:        ".tex",
 		Examples: []string{
-			commandExample("render -i invoice.yaml"),
+			commandExample("render invoice.yaml"),
 			commandExample("render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex"),
 		},
 	}
@@ -174,8 +184,8 @@ func renderSpec() commandSpec {
 func emailSpec() commandSpec {
 	return commandSpec{
 		Name:                   "email",
-		Summary:                "Create an email draft, open it in the default mail app, and remove the draft file.",
-		Usage:                  "email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]",
+		Summary:                "Create an email draft and optionally open it in the default mail app.",
+		Usage:                  "email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT] [--no-open]",
 		RequiresInput:          true,
 		AcceptsPDFInput:        true,
 		NeedsCustomers:         true,
@@ -183,12 +193,14 @@ func emailSpec() commandSpec {
 		NeedsPDF:               true,
 		SupportsEmailToFlag:    true,
 		SupportsSubjectFlag:    true,
+		SupportsNoOpenFlag:     true,
 		AcceptsPositionalInput: true,
 		InputBasedOutput:       true,
 		OutputExtension:        ".eml",
 		Examples: []string{
 			commandExample("email invoice.yaml"),
 			commandExample("email invoice.pdf"),
+			commandExample("email invoice.yaml --no-open"),
 			commandExample("email invoice.yaml --to billing@example.com"),
 			commandExample("email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml"),
 		},
@@ -245,11 +257,13 @@ func archiveEditSpec() commandSpec {
 
 func archiveListSpec() commandSpec {
 	return commandSpec{
-		Name:    "archive list",
-		Summary: "List archived invoices from the configured archive directory.",
-		Usage:   "archive list",
+		Name:             "archive list",
+		Summary:          "List archived invoices from the configured archive directory.",
+		Usage:            "archive list [--json]",
+		SupportsJSONFlag: true,
 		Examples: []string{
 			commandExample("archive list"),
+			commandExample("archive list --json"),
 		},
 	}
 }

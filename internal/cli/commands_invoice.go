@@ -58,6 +58,13 @@ func runNew(args []string) int {
 }
 
 func runIncrement(args []string) int {
+	args = reorderArgs(args, map[string]bool{
+		"-i":          true,
+		"--input":     true,
+		"-c":          true,
+		"--customers": true,
+	})
+
 	spec := incrementSpec()
 
 	opts, _, exitCode, ok := parseCommand(spec, args)
@@ -82,6 +89,16 @@ func runIncrement(args []string) int {
 }
 
 func runValidate(args []string) int {
+	args = reorderArgs(args, map[string]bool{
+		"-i":          true,
+		"--input":     true,
+		"-c":          true,
+		"--customers": true,
+		"-u":          true,
+		"--issuer":    true,
+		"--json":      false,
+	})
+
 	spec := validateSpec()
 
 	opts, _, exitCode, ok := parseCommand(spec, args)
@@ -95,6 +112,14 @@ func runValidate(args []string) int {
 		return 1
 	}
 
+	if opts.JSONOutput {
+		if err := writeJSON(os.Stdout, validateJSON(ctx)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
+	}
+
 	fmt.Printf(
 		"Validation OK: %s for %s, %d line item(s), total %s\n",
 		ctx.InvoiceNumber,
@@ -106,6 +131,19 @@ func runValidate(args []string) int {
 }
 
 func runRender(args []string) int {
+	args = reorderArgs(args, map[string]bool{
+		"-i":          true,
+		"--input":     true,
+		"-o":          true,
+		"--output":    true,
+		"-c":          true,
+		"--customers": true,
+		"-u":          true,
+		"--issuer":    true,
+		"-t":          true,
+		"--template":  true,
+	})
+
 	spec := renderSpec()
 
 	opts, _, exitCode, ok := parseCommand(spec, args)
@@ -146,6 +184,7 @@ func runEmail(args []string) int {
 		"--issuer":    true,
 		"--to":        true,
 		"--subject":   true,
+		"--no-open":   false,
 	})
 	explicitOutputPath := false
 	for _, arg := range args {
@@ -168,11 +207,38 @@ func runEmail(args []string) int {
 		return 2
 	}
 
-	emailMessage, err := invoice.PrepareInvoiceEmail(
+	if !opts.EmailNoOpen && preferNativeMailCompose && !explicitOutputPath {
+		emailMessage, err := invoice.PrepareInvoiceEmail(
+			opts.CustomersPath,
+			opts.IssuerPath,
+			paths.InvoicePath,
+			paths.PDFPath,
+			opts.EmailTo,
+			opts.EmailSubject,
+		)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if err := openNativeEmailDraft(emailMessage); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
+			return 1
+		}
+		fmt.Printf(
+			"Opened email draft for %s (%s) to %s\n",
+			emailMessage.CustomerID,
+			emailMessage.InvoiceNumber,
+			emailMessage.Recipient,
+		)
+		return 0
+	}
+
+	draft, err := invoice.CreateInvoiceEmailDraft(
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
 		paths.PDFPath,
+		paths.OutputPath,
 		opts.EmailTo,
 		opts.EmailSubject,
 	)
@@ -181,50 +247,41 @@ func runEmail(args []string) int {
 		return 1
 	}
 
-	if preferNativeMailCompose && !explicitOutputPath {
-		if err := openNativeEmailDraft(emailMessage); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
-			return 1
-		}
-	} else {
-		draft, err := invoice.CreateInvoiceEmailDraft(
-			opts.CustomersPath,
-			opts.IssuerPath,
-			paths.InvoicePath,
-			paths.PDFPath,
-			paths.OutputPath,
-			opts.EmailTo,
-			opts.EmailSubject,
+	if opts.EmailNoOpen {
+		fmt.Printf(
+			"Created email draft %s for %s (%s) to %s\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			draft.CustomerID,
+			draft.InvoiceNumber,
+			draft.Recipient,
 		)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-		if err := openDocument(draft.OutputPath); err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"created %s but failed to open it: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-				err,
-			)
-			return 1
-		}
-		if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"opened %s but failed to schedule cleanup: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-				err,
-			)
-			return 1
-		}
+		return 0
+	}
+
+	if err := openDocument(draft.OutputPath); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"created %s but failed to open it: %v\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			err,
+		)
+		return 1
+	}
+	if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"opened %s but failed to schedule cleanup: %v\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			err,
+		)
+		return 1
 	}
 
 	fmt.Printf(
 		"Opened email draft for %s (%s) to %s\n",
-		emailMessage.CustomerID,
-		emailMessage.InvoiceNumber,
-		emailMessage.Recipient,
+		draft.CustomerID,
+		draft.InvoiceNumber,
+		draft.Recipient,
 	)
 	return 0
 }
@@ -359,7 +416,7 @@ func runArchiveEdit(args []string) int {
 func runArchiveList(args []string) int {
 	spec := archiveListSpec()
 
-	_, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(spec, args)
 	if !ok {
 		return exitCode
 	}
@@ -368,6 +425,14 @@ func runArchiveList(args []string) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+
+	if opts.JSONOutput {
+		if err := writeJSON(os.Stdout, archiveListJSON(archivedInvoices)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
 	}
 
 	for _, archivedInvoice := range archivedInvoices {
