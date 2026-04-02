@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -28,14 +29,20 @@ func Run(args []string) int {
 	switch args[0] {
 	case "customer":
 		return runCustomer(args[1:])
+	case "customers":
+		return runStaticHelpTopic(args[1:], printCustomersHelp)
 	case "config":
 		return runConfig(args[1:])
+	case "issuer":
+		return runStaticHelpTopic(args[1:], printIssuerHelp)
 	case "init":
 		return runInit(args[1:])
 	case "template":
 		return runTemplate(args[1:])
 	case "completion":
 		return runCompletion(args[1:])
+	case "defaults", "invoice-defaults", "invoice_defaults":
+		return runStaticHelpTopic(args[1:], printDefaultsHelp)
 	case "new":
 		return runNew(args[1:])
 	case "increment":
@@ -55,6 +62,14 @@ func Run(args []string) int {
 	default:
 		return rootUsageError(fmt.Sprintf("unknown subcommand %q", args[0]))
 	}
+}
+
+func runStaticHelpTopic(args []string, printHelp func(io.Writer)) int {
+	if len(args) == 0 || wantsHelp(args) {
+		printHelp(os.Stdout)
+		return 0
+	}
+	return staticHelpTopicUsageError("unexpected arguments: "+strings.Join(args, " "), printHelp)
 }
 
 func runHelp(args []string) int {
@@ -177,6 +192,12 @@ func customerUsageError(message string) int {
 func templateUsageError(message string) int {
 	fmt.Fprintf(os.Stderr, "error: %s\n\n", message)
 	printTemplateHelp(os.Stderr)
+	return 2
+}
+
+func staticHelpTopicUsageError(message string, printHelp func(io.Writer)) int {
+	fmt.Fprintf(os.Stderr, "error: %s\n\n", message)
+	printHelp(os.Stderr)
 	return 2
 }
 

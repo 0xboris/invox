@@ -170,7 +170,7 @@ _invox() {
   if (( CURRENT == 2 )); then
     _alternative \
       'flags:root flag:((-h\:show\ help --help\:show\ help --version\:show\ version))' \
-      'subcommands:subcommand:((help\:Show\ help\ topics customer\:Customer-related\ commands config\:Open\ config.yaml\ in\ the\ default\ shell\ editor init\:Create\ starter\ support\ files\ in\ the\ global\ config\ directory template\:List\ available\ templates completion\:Generate\ shell\ completion\ scripts new\:Create\ a\ new\ invoice\ YAML\ file increment\:Increment\ the\ invoice\ number\ in\ an\ invoice\ YAML\ file validate\:Validate\ invoice\ YAML\ against\ customers\ and\ issuer\ data render\:Render\ a\ LaTeX\ invoice\ file email\:Create\ and\ open\ an\ email\ draft build\:Render\ and\ compile\ an\ invoice\ PDF archive\:Archive\ invoices\ and\ manage\ archived\ invoices))'
+      'subcommands:subcommand:((help\:Show\ help\ topics customer\:Customer-related\ commands customers\:Show\ customers.yaml\ reference config\:Open\ config.yaml\ in\ the\ default\ shell\ editor issuer\:Show\ issuer.yaml\ reference init\:Create\ starter\ support\ files\ in\ the\ global\ config\ directory template\:List\ available\ templates completion\:Generate\ shell\ completion\ scripts defaults\:Show\ invoice_defaults.yaml\ reference new\:Create\ a\ new\ invoice\ YAML\ file increment\:Increment\ the\ invoice\ number\ in\ an\ invoice\ YAML\ file validate\:Validate\ invoice\ YAML\ against\ customers\ and\ issuer\ data render\:Render\ a\ LaTeX\ invoice\ file email\:Create\ and\ open\ an\ email\ draft build\:Render\ and\ compile\ an\ invoice\ PDF archive\:Archive\ invoices\ and\ manage\ archived\ invoices))'
     return
   fi
 
@@ -255,6 +255,12 @@ _invox() {
       esac
       ;;
     config)
+      _invox_shift_words 1
+      _arguments -s \
+        '(-h --help)'{-h,--help}'[show this help page]'
+      return
+      ;;
+    customers|issuer|defaults|invoice-defaults|invoice_defaults)
       _invox_shift_words 1
       _arguments -s \
         '(-h --help)'{-h,--help}'[show this help page]'

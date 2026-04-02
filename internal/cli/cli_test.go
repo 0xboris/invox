@@ -199,15 +199,15 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		"email template placeholders:",
 		"{email_greeting}",
 		"{contact_person}",
-			"{outstanding_amount}",
-			"Customer overrides:",
-			"customers.<CUSTOMER_ID>.numbering.start",
-			"Support file precedence:",
-			"Template selection:",
-			"multi_vat.tex",
-			"Template:",
-			"# archive:",
-			"invox config",
+		"{outstanding_amount}",
+		"Customer overrides:",
+		"customers.<CUSTOMER_ID>.numbering.start",
+		"Support file precedence:",
+		"Template selection:",
+		"multi_vat.tex",
+		"Template:",
+		"# archive:",
+		"invox config",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -413,6 +413,72 @@ func TestHelpIssuerShowsIssuerDocumentation(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
 		}
+	}
+}
+
+func TestStaticReferenceAliasesShowHelp(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "customers alias",
+			args: []string{"customers", "-h"},
+			want: []string{
+				"customers.yaml reference.",
+				"invox help customers",
+			},
+		},
+		{
+			name: "issuer alias",
+			args: []string{"issuer", "-h"},
+			want: []string{
+				"issuer.yaml reference.",
+				"invox help issuer",
+			},
+		},
+		{
+			name: "defaults alias",
+			args: []string{"defaults", "-h"},
+			want: []string{
+				"invoice_defaults.yaml reference.",
+				"invox help defaults",
+			},
+		},
+		{
+			name: "invoice-defaults alias",
+			args: []string{"invoice-defaults", "-h"},
+			want: []string{
+				"invoice_defaults.yaml reference.",
+				"invox help defaults",
+			},
+		},
+		{
+			name: "invoice_defaults alias",
+			args: []string{"invoice_defaults", "-h"},
+			want: []string{
+				"invoice_defaults.yaml reference.",
+				"invox help defaults",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			exitCode, stdout, stderr := captureRun(t, tc.args)
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d, want 0", exitCode)
+			}
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(stdout, want) {
+					t.Fatalf("stdout %q does not contain %q", stdout, want)
+				}
+			}
+		})
 	}
 }
 
