@@ -145,7 +145,7 @@ grep_check "http.DefaultClient / http.Get / http.Post (inject an http.Client)" \
   "${W}http\.(DefaultClient|Get\(|Post\()" "$TMP/app"
 
 section "Output contracts"
-if has 'AddJSONFlags|Flags\(\)\.[A-Za-z]+\(.*"json"|"--json"'; then ok "--json support found"
+if has 'AddJSONFlags|Flags\(\)\.[A-Za-z]+\(.*"json"|"--json"|\.(Bool|String|StringSlice)(Var)?P?\([^)]*"json"'; then ok "--json support found"
 else warn "no --json flag found: list/view commands should offer machine output"; fi
 if has 'RFC3339'; then ok "RFC3339 timestamps used somewhere (non-TTY output)"
 else info "no RFC3339 formatting: check non-TTY timestamps are absolute"; fi

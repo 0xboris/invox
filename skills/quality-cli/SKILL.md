@@ -28,9 +28,11 @@ and easy to test. **Where gh and docker disagree, follow gh** (`references/gh-vs
    Apply the rules to new code; match existing conventions otherwise; don't refactor
    wholesale unless asked (`references/architecture.md` §Migrating has the safe order).
 3. Find the task in "Task recipes" and open only the references it names.
-4. **New Go CLI?** Clone the starter <https://github.com/0xboris/go-cli-starter>
-   (compiles, tested, implements these rules; README explains renaming). If it can't
-   be cloned, scaffold from `references/architecture.md`, reading "Cobra gotchas" first.
+4. **New Go CLI?** Start from the starter template, pinned to the version these rules
+   describe: `git clone --depth 1 --branch v0.1.0 https://github.com/0xboris/go-cli-starter`
+   (drop `--branch` if the tag is missing). It compiles, is tested, and its README
+   explains renaming. If it can't be cloned, scaffold from `references/architecture.md`,
+   reading "Cobra gotchas" first.
 5. Code snippets in the references come from gh's own packages (`cmdutil`,
    `iostreams`, `httpmock`, `run`, ...). They are **not importable** (many are
    `internal/`). Copy the pattern, or use the starter's equivalents. The only
@@ -107,7 +109,7 @@ them only by deprecation (hidden alias + warning, kept ≥1 release).
 
 | Task | Do | Open |
 |---|---|---|
-| **New CLI** | Clone the starter and rename; otherwise scaffold: shim `main`, `app.Main`, IOStreams, Factory, typed errors, root with help topics, one noun with `list` + a mutating verb, tests from day one | `references/architecture.md`, `references/testing.md` |
+| **New CLI** | Clone the starter (`v0.1.0`) and rename; otherwise scaffold: shim `main`, `app.Main`, IOStreams, Factory, typed errors, root with help topics, one noun with `list` + a mutating verb, tests from day one | `references/architecture.md`, `references/testing.md` |
 | **Add a command** | New package `pkg/cmd/<noun>/<verb>`; Options + constructor + run; register it; `Short`, `Long`, `Example`; tests for parsing and for output in both TTY modes | `references/architecture.md`, `references/testing.md` |
 | **Add/change a flag** | Bind to Options; validate before run; enum/tri-state/mutually-exclusive helpers; completion; renames keep the old name hidden+deprecated | `references/ux-and-help.md` §Flags |
 | **Output (tables, JSON, colors)** | IOStreams + table printer + exporter; check both TTY modes | `references/io-and-output.md` |
