@@ -12,6 +12,7 @@ parentheses point at the upstream source for deeper reading.
 - [Command registration and grouping](#command-registration-and-grouping)
 - [Signals and cancellation](#signals-and-cancellation)
 - [Subprocesses](#subprocesses)
+- [Cobra gotchas](#cobra-gotchas)
 - [Migrating a hand-rolled CLI](#migrating-a-hand-rolled-cli)
 
 ---
@@ -260,6 +261,32 @@ Docker's refinements worth adopting for long-running/streaming tools:
 - Never resolve executables from the current directory (Go ≥1.19 `exec.LookPath` returns `exec.ErrDot` for that; gh additionally uses `github.com/cli/safeexec`). Check for required external tools up front and name how to install them in the error.
 - Include the child's stderr in the returned error; log the command line when `TOOL_DEBUG` is set.
 - Editor/pager commands are shell-split (`shlex`) so `code --wait` works.
+
+## Cobra gotchas
+
+Bugs that are easy to write and that tests reliably catch:
+- **Bare `--json` listing fields**: don't use `NoOptDefVal` on a value flag — then
+  `--json id,title` parses `id,title` as a positional argument. Instead give the command
+  its own `SetFlagErrorFunc` that turns `flag needs an argument: --json` into the field
+  list and delegates everything else to `c.Parent().FlagErrorFunc()` (gh does this).
+- **Nested typo suggestions**: cobra only suggests at the root. For `tool item lsit`
+  cobra calls the noun's help func, so the help func must detect the unknown verb.
+  It receives the **full argv**: skip as many positional args as the command's depth
+  from root, ignore flags, and treat the next positional as unknown. Set
+  `SuggestionsMinimumDistance = 2` on that command before `SuggestionsFor` (default 0
+  disables distance matching).
+- **Help funcs can't return errors**: record failure in a package variable checked by
+  `Main` (gh `root.HasFailed()`), and **reset it when the root command is built**,
+  or tests that build the root repeatedly leak state into each other.
+- **Usage output**: replace cobra's default usage template with a terse one on stderr
+  (usage line, local flags, "Run 'tool x --help' for more information") — the default
+  dumps examples and global flags after every flag error.
+- **`SetOut`/`SetErr` on the root** to IOStreams so help, usage and completion go
+  through the same streams tests capture.
+- **Validation in `PreRunE`** (e.g. `AddJSONFlags`) still runs before `runF`, so flag
+  tests cover it; chain to any existing `PreRunE` instead of overwriting it.
+- **Package named `delete`** shadows the builtin; fine (gh does it) but don't call the
+  builtin inside that package.
 
 ## Migrating a hand-rolled CLI
 

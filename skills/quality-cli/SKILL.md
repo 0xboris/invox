@@ -26,9 +26,11 @@ their source code. **When gh and docker disagree, follow gh**
 1. **Always** apply "The contract" below to any CLI change — it is short on purpose.
 2. Find your task in "Task recipes" — each recipe names the one or two reference
    files worth opening. Do not read all references up front.
-3. Starting a new Go CLI? Copy `assets/go-skeleton/` (compiles, tested, implements the
-   whole contract) instead of writing scaffolding. Adding to an existing CLI? Match its
-   conventions first, and use the skeleton's files as the model for anything missing.
+3. Starting a new Go CLI? Start from the starter template
+   <https://github.com/0xboris/go-cli-starter> (compiles, tested, implements this
+   contract; its README explains renaming). If it can't be cloned, scaffold from the
+   layout below and `references/architecture.md`, reading its "Cobra gotchas" first.
+   Adding to an existing CLI? Match its conventions first.
 4. Reviewing or auditing? Run `scripts/cli_audit.sh <repo>` and walk
    `references/review-checklist.md`.
 
@@ -121,8 +123,8 @@ func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Comman
 
 | Task | Do | Open |
 |---|---|---|
-| **New CLI** | Copy `assets/go-skeleton/`, rename module/binary, delete the sample `item` noun when you add real ones | `assets/go-skeleton/README.md`, `references/architecture.md` |
-| **Add a command** | New package `pkg/cmd/<noun>/<verb>`; Options + `NewCmdX(f, runF)` + `xRun`; register in the noun; add `Short`, `Long`, `Example`; tests for flags (via `runF`) and run (TTY + non-TTY). Model: skeleton's `pkg/cmd/item/list` (read) and `item/delete` (mutating) with their tests | `references/architecture.md`, `references/testing.md` |
+| **New CLI** | Clone `github.com/0xboris/go-cli-starter` and rename module/binary; otherwise scaffold the layout above: `main` shim, `app.Main`, IOStreams, Factory, typed errors, root with help topics, one noun with `list` + a mutating verb, tests from day one | `references/architecture.md`, `references/io-and-output.md`, `references/testing.md` |
+| **Add a command** | New package `pkg/cmd/<noun>/<verb>`; Options + `NewCmdX(f, runF)` + `xRun`; register in the noun; add `Short`, `Long`, `Example`; tests for flags (via `runF`) and run (TTY + non-TTY) | `references/architecture.md`, `references/testing.md` |
 | **Add/change a flag** | Bind to Options; validate in `RunE`; use enum/tri-state/mutually-exclusive helpers; register completion; if renaming, keep old name hidden+deprecated | `references/ux-and-help.md` §Flags |
 | **Output (tables, JSON, colors)** | Route through IOStreams + table printer + Exporter; check both TTY modes | `references/io-and-output.md` |
 | **Prompts / editor / destructive ops** | `CanPrompt()` gate, flag fallback, `--yes`, Prompter interface | `references/ux-and-help.md` §Interactivity |
