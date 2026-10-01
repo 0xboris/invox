@@ -5,6 +5,13 @@
       "source": "smithery.ai",
       "sourceType": "well-known",
       "computedHash": "04ac68538bef2935b579fb16f5ff2d5f3f46c2289cddd21f376c031f57eaa6aa"
+    },
+    "quality-cli": {
+      "source": "0xboris/agent-skills",
+      "ref": "main",
+      "sourceType": "github",
+      "skillPath": "development/cli/quality-cli/SKILL.md",
+      "computedHash": "d5404ece0bb2dd29325d4e8f0078b4adfe23673f81c659ee6a4cac618d67bb97"
     }
   }
 }

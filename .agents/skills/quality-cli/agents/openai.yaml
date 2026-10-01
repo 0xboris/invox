@@ -1,0 +1,5 @@
+interface:
+  display_name: "Quality CLI"
+  short_description: "Build CLIs that behave like gh: script-safe, human-friendly, testable"
+policy:
+  allow_implicit_invocation: true
