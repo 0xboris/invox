@@ -37,12 +37,12 @@ Mostly from gh's design guide (`docs/primer/`, `docs/command-line-syntax.md`) an
 | Enum list | `StringSliceEnumFlag` |
 | Tri-state bool (unset/true/false) | `cmdutil.NilBoolFlag(cmd, &opts.Draft, "draft", "d", "Filter by draft state")` → `*bool` |
 | "Was it set?" | `cmd.Flags().Changed("author")` |
-| Mutually exclusive | `cmdutil.MutuallyExclusive("specify only one of `--a` or `--b`", aSet, bSet)` |
+| Mutually exclusive | ``cmdutil.MutuallyExclusive("specify only one of `--a` or `--b`", aSet, bSet)`` |
 | Read from file or stdin | `--body-file file` where `-` = stdin (`cmdutil.ReadFile(path, opts.IO.In)`) |
 | Limit | `-L, --limit int` with validation `< 1 → FlagErrorf("invalid value for --limit: %v")` |
 | Repeatable values | `StringSliceVarP` (comma-separated **and** repeatable) |
 | Value placeholder in help | backticks in usage: ``"Read body text from `file`"`` → `--body-file file` |
-| Rename | keep old name: `MarkDeprecated("confirm", "use `--yes` instead")` or `MarkHidden` |
+| Rename | keep old name: ``MarkDeprecated("confirm", "use `--yes` instead")`` or `MarkHidden` |
 
 Conventions:
 - Every flag has a long form; short forms only for frequent flags; don't reuse a letter for different meanings across commands.
@@ -54,14 +54,9 @@ Conventions:
 
 - Validators with good messages (cobra `NoArgs`, `ExactArgs(n)`, `MaximumNArgs(n)`, or custom).
 - gh's `NoArgsQuoteReminder`: on unexpected positional args when a value flag was used, append "please quote all values that have spaces" — catches `--title my title`.
-- Docker's validator message shape (good model for custom validators):
-  ```
-  tool: 'tool item rm' requires at least 1 argument
-
-  Usage:  tool item rm [OPTIONS] ITEM [ITEM...]
-
-  See 'tool item rm --help' for more information
-  ```
+- Validator errors are `FlagError`s, so the shared error path prints the message and then
+  the terse usage (gh). Keep messages specific: `cannot delete item: id argument required`,
+  not cobra's generic `accepts 1 arg(s), received 0`.
 - Accept every reasonable identifier form for a target and document them in a `help:arguments` annotation: number, URL, name (`gh pr view 123 | https://.../pull/123 | branch-name`).
 - Optional positional target defaults to context (current repo/dir) — but see destructive ops.
 - `Use` syntax (`docs/command-line-syntax.md`): `<required>`, `[optional]`, `{a | b}` required choice, `...` repeatable, dash-case names: `"view [<number> | <url> | <branch>]"`.

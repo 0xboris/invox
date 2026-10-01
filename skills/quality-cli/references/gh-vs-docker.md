@@ -8,7 +8,7 @@ specific situations noted.
 | Command grammar | strict `noun verb` | legacy flat verbs (`ps`, `rmi`) + `container ls`; shortcuts hideable | **gh**. Use docker's shared-constructor alias trick only when migrating an existing flat CLI. |
 | Dependency injection | `Factory` struct of lazy funcs; commands copy what they need into Options | `command.Cli` interface + functional options + `sync.Once` client | **gh**. Borrow `sync.Once` for caching a lazy value used several times. |
 | Run signature | `xRun(opts)`; context via cobra | `runX(ctx, cli, opts)` | **gh**, but pass `cmd.Context()` into Options (or as first arg) so cancellation works. |
-| Exit codes | 0/1/2 cancel/4 auth/8 pending | 1, 125 usage, 126/127, 128+signal | **gh** set. Add `130` on SIGINT only for long-running/streaming commands where shell convention matters. |
+| Exit codes | 0/1/2 cancel/4 auth/8 pending | 1, 125 usage, 128+signal (126/127 in `docker run`) | **gh** set. Add `130` on SIGINT only for long-running/streaming commands where shell convention matters. |
 | Structured output | `--json fields` + `--jq` + `--template` | `--format table\|json\|<template>` | **gh**. Docker's per-command default format in config is an optional extra. |
 | Piped output | TSV, no header, no truncation, RFC3339 | template-driven; table header kept | **gh**. |
 | Skip confirmation | `--yes` (`--confirm` deprecated) | `-f/--force` | **gh** `--yes`; reserve `--force` for overriding safety checks. |
@@ -23,7 +23,7 @@ specific situations noted.
 | Docs generation | gen-docs → website markdown + man pages | marker blocks in hand-written md + CI drift check | **gh** generation **plus docker's drift check**. |
 | Test assertions | inline expected strings, testify | golden files, gotest.tools | **gh** for short output; golden files for long output (help, big tables). |
 | E2E | testscript `.txtar`, in-process `Main()` | `icmd` running the binary | **gh**. |
-| Signals | `ExecuteContextC` with signal context | cause-carrying cancel, 3× force exit, terminal restore | gh baseline; **adopt docker's** 3× force-exit + terminal restore if you use raw mode or long streams. |
+| Signals | plain `context.Background()`; SIGINT falls back to Go's default (process exits) | cause-carrying cancel, 3× force exit, terminal restore | Use `signal.NotifyContext` (the starter does) so Ctrl-C cancels in-flight work; **adopt docker's** 3× force-exit + terminal restore if you use raw mode or long streams. |
 | Lint | `default: none` curated set | ~50 linters, depguard/forbidigo | gh set + selected docker linters (`forbidigo` to enforce I/O rules). |
 | Feature gating | feature detection per host (introspection) | annotations for API version/OS/experimental, hide unsupported in help | gh's capability detection; **adopt docker's** annotations if you talk to servers with varying versions. |
 

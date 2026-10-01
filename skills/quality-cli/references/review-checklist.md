@@ -1,7 +1,7 @@
 # CLI review checklist
 
 Use for reviewing a diff, auditing an existing CLI, or self-checking before finishing.
-Run `scripts/cli_audit.sh <repo-root>` first for the mechanical checks (Go).
+Run `bash <skill-dir>/scripts/cli_audit.sh <repo-root>` first for the mechanical checks (Go).
 Mark each item ✅ / ❌ / n/a. Severity hints: **[break]** = breaks scripts or users,
 **[bug]** = wrong behavior, **[ux]** = quality issue.
 

@@ -62,8 +62,9 @@ ios, stdin, stdout, stderr := iostreams.Test()
 ```
 
 Use `github.com/cli/go-gh/v2/pkg/term` (`term.FromEnv()`) for detection — it implements
-`NO_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE`, `GH_FORCE_TTY` (rename for your tool) and
-Windows virtual-terminal enablement. On Windows wrap output with `go-colorable`.
+`NO_COLOR`, `CLICOLOR`, `CLICOLOR_FORCE` and Windows virtual-terminal enablement. Its
+force-TTY variable is hard-coded as `GH_FORCE_TTY`, so a tool that wants
+`TOOL_FORCE_TTY` must apply that override itself (as the starter's `iostreams.System()` does). On Windows wrap output with `go-colorable`.
 
 Docker's `cli/streams` adds terminal **state**: `SetRawTerminal()` (no-op on non-TTY,
 saves state) and `RestoreTerminal()` (always safe). Use that if you ever enter raw mode,
@@ -83,9 +84,11 @@ Human chatter is additionally **TTY-gated**: e.g. `pr list` prints "Showing 3 of
 pull requests in owner/repo" only when stdout is a TTY. Success lines use the success icon:
 ```go
 if opts.IO.IsStdoutTTY() {
-    fmt.Fprintf(opts.IO.ErrOut, "%s Deleted repository %s\n", cs.SuccessIcon(), name)
+    fmt.Fprintf(opts.IO.Out, "%s Deleted repository %s\n", cs.SuccessIcon(), name)
 }
 ```
+(gh writes these TTY-only confirmations to `Out`; because they are TTY-gated they never
+reach a pipe. Writing them to `ErrOut` is equally fine. Pick one and be consistent.)
 Prompts are the exception: they render on the terminal and only run when stdin and stdout
 are TTYs (`CanPrompt()`), so both gh and docker draw them on stdout. That's safe because a
 prompting command is by definition not being piped.
@@ -145,11 +148,20 @@ Use go-gh's table printer (`github.com/cli/go-gh/v2/pkg/tableprinter`:
 header styling and `AddTimeField`. The snippet below uses that wrapper's API:
 
 ```go
-tp := tableprinter.New(opts.IO, tableprinter.WithHeader("ID", "TITLE", "STATE", "UPDATED"))
+isTTY := opts.IO.IsStdoutTTY()
+headers := []string{"ID", "TITLE", "UPDATED"}
+if !isTTY {
+    headers = []string{"ID", "TITLE", "STATE", "UPDATED"} // header is dropped when piped, but keep columns aligned
+}
+tp := tableprinter.New(opts.IO, tableprinter.WithHeader(headers...))
 for _, it := range items {
-    tp.AddField(strconv.Itoa(it.Number), tableprinter.WithColor(cs.Green))
+    id := strconv.Itoa(it.Number)
+    if isTTY {
+        id = "#" + id
+    }
+    tp.AddField(id, tableprinter.WithColor(stateColor(cs, it.State)))
     tp.AddField(text.RemoveExcessiveWhitespace(it.Title))
-    if !opts.IO.IsStdoutTTY() {
+    if !isTTY {
         tp.AddField(it.State) // color carried state on TTY; spell it out when piped
     }
     tp.AddTimeField(opts.Now(), it.UpdatedAt, cs.Muted)
@@ -157,6 +169,7 @@ for _, it := range items {
 }
 return tp.Render()
 ```
+gh builds its headers and `#` prefix conditionally the same way (`pkg/cmd/issue/shared/display.go`).
 
 | | TTY | Piped |
 |---|---|---|

@@ -1,5 +1,9 @@
 # Testing a CLI
 
+Snippets show gh's own test helpers (`iostreams.Test`, `httpmock`, `run.Stub`,
+`prompter.NewMockPrompter`). They are not importable; copy the pattern or use the
+go-cli-starter equivalents.
+
 Goal: every command is testable without a real terminal, network, keyring, home dir,
 subprocess or clock — and tests fail loudly when a stub is wrong *or unused*.
 
@@ -171,6 +175,9 @@ func (f *fakeClient) List(ctx context.Context, o ListOptions) ([]Item, error) {
 gh `acceptance/` uses `github.com/rogpeppe/go-internal/testscript` (gh uses a fork):
 ```go
 //go:build acceptance
+
+package acceptance
+
 func TestMain(m *testing.M) {
     os.Exit(testscript.RunMain(m, map[string]func() int{
         "tool": func() int { return int(app.Main()) }, // in-process binary

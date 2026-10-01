@@ -1,9 +1,12 @@
 # Architecture
 
 How gh (`cli/cli`) and docker (`docker/cli`) structure a Go CLI. Paths in
-parentheses point at the upstream source for deeper reading.
+parentheses point at the upstream source for deeper reading. Snippets use gh's own
+packages (`cmdutil`, `iostreams`, ...), which are not importable: copy the pattern or
+use the go-cli-starter equivalents. `github.com/cli/go-gh/v2` is the supported library.
 
 ## Contents
+- [Layout](#layout)
 - [Entrypoint](#entrypoint)
 - [Errors and exit codes](#errors-and-exit-codes)
 - [The Factory (dependency injection)](#the-factory-dependency-injection)
@@ -12,10 +15,30 @@ parentheses point at the upstream source for deeper reading.
 - [Command registration and grouping](#command-registration-and-grouping)
 - [Signals and cancellation](#signals-and-cancellation)
 - [Subprocesses](#subprocesses)
+- [Network calls](#network-calls)
+- [Verbosity](#verbosity)
 - [Cobra gotchas](#cobra-gotchas)
 - [Migrating a hand-rolled CLI](#migrating-a-hand-rolled-cli)
 
 ---
+
+## Layout
+
+```
+cmd/tool/main.go            func main() { os.Exit(int(app.Main())) }
+internal/app/               Main(): IOStreams, Factory, root cmd, signals, error→exit code
+internal/build/             Version/Date via -ldflags, ReadBuildInfo fallback
+pkg/iostreams/              In/Out/ErrOut, TTY detection+overrides, color, pager, spinner
+pkg/cmdutil/                Factory, typed errors, flag helpers, JSON exporter
+pkg/cmd/root/               root command, groups, help topics, flag-error func
+pkg/cmd/<noun>/<verb>/      one package per leaf command (+ _test.go beside it)
+pkg/cmd/<noun>/shared/      helpers shared by a noun's verbs
+internal/prompter/          Prompter interface (+ mock)
+internal/run/               exec seam (PrepareCmd) for subprocesses — add before the first exec.Command
+```
+The go-cli-starter has all of these except `internal/run/`.
+For a small tool, collapse freely (e.g. one `internal/cli` package with a file per
+command) as long as the behavior rules hold and commands stay testable.
 
 ## Entrypoint
 
@@ -28,7 +51,8 @@ func main() { os.Exit(int(app.Main())) }
 1. Build `IOStreams` from the environment and apply env/config overrides (pager, prompt disabled, spinner disabled).
 2. Build the Factory (`factory.New(buildVersion)`).
 3. Start the async update check (see `build-and-release.md`).
-4. Build the root command, set up signal-aware context.
+4. Build the root command. (gh uses `context.Background()`; prefer a signal-aware
+   context from `signal.NotifyContext` so Ctrl-C cancels in-flight work — see §Signals.)
 5. `cmd, err := rootCmd.ExecuteContextC(ctx)` → map `err` to an exit code (below).
 6. Cancel and drain the update check; print a notice to stderr if any.
 7. Return the code. Deferred flushes (telemetry) still run because nothing called `os.Exit`.
@@ -46,7 +70,7 @@ Commands return values; one place decides what to print and which code to return
 // pkg/cmdutil/errors.go
 var SilentError = errors.New("SilentError")       // exit 1, already reported
 var PendingError = errors.New("PendingError")     // exit 8, nothing failed but not done
-type CancelError struct{ error }                   // exit 2
+var CancelError = errors.New("CancelError")       // exit 2 (sentinel)
 type FlagError struct{ err error }                 // usage error → print usage
 func FlagErrorf(format string, a ...any) error { return &FlagError{fmt.Errorf(format, a...)} }
 type NoResultsError struct{ message string }       // exit 0, message only on TTY
@@ -74,12 +98,12 @@ return exitError
 
 `printError`:
 - `FlagError` or unknown command → error, blank line, `cmd.UsageString()`.
-- DNS/connection errors → friendly "error connecting to HOST / check your internet connection"; raw error only with `TOOL_DEBUG`.
+- DNS errors (`*net.DNSError`) → friendly "error connecting to HOST / check your internet connection"; raw error only with `TOOL_DEBUG`. (gh special-cases only DNS; consider timeouts/connection refused too.)
 - HTTP 401 → "Try authenticating with: tool auth login".
 - If an AI agent is detected (env-based, gh `internal/agents/detect.go`), print the **full help** to stderr on a flag error so the agent can self-correct in one round trip. Keep it on stderr so one failure isn't split across streams.
 
 **Exit codes (gh set — prefer this):** `0` ok · `1` error · `2` cancelled · `4` auth required · `8` pending. Document them in a `help exit-codes` topic. Pass through exit codes of extensions/aliases/subprocesses unchanged.
-Docker additionally uses `125` for usage errors, `126/127` for "cannot exec / not found", and `128+signal` on signal termination — adopt `130` for SIGINT if your tool runs long operations; otherwise gh's `2` is fine.
+Docker additionally uses `125` for usage errors, `128+signal` on signal termination, and (in `docker run` only) `126/127` for "cannot exec / not found" in the container — adopt `130` for SIGINT if your tool runs long operations; otherwise gh's `2` is fine.
 
 Never panic for user errors. Panics are reserved for programmer errors ("unreachable state"). Never return `0` for an error.
 
@@ -108,9 +132,10 @@ Why lazy funcs:
 3. Fields can be **replaced after flag parsing**: gh's `-R/--repo` swaps `f.BaseRepo` in a `PersistentPreRunE` (`pkg/cmdutil/repo_override.go`). Therefore commands copy `opts.BaseRepo = f.BaseRepo` **inside `RunE`**, not in the constructor.
 4. Tests replace any field with a closure.
 
-Wiring lives in one file (`pkg/cmd/factory/default.go`) with dependency order documented:
+Wiring lives in one file (`pkg/cmd/factory/default.go`) with dependency order documented.
+`Main` builds IOStreams first (it needs env/config for pager and prompt settings) and
+passes it in:
 ```go
-f.IOStreams  = ioStreams(f)            // depends on Config (pager, prompt settings)
 f.HttpClient = httpClientFunc(f)       // depends on Config, IOStreams
 f.Prompter   = newPrompter(f)          // depends on Config, IOStreams
 ```
@@ -259,8 +284,30 @@ Docker's refinements worth adopting for long-running/streaming tools:
 
 - Route all `exec.Cmd` creation through one seam (gh `internal/run`: `var PrepareCmd = func(cmd *exec.Cmd) Runnable`) so tests can stub it.
 - Never resolve executables from the current directory (Go ≥1.19 `exec.LookPath` returns `exec.ErrDot` for that; gh additionally uses `github.com/cli/safeexec`). Check for required external tools up front and name how to install them in the error.
+- Pass user-supplied values after `--` (`git checkout -- <branch>`, `git log -- <path>`)
+  so a value starting with `-` can't be parsed as an option.
 - Include the child's stderr in the returned error; log the command line when `TOOL_DEBUG` is set.
 - Editor/pager commands are shell-split (`shlex`) so `code --wait` works.
+
+## Network calls
+
+- Every request takes the command's context; set client timeouts (`http.Client{Timeout: …}`
+  or per-request `context.WithTimeout`) so a dead server can't hang the CLI.
+- Retry only idempotent requests, with backoff, on connection errors/5xx/429; honor
+  `Retry-After`. Never retry a POST that may have succeeded.
+- Rate limits: say so plainly with the reset time (`API rate limit exceeded; resets at
+  15:04 (in 12m)`), not a raw 403/429 body.
+- Show a spinner (stderr, TTY only) for anything that may take >~300ms.
+- `TOOL_DEBUG=api` (gh: `GH_DEBUG=api`) logs requests/responses to stderr with
+  credentials redacted.
+
+## Verbosity
+
+- Default output is what most users need; no "Done!" chatter when piped.
+- `-q/--quiet` (where useful) suppresses stderr chatter but never errors; data on stdout
+  is unaffected (scripts use `--json` or the non-TTY format, not `--quiet`).
+- Diagnostics go behind `TOOL_DEBUG` (gh's approach) rather than a growing set of
+  `-v/-vv` flags; if you add `--verbose`, it only adds stderr detail.
 
 ## Cobra gotchas
 
@@ -285,8 +332,8 @@ Bugs that are easy to write and that tests reliably catch:
   through the same streams tests capture.
 - **Validation in `PreRunE`** (e.g. `AddJSONFlags`) still runs before `runF`, so flag
   tests cover it; chain to any existing `PreRunE` instead of overwriting it.
-- **Package named `delete`** shadows the builtin; fine (gh does it) but don't call the
-  builtin inside that package.
+- **Package named `delete`**: legal (gh has `pkg/cmd/repo/delete`), but the *importing*
+  file loses the builtin `delete` — alias the import (`repoDeleteCmd "…/repo/delete"`).
 
 ## Migrating a hand-rolled CLI
 
