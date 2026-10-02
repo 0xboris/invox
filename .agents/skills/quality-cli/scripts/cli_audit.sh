@@ -10,6 +10,9 @@
 # Composition roots may touch the process directly: files in `package main` and
 # ./internal/{app,run,build}/, ./{pkg,internal}/iostreams/, ./{pkg/cmd,internal}/factory/.
 # Env lookups are also allowed in ./{internal,pkg}/config/.
+# Layering checks treat command, wiring, I/O, presentation, docs, plugin and test-support
+# directories (cmd, cli, app, cmdutil, factory, root, iostreams, prompter, tableprinter,
+# formatter, ...) as the command side; everything else is "below the commands".
 # Skipped: vendor/, testdata/, dot-directories, and generated files ("DO NOT EDIT").
 # Portable: bash 3.2+ (macOS), GNU and BSD grep/xargs.
 
@@ -170,6 +173,61 @@ if has 'os\.WriteFile|ioutil\.WriteFile'; then
   else warn "os.WriteFile without temp+rename: config/state writes may corrupt on crash"; fi
 elif has 'os\.Rename|CreateTemp'; then ok "writes use temp file + rename"
 else info "no file writes detected"; fi
+
+section "Layering (references/layers.md)"
+# "Below the commands" = source files outside command, wiring, I/O and presentation
+# packages (and outside package main). Those should not know about cobra or streams.
+CMD_LAYER_RE='(^|/)([a-z]*cmd|cli|app|commands?|cmdutil|factory|root|iostreams|streams|prompter|tableprinter|formatter|docs|cli-plugins|plugins?|[^/]*tests?|testutils?|fixtures|mocks?)(/|$)'
+while IFS= read -r f; do
+  d=$(dirname "$f")
+  if ! printf '%s\n' "$d" | grep -qE "$CMD_LAYER_RE"; then echo "$f"; fi
+done < "$TMP/app" > "$TMP/below"
+n_below=$(wc -l < "$TMP/below" | tr -d ' ')
+if [ "$n_below" -eq 0 ]; then
+  info "no packages below the command layer: business logic probably lives in command files"
+else
+  IMPORT_PFX='^[[:space:]]*(import[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*[[:space:]]+|\.[[:space:]]+|_[[:space:]]+)?'
+  grep_check "domain/adapter packages importing cobra/pflag or I/O streams" \
+    "${IMPORT_PFX}\"([^\"]*/spf13/(cobra|pflag)|[^\"]*/(iostreams|streams))\"" "$TMP/below"
+  n_map=$(lgrep "$TMP/below" -hE '^[[:space:]]+[A-Z][A-Za-z0-9_]*[[:space:]]+(\[\])?map\[string\](any|interface\{\})' | wc -l | tr -d ' ')
+  if [ "$n_map" -gt 0 ]; then info "$n_map exported struct field(s) typed map[string]any below the commands: prefer typed models"; fi
+fi
+# Dedicated test-support packages (internal/test, testutils, *test) may import testing.
+grep -vE '/([^/]*tests?|testutils?|testenv|fixtures)/[^/]*$' "$TMP/src" > "$TMP/prod" || true
+grep_check "production files importing \"testing\" (keep mocks in _test.go or a test package)" \
+  '^[[:space:]]*(import[[:space:]]+)?"testing"' "$TMP/prod"
+MODULE=$(sed -n 's/^module[[:space:]]*//p' go.mod 2>/dev/null | head -n 1)
+if [ -n "$MODULE" ] && has 'github\.com/spf13/cobra'; then
+  # Command packages = directories with a cobra.Command literal. Flag any package that
+  # imports a command package other than its own subcommands (root wiring excepted).
+  grep -vE '(^|/)(test|mock[^/]*)\.go$' "$TMP/prod" > "$TMP/prodcmd" || true
+  lgrep "$TMP/prodcmd" -lE '&cobra\.Command\{' | while IFS= read -r f; do dirname "$f"; done \
+    | sed 's#^\./##' | sort -u > "$TMP/cmdpkgs"
+  : > "$TMP/leafhits"
+  while IFS= read -r f; do
+    own=$(dirname "$f" | sed 's#^\./##')
+    case "$own" in */root|root|cmd/*) continue ;; esac
+    grep -nE "\"$MODULE/[^\"]+\"" "$f" /dev/null 2>/dev/null | while IFS= read -r line; do
+      dep=$(printf '%s\n' "$line" | sed -E "s#.*\"$MODULE/([^\"]+)\".*#\1#")
+      case "$dep" in "$own"/*|*/root|root) continue ;; esac
+      if grep -qxF "$dep" "$TMP/cmdpkgs"; then echo "$line"; fi
+    done >> "$TMP/leafhits"
+  done < "$TMP/app"
+  n_leaf=$(wc -l < "$TMP/leafhits" | tr -d ' ')
+  if [ "$n_leaf" -gt 0 ]; then
+    warn "packages importing a command package (not their own subcommand): $n_leaf hit(s) (move shared code to <noun>/shared or the domain)"
+    head -n "$MAX_HITS" "$TMP/leafhits" | sed 's/^/         /'
+  else ok "no package imports another command package"; fi
+fi
+: > "$TMP/big"
+while IFS= read -r f; do
+  n=$(wc -l < "$f" | tr -d ' ')
+  if [ "$n" -gt 1000 ]; then echo "$n $f" >> "$TMP/big"; fi
+done < "$TMP/src"
+if [ -s "$TMP/big" ]; then
+  info "files over 1000 lines (split by concept if they mix several):"
+  sort -rn "$TMP/big" | head -n "$MAX_HITS" | sed 's/^/         /'
+fi
 
 section "Tests"
 while IFS= read -r f; do dirname "$f"; done < "$TMP/app" | sort -u > "$TMP/pkgs"

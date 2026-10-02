@@ -30,9 +30,11 @@ and easy to test. **Where gh and docker disagree, follow gh** (`references/gh-vs
 3. Find the task in "Task recipes" and open only the references it names.
    For a new command or a changed interface, sketch it before coding: 3–5 example
    invocations with their stdout, stderr and exit code, including the failure and
-   non-interactive cases. Use the `create-cli` skill when a full spec is wanted.
+   non-interactive cases. For a new tool or noun, also sketch the packages: domain
+   types and operations, adapters for external programs, and who imports whom
+   (`references/layers.md`). Use the `create-cli` skill when a full spec is wanted.
 4. **New Go CLI?** Start from the starter template, pinned to the version these rules
-   describe: `git clone --depth 1 --branch v0.2.0 https://github.com/0xboris/go-cli-starter`
+   describe: `git clone --depth 1 --branch v0.3.0 https://github.com/0xboris/go-cli-starter`
    (drop `--branch` if the tag is missing). It compiles, is tested, and its README
    explains renaming. If it can't be cloned, scaffold from `references/architecture.md`,
    reading "Cobra gotchas" first.
@@ -103,6 +105,21 @@ Python, Node and Rust.
 
 ## Structure rules (scale to the tool)
 
+- **Commands are thin; business logic lives below them.** Domain/client packages
+  (gh `api/`, docker's moby client) hold typed models, operations and typed errors,
+  take `ctx` first, and never import cobra/IOStreams, print, read env/config/clock or
+  exit. Imports point down only; enforce it with depguard/forbidigo
+  (`references/layers.md`).
+- Each external program sits behind one adapter type (gh `git.Client`): injected
+  streams (child stdout → stderr unless it is the data), `exec.CommandContext`, a
+  typed error carrying exit code and stderr, an injected test seam.
+- Verbs of one noun share code through `pkg/cmd/<noun>/shared` (finders, listers,
+  display helpers); a leaf command never imports another leaf. Code two nouns share
+  belongs in the domain.
+- Typed data end to end: parse files/responses/flags into structs once (no
+  `map[string]any` models), params structs instead of runs of positional strings,
+  value types for identities (gh `ghrepo`), `pflag.Value` types that validate in `Set`
+  (docker `opts/`).
 - `main` is a shim (`os.Exit(int(app.Main()))`); `Main()` returns the code so
   deferred cleanup runs and tests can call it in-process.
 - Commands get dependencies injected (Factory + IOStreams): no direct stdout/stdin,
@@ -130,8 +147,9 @@ them only by deprecation (hidden alias + warning, kept ≥1 release).
 
 | Task | Do | Open |
 |---|---|---|
-| **New CLI** | Clone the starter (`v0.2.0`) and rename; otherwise scaffold: shim `main`, `app.Main`, IOStreams, Factory, typed errors, root with help topics, one noun with `list` + a mutating verb, tests from day one | `references/architecture.md`, `references/testing.md` |
-| **Add a command** | New package `pkg/cmd/<noun>/<verb>`; Options + constructor + run; register it; `Short`, `Long`, `Example`; tests for parsing and for output in both TTY modes | `references/architecture.md`, `references/testing.md` |
+| **New CLI** | Clone the starter (`v0.3.0`) and rename; otherwise scaffold: shim `main`, `app.Main`, IOStreams, Factory, typed errors, root with help topics, one noun with `list` + a mutating verb, a domain package behind it, tests from day one | `references/architecture.md`, `references/layers.md`, `references/testing.md` |
+| **Add a command** | New package `pkg/cmd/<noun>/<verb>`; Options + constructor + run; register it; `Short`, `Long`, `Example`; tests for parsing and for output in both TTY modes; domain logic in the domain layer, not the command | `references/architecture.md`, `references/testing.md` |
+| **Design packages / add business logic** | Layer stack, domain client with typed models and errors, adapters for external programs, `shared/` per noun, presentation helpers, lint-enforced import rules | `references/layers.md` |
 | **Add/change a flag** | Bind to Options; validate before run; enum/tri-state/mutually-exclusive helpers; completion; renames keep the old name hidden+deprecated | `references/ux-and-help.md` §Flags |
 | **Output (tables, JSON, colors)** | IOStreams + table printer + exporter; check both TTY modes | `references/io-and-output.md` |
 | **Prompts / editor / destructive ops** | `CanPrompt()` gate, flag fallback, `--yes`, Prompter interface | `references/ux-and-help.md` §Interactivity |
@@ -143,7 +161,7 @@ them only by deprecation (hidden alias + warning, kept ≥1 release).
 | **Tests** | Buffer-backed IOStreams, self-verifying HTTP/exec/prompt stubs, exact output, testscript | `references/testing.md` |
 | **Build, release, lint, CI** | ldflags version, GoReleaser, linters, docs drift check | `references/build-and-release.md` |
 | **Review a CLI diff** | Run the audit script, walk the checklist, use its report format | `references/review-checklist.md` |
-| **Refactor a hand-rolled CLI** | Freeze output with tests, then IOStreams, typed errors, one command at a time | `references/architecture.md` §Migrating |
+| **Refactor a hand-rolled CLI** | Freeze output with tests, then IOStreams, typed errors, domain extraction, one command at a time | `references/architecture.md` §Migrating, `references/layers.md` §Anti-patterns |
 | **Non-Go CLI** | Same rules; map the concepts | `references/other-languages.md` |
 
 ## Audit script (Go only)
@@ -153,8 +171,9 @@ bash <skill-dir>/scripts/cli_audit.sh <repo-root> [--strict]
 ```
 
 Grep-based heuristics for the rules above (raw stdio, `os.Exit` outside main,
-scattered env reads, no TTY detection, no `--json`, untested packages, ...). WARN means
-"look here", not "wrong"; gh itself gets several. Exit: 0, or 1 with `--strict` when
+scattered env reads, no TTY detection, no `--json`, untested packages, layer leaks
+such as cobra/streams imported below the commands or one command importing another,
+...). WARN means "look here", not "wrong"; gh itself gets several. Exit: 0, or 1 with `--strict` when
 anything warned; 2 if no Go sources. To check only your change, run it before and
 after and compare the WARN lines.
 
@@ -169,7 +188,8 @@ after and compare the WARN lines.
    signals (130) are covered by tests. For prompts and streams, the full
    stdin/stdout/stderr matrix is in `references/testing.md`.
 4. `tool <cmd> --help` has an Example and works with `TOOL_CONFIG_DIR=$(mktemp -d)`.
-5. Tests cover parsing and output in both TTY modes; `go test ./...` passes.
+5. Tests cover parsing and output in both TTY modes, and domain packages have their
+   own tests that build no command; `go test ./...` passes.
 6. No script-facing contract changed without deprecation; generated docs regenerated.
 7. Go: the audit script shows no new WARN lines; fix and rerun until it doesn't.
 

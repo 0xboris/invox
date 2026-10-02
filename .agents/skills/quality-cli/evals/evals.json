@@ -56,6 +56,23 @@
         "Flags that with --force the items are deleted even when saving the export failed (write error ignored), i.e. possible data loss",
         "Flags that the API token is never sent with the requests (no Authorization header) and/or that HTTP status codes are not checked"
       ]
+    },
+    {
+      "id": 4,
+      "name": "scaffold-layered-cli",
+      "prompt": "Create a Go CLI called `bm` for bookmarks: `bm add <url> [--tag TAG]...`, `bm list [--tag TAG]` and `bm open <id>`, which opens the bookmark in the default browser. Bookmarks live in a JSON file in the user's data directory. Structure it so we can later add a TUI and an HTTP API on top of the same bookmark logic.",
+      "expected_output": "A buildable, tested Go CLI whose bookmark logic sits in a domain package below the commands, with typed models and errors, ctx-first operations, an injected browser opener and lint- or test-enforced import rules.",
+      "files": [],
+      "expectations": [
+        "The project builds and `go test ./...` passes",
+        "Bookmark storage and filtering live in a package that `go list -deps` shows does not depend on cobra, pflag, or the project's IO-streams/command packages",
+        "That package defines a typed Bookmark struct (no map[string]any for bookmark data) and its exported operations that do I/O take context.Context as the first parameter",
+        "That package has its own _test.go file whose tests build no cobra command",
+        "Not-found is a typed error (or sentinel) in the domain package; `bm open 999` exits non-zero with a message on stderr and nothing on stdout",
+        "Opening the browser goes through an injected interface or function; tests assert the opened URL without launching a browser",
+        "`bm list --json` prints a valid JSON array including an added bookmark; piped `bm list` has no ANSI escapes and no header row",
+        "Import rules are enforced mechanically (depguard/forbidigo config or a test/CI check over `go list -deps`)"
+      ]
     }
   ]
 }

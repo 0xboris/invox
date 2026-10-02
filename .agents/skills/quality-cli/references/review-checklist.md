@@ -20,6 +20,17 @@ Mark each item ✅ / ❌ / n/a. Severity hints: **[break]** = breaks scripts or 
 - [ ] **[bug]** Expensive deps lazy; `--help` works offline with broken config.
 - [ ] **[bug]** `cmd.Context()` passed to network/subprocess calls (Ctrl-C works).
 
+## Layers (`layers.md`)
+- [ ] **[bug]** Domain/client and adapter packages import no cobra, pflag, IOStreams or `pkg/cmd`; they don't print, `os.Exit`, read env/config or call `time.Now`.
+- [ ] **[bug]** Domain operations take `ctx` first and return typed models and typed errors (wrapping the cause); remediation text is added in the command layer.
+- [ ] **[bug]** External programs run through an adapter: `exec.CommandContext`, injected writers (child stdout → stderr unless it is the data), error carries exit code + stderr, missing binary → install hint.
+- [ ] **[ux]** Run functions orchestrate (resolve deps → domain call → render/export); business rules aren't in command files or shared `utils`.
+- [ ] **[ux]** CLI-only settings live in per-command Options, not in domain types; no single Options struct shared by every command.
+- [ ] **[ux]** Typed models (no `map[string]any` domain data), params structs instead of runs of positional strings, value types for identities.
+- [ ] **[ux]** No leaf command imports another leaf; noun-shared code in `<noun>/shared`, cross-noun code in the domain.
+- [ ] **[ux]** Test seams are injected fields/interfaces, not package-level variables swapped by tests; no production file imports `testing`.
+- [ ] **[ux]** Import rules enforced (depguard/forbidigo or a `go list -deps` CI check).
+
 ## Flags & args
 - [ ] **[ux]** Long name for every flag; short only for common ones, consistent with siblings.
 - [ ] **[bug]** Enums validated (and completed); `--limit < 1` rejected; mutually exclusive flags enforced.
@@ -76,6 +87,7 @@ Mark each item ✅ / ❌ / n/a. Severity hints: **[break]** = breaks scripts or 
 **Breaking**: <list or "none">
 **Bugs**: <file:line — issue — fix>
 **UX**: <file:line — issue — fix>
+**Layering**: <package — leak (import, I/O, env, untyped data) — fix>
 **Tests missing**: <list>
 **Verdict**: ship / ship after fixes / needs redesign
 ```

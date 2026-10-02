@@ -8,6 +8,15 @@ specific situations noted.
 | Command grammar | strict `noun verb` | legacy flat verbs (`ps`, `rmi`) + `container ls`; shortcuts hideable | **gh**. Use docker's shared-constructor alias trick only when migrating an existing flat CLI. |
 | Dependency injection | `Factory` struct of lazy funcs; commands copy what they need into Options | `command.Cli` interface + functional options + `sync.Once` client | **gh**. Borrow `sync.Once` for caching a lazy value used several times. |
 | Run signature | `xRun(opts)`; context via cobra | `runX(ctx, cli, opts)` | **gh**, but pass `cmd.Context()` into Options (or as first arg) so cancellation works. |
+| Domain client | thin `api.Client` over `*http.Client`, free functions per domain file, mostly **no ctx** | SDK: `Method(ctx, …, XOptions) (XResult, error)`, interface composed of per-domain sub-interfaces | **gh** structure for a client you own; **docker** call shape (ctx first, typed options/result structs). |
+| Models & JSON shape | API structs + `ExportData(fields)` on the model; field lists drive the query | formatter accessor methods define table **and** JSON | **gh**: model owns the shape, exporter owns the format. |
+| Presentation code | `shared/display.go` helpers, `internal/tableprinter`, `internal/text` | cobra-free `cli/command/formatter` package (Context, `XWrite`, per-type context) | gh's output contract; docker's separation (rendering in a package that imports no cobra). |
+| Structured flag values | `StringEnumFlag` helpers, validation in `RunE` | `opts/` `pflag.Value` types, validation in `Set` | **Both**: enum helpers for enums, `opts`-style types for structured input. |
+| External programs | `git.Client` (ctx, injected streams, typed `GitError`) + global `run.PrepareCmd` stub | no common wrapper: direct `exec.Command` in a few packages (plugins, ssh connhelper); credential helpers behind an injected `ProgramFunc` | **gh** `git.Client` shape with an injected seam, not the global. |
+| Test doubles for clients | httpmock at the transport; moq mocks for interfaces | `fakeClient` with func fields embedding the concrete client | **gh** for HTTP; docker's fake for SDK interfaces, embedding the **interface**. |
+| Command registration | explicit `AddCommand` in root/noun constructors | `init()` + global `commands.Register` | **gh** (explicit, no init order or global state). |
+| Dependency breadth | Factory; commands copy fields into Options | helpers accept `command.Streams` / `config.Provider` | **Both**: Options copy what they use; helpers take the narrowest interface. |
+| Layering enforcement | convention only (leaks: `context`→`iostreams`, leaf→leaf imports) | convention only (leaks: `Client()` calls `os.Exit`, config writes to `os.Stderr`) | **Neither**: enforce with depguard/forbidigo (`layers.md`). |
 | Exit codes | 0/1/2 cancel/4 auth/8 pending | 1, 125 usage, 128+signal (126/127 in `docker run`) | **gh** set, plus `128+signal` (`130`/`143`) when a handled signal ends the run. |
 | Structured output | `--json fields` + `--jq` + `--template` | `--format table\|json\|<template>` | **gh**. Docker's per-command default format in config is an optional extra. |
 | Piped output | TSV, no header, no truncation, RFC3339 | template-driven; table header kept | **gh**. |
@@ -45,7 +54,11 @@ docker leave open (from clig.dev and the former go-cli-development skill):
 
 Things only docker does that are worth adopting anywhere:
 - Atomic config writes that preserve symlinks/permissions.
-- Multi-target commands that continue past failures and `errors.Join` at the end.
+- Multi-target commands that continue past failures and `errors.Join` at the end;
+  `parallelOperation` runs them concurrently but reports in input order.
+- Pure flags→request mappers (`buildContainerListOptions`) and flag sets shared by
+  sibling commands (`addFlags` + `parse` for `run`/`create`).
+- Consumer-side interfaces that postpone expensive setup (`APIClientProvider` for completion).
 - Cost-aware fetching driven by what the output template uses (gh does the same via `--json` fields).
 - `inspect` fallback to raw JSON for fields newer than the client.
 - Plugin/extension failures reported as data, never crashes.

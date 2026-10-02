@@ -31,12 +31,23 @@ internal/build/             Version/Date via -ldflags, ReadBuildInfo fallback
 pkg/iostreams/              In/Out/ErrOut, TTY detection+overrides, color, pager, spinner
 pkg/cmdutil/                Factory, typed errors, flag helpers, JSON exporter
 pkg/cmd/root/               root command, groups, help topics, flag-error func
-pkg/cmd/<noun>/<verb>/      one package per leaf command (+ _test.go beside it)
-pkg/cmd/<noun>/shared/      helpers shared by a noun's verbs
+pkg/cmd/<noun>/<verb>/      one package per leaf command (+ _test.go beside it; http.go for command-only queries)
+pkg/cmd/<noun>/shared/      code a noun's verbs share: finders, listers, display helpers
+api/ (or internal/<domain>) domain/client: typed models, operations (ctx first), field lists, typed errors
+git/ (one per external tool) adapter: injected streams, exec.CommandContext, typed error with stderr
+internal/ghrepo/            identity value types, parsed once (FromFullName, IsSame)
+internal/gh/ + internal/config/  config interface in a leaf package; implementation separately
+internal/tableprinter/, internal/text/  presentation helpers (TTY-aware tables, fuzzy time)
 internal/prompter/          Prompter interface (+ mock)
 internal/run/               exec seam (PrepareCmd) for subprocesses — add before the first exec.Command
 ```
-The go-cli-starter has all of these except `internal/run/`.
+The go-cli-starter (v0.3.0) has the command-side packages plus a domain package
+(`internal/api`: `ItemID` value type, `Client` contract, typed errors), an
+external-program adapter shaped like gh's `git.Client` (`internal/browser`), a noun
+`shared` package, and layering enforced by depguard and `internal/archtest`. It has no
+`internal/run/`: wrap each program in its own adapter instead. Everything below
+`pkg/cmd` (what each layer may import, how the domain, adapters and presentation are
+shaped) is in `layers.md`.
 For a small tool, collapse freely (e.g. one `internal/cli` package with a file per
 command) as long as the behavior rules hold and commands stay testable.
 
@@ -59,6 +70,9 @@ func main() { os.Exit(int(app.Main())) }
 
 Small, important details:
 - A failure to load config is a **warning**, not fatal — commands that need config fail lazily with context.
+  (gh only half achieves this: its root command setup still calls `f.Config()` and errors,
+  `pkg/cmd/root/root.go:66`, as the comment on `Factory.Config` admits. Build the root
+  without touching config.)
 - `cobra.MousetrapHelpText = ""` lets the binary run from Windows Explorer.
 - Resolve your own executable path (`os.Executable`, follow Homebrew symlinks) if the tool will re-invoke itself (credential helper, extensions).
 
@@ -225,6 +239,9 @@ Rules embedded above:
 - Partial failure: `defer func() { err = errors.Join(cleanupErr, err) }()`.
 - Multi-target commands (docker `rm a b c`): process all, print each success, return `errors.Join(errs...)`.
 - Preserve typed user input on failure (gh `PreserveInput` → temp file + `--recover` flag).
+- The run function orchestrates; it doesn't hold business rules. Queries only this
+  command uses go in `http.go` beside it (gh has 28); anything a second command needs
+  moves to `<noun>/shared` or the domain package (`layers.md`).
 
 ## Root command setup
 
@@ -354,5 +371,14 @@ Do it in safe, separately-shippable steps, keeping output byte-identical (golden
 2. **IOStreams**: replace `os.Stdout`/`os.Stderr`/`os.Stdin` references with an `*IOStreams` passed in. Tests stop swapping globals.
 3. **Typed errors**: commands return `error`; add `FlagError`/`SilentError`/`CancelError` and one mapping in `Main()`.
 4. **Factory**: move config/client/subprocess construction into lazy Factory funcs.
-5. **Cobra, one noun at a time**: root on cobra with unknown commands delegated to the legacy dispatcher until each noun moves. Gains: nested help, suggestions, completion, generated docs.
-6. **Then** add `--json`, non-TTY formats, help topics, generated docs.
+5. **Domain extraction**: move CLI-only settings out of domain types into per-command
+   Options; give domain operations `ctx`, params structs and typed errors; route child
+   processes through adapters with injected writers; replace `map[string]any` models
+   with structs; load config once and pass resolved values down. Add the depguard /
+   forbidigo rules from `layers.md` so it stays that way.
+6. **Cobra, one noun at a time**: root on cobra with unknown commands delegated to the legacy dispatcher until each noun moves. Gains: nested help, suggestions, completion, generated docs.
+7. **Then** add `--json`, non-TTY formats, help topics, generated docs.
+
+`layers.md` §Anti-patterns lists the hand-rolled shapes (spec tables of booleans, one
+shared Options type, parse helpers returning exit codes, global function-variable
+seams) and what replaces each.

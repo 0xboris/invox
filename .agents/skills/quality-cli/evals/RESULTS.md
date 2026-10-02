@@ -36,3 +36,11 @@ cloned and adapted the full starter template.
 
 **Next iteration.** Re-run with the harder eval 3 assertions, add a `--no-input` /
 prompt-on-stderr check to eval 2, and use 3 runs per configuration.
+
+## Iteration 2 (pending)
+
+Added `references/layers.md` (domain/client layer, adapters, shared packages,
+presentation, import rules) and eval 4 (`scaffold-layered-cli`). Its assertions are
+mechanical (`go list -deps`, signatures, tests) so they can be graded by script.
+Not run yet. Expect it to discriminate: without the skill, agents tend to put storage
+and browser calls directly in command files.
