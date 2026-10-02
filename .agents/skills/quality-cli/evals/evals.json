@@ -1,0 +1,78 @@
+{
+  "skill_name": "quality-cli",
+  "evals": [
+    {
+      "id": 1,
+      "name": "invox-customer-list-json",
+      "prompt": "Add a --json option to `invox customer list` so I can pipe the customer list into jq. The current plain output has to keep working exactly as it does now.",
+      "expected_output": "customer list accepts --json and prints a valid JSON array of customers on stdout; plain output unchanged; tests added; go test passes.",
+      "files": [],
+      "expectations": [
+        "`invox customer list --json -c <fixture>` exits 0 and stdout is a valid JSON array with one element per customer",
+        "Each JSON element contains the customer id, legal company name and status",
+        "`invox customer list -c <fixture>` (no --json) output is byte-identical to before the change",
+        "The --json run writes nothing to stderr",
+        "With an empty customers file, `--json` prints an empty JSON array ([]) and exits 0",
+        "`invox help customer list` (or customer list -h) documents the --json option",
+        "The change adds or updates tests that exercise the --json output",
+        "`go test ./...` passes after the change"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scaffold-notes-cli",
+      "prompt": "Create a small Go CLI called `notes` with three commands: `notes add <text>`, `notes list` and `notes rm <id>`. Notes are stored in a JSON file in the user's config directory, each note gets a numeric id. Make it something I'd be happy to use in scripts too.",
+      "expected_output": "A buildable, tested Go CLI that separates TTY and non-TTY output, offers machine output, confirms deletes, and uses correct exit codes and streams.",
+      "files": [],
+      "expectations": [
+        "The project builds and `go test ./...` passes with at least one test file",
+        "`notes list` piped to a file contains no ANSI escape sequences and no header row",
+        "`notes list --json` prints a valid JSON array that includes the added note",
+        "`notes rm <id>` with stdin not a terminal and no confirmation flag exits non-zero, does not delete the note, and mentions the flag to confirm (e.g. --yes) on stderr",
+        "`notes rm <id> --yes` (or the tool's documented confirmation flag) deletes the note",
+        "A usage error (`notes add` without text) exits non-zero, writes the message to stderr and nothing to stdout",
+        "`notes list` with no notes exits 0",
+        "The notes file is created under $XDG_CONFIG_HOME (or a tool-specific config dir override), not in the working directory"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "review-export-command",
+      "prompt": "Can you review this cobra command before I ship it? evals/testdata/export.go is the `shipit export` command. Tell me what you'd change and why.",
+      "expected_output": "A review that catches the planted CLI-quality issues with concrete fixes.",
+      "files": [
+        "evals/testdata/export.go"
+      ],
+      "expectations": [
+        "Flags that the missing-argument path prints the error to stdout and exits 0 (should be a usage error on stderr with non-zero exit, e.g. via cobra Args validation)",
+        "Flags os.Exit/log.Fatal inside the command and recommends returning errors (RunE) so one place maps errors to exit codes",
+        "Flags that ANSI color is emitted unconditionally (no TTY / NO_COLOR check) and/or relative times are printed when piped",
+        "Flags that an empty result exits 1 (should not be treated as a failure)",
+        "Flags that the confirmation prompt reads stdin without checking for a TTY and that non-interactive use needs an explicit flag (e.g. --yes), and that deleting server data after an export is a dangerous default",
+        "Flags HTTP calls without context/timeout and ignored errors from the DELETE requests",
+        "Flags the config write: token stored in plaintext with 0644 permissions and/or non-atomic write, hard-coded ~/.shipit.json instead of a config dir",
+        "Flags that --format is unvalidated/unused or that there is no machine-readable (--json) output",
+        "Flags missing help text for --force and/or missing Example/Long help",
+        "Flags that with --force the items are deleted even when saving the export failed (write error ignored), i.e. possible data loss",
+        "Flags that the API token is never sent with the requests (no Authorization header) and/or that HTTP status codes are not checked"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "scaffold-layered-cli",
+      "prompt": "Create a Go CLI called `bm` for bookmarks: `bm add <url> [--tag TAG]...`, `bm list [--tag TAG]` and `bm open <id>`, which opens the bookmark in the default browser. Bookmarks live in a JSON file in the user's data directory. Structure it so we can later add a TUI and an HTTP API on top of the same bookmark logic.",
+      "expected_output": "A buildable, tested Go CLI whose bookmark logic sits in a domain package below the commands, with typed models and errors, ctx-first operations, an injected browser opener and lint- or test-enforced import rules.",
+      "files": [],
+      "expectations": [
+        "The project builds and `go test ./...` passes",
+        "Bookmark storage and filtering live in a package that `go list -deps` shows does not depend on cobra, pflag, or the project's IO-streams/command packages",
+        "That package defines a typed Bookmark struct (no map[string]any for bookmark data) and its exported operations that do I/O take context.Context as the first parameter",
+        "That package has its own _test.go file whose tests build no cobra command",
+        "Not-found is a typed error (or sentinel) in the domain package; `bm open 999` exits non-zero with a message on stderr and nothing on stdout",
+        "Opening the browser goes through an injected interface or function; tests assert the opened URL without launching a browser",
+        "`bm list --json` prints a valid JSON array including an added bookmark; piped `bm list` has no ANSI escapes and no header row",
+        "Import rules are enforced mechanically (depguard/forbidigo config or a test/CI check over `go list -deps`)"
+      ]
+    }
+  ]
+}
