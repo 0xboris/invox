@@ -122,6 +122,16 @@ func runHelp(ios *iostreams.IOStreams, args []string) int {
 		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
 	}
 
+	if len(args) == 1 && args[0] == "environment" {
+		printEnvironmentHelp(ios.Out)
+		return 0
+	}
+
+	if len(args) == 1 && args[0] == "exit-codes" {
+		printExitCodesHelp(ios.Out)
+		return 0
+	}
+
 	if args[0] == "version" && len(args) == 1 {
 		printVersionHelp(ios.Out)
 		return 0
