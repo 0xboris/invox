@@ -796,7 +796,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		validationErrors = append(validationErrors, "invoice.paid_amount: must not be negative")
 	}
 	paidAmountCents, ok := moneyCents(paidAmount)
-	if !ok {
+	if !ok && paidAmount.Sign() >= 0 {
 		validationErrors = append(validationErrors, errAmountTooLarge("invoice.paid_amount:").Error())
 	}
 	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
@@ -817,7 +817,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		if unitPrice != nil && unitPrice.Sign() < 0 {
 			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].unit_price: must be >= 0", index+1))
 		}
-		if _, ok := moneyCents(unitPrice); !ok {
+		if _, ok := moneyCents(unitPrice); !ok && unitPrice.Sign() >= 0 {
 			validationErrors = append(validationErrors, errAmountTooLarge(fmt.Sprintf("positions[%d].unit_price:", index+1)).Error())
 		}
 		if quantity != nil && quantity.Sign() <= 0 {

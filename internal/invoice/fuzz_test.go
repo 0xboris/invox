@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	"os"
@@ -446,7 +447,7 @@ func FuzzBuildEPCPayload(f *testing.F) {
 		if cents < 1 || cents > epcQRMaxAmountCents {
 			t.Fatalf("payload accepted amount %d cents outside 0.01-999999999.99: %q", cents, payload)
 		}
-		if want := "EUR" + formatEPCAmount(cents); lines[7] != want {
+		if want := fmt.Sprintf("EUR%d.%02d", cents/100, cents%100); lines[7] != want {
 			t.Fatalf("payload amount line = %q, want %q", lines[7], want)
 		}
 	})
@@ -489,43 +490,78 @@ func FuzzLoadContext(f *testing.F) {
 }
 
 // maxFuzzAliasExpansion bounds how many nodes the YAML loader may visit
-// while following aliases before an input counts as explosive.
+// through aliases before an input counts as explosive.
 const maxFuzzAliasExpansion = 10_000
 
 // hasRecursiveOrExplosiveAliases reports YAML whose aliases refer to an
 // enclosing node, which overflows the stack in normalizeYAMLNode, or expand
 // into a "billion laughs". Both are known loader bugs tracked in #17; this
 // screen keeps FuzzLoadContext on the rest of the input space until the
-// loader limits alias expansion. Remove it once it does.
+// loader limits alias expansion. Remove it once it does. Only nodes reached
+// through an alias count towards the limit, so large documents without
+// aliases are always fuzzed.
 func hasRecursiveOrExplosiveAliases(source []byte) bool {
+	if !bytes.Contains(source, []byte("*")) {
+		return false
+	}
 	var document yaml.Node
 	if err := yaml.Unmarshal(source, &document); err != nil {
 		return false
 	}
-	visited := 0
+	expanded := 0
 	active := map[*yaml.Node]bool{}
-	var walk func(node *yaml.Node) bool
-	walk = func(node *yaml.Node) bool {
+	var walk func(node *yaml.Node, viaAlias bool) bool
+	walk = func(node *yaml.Node, viaAlias bool) bool {
 		if node == nil {
 			return false
 		}
-		visited++
-		if visited > maxFuzzAliasExpansion || active[node] {
+		if active[node] {
 			return true
+		}
+		if viaAlias {
+			expanded++
+			if expanded > maxFuzzAliasExpansion {
+				return true
+			}
 		}
 		active[node] = true
 		defer delete(active, node)
 		if node.Kind == yaml.AliasNode {
-			return walk(node.Alias)
+			return walk(node.Alias, true)
 		}
 		for _, child := range node.Content {
-			if walk(child) {
+			if walk(child, viaAlias) {
 				return true
 			}
 		}
 		return false
 	}
-	return walk(&document)
+	return walk(&document, false)
+}
+
+func TestHasRecursiveOrExplosiveAliases(t *testing.T) {
+	laughs := "a: &a [x, x, x, x, x, x, x, x, x, x]\n"
+	for level := 'b'; level <= 'f'; level++ {
+		previous := string(level - 1)
+		laughs += string(level) + ": &" + string(level) + " [*" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + ", *" + previous + "]\n"
+	}
+	tests := []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{name: "recursive alias", source: "positions: &p [*p]\n", want: true},
+		{name: "billion laughs", source: laughs, want: true},
+		{name: "plain alias", source: fuzzInvoiceYAML + "copy: &c {a: 1}\nagain: *c\n"},
+		{name: "large document without aliases", source: "items: [" + strings.Repeat("x, ", 2*maxFuzzAliasExpansion) + "x]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasRecursiveOrExplosiveAliases([]byte(tt.source)); got != tt.want {
+				t.Fatalf("hasRecursiveOrExplosiveAliases = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 // checkContextTotals asserts the money invariants of a loaded invoice.

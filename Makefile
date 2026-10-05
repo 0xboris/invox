@@ -37,9 +37,12 @@ FUZZ_PACKAGE := ./internal/invoice
 FUZZTIME ?= 10s
 
 fuzz: ## Run each fuzz target for FUZZTIME (default: 10s).
-	for target in $$($(GO) test -list '^Fuzz' $(FUZZ_PACKAGE) | grep '^Fuzz'); do \
+	set -e; \
+	targets="$$($(GO) test -list '^Fuzz' $(FUZZ_PACKAGE) | grep '^Fuzz' || true)"; \
+	if [ -z "$$targets" ]; then echo "no fuzz targets found in $(FUZZ_PACKAGE)" >&2; exit 1; fi; \
+	for target in $$targets; do \
 		echo "$$target"; \
-		$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $(FUZZ_PACKAGE); \
+		$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $(FUZZ_PACKAGE) || exit 1; \
 	done
 
 vet: ## Run go vet across the module.

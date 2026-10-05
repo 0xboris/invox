@@ -197,7 +197,13 @@ func validateCustomerCounterSeparator(pattern string) error {
 		right := pattern[current[2]:current[3]]
 		for _, pair := range [][2]string{{left, right}, {right, left}} {
 			if (pair[0] == "customer_id" || pair[0] == "customer_code") && pair[1] == "counter" {
-				return fmt.Errorf("numbering.pattern needs a separator between {%s} and {counter}, such as {%s}-{counter}", pair[0], pair[0])
+				suggestion := pattern[:current[0]] + "-" + pattern[current[0]:]
+				return fmt.Errorf(
+					"numbering.pattern %q needs a separator between {%s} and {counter}, such as %q; "+
+						"invoice numbers in the old format no longer count towards the next number, so set "+
+						"numbering.start (or customers.<id>.numbering.start) to continue the sequence",
+					pattern, pair[0], suggestion,
+				)
 			}
 		}
 	}

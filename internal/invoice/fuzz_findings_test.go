@@ -14,43 +14,58 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 		name         string
 		old, new     string
 		wantErr      string
+		wantNoErr    string
 		wantSubtotal int64
 	}{
 		{
 			name:    "unit price",
 			old:     "unit_price: 100",
 			new:     `unit_price: "100000000000000000"`,
-			wantErr: "positions[1].unit_price: exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "positions[1].unit_price: exceeds the maximum amount of `10.000.000.000.000,00`",
 		},
 		{
 			name:    "line total",
 			old:     "quantity: 2",
 			new:     "quantity: 1000000000000000000000000",
-			wantErr: "positions[1]: unit_price × quantity exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "positions[1]: unit_price × quantity exceeds the maximum amount of `10.000.000.000.000,00`",
 		},
 		{
 			name:    "subtotal",
 			old:     "unit_price: 100",
 			new:     "unit_price: 5000000000000",
-			wantErr: "invoice subtotal exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "invoice subtotal exceeds the maximum amount of `10.000.000.000.000,00`",
 		},
 		{
 			name:    "VAT amount",
 			old:     "vat_percent: 20",
 			new:     "vat_percent: 100000000000000000000",
-			wantErr: "invoice VAT amount exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "invoice VAT amount exceeds the maximum amount of `10.000.000.000.000,00`",
 		},
 		{
 			name:    "total",
 			old:     "unit_price: 100",
 			new:     "unit_price: 4999999999995",
-			wantErr: "invoice total exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "invoice total exceeds the maximum amount of `10.000.000.000.000,00`",
 		},
 		{
 			name:    "paid amount",
 			old:     "paid_amount: 0",
 			new:     "paid_amount: 1000000000000000000000000000000",
-			wantErr: "invoice.paid_amount: exceeds the maximum amount of 10.000.000.000.000,00",
+			wantErr: "invoice.paid_amount: exceeds the maximum amount of `10.000.000.000.000,00`",
+		},
+		{
+			name:      "huge negative unit price",
+			old:       "unit_price: 100",
+			new:       "unit_price: -100000000000000000",
+			wantErr:   "positions[1].unit_price: must be >= 0",
+			wantNoErr: "exceeds the maximum",
+		},
+		{
+			name:      "huge negative paid amount",
+			old:       "paid_amount: 0",
+			new:       "paid_amount: -1000000000000000000000000000000",
+			wantErr:   "invoice.paid_amount: must not be negative",
+			wantNoErr: "exceeds the maximum",
 		},
 		{
 			name:         "subtotal at the maximum",
@@ -75,6 +90,9 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("error %q does not contain %q", err.Error(), tt.wantErr)
+				}
+				if tt.wantNoErr != "" && strings.Contains(err.Error(), tt.wantNoErr) {
+					t.Fatalf("error %q also contains %q", err.Error(), tt.wantNoErr)
 				}
 				return
 			}
@@ -121,7 +139,8 @@ func TestValidateNumberingSettingsRejectsPatternsThatDoNotRoundTrip(t *testing.T
 		{pattern: " {customer_id}-{counter}", wantErr: "must not start or end with whitespace"},
 		{pattern: "{customer_id}-{counter}\t", wantErr: "must not start or end with whitespace"},
 		{pattern: "{customer_id}-{counter:03}/{counter}", wantErr: "must contain {counter} only once"},
-		{pattern: "{customer_code}{counter:03}", wantErr: "needs a separator between {customer_code} and {counter}"},
+		{pattern: "{customer_code}{counter:03}", wantErr: `numbering.pattern "{customer_code}{counter:03}" needs a separator between {customer_code} and {counter}, such as "{customer_code}-{counter:03}"`},
+		{pattern: "RE-{customer_code}{counter:04}", wantErr: "set numbering.start (or customers.<id>.numbering.start) to continue the sequence"},
 		{pattern: "{counter}{customer_id}", wantErr: "needs a separator between {customer_id} and {counter}"},
 		{pattern: "{customer_id}-{counter:21}", wantErr: "uses an invalid width; use at most 20"},
 		{pattern: "\xff{customer_id}-{counter}", wantErr: "must be valid UTF-8"},
