@@ -55,7 +55,7 @@ func TestVersionWorksWithBrokenConfig(t *testing.T) {
 	for _, args := range [][]string{{"version"}, {"--version"}} {
 		exitCode, stdout, stderr := captureRun(t, args)
 		if exitCode != 0 || stdout != "invox version 1.2.3\n" || stderr != "" {
-			t.Fatalf("Run(%q) = (%d, %q, %q), want (0, %q, \"\")", args, exitCode, stdout, stderr, "invox version 1.2.3\n")
+			t.Fatalf("Main(%q) = (%d, %q, %q), want (0, %q, \"\")", args, exitCode, stdout, stderr, "invox version 1.2.3\n")
 		}
 	}
 }
@@ -64,13 +64,13 @@ func TestVersionHelp(t *testing.T) {
 	for _, args := range [][]string{{"version", "--help"}, {"help", "version"}} {
 		exitCode, stdout, stderr := captureRun(t, args)
 		if exitCode != 0 {
-			t.Fatalf("Run(%q) exit code = %d, want 0", args, exitCode)
+			t.Fatalf("Main(%q) exit code = %d, want 0", args, exitCode)
 		}
 		if !strings.HasPrefix(stdout, "Show the invox version.") {
-			t.Fatalf("Run(%q) stdout = %q, want version help", args, stdout)
+			t.Fatalf("Main(%q) stdout = %q, want version help", args, stdout)
 		}
 		if stderr != "" {
-			t.Fatalf("Run(%q) stderr = %q, want empty", args, stderr)
+			t.Fatalf("Main(%q) stderr = %q, want empty", args, stderr)
 		}
 	}
 }

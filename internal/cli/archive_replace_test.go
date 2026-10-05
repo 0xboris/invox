@@ -1,26 +1,22 @@
 package cli
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// stubPrompt makes confirmation prompts see a terminal (or not) and read
-// their answer from input.
-func stubPrompt(t *testing.T, terminal bool, input string) {
-	t.Helper()
-
-	oldCanPrompt := canPrompt
-	oldPromptInput := promptInput
-	canPrompt = func() bool { return terminal }
-	promptInput = func() io.Reader { return strings.NewReader(input) }
-	t.Cleanup(func() {
-		canPrompt = oldCanPrompt
-		promptInput = oldPromptInput
-	})
+// promptStreams returns test streams on which confirmation prompts see a
+// terminal (or not) and read their answer from input.
+func promptStreams(terminal bool, input string) *iostreams.IOStreams {
+	ios, in, _, _ := iostreams.Test()
+	ios.SetStdinTTY(terminal)
+	ios.SetStderrTTY(terminal)
+	in.WriteString(input)
+	return ios
 }
 
 type editedArchive struct {
@@ -102,9 +98,9 @@ func (e editedArchive) replacedNotice(backupPath string) string {
 
 func TestArchiveReplaceWithoutTerminalRequiresYes(t *testing.T) {
 	e := setupEditedArchive(t)
-	stubPrompt(t, false, "y\n")
+	ios := promptStreams(false, "y\n")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
 	if exitCode != 2 {
 		t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
 	}
@@ -133,9 +129,9 @@ func TestArchiveReplaceOnTerminalDeclined(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := setupEditedArchive(t)
-			stubPrompt(t, true, tc.input)
+			ios := promptStreams(true, tc.input)
 
-			exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+			exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
 			if exitCode != 2 {
 				t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
 			}
@@ -157,9 +153,9 @@ func TestArchiveReplaceOnTerminalDeclined(t *testing.T) {
 
 func TestArchiveReplaceOnTerminalConfirmed(t *testing.T) {
 	e := setupEditedArchive(t)
-	stubPrompt(t, true, "y\n")
+	ios := promptStreams(true, "y\n")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -177,9 +173,9 @@ func TestArchiveReplaceOnTerminalConfirmed(t *testing.T) {
 func TestArchiveReplaceWithYesKeepsBackup(t *testing.T) {
 	e := setupEditedArchive(t)
 	// --yes answers the question, so the declining input is never read.
-	stubPrompt(t, true, "n\n")
+	ios := promptStreams(true, "n\n")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -207,7 +203,6 @@ func TestArchiveReplaceWithYesStillValidates(t *testing.T) {
 	if err := os.WriteFile(e.workingCopy, []byte(renumbered), 0o644); err != nil {
 		t.Fatalf("WriteFile(working copy) returned error: %v", err)
 	}
-	stubPrompt(t, false, "")
 
 	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
 	if exitCode != 1 {
@@ -272,7 +267,6 @@ func TestBuildArchiveReplacingArchivedInvoiceNeedsYes(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	stubPrompt(t, false, "")
 	buildArgs := []string{"build", "first.yaml", "--archive", "-c", customersPath, "-u", issuerPath, "-t", templatePath}
 
 	exitCode, stdout, stderr := captureRun(t, buildArgs)
@@ -348,47 +342,4 @@ func TestYesFlagIsDocumented(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestDevNullIsNotATerminal(t *testing.T) {
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
-		t.Fatalf("Open(%s) returned error: %v", os.DevNull, err)
-	}
-	t.Cleanup(func() { _ = devNull.Close() })
-
-	if isTerminal(devNull) {
-		t.Fatalf("isTerminal(%s) = true, want false", os.DevNull)
-	}
-}
-
-func TestArchiveReplaceWithDevNullStdinRequiresYes(t *testing.T) {
-	e := setupEditedArchive(t)
-	devNull, err := os.Open(os.DevNull)
-	if err != nil {
-		t.Fatalf("Open(%s) returned error: %v", os.DevNull, err)
-	}
-	oldStdin := os.Stdin
-	os.Stdin = devNull
-	t.Cleanup(func() {
-		os.Stdin = oldStdin
-		_ = devNull.Close()
-	})
-	// captureRun pipes stderr, so judge interactivity by stdin alone: input
-	// redirected from the null device is not a terminal to ask on.
-	oldCanPrompt := canPrompt
-	canPrompt = func() bool { return isTerminal(os.Stdin) }
-	t.Cleanup(func() { canPrompt = oldCanPrompt })
-
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
-	if exitCode != 2 {
-		t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if !strings.Contains(stderr, "pass --yes to replace it (no terminal to ask on)") {
-		t.Fatalf("stderr = %q, want the --yes usage error", stderr)
-	}
-	e.assertUnchanged(t)
 }

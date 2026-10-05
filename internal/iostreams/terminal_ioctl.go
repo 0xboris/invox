@@ -1,6 +1,6 @@
 //go:build linux || darwin
 
-package cli
+package iostreams
 
 import (
 	"os"

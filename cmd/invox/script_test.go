@@ -16,6 +16,7 @@ import (
 	"github.com/rogpeppe/go-internal/testscript"
 
 	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // The end-to-end suite in testdata/script pins what every command prints to
@@ -47,7 +48,7 @@ func TestMain(m *testing.M) {
 	// The external programs invox launches are faked the same way, so the
 	// suite needs no shell scripts and runs on Windows.
 	testscript.Main(m, map[string]func(){
-		"invox":       func() { os.Exit(cli.Run(os.Args[1:])) },
+		"invox":       func() { os.Exit(cli.Main(os.Args[1:], iostreams.System())) },
 		"tectonic":    func() { os.Exit(fakeTectonic(os.Args[1:])) },
 		"fake-editor": func() { os.Exit(fakeEditor(os.Args[1:])) },
 		"open":        func() { os.Exit(fakeOpen(os.Args[1:])) },

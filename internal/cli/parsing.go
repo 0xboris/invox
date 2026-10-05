@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func reorderArgs(args []string, flagSpecs map[string]bool) []string {
@@ -50,15 +51,15 @@ func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
 	return false
 }
 
-func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, int, bool) {
+func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (invoice.Options, []string, int, bool) {
 	if wantsHelp(args) {
-		printCommandHelp(os.Stdout, spec)
+		printCommandHelp(ios.Out, spec)
 		return invoice.Options{}, nil, 0, false
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return invoice.Options{}, nil, 1, false
 	}
 	opts := invoice.Options{BaseDir: cwd}
@@ -67,7 +68,7 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 	fs.SetOutput(io.Discard)
 	bindCommandFlags(fs, &opts, spec)
 	if err := fs.Parse(args); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 
@@ -77,7 +78,7 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		remainingArgs = remainingArgs[1:]
 	}
 	if err := validatePositionalArgs(spec, remainingArgs); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 	if spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
@@ -91,31 +92,31 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 	}
 
 	if err := validateRequiredInputs(spec, opts); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 	if err := resolveDefaultSupportPaths(spec, &opts); err != nil {
-		printLoadError(os.Stderr, err)
+		printLoadError(ios.ErrOut, err)
 		return invoice.Options{}, nil, 1, false
 	}
 	if err := validateSupportPaths(spec, opts); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) != "" {
 		resolvedTemplatePath, err := invoice.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
 		if err != nil {
-			printCommandError(os.Stderr, spec, err.Error())
+			printCommandError(ios.ErrOut, spec, err.Error())
 			return invoice.Options{}, nil, 2, false
 		}
 		opts.TemplatePath = resolvedTemplatePath
 	}
 	if err := validateCommandOptions(spec, opts); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
 	if err := invoice.NormalizeOptions(&opts); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return invoice.Options{}, nil, 1, false
 	}
 

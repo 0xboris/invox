@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 var openTextFile = defaultOpenTextFile
@@ -17,22 +18,22 @@ var cleanupOpenedDocument = defaultCleanupOpenedDocument
 var preferNativeMailCompose = runtime.GOOS == "darwin"
 var openNativeEmailDraft = defaultOpenNativeEmailDraft
 
-func defaultOpenTextFile(path string) error {
+func defaultOpenTextFile(ios *iostreams.IOStreams, path string) error {
 	cmd := shellEditorCommand(path)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = ios.In
+	cmd.Stdout = ios.Out
+	cmd.Stderr = ios.ErrOut
 	return cmd.Run()
 }
 
-func defaultOpenDocument(path string) error {
+func defaultOpenDocument(ios *iostreams.IOStreams, path string) error {
 	cmd := defaultOpenDocumentCommand(path)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = ios.Out
+	cmd.Stderr = ios.ErrOut
 	return cmd.Run()
 }
 
-func defaultOpenNativeEmailDraft(message invoice.EmailMessage) error {
+func defaultOpenNativeEmailDraft(ios *iostreams.IOStreams, message invoice.EmailMessage) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("native mail compose is unsupported on %s", runtime.GOOS)
 	}
@@ -69,8 +70,8 @@ func defaultOpenNativeEmailDraft(message invoice.EmailMessage) error {
 	}
 
 	cmd := exec.Command("osascript", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = ios.Out
+	cmd.Stderr = ios.ErrOut
 	return cmd.Run()
 }
 

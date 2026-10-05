@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // writeBuiltEmailFixture writes a built invoice YAML and its PDF into a fresh directory and
@@ -40,7 +42,7 @@ func stubEmailOpeners(t *testing.T) (*[]string, *[]string) {
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		opened = append(opened, path)
 		return nil
 	}
@@ -205,7 +207,7 @@ func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
 	_, cleaned := stubEmailOpeners(t)
 
 	openedPath := ""
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return errors.New("no mail app")
 	}

@@ -3,21 +3,21 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/build"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runVersion(args []string) int {
+func runVersion(ios *iostreams.IOStreams, args []string) int {
 	if len(args) == 1 && wantsHelp(args) {
-		printVersionHelp(os.Stdout)
+		printVersionHelp(ios.Out)
 		return 0
 	}
 	if len(args) > 0 {
-		return rootUsageError(fmt.Sprintf("unexpected arguments for version: %s", strings.Join(args, " ")))
+		return rootUsageError(ios, fmt.Sprintf("unexpected arguments for version: %s", strings.Join(args, " ")))
 	}
-	printVersion(os.Stdout)
+	printVersion(ios.Out)
 	return 0
 }
 
