@@ -60,6 +60,14 @@ func normalizeYAMLNode(node *yaml.Node) any {
 }
 
 func normalizeYAMLScalar(node *yaml.Node) any {
+	// Numbers keep their source text: yaml.v3 would read `01067` or `0042` as
+	// octal and `12.50` as 12.5. Fields that need a number parse the text with
+	// a strict decimal grammar instead.
+	switch node.ShortTag() {
+	case "!!int", "!!float":
+		return node.Value
+	}
+
 	var value any
 	if err := node.Decode(&value); err != nil {
 		return node.Value

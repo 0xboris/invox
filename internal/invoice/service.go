@@ -1670,7 +1670,7 @@ func coerceDecimal(value any, label string, errors *[]string, allowDefault bool)
 	}
 	rat, ok := parseDecimal(asString(value))
 	if !ok {
-		*errors = append(*errors, fmt.Sprintf("%s: expected a number, got `%v`", label, value))
+		*errors = append(*errors, fmt.Sprintf("%s: expected a decimal number such as 12 or 12.50, got `%v`", label, value))
 		return nil
 	}
 	return rat
@@ -1725,9 +1725,17 @@ func coerceNonNegativeInt(value any, label string, errors *[]string) int64 {
 	return parsed
 }
 
+// decimalPattern is the grammar for money, quantities and rates: an optional
+// minus sign, digits, and an optional fraction. Leading zeros are decimal.
+var decimalPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
+
 func parseDecimal(text string) (*big.Rat, bool) {
+	text = strings.TrimSpace(text)
+	if !decimalPattern.MatchString(text) {
+		return nil, false
+	}
 	rat := new(big.Rat)
-	if _, ok := rat.SetString(strings.TrimSpace(text)); ok {
+	if _, ok := rat.SetString(text); ok {
 		return rat, true
 	}
 	return nil, false
