@@ -220,6 +220,7 @@ Optional flags:
   -o, --output PATH       Output file path (defaults vary by command)
   -p, --pdf PATH          Path to the invoice PDF (email)
   --archive               Archive after a successful PDF build (build)
+  --yes                   Replace an archived invoice without asking (archive, build --archive)
   --from-last             Use the latest archived invoice for CUSTOMER_ID (new)
   -e, --edit              Open the created invoice in the default shell editor (new)
   --to EMAIL              Recipient email override (email)
@@ -1131,7 +1132,7 @@ Examples:
 Render and compile an invoice PDF with Tectonic.
 
 Usage:
-  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive]
+  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]
 
 Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
@@ -1145,6 +1146,7 @@ Optional flags:
   -u, --issuer PATH       Path to issuer.yaml
   -o, --output PATH       Output file path (must end with .pdf)
   --archive               Archive the invoice after a successful PDF build
+  --yes                   Replace an archived invoice without asking (required without a terminal)
   -t, --template PATH     Path to invoice_template.tex
 
 Default lookup:
@@ -1154,6 +1156,14 @@ Default lookup:
   schema/docs: run `invox help issuer`
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
 
+Replacing an archived invoice:
+  An invoice with invoice.status archived keeps that status when its PDF is rebuilt.
+  With --archive, a working copy from `invox archive edit` replaces the archived invoice it came from.
+  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.
+  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,
+  which archive list, numbering and the duplicate-number check ignore.
+  --yes only answers the question; every other check still applies.
+
 Examples:
   invox build invoice.yaml
   invox build invoice.yaml --archive
@@ -1162,20 +1172,29 @@ Examples:
 Archive a built or edited invoice YAML file into the configured archive directory.
 
 Usage:
-  invox archive (INVOICE.yaml | -i INVOICE.yaml)
+  invox archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]
 
 Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Optional flags:
   -h, --help              Show this help page
+  --yes                   Replace an archived invoice without asking (required without a terminal)
 
 Default lookup:
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
 
+Replacing an archived invoice:
+  Archiving a working copy from `invox archive edit` replaces the archived invoice it came from.
+  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.
+  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,
+  which archive list, numbering and the duplicate-number check ignore.
+  --yes only answers the question; every other check still applies.
+
 Examples:
   invox archive invoice.yaml
   invox archive invoices/2026-0021.yaml
+  invox archive 2026-03-06.yaml --yes
 -- want-archive-edit.txt --
 Copy an archived invoice into the current directory and mark it as editing.
 
@@ -1195,6 +1214,7 @@ Behavior:
   Copies the archived invoice from archive.dir into the current directory.
   The working copy is written as YAML with invoice.status set to editing.
   Re-running invox archive on that working copy replaces the archived invoice.
+  It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.
 
 Examples:
   invox archive edit 2026-03-06.yaml

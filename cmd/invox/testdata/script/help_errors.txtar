@@ -63,6 +63,7 @@ Optional flags:
   -o, --output PATH       Output file path (defaults vary by command)
   -p, --pdf PATH          Path to the invoice PDF (email)
   --archive               Archive after a successful PDF build (build)
+  --yes                   Replace an archived invoice without asking (archive, build --archive)
   --from-last             Use the latest archived invoice for CUSTOMER_ID (new)
   -e, --edit              Open the created invoice in the default shell editor (new)
   --to EMAIL              Recipient email override (email)
