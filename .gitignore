@@ -1,1 +1,19 @@
+# Build output
 bin/
+/invox
+/dist/
+
+# Go test artifacts
+*.test
+coverage.out
+
+# Generated invoices and TeX by-products in the repo root
+/*.pdf
+/*.tex
+*.eml
+*.aux
+*.log
+*.xdv
+
+# OS files
+.DS_Store
