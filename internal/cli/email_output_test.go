@@ -223,8 +223,8 @@ func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if stderr != "failed to open email draft: no mail app\n" {
-		t.Fatalf("stderr = %q, want %q", stderr, "failed to open email draft: no mail app\n")
+	if want := "error: failed to open email draft: no mail app\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 	if len(*cleaned) != 0 {
 		t.Fatalf("cleanupOpenedDocument called with %q, want no delayed cleanup after a failed open", *cleaned)

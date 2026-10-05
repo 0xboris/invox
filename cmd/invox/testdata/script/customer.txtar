@@ -61,7 +61,7 @@ error: unexpected arguments: extra
 Run 'invox customer list --help' for usage.
 -- want-editor-failed.txt --
 fake editor: forced failure
-exit status 1
+error: failed to open home/.config/invox/customers.yaml: exit status 1
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

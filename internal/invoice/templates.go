@@ -98,7 +98,7 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 
 	switch len(matches) {
 	case 0:
-		return "", fmt.Errorf("template %q not found; run `invox template list`", reference)
+		return "", &TemplateNotFoundError{Name: reference}
 	case 1:
 		return matches[0].Path, nil
 	default:
@@ -122,7 +122,7 @@ func catalogTemplateDir() (string, error) {
 
 	globalTemplatePath := GlobalTemplatePath()
 	if strings.TrimSpace(globalTemplatePath) == "" {
-		return "", fmt.Errorf("template file not found; pass -t/--template with a path, set paths.template in config.yaml, or place template.tex at %s", GlobalTemplatePath())
+		return "", errors.New("template file not found; set paths.template in config.yaml")
 	}
 	return filepath.Dir(globalTemplatePath), nil
 }

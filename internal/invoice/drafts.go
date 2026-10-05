@@ -44,7 +44,7 @@ func LoadCustomer(customersPath, customerID string) (map[string]any, error) {
 
 	rawCustomer, ok := customers[customerID]
 	if !ok {
-		return nil, fmt.Errorf("%s: unknown customer_id `%s`", customersPath, customerID)
+		return nil, &UnknownCustomerError{Path: customersPath, CustomerID: customerID}
 	}
 
 	customer, ok := rawCustomer.(map[string]any)
@@ -74,7 +74,7 @@ func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
 
 func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
 	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
-		return "", "", fmt.Errorf("%s already exists; choose a different -o/--output path", outputPath)
+		return "", "", &OutputExistsError{Path: outputPath}
 	}
 
 	customer, err := LoadCustomer(customersPath, customerID)
@@ -112,7 +112,7 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 		}
 	}
 	if fileExists(outputPath) {
-		return "", "", fmt.Errorf("%s already exists; choose a different -o/--output path", outputPath)
+		return "", "", &OutputExistsError{Path: outputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
 	if err != nil {

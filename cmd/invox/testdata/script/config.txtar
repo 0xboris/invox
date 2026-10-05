@@ -104,4 +104,4 @@ error: unexpected arguments: extra
 Run 'invox config --help' for usage.
 -- want-editor-failed.txt --
 fake editor: forced failure
-exit status 1
+error: failed to open home/.config/invox/config.yaml: exit status 1

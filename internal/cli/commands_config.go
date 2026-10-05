@@ -28,7 +28,7 @@ func runConfig(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	if err := openTextFile(ios, configPath); err != nil {
-		return err
+		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 
 	baseDir, err := os.Getwd()

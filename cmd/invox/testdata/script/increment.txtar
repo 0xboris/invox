@@ -33,7 +33,8 @@ Incremented invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-002
 error: missing required flags: -i, --input
 Run 'invox increment --help' for usage.
 -- want-foreign.txt --
-$WORK/home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`
+error: home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`
+Run 'invox customer list' to see the customer IDs.
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

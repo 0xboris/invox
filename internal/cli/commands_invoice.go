@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -37,6 +38,10 @@ func runNew(ios *iostreams.IOStreams, args []string) error {
 
 	customerID := strings.TrimSpace(extraArgs[0])
 	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
+	var exists *invoice.OutputExistsError
+	if errors.As(err, &exists) {
+		return fmt.Errorf("%s; choose a different -o/--output path", exists)
+	}
 	if err != nil {
 		return err
 	}
@@ -165,7 +170,7 @@ func runEmail(ios *iostreams.IOStreams, args []string) error {
 
 	paths, err := invoice.ResolveEmailDraftPaths(opts.InvoicePath, opts.PDFPath, opts.OutputPath)
 	if err != nil {
-		return &cmdutil.FlagError{Command: spec.Name, Err: err}
+		return err
 	}
 
 	emailMessage, err := invoice.PrepareInvoiceEmail(
@@ -267,6 +272,10 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	if err := invoice.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx, invoice.ProcessIO{Stdin: ios.In, Stdout: ios.Out, Stderr: ios.ErrOut}); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return &cmdutil.ExecError{Program: "tectonic", Code: exitErr.ExitCode(), Err: err}
+		}
 		return err
 	}
 	if err := invoice.MarkInvoiceBuilt(opts.InvoicePath); err != nil {
@@ -417,7 +426,7 @@ func warnArchivedDuplicate(ios *iostreams.IOStreams, invoicePath, baseDir string
 	}
 	fmt.Fprintf(
 		ios.ErrOut,
-		"warning: invoice number %s is already used by archived invoice %s; run `invox increment -i %s` before archiving\n",
+		"warning: invoice number %s is already used by archived invoice %s; run 'invox increment -i %s' before archiving\n",
 		duplicate.InvoiceNumber,
 		invoice.DisplayPath(duplicate.ArchivedPath, baseDir),
 		invoice.DisplayPath(invoicePath, baseDir),

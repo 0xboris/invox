@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
+
+// hostOS selects the platform-specific install hints.
+var hostOS = runtime.GOOS
 
 // exitCode reports err on ios.ErrOut and returns the code invox exits with.
 // It is the only place that maps errors to exit codes.
@@ -30,36 +36,51 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 		}
 		return 1
 	case errors.As(err, &flagErr):
-		printUsageError(ios.ErrOut, flagErr)
+		command := commandName
+		if flagErr.Command != "" {
+			command += " " + flagErr.Command
+		}
+		printError(ios.ErrOut, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, command))
 		return 2
 	}
-	printRuntimeError(ios.ErrOut, err)
+	message := err.Error()
+	if hint := errorHint(err); hint != "" {
+		message += "\n" + hint
+	}
+	printError(ios.ErrOut, message)
 	return 1
 }
 
-// printUsageError prints the usage error and where to read the usage, and no
-// help text.
-func printUsageError(w io.Writer, err *cmdutil.FlagError) {
-	command := commandName
-	if err.Command != "" {
-		command += " " + err.Command
+// printError prints message with the error prefix, and with paths under the
+// working directory made relative to it.
+func printError(w io.Writer, message string) {
+	if cwd, err := os.Getwd(); err == nil {
+		message = strings.ReplaceAll(message, cwd+string(filepath.Separator), "")
 	}
-	fmt.Fprintf(w, "error: %s\nRun '%s --help' for usage.\n", err.Err, command)
+	fmt.Fprintf(w, "error: %s\n", message)
 }
 
-func printRuntimeError(w io.Writer, err error) {
-	fmt.Fprintln(w, err)
+// errorHint returns the next step that fixes err, or "" when there is none.
+func errorHint(err error) string {
+	var unknownCustomer *invoice.UnknownCustomerError
 	var configErr *invoice.ConfigError
-	if errors.As(err, &configErr) {
-		fmt.Fprintf(w, "Run `%s config` to open and fix the config file.\n", commandName)
-	}
 	var duplicate *invoice.DuplicateInvoiceNumberError
-	if errors.As(err, &duplicate) {
-		baseDir, _ := os.Getwd()
-		fmt.Fprintf(
-			w,
-			"Run `invox increment -i %s` to give it the next free number, then archive it again.\n",
-			invoice.DisplayPath(duplicate.InvoicePath, baseDir),
-		)
+	switch {
+	case errors.As(err, &unknownCustomer):
+		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
+	case errors.As(err, &configErr):
+		return fmt.Sprintf("Run '%s config' to open and fix the config file.", commandName)
+	case errors.As(err, &duplicate):
+		return fmt.Sprintf("Run '%s increment -i %s' to give it the next free number, then archive it again.", commandName, duplicate.InvoicePath)
+	case errors.Is(err, invoice.ErrTectonicNotFound):
+		return tectonicInstallHint(hostOS)
 	}
+	return ""
+}
+
+func tectonicInstallHint(goos string) string {
+	if goos == "darwin" {
+		return "Install it with 'brew install tectonic', then rerun this command."
+	}
+	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."
 }

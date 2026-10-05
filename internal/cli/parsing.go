@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -101,6 +102,10 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) != "" {
 		resolvedTemplatePath, err := invoice.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
+		var notFound *invoice.TemplateNotFoundError
+		if errors.As(err, &notFound) {
+			return invoice.Options{}, nil, cmdutil.FlagErrorf(spec.Name, "%s; run '%s template list' to see the templates", notFound, commandName)
+		}
 		if err != nil {
 			return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 		}

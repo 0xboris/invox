@@ -47,5 +47,5 @@ created template.tex
 -- want-customers.tsv --
 CUST-001	Appsters GmbH	active
 -- want-validate.txt --
-$WORK/home/.config/invox/config.yaml: yaml: line 1: did not find expected ',' or ']'
-Run `invox config` to open and fix the config file.
+error: home/.config/invox/config.yaml: yaml: line 1: did not find expected ',' or ']'
+Run 'invox config' to open and fix the config file.

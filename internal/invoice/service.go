@@ -703,24 +703,21 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 
 	var validationErrors []string
+	var unknownCustomer error
 
 	customerID, _ := invoiceData["customer_id"].(string)
 	customerID = strings.TrimSpace(customerID)
+	// customer stays nil when the invoice names no usable customer, so its
+	// fields are not reported missing one by one.
 	var customer map[string]any
 	if customerID == "" {
 		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
-		customer = map[string]any{}
 	} else {
 		rawCustomer, ok := customers[customerID]
 		if !ok {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: unknown customer_id `%s`", invoicePath, customerID))
-			customer = map[string]any{}
-		} else {
-			customer, ok = rawCustomer.(map[string]any)
-			if !ok {
-				validationErrors = append(validationErrors, fmt.Sprintf("%s: customer `%s` must be a mapping", customersPath, customerID))
-				customer = map[string]any{}
-			}
+			unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
+		} else if customer, ok = rawCustomer.(map[string]any); !ok {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: customer `%s` must be a mapping", customersPath, customerID))
 		}
 	}
 
@@ -747,19 +744,21 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		rawLineItems = nil
 	}
 
-	if customerName(customer) == "" {
-		validationErrors = append(validationErrors, "customer.name: missing value")
+	if customer != nil {
+		if customerName(customer) == "" {
+			validationErrors = append(validationErrors, "customer.name: missing value")
+		}
+		if customerEmail(customer) == "" {
+			validationErrors = append(validationErrors, "customer.email: missing value")
+		}
+		requirePaths(customer, "customer", []string{
+			"address.street",
+			"address.postal_code",
+			"address.city",
+			"address.country",
+			"tax.vat_tax_id",
+		}, &validationErrors)
 	}
-	if customerEmail(customer) == "" {
-		validationErrors = append(validationErrors, "customer.email: missing value")
-	}
-	requirePaths(customer, "customer", []string{
-		"address.street",
-		"address.postal_code",
-		"address.city",
-		"address.country",
-		"tax.vat_tax_id",
-	}, &validationErrors)
 	requirePaths(issuerCompany, "issuer.company", []string{
 		"legal_company_name",
 		"company_registration_number",
@@ -840,8 +839,12 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		})
 	}
 
+	var validationErr error
 	if len(validationErrors) > 0 {
-		return nil, errors.New(strings.Join(validationErrors, "\n"))
+		validationErr = errors.New(strings.Join(validationErrors, "\n"))
+	}
+	if err := errors.Join(unknownCustomer, validationErr); err != nil {
+		return nil, err
 	}
 
 	var subtotalCents int64
@@ -964,7 +967,7 @@ type ProcessIO struct {
 func BuildPDF(outputPath string, processIO ProcessIO) error {
 	tectonicPath, err := exec.LookPath("tectonic")
 	if err != nil {
-		return errors.New("tectonic not found in PATH\nInstall it with `brew install tectonic`, then rerun this command.")
+		return ErrTectonicNotFound
 	}
 
 	cmd := exec.Command(tectonicPath, filepath.Base(outputPath))

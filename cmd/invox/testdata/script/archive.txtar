@@ -170,14 +170,14 @@ Run 'invox archive --help' for usage.
 error: missing required arguments: FILENAME
 Run 'invox archive edit --help' for usage.
 -- want-duplicate.txt --
-$WORK/duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice $WORK/home/.config/invox/archive/second.yaml
-Run `invox increment -i duplicate.yaml` to give it the next free number, then archive it again.
+error: duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice home/.config/invox/archive/second.yaml
+Run 'invox increment -i duplicate.yaml' to give it the next free number, then archive it again.
 -- want-not-built.txt --
-$WORK/draft.yaml: invoice.status must be `built` before archiving, got `draft`
+error: draft.yaml: invoice.status must be `built` before archiving, got `draft`
 -- want-edit-exists.txt --
-$WORK/second.yaml already exists; choose a different working directory
+error: second.yaml already exists; choose a different working directory
 -- want-not-a-dir.txt --
-$WORK/home/.config/invox/not-a-dir: archive.dir must point to a directory
+error: home/.config/invox/not-a-dir: archive.dir must point to a directory
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

@@ -35,7 +35,7 @@ func runCustomerConfig(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	if err := openTextFile(ios, opts.CustomersPath); err != nil {
-		return err
+		return fmt.Errorf("failed to open %s: %w", opts.CustomersPath, err)
 	}
 
 	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
