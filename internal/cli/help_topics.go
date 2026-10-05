@@ -90,7 +90,8 @@ func printExitCodesHelp(w io.Writer) {
 	fmt.Fprintf(w, "       a failed build or a failed external program.\n")
 	fmt.Fprintf(w, "  2    Usage error: unknown command, topic or flag, or a missing or extra\n")
 	fmt.Fprintf(w, "       argument. Also used when a confirmation was declined, or was needed\n")
-	fmt.Fprintf(w, "       without a terminal to ask on and without --yes. Nothing was changed.\n")
+	fmt.Fprintf(w, "       without a terminal to ask on and without --yes. The step that needed\n")
+	fmt.Fprintf(w, "       confirmation was not done.\n")
 	fmt.Fprintf(w, "  130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not\n")
 	fmt.Fprintf(w, "       return it itself yet.\n")
 }

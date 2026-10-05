@@ -100,6 +100,7 @@ Exit codes:
        a failed build or a failed external program.
   2    Usage error: unknown command, topic or flag, or a missing or extra
        argument. Also used when a confirmation was declined, or was needed
-       without a terminal to ask on and without --yes. Nothing was changed.
+       without a terminal to ask on and without --yes. The step that needed
+       confirmation was not done.
   130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not
        return it itself yet.
