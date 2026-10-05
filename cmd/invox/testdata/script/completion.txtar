@@ -1,0 +1,135 @@
+# completion prints the zsh script on stdout. It has no runtime failure mode.
+exec invox completion zsh
+cmp stdout want-zsh.txt
+! stderr .
+
+# Without a shell it prints its help.
+exec invox completion
+stdout '^Generate shell completion scripts\.$'
+! stderr .
+
+exits 2 invox completion bash
+! stdout .
+cmp stderr want-bash.txt
+
+exits 2 invox completion zsh extra
+! stdout .
+stderr '^error: unexpected arguments: zsh extra$'
+
+-- want-zsh.txt --
+#compdef invox
+
+_invox_template_names() {
+  local -a templates
+  templates=(${(f)"$(${invox_command:-$words[1]} template list --names 2>/dev/null)"})
+  (( ${#templates[@]} == 0 )) && return 1
+  _describe 'template' templates
+}
+
+_invox_template_values() {
+  _alternative \
+    'templates:template name:_invox_template_names' \
+    'files:template file:_files -g "*.tex"'
+}
+
+_invox_invoice_files() {
+  _files -g "*.y(|a)ml(-.)"
+}
+
+_invox_shift_words() {
+  local skip=$1
+  local -a subwords
+  subwords=("${(@)words[$((skip + 1)),-1]}")
+  words=("${(@)subwords}")
+  (( CURRENT -= skip ))
+}
+
+_invox() {
+  local context state line
+  local invox_command=$words[1]
+  typeset -A opt_args
+
+  if (( CURRENT == 2 )); then
+    _values 'subcommand' \
+      'customer[Customer-related commands]' \
+      'config[Open config.yaml in the default shell editor]' \
+      'init[Create starter support files in the global config directory]' \
+      'template[List available templates]' \
+      'completion[Generate shell completion scripts]' \
+      'new[Create a new invoice YAML file]' \
+      'increment[Increment the invoice number in an invoice YAML file]' \
+      'validate[Validate invoice YAML against customers and issuer data]' \
+      'render[Render a LaTeX invoice file]' \
+      'email[Create and open an email draft]' \
+      'build[Render and compile an invoice PDF]' \
+      'archive[Archive invoices and manage archived invoices]'
+    return
+  fi
+
+  case $words[2] in
+    template)
+      if (( CURRENT == 3 )); then
+        _values 'template command' 'list[List available templates]'
+        return
+      fi
+      case $words[3] in
+        list)
+          _invox_shift_words 2
+          _arguments '--names[print only template names]'
+          return
+          ;;
+      esac
+      ;;
+    completion)
+      if (( CURRENT == 3 )); then
+        _values 'shell' 'zsh[Zsh completion script]'
+        return
+      fi
+      ;;
+    render)
+      if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then
+        _invox_invoice_files
+        return
+      fi
+      _invox_shift_words 1
+      _arguments -s \
+        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
+        '(-o --output)'{-o+,--output=}'[output TeX path]:output:_files' \
+        '(-c --customers)'{-c+,--customers=}'[customers.yaml]:customers:_files -g "*.yaml"' \
+        '(-u --issuer)'{-u+,--issuer=}'[issuer.yaml]:issuer:_files -g "*.yaml"' \
+        '(-t --template)'{-t+,--template=}'[template file or known template name]:template:_invox_template_values' \
+        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"'
+      return
+      ;;
+    build)
+      if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then
+        _invox_invoice_files
+        return
+      fi
+      _invox_shift_words 1
+      _arguments -s \
+        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
+        '(-o --output)'{-o+,--output=}'[output PDF path]:output:_files' \
+        '(-c --customers)'{-c+,--customers=}'[customers.yaml]:customers:_files -g "*.yaml"' \
+        '(-u --issuer)'{-u+,--issuer=}'[issuer.yaml]:issuer:_files -g "*.yaml"' \
+        '(-t --template)'{-t+,--template=}'[template file or known template name]:template:_invox_template_values' \
+        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"' \
+        '--archive[archive after a successful PDF build]'
+      return
+      ;;
+  esac
+
+  _files
+}
+
+compdef _invox invox
+-- want-bash.txt --
+error: unsupported shell "bash"
+
+Usage:
+  invox completion zsh
+
+Examples:
+  invox completion zsh
+
+Use 'invox completion --help' for more information.

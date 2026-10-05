@@ -1,0 +1,182 @@
+# render fills the LaTeX template from the invoice and writes the .tex file.
+# TODO(#25): values containing @@...@@ are not covered.
+exec invox render -i invoice.yaml
+cmp stdout want-render.txt
+! stderr .
+cmp invoice.tex want-invoice.tex
+
+exec invox render -i invoice.yaml -o out.tex -t ./other.tex
+cmp stdout want-render-o.txt
+! stderr .
+cmp out.tex want-other.tex
+
+# Usage errors.
+exits 2 invox render
+! stdout .
+cmp stderr want-missing-input.txt
+exits 2 invox render -i invoice.yaml -o out.pdf
+! stdout .
+stderr '^error: -o, --output must end with \.tex$'
+# A bare -t value is a catalog name, not a path.
+exits 2 invox render -i invoice.yaml -t other.tex
+! stdout .
+stderr '^error: template "other.tex" not found; run `invox template list`$'
+exits 2 invox render -i invoice.yaml -t nosuch
+! stdout .
+stderr '^error: template "nosuch" not found; run `invox template list`$'
+
+# Runtime error: the invoice does not validate; nothing is written.
+exits 1 invox render -i foreign.yaml -o foreign.tex
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-foreign.txt
+! exists foreign.tex
+
+-- other.tex --
+@@INVOICE_NUMBER@@/@@CUSTOMER_NAME@@/@@TOTAL@@
+-- foreign.yaml --
+customer_id: NOPE-1
+invoice:
+  number: NOPE-1-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 1
+-- want-render.txt --
+Rendered invoice.tex for CUST-001 (CUST-001-001)
+-- want-invoice.tex --
+Invoice CUST-001-001 for Appsters GmbH
+Issued 06.03.2026, due 05.04.2026
+    Development & Sprint work & 100,00 \euro & 2 & 200,00 \euro\\
+    \specialrule{0.2pt}{0pt}{0pt}
+    Support & QA & 10,00 \euro & 1 & 10,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+Subtotal 210,00 \euro
+VAT (20\%): & 42,00 \euro\\
+Total 252,00 \euro
+Outstanding 252,00 \euro
+Pay within 30 days
+IBAN AT611904300234573201
+-- want-render-o.txt --
+Rendered out.tex for CUST-001 (CUST-001-001)
+-- want-other.tex --
+CUST-001-001/Appsters GmbH/252,00 \euro
+-- want-missing-input.txt --
+error: missing required flags: -i, --input
+
+Usage:
+  invox render -i INVOICE.yaml [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]
+
+Examples:
+  invox render -i invoice.yaml
+  invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
+
+Use 'invox render --help' for more information.
+-- want-foreign.txt --
+$WORK/foreign.yaml: unknown customer_id `NOPE-1`
+customer.name: missing value
+customer.email: missing value
+customer.address.street: missing value
+customer.address.postal_code: missing value
+customer.address.city: missing value
+customer.address.country: missing value
+customer.tax.vat_tax_id: missing value
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

@@ -1,0 +1,61 @@
+# template list prints NAME<TAB>PATH for each .tex file in the template
+# catalog (the directory of the configured or global template).
+exec invox template list
+scrubpaths stdout got.tsv
+cmp got.tsv want-list.tsv
+! stderr .
+
+exec invox template list --names
+cmp stdout want-names.txt
+! stderr .
+
+# Without a subcommand, template prints its help.
+exec invox template
+stdout '^Usage:$'
+! stderr .
+
+# Usage errors.
+exits 2 invox template bogus
+! stdout .
+stderr '^error: unknown template subcommand "bogus"$'
+exits 2 invox template list extra
+! stdout .
+cmp stderr want-extra.txt
+exits 2 invox template list --bogus
+! stdout .
+stderr '^error: flag provided but not defined: -bogus$'
+
+# Runtime error: the catalog directory cannot be read.
+cp custom-template.yaml home/.config/invox/config.yaml
+exits 1 invox template list
+! stdout .
+stderr 'not-a-dir'
+
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@
+-- home/.config/invox/plain.tex --
+Plain @@INVOICE_NUMBER@@
+-- home/.config/invox/notes.txt --
+not a template
+-- home/.config/invox/not-a-dir --
+a file where paths.template expects a directory
+-- custom-template.yaml --
+paths:
+  template: not-a-dir/template.tex
+-- want-list.tsv --
+plain.tex	$WORK/home/.config/invox/plain.tex
+template.tex	$WORK/home/.config/invox/template.tex
+-- want-names.txt --
+plain.tex
+template.tex
+-- want-extra.txt --
+error: unexpected arguments: extra
+
+Usage:
+  invox template list [--names]
+
+Examples:
+  invox template list
+  invox template list --names
+
+Use 'invox template list --help' for more information.

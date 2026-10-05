@@ -1,0 +1,58 @@
+# init writes the starter files into the config directory and reports each.
+# TODO(#22): the starter template's content is changing; only its presence is
+# pinned here.
+exec invox init
+scrubpaths stdout got.txt
+cmp got.txt want-init.txt
+! stderr .
+exists home/.config/invox/config.yaml
+exists home/.config/invox/customers.yaml
+exists home/.config/invox/issuer.yaml
+exists home/.config/invox/invoice_defaults.yaml
+exists home/.config/invox/template.tex
+
+# Running it again leaves the existing files alone.
+exec invox init
+scrubpaths stdout got.txt
+cmp got.txt want-init-again.txt
+! stderr .
+
+# Usage error: init takes no arguments.
+exits 2 invox init extra
+! stdout .
+cmp stderr want-usage.txt
+
+# Runtime error: the config directory cannot be created.
+# TODO(#26): this covers an unwritable config dir, not a broken config.yaml.
+rm home/.config
+cp invoice.txt home/.config
+exits 1 invox init
+! stdout .
+stderr 'not a directory|cannot find the path|The system cannot find'
+
+-- invoice.txt --
+not a directory
+-- want-init.txt --
+Initialized $WORK/home/.config/invox
+created config.yaml
+created customers.yaml
+created issuer.yaml
+created invoice_defaults.yaml
+created template.tex
+-- want-init-again.txt --
+Initialized $WORK/home/.config/invox
+exists config.yaml
+exists customers.yaml
+exists issuer.yaml
+exists invoice_defaults.yaml
+exists template.tex
+-- want-usage.txt --
+error: unexpected arguments: extra
+
+Usage:
+  invox init
+
+Examples:
+  invox init
+
+Use 'invox init --help' for more information.

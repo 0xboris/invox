@@ -1,0 +1,149 @@
+# new writes <number>.yaml from invoice_defaults.yaml with a generated number.
+# The issue and due dates come from the clock, so they are matched loosely.
+# TODO(#20): drafts may soon reserve numbers, so each `new` below uses a
+# different customer and nothing pins what a second draft for the same
+# customer is numbered.
+exec invox new CUST-001
+cmp stdout want-new.txt
+! stderr .
+grep '^  number: CUST-001-001$' CUST-001-001.yaml
+grep '^  status: draft$' CUST-001-001.yaml
+grep '^  issue_date: "?\d{4}-\d{2}-\d{2}"?$' CUST-001-001.yaml
+grep '^customer_id: CUST-001$' CUST-001-001.yaml
+
+# -o picks the output path.
+exec invox new CUST-002 -o drafts.yaml
+cmp stdout want-new-o.txt
+! stderr .
+exists drafts.yaml
+
+# -e opens the new invoice in $VISUAL before reporting it.
+exec invox new CUST-003 -e
+cmp stdout want-new-e.txt
+! stderr .
+
+# Usage errors.
+exits 2 invox new
+! stdout .
+cmp stderr want-missing-id.txt
+exits 2 invox new --bogus
+! stdout .
+stderr '^error: flag provided but not defined: -bogus$'
+exits 2 invox new CUST-001 -o out.txt
+! stdout .
+stderr '^error: -o, --output must end with \.yaml$'
+exits 2 invox new CUST-001 extra
+! stdout .
+stderr '^error: unexpected arguments: extra$'
+
+# Runtime errors: an unknown customer, and an editor that fails after the
+# file was written.
+exits 1 invox new NOPE-1 -o nope.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-unknown.txt
+! exists nope.yaml
+env FAKE_EDITOR_FAIL=1
+exits 1 invox new CUST-001 -o edited.yaml -e
+! stdout .
+cmp stderr want-editor-failed.txt
+exists edited.yaml
+
+-- want-new.txt --
+Created CUST-001-001.yaml for CUST-001 (CUST-001-001)
+-- want-new-o.txt --
+Created drafts.yaml for CUST-002 (CUST-002-001)
+-- want-new-e.txt --
+fake editor: CUST-003-001.yaml
+Created CUST-003-001.yaml for CUST-003 (CUST-003-001)
+-- want-missing-id.txt --
+error: missing required arguments: CUSTOMER_ID
+
+Usage:
+  invox new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-e] [--from-last]
+
+Examples:
+  invox new CUST-001
+  invox new CUST-001 -e
+
+Use 'invox new --help' for more information.
+-- want-unknown.txt --
+$WORK/home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`
+-- want-editor-failed.txt --
+fake editor: forced failure
+created edited.yaml but failed to open it: exit status 1
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
