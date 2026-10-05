@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -183,17 +182,7 @@ func highestArchivedCounter(pattern, customerID, issueDate string, customer map[
 	}
 
 	var highest int64
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if !isArchivedInvoicePath(path) {
-			return nil
-		}
-
+	err = walkArchiveDir(archiveDir, func(path string) error {
 		invoiceNumber, ok, err := archivedInvoiceNumber(path)
 		if err != nil || !ok {
 			return err
@@ -233,14 +222,18 @@ func highestDraftCounter(dirs []string, customerID, issueDate string, customer m
 		seen[dir] = true
 
 		entries, err := os.ReadDir(dir)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
 		if err != nil {
-			return 0, err
+			// The draft scan is best effort: the archive check still
+			// guarantees uniqueness, so an unreadable directory must not
+			// stop `new`.
+			continue
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil || info.Size() > maxDraftScanSize {
 				continue
 			}
 			switch strings.ToLower(filepath.Ext(entry.Name())) {
@@ -264,6 +257,10 @@ func highestDraftCounter(dirs []string, customerID, issueDate string, customer m
 	}
 	return highest, nil
 }
+
+// maxDraftScanSize skips large YAML files in the draft scan; invoices are
+// far smaller.
+const maxDraftScanSize = 1 << 20
 
 func draftInvoiceNumber(path string) (string, bool) {
 	value, err := loadYAML(path)

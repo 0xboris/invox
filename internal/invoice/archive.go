@@ -91,14 +91,7 @@ func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
 	}
 
 	records := make([]archivedInvoiceRecord, 0)
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !isArchivedInvoicePath(path) {
-			return nil
-		}
-
+	err = walkArchiveDir(archiveDir, func(path string) error {
 		record, ok, err := archivedInvoiceRecordFromPath(path, archiveDir)
 		if err != nil || !ok {
 			return err
@@ -114,6 +107,29 @@ func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
 		return records[i].Filename < records[j].Filename
 	})
 	return records, nil
+}
+
+// walkArchiveDir calls visit for every archived invoice file below
+// archiveDir. A symlinked archiveDir is followed, and visit receives paths
+// below archiveDir as configured, not below the symlink target.
+func walkArchiveDir(archiveDir string, visit func(path string) error) error {
+	walkRoot, err := filepath.EvalSymlinks(archiveDir)
+	if err != nil {
+		walkRoot = archiveDir
+	}
+	return filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !isArchivedInvoicePath(path) {
+			return nil
+		}
+		relativePath, err := filepath.Rel(walkRoot, path)
+		if err != nil {
+			return err
+		}
+		return visit(filepath.Join(archiveDir, relativePath))
+	})
 }
 
 func archivedInvoiceValue(path string) (any, bool, error) {
@@ -321,8 +337,14 @@ func checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, ro
 	if sourcePath, err := filepath.Abs(invoicePath); err == nil {
 		excluded[sourcePath] = true
 	}
+	// Only a working copy from `archive edit` (archive_path set) may reuse the
+	// number of the archived file it replaces, matching ArchiveInvoice.
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
-	for _, relativePath := range []string{archiveTargetPath, archiveReplacePath} {
+	var editedPaths []string
+	if strings.TrimSpace(archiveTargetPath) != "" {
+		editedPaths = []string{archiveTargetPath, archiveReplacePath}
+	}
+	for _, relativePath := range editedPaths {
 		if strings.TrimSpace(relativePath) == "" {
 			continue
 		}

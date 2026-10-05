@@ -197,6 +197,117 @@ func TestValidateDoesNotWarnForUniqueNumber(t *testing.T) {
 	}
 }
 
+func TestForgedReplacePathDoesNotExemptDuplicateNumber(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
+
+	// archive_replace_path without archive_path is not an `archive edit`
+	// working copy, so it must not hide the duplicate.
+	source := readFileForTest(t, invoicePath) + "_invox:\n  archive_replace_path: first.yaml\n"
+	if err := os.WriteFile(invoicePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+
+	exitCode, _, stderr := captureRun(t, []string{"validate", "-i", invoicePath, "-c", customersPath, "-u", issuerPath})
+	if exitCode != 0 {
+		t.Fatalf("validate: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "warning: invoice number CUST-001-001 is already used by archived invoice "+archivedPath) {
+		t.Fatalf("validate: stderr = %q, want duplicate warning", stderr)
+	}
+
+	source = strings.Replace(source, "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+	if err := os.WriteFile(invoicePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
+	}
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", invoicePath})
+	if exitCode != 1 {
+		t.Fatalf("archive: exitCode = %d, want 1, stdout=%q stderr=%q", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "is already used by archived invoice "+archivedPath) {
+		t.Fatalf("archive: stderr = %q, want duplicate error", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(archiveDir, "invoice.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("duplicate invoice should not have been archived, Stat err = %v", err)
+	}
+	if _, err := os.Stat(archivedPath); err != nil {
+		t.Fatalf("archived original should be kept: %v", err)
+	}
+}
+
+func TestNewIgnoresUnrelatedAndOversizedYAMLInWorkingDirectory(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	for name, source := range map[string]string{
+		"broken.yaml":    "invoice: [unclosed\n",
+		"customers.yaml": "CUST-001:\n  name: Appsters GmbH\n",
+		"list.yml":       "- one\n- two\n",
+		"other.yaml":     "customer_id: CUST-002\ninvoice:\n  number: CUST-002-007\n  status: draft\n",
+	} {
+		if err := os.WriteFile(filepath.Join(workDir, name), []byte(source), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) returned error: %v", name, err)
+		}
+	}
+	oversized := readFileForTest(t, writeNumberedInvoice(t, workDir, "huge.yaml", "CUST-001-009", "draft")) +
+		"# " + strings.Repeat("x", 1<<20) + "\n"
+	if err := os.WriteFile(filepath.Join(workDir, "huge.yaml"), []byte(oversized), 0o644); err != nil {
+		t.Fatalf("WriteFile(huge.yaml) returned error: %v", err)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if want := "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)\n"; stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+func TestArchiveEditMarkdownThenRearchiveReplacesOriginal(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	markdownPath := filepath.Join(archiveDir, "first.md")
+	markdown := "---\n" + readFileForTest(t, writeNumberedInvoice(t, t.TempDir(), "first.yaml", "CUST-001-001", "archived")) + "---\n\n# Archived invoice\n"
+	if err := os.WriteFile(markdownPath, []byte(markdown), 0o644); err != nil {
+		t.Fatalf("WriteFile(first.md) returned error: %v", err)
+	}
+
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, _, stderr := captureRun(t, []string{"archive", "edit", "first.md"})
+	if exitCode != 0 {
+		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	if exitCode != 0 {
+		t.Fatalf("archive: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("archive: stderr = %q, want empty", stderr)
+	}
+	yamlPath := filepath.Join(archiveDir, "first.yaml")
+	if want := "Archived first.yaml -> " + yamlPath + "\n"; stdout != want {
+		t.Fatalf("archive: stdout = %q, want %q", stdout, want)
+	}
+	if _, err := os.Stat(markdownPath); !os.IsNotExist(err) {
+		t.Fatalf("markdown original should have been replaced, Stat err = %v", err)
+	}
+	if !strings.Contains(readFileForTest(t, yamlPath), "number: CUST-001-001") {
+		t.Fatalf("re-archived invoice lost its number:\n%s", readFileForTest(t, yamlPath))
+	}
+}
+
 func writeNumberedInvoice(t *testing.T, dir, name, invoiceNumber, status string) string {
 	t.Helper()
 

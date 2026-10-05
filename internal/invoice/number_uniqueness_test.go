@@ -82,6 +82,31 @@ func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 	}
 }
 
+func TestArchiveInvoiceChecksSymlinkedArchiveDir(t *testing.T) {
+	realArchiveDir := t.TempDir()
+	writeStatusInvoice(t, filepath.Join(realArchiveDir, "first.yaml"), "CUST-001-001", "archived")
+	archiveDir := filepath.Join(t.TempDir(), "archive-link")
+	if err := os.Symlink(realArchiveDir, archiveDir); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
+	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
+
+	_, err := ArchiveInvoice(invoicePath)
+	var duplicate *DuplicateInvoiceNumberError
+	if !errors.As(err, &duplicate) {
+		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
+	}
+	if want := filepath.Join(archiveDir, "first.yaml"); duplicate.ArchivedPath != want {
+		t.Fatalf("ArchivedPath = %q, want %q", duplicate.ArchivedPath, want)
+	}
+	if _, err := os.Stat(filepath.Join(realArchiveDir, "second.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("duplicate invoice should not have been archived, Stat err = %v", err)
+	}
+}
+
 func writeStatusInvoice(t *testing.T, path, invoiceNumber, status string) {
 	t.Helper()
 
