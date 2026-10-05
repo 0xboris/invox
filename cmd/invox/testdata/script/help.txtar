@@ -577,7 +577,7 @@ Available .tex placeholders:
     @@LINE_ITEMS_END@@               End custom line-item block
     @@LINE_ITEM_NAME@@               Line-item name; only inside @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@
     @@LINE_ITEM_DESCRIPTION@@        Line-item description; only inside the custom line-item block
-    @@LINE_ITEM_UNIT_PRICE@@         Formatted unit price; only inside the custom line-item block
+    @@LINE_ITEM_UNIT_PRICE@@         Formatted unit price with 2 to 4 decimals, as many as it needs (rounded half up beyond 4); only inside the custom line-item block
     @@LINE_ITEM_QUANTITY@@           Formatted quantity; only inside the custom line-item block
     @@LINE_ITEM_VAT_RATE@@           Formatted effective VAT rate; only inside the custom line-item block
     @@LINE_ITEM_LINE_TOTAL@@         Formatted line total; only inside the custom line-item block

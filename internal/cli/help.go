@@ -75,7 +75,7 @@ var templatePlaceholderGroups = []struct {
 			{Token: "@@LINE_ITEMS_END@@", Description: "End custom line-item block"},
 			{Token: "@@LINE_ITEM_NAME@@", Description: "Line-item name; only inside @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@"},
 			{Token: "@@LINE_ITEM_DESCRIPTION@@", Description: "Line-item description; only inside the custom line-item block"},
-			{Token: "@@LINE_ITEM_UNIT_PRICE@@", Description: "Formatted unit price; only inside the custom line-item block"},
+			{Token: "@@LINE_ITEM_UNIT_PRICE@@", Description: "Formatted unit price with 2 to 4 decimals, as many as it needs (rounded half up beyond 4); only inside the custom line-item block"},
 			{Token: "@@LINE_ITEM_QUANTITY@@", Description: "Formatted quantity; only inside the custom line-item block"},
 			{Token: "@@LINE_ITEM_VAT_RATE@@", Description: "Formatted effective VAT rate; only inside the custom line-item block"},
 			{Token: "@@LINE_ITEM_LINE_TOTAL@@", Description: "Formatted line total; only inside the custom line-item block"},

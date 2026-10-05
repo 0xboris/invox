@@ -987,7 +987,52 @@ func BuildInvoicePDF(templatePath, outputPath string, ctx *Context) error {
 }
 
 func FormatCurrency(cents int64, currency string) string {
-	formatted := formatMoneyCents(cents)
+	return withCurrency(formatMoneyCents(cents), currency)
+}
+
+// Unit prices are shown with as many decimals as they need, at least
+// minUnitPriceDecimals and at most maxUnitPriceDecimals (rounded half up beyond
+// that), so that unit price × quantity matches the line total.
+const (
+	minUnitPriceDecimals = 2
+	maxUnitPriceDecimals = 4
+)
+
+func formatUnitPrice(value *big.Rat, currency string) string {
+	decimals := unitPriceDecimals(value)
+	if decimals == minUnitPriceDecimals {
+		return FormatCurrency(quantizeMoney(value), currency)
+	}
+	scale := int64(1)
+	for range decimals {
+		scale *= 10
+	}
+	units := roundHalfUpToInt(new(big.Rat).Mul(value, new(big.Rat).SetInt64(scale)))
+	sign := ""
+	if units < 0 {
+		sign = "-"
+		units = -units
+	}
+	formatted := fmt.Sprintf("%s%s,%0*d", sign, groupThousands(units/scale), decimals, units%scale)
+	return withCurrency(formatted, currency)
+}
+
+func unitPriceDecimals(value *big.Rat) int {
+	if value == nil {
+		return minUnitPriceDecimals
+	}
+	scaled := new(big.Rat).Set(value)
+	scaled.Mul(scaled, big.NewRat(100, 1))
+	for decimals := minUnitPriceDecimals; decimals < maxUnitPriceDecimals; decimals++ {
+		if scaled.IsInt() {
+			return decimals
+		}
+		scaled.Mul(scaled, big.NewRat(10, 1))
+	}
+	return maxUnitPriceDecimals
+}
+
+func withCurrency(formatted, currency string) string {
 	if currency == "EUR" {
 		return formatted + " \\euro"
 	}
@@ -1307,7 +1352,7 @@ func renderLineItemTemplate(body string, item LineItem, currency, rule string, t
 	pairs := []string{
 		lineItemNamePlaceholder, latexEscape(item.Name),
 		lineItemDescriptionPlaceholder, latexEscape(item.Description),
-		lineItemUnitPricePlaceholder, FormatCurrency(quantizeMoney(item.UnitPrice), currency),
+		lineItemUnitPricePlaceholder, formatUnitPrice(item.UnitPrice, currency),
 		lineItemQuantityPlaceholder, latexEscape(formatQuantity(item.Quantity)),
 		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
 		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
@@ -1609,7 +1654,7 @@ func renderLineItemRows(items []LineItem, currency string, includeVAT bool) stri
 		parts := []string{
 			latexEscape(item.Name),
 			latexEscape(item.Description),
-			FormatCurrency(quantizeMoney(item.UnitPrice), currency),
+			formatUnitPrice(item.UnitPrice, currency),
 			latexEscape(formatQuantity(item.Quantity)),
 		}
 		if includeVAT {
@@ -1906,7 +1951,14 @@ func latexEscape(text string) string {
 		`~`, `\textasciitilde{}`,
 		`^`, `\textasciicircum{}`,
 	)
-	return replacer.Replace(text)
+	escaped := replacer.Replace(text)
+	// Values often follow \\ (line ends in addresses). LaTeX would read a
+	// leading * as the starred form and a leading [ as an optional argument,
+	// even after spaces, so an empty group shields them.
+	if trimmed := strings.TrimLeft(escaped, " \t\r\n"); strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "*") {
+		return "{}" + escaped
+	}
+	return escaped
 }
 
 func asString(value any) string {
