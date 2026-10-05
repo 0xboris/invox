@@ -98,6 +98,8 @@ func runValidate(args []string) int {
 		return 1
 	}
 
+	warnArchivedDuplicate(opts.InvoicePath, opts.BaseDir)
+
 	fmt.Printf(
 		"Validation OK: %s for %s, %d line item(s), total %s\n",
 		ctx.InvoiceNumber,
@@ -319,6 +321,7 @@ func runBuild(args []string) int {
 				invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 				err,
 			)
+			printDuplicateNumberHint(err, opts.BaseDir)
 			return 1
 		}
 		fmt.Printf(
@@ -361,6 +364,7 @@ func runArchive(args []string) int {
 	archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		printDuplicateNumberHint(err, opts.BaseDir)
 		return 1
 	}
 
@@ -418,4 +422,39 @@ func runArchiveList(args []string) int {
 		)
 	}
 	return 0
+}
+
+// printDuplicateNumberHint tells the user how to resolve an archive refusal
+// caused by an invoice number that is already archived.
+func printDuplicateNumberHint(err error, baseDir string) {
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	if !errors.As(err, &duplicate) {
+		return
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"Run `invox increment -i %s` to give it the next free number, then archive it again.\n",
+		invoice.DisplayPath(duplicate.InvoicePath, baseDir),
+	)
+}
+
+// warnArchivedDuplicate warns on stderr when the invoice's number is already
+// used by an archived invoice. It never fails validation.
+func warnArchivedDuplicate(invoicePath, baseDir string) {
+	err := invoice.CheckArchivedNumberUnique(invoicePath)
+	if err == nil {
+		return
+	}
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	if !errors.As(err, &duplicate) {
+		fmt.Fprintf(os.Stderr, "warning: could not check the archive for duplicate invoice numbers: %v\n", err)
+		return
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"warning: invoice number %s is already used by archived invoice %s; run `invox increment -i %s` before archiving\n",
+		duplicate.InvoiceNumber,
+		invoice.DisplayPath(duplicate.ArchivedPath, baseDir),
+		invoice.DisplayPath(invoicePath, baseDir),
+	)
 }

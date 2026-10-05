@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,4 +41,36 @@ func chdirForTest(t *testing.T, dir string) {
 			t.Errorf("unset PWD: %v", err)
 		}
 	})
+}
+
+// dataDirEnvKeys are the variables invox derives the default archive
+// directory from on Linux, macOS and Windows.
+var dataDirEnvKeys = []string{"XDG_DATA_HOME", "APPDATA", "HOME", "USERPROFILE"}
+
+// processDataDirEnv holds the values the test process started with, so
+// isolateDataDirs can tell which variables a test has set itself.
+var processDataDirEnv = func() map[string]string {
+	values := make(map[string]string, len(dataDirEnvKeys))
+	for _, key := range dataDirEnvKeys {
+		values[key] = os.Getenv(key)
+	}
+	return values
+}()
+
+// isolateDataDirs points every data-directory variable the test has not set
+// itself at a temporary directory, so commands never read the developer's
+// real archive.
+func isolateDataDirs(t *testing.T) {
+	t.Helper()
+
+	var root string
+	for _, key := range dataDirEnvKeys {
+		if os.Getenv(key) != processDataDirEnv[key] {
+			continue
+		}
+		if root == "" {
+			root = t.TempDir()
+		}
+		t.Setenv(key, filepath.Join(root, strings.ToLower(key)))
+	}
 }

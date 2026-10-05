@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	yaml "gopkg.in/yaml.v3"
 )
 
 type ArchivedInvoiceSummary struct {
@@ -89,14 +91,7 @@ func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
 	}
 
 	records := make([]archivedInvoiceRecord, 0)
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || !isArchivedInvoicePath(path) {
-			return nil
-		}
-
+	err = walkArchiveDir(archiveDir, func(path string) error {
 		record, ok, err := archivedInvoiceRecordFromPath(path, archiveDir)
 		if err != nil || !ok {
 			return err
@@ -112,6 +107,29 @@ func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
 		return records[i].Filename < records[j].Filename
 	})
 	return records, nil
+}
+
+// walkArchiveDir calls visit for every archived invoice file below
+// archiveDir. A symlinked archiveDir is followed, and visit receives paths
+// below archiveDir as configured, not below the symlink target.
+func walkArchiveDir(archiveDir string, visit func(path string) error) error {
+	walkRoot, err := filepath.EvalSymlinks(archiveDir)
+	if err != nil {
+		walkRoot = archiveDir
+	}
+	return filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !isArchivedInvoicePath(path) {
+			return nil
+		}
+		relativePath, err := filepath.Rel(walkRoot, path)
+		if err != nil {
+			return err
+		}
+		return visit(filepath.Join(archiveDir, relativePath))
+	})
 }
 
 func archivedInvoiceValue(path string) (any, bool, error) {
@@ -268,4 +286,95 @@ func resolveArchivePath(archiveDir, name string) (string, string, error) {
 		return "", "", fmt.Errorf("%s must stay within %s", cleanName, archiveDir)
 	}
 	return targetPath, filepath.Clean(relativePath), nil
+}
+
+// DuplicateInvoiceNumberError reports that an invoice uses a number that an
+// archived invoice in a different file already has.
+type DuplicateInvoiceNumberError struct {
+	InvoicePath   string
+	InvoiceNumber string
+	ArchivedPath  string
+}
+
+func (e *DuplicateInvoiceNumberError) Error() string {
+	return fmt.Sprintf("%s: invoice number %s is already used by archived invoice %s", e.InvoicePath, e.InvoiceNumber, e.ArchivedPath)
+}
+
+// CheckArchivedNumberUnique returns a *DuplicateInvoiceNumberError when the
+// invoice at invoicePath uses a number that an archived invoice already has.
+// The archived file the invoice was opened from (`archive edit`) does not
+// count as a duplicate.
+func CheckArchivedNumberUnique(invoicePath string) error {
+	document, err := loadYAMLDocument(invoicePath)
+	if err != nil {
+		return err
+	}
+	root, err := documentRootMapping(document, invoicePath)
+	if err != nil {
+		return err
+	}
+	invoiceNode := findMappingValue(root, "invoice")
+	if invoiceNode == nil || invoiceNode.Kind != yaml.MappingNode {
+		return nil
+	}
+	archiveDir, err := ResolveArchiveDir()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(archiveDir) == "" {
+		return nil
+	}
+	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
+	return checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root)
+}
+
+func checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, root *yaml.Node) error {
+	if invoiceNumber == "" {
+		return nil
+	}
+
+	excluded := make(map[string]bool)
+	if sourcePath, err := filepath.Abs(invoicePath); err == nil {
+		excluded[sourcePath] = true
+	}
+	// Only a working copy from `archive edit` (archive_path set) may reuse the
+	// number of the archived file it replaces, matching ArchiveInvoice.
+	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
+	var editedPaths []string
+	if strings.TrimSpace(archiveTargetPath) != "" {
+		editedPaths = []string{archiveTargetPath, archiveReplacePath}
+	}
+	for _, relativePath := range editedPaths {
+		if strings.TrimSpace(relativePath) == "" {
+			continue
+		}
+		path, err := resolveArchiveTargetPath(archiveDir, relativePath)
+		if err != nil {
+			return err
+		}
+		excluded[path] = true
+	}
+
+	records, err := collectArchivedInvoiceRecords()
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		if record.InvoiceNumber != invoiceNumber {
+			continue
+		}
+		recordPath, err := filepath.Abs(record.Path)
+		if err != nil {
+			return err
+		}
+		if excluded[recordPath] {
+			continue
+		}
+		return &DuplicateInvoiceNumberError{
+			InvoicePath:   invoicePath,
+			InvoiceNumber: invoiceNumber,
+			ArchivedPath:  recordPath,
+		}
+	}
+	return nil
 }
