@@ -1938,6 +1938,7 @@ paths:
 }
 
 func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
+	isolateUserDirs(t)
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	workDir := filepath.Join(t.TempDir(), "work")
@@ -2223,6 +2224,7 @@ func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 }
 
 func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
+	isolateUserDirs(t)
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	homeDir := filepath.Join(t.TempDir(), "home")
@@ -3073,6 +3075,7 @@ func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
 
 func writeContextFixtures(t *testing.T) (string, string, string, string, string, string) {
 	t.Helper()
+	isolateUserDirs(t)
 
 	dir := t.TempDir()
 	customersPath := filepath.Join(dir, "customers.yaml")
@@ -3177,6 +3180,7 @@ func writeDraftFixtures(t *testing.T) (string, string, string) {
 
 func writeDraftFixturesWithCustomerStart(t *testing.T, customerStart string) (string, string, string) {
 	t.Helper()
+	isolateUserDirs(t)
 
 	dir := t.TempDir()
 	customersPath := filepath.Join(dir, "customers.yaml")

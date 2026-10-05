@@ -1,0 +1,2 @@
+# Golden blocks are compared byte for byte; keep LF line endings on every OS.
+*.txtar text eol=lf

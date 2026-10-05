@@ -1,0 +1,166 @@
+# customer list prints ID<TAB>name<TAB>status for every customer.
+exec invox customer list
+cmp stdout want-list.tsv
+! stderr .
+
+# -c picks another customers file.
+exec invox customer list -c other.yaml
+cmp stdout want-list-other.tsv
+! stderr .
+
+# customer config opens customers.yaml in $VISUAL.
+exec invox customer config
+scrubpaths stdout got.txt
+cmp got.txt want-config.txt
+! stderr .
+
+# Without a subcommand, customer prints its help.
+exec invox customer
+stdout '^Customer-related commands\.$|^Usage:$'
+! stderr .
+
+# Usage errors.
+exits 2 invox customer bogus
+! stdout .
+stderr '^error: unknown customer subcommand "bogus"$'
+exits 2 invox customer list extra
+! stdout .
+cmp stderr want-list-extra.txt
+exits 2 invox customer list --bogus
+! stdout .
+stderr '^error: flag provided but not defined: -bogus$'
+exits 2 invox customer config extra
+! stdout .
+stderr '^error: unexpected arguments: extra$'
+
+# Runtime errors.
+exits 1 invox customer list -c missing.yaml
+! stdout .
+stderr 'missing\.yaml'
+! stderr 'Usage:'
+env FAKE_EDITOR_FAIL=1
+exits 1 invox customer config
+! stdout .
+cmp stderr want-editor-failed.txt
+
+-- other.yaml --
+OTHER-1:
+  name: Other Ltd
+  status: active
+-- want-list.tsv --
+CUST-001	Appsters GmbH	active
+CUST-002	Second Customer OG	inactive
+CUST-003	Third Customer KG	active
+-- want-list-other.tsv --
+OTHER-1	Other Ltd	active
+-- want-config.txt --
+fake editor: customers.yaml
+Opened home/.config/invox/customers.yaml
+-- want-list-extra.txt --
+error: unexpected arguments: extra
+
+Usage:
+  invox customer list [-c CUSTOMERS.yaml]
+
+Examples:
+  invox customer list
+  invox customer list -c customers.yaml
+
+Use 'invox customer list --help' for more information.
+-- want-editor-failed.txt --
+fake editor: forced failure
+exit status 1
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
