@@ -16,7 +16,7 @@ stderr '^error: unexpected arguments: extra$'
 exits 1 invox increment -i missing.yaml
 ! stdout .
 stderr 'missing\.yaml'
-! stderr 'Usage:'
+! stderr 'for usage'
 exits 1 invox increment -i foreign.yaml
 ! stdout .
 scrubpaths stderr got.txt
@@ -31,15 +31,7 @@ invoice:
 Incremented invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-002
 -- want-missing-input.txt --
 error: missing required flags: -i, --input
-
-Usage:
-  invox increment -i INVOICE.yaml [-c CUSTOMERS.yaml]
-
-Examples:
-  invox increment -i invoice.yaml
-  invox increment -i invoices/2026-0022.yaml -c customers.yaml
-
-Use 'invox increment --help' for more information.
+Run 'invox increment --help' for usage.
 -- want-foreign.txt --
 $WORK/home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`
 -- home/.config/invox/config.yaml --

@@ -97,15 +97,7 @@ Rendered out.tex for CUST-001 (CUST-001-001)
 CUST-001-001/Appsters GmbH/252,00 \euro
 -- want-missing-input.txt --
 error: missing required flags: -i, --input
-
-Usage:
-  invox render -i INVOICE.yaml [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]
-
-Examples:
-  invox render -i invoice.yaml
-  invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
-
-Use 'invox render --help' for more information.
+Run 'invox render --help' for usage.
 -- want-foreign.txt --
 $WORK/foreign.yaml: unknown customer_id `NOPE-1`
 customer.name: missing value

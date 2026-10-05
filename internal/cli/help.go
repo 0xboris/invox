@@ -866,17 +866,3 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("init"))
 }
-
-func printCommandError(w io.Writer, spec commandSpec, message string) {
-	fmt.Fprintf(w, "error: %s\n\n", message)
-	fmt.Fprintf(w, "Usage:\n")
-	fmt.Fprintf(w, "  %s %s\n\n", commandName, spec.Usage)
-	fmt.Fprintf(w, "Examples:\n")
-	for index, example := range spec.Examples {
-		if index == 2 {
-			break
-		}
-		fmt.Fprintf(w, "  %s\n", example)
-	}
-	fmt.Fprintf(w, "\nUse '%s %s --help' for more information.\n", commandName, spec.Name)
-}

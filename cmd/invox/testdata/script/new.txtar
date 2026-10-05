@@ -62,15 +62,7 @@ fake editor: CUST-003-001.yaml
 Created CUST-003-001.yaml for CUST-003 (CUST-003-001)
 -- want-missing-id.txt --
 error: missing required arguments: CUSTOMER_ID
-
-Usage:
-  invox new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-e] [--from-last]
-
-Examples:
-  invox new CUST-001
-  invox new CUST-001 -e
-
-Use 'invox new --help' for more information.
+Run 'invox new --help' for usage.
 -- want-unknown.txt --
 $WORK/home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`
 -- want-editor-failed.txt --

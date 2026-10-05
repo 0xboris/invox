@@ -16,7 +16,7 @@ func runVersion(ios *iostreams.IOStreams, args []string) error {
 		return nil
 	}
 	if len(args) > 0 {
-		return cmdutil.FlagErrorf("", "unexpected arguments for version: %s", strings.Join(args, " "))
+		return cmdutil.FlagErrorf("version", "unexpected arguments for version: %s", strings.Join(args, " "))
 	}
 	printVersion(ios.Out)
 	return nil

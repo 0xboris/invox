@@ -52,12 +52,4 @@ plain.tex
 template.tex
 -- want-extra.txt --
 error: unexpected arguments: extra
-
-Usage:
-  invox template list [--names]
-
-Examples:
-  invox template list
-  invox template list --names
-
-Use 'invox template list --help' for more information.
+Run 'invox template list --help' for usage.

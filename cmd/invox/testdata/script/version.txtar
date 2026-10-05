@@ -8,11 +8,11 @@ exec invox --version
 cmp stdout want-version.txt
 ! stderr .
 
-# Usage error: extra arguments print the root help on stderr.
+# Usage error: extra arguments.
 exits 2 invox version extra
 ! stdout .
 stderr '^error: unexpected arguments for version: extra$'
-stderr '^Subcommands:$'
+stderr '^Run ''invox version --help'' for usage\.$'
 
 -- want-version.txt --
 invox version DEV

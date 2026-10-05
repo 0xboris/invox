@@ -46,15 +46,7 @@ Built invoice.pdf for CUST-001 (CUST-001-001)
 Built copy.pdf for CUST-001 (CUST-001-001)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-
-Usage:
-  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]
-
-Examples:
-  invox build invoice.yaml
-  invox build invoice.yaml --archive
-
-Use 'invox build --help' for more information.
+Run 'invox build --help' for usage.
 -- want-tectonic-failed.txt --
 fake tectonic: forced failure
 exit status 1

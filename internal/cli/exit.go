@@ -37,21 +37,14 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 	return 1
 }
 
+// printUsageError prints the usage error and where to read the usage, and no
+// help text.
 func printUsageError(w io.Writer, err *cmdutil.FlagError) {
-	switch err.Command {
-	case "":
-		fmt.Fprintf(w, "error: %s\n\n", err.Err)
-		printRootHelp(w)
-	case "customer":
-		fmt.Fprintf(w, "error: %s\n\n", err.Err)
-		printCustomerHelp(w)
-	case "template":
-		fmt.Fprintf(w, "error: %s\n\n", err.Err)
-		printTemplateHelp(w)
-	default:
-		spec, _ := lookupCommand(err.Command)
-		printCommandError(w, spec, err.Err.Error())
+	command := commandName
+	if err.Command != "" {
+		command += " " + err.Command
 	}
+	fmt.Fprintf(w, "error: %s\nRun '%s --help' for usage.\n", err.Err, command)
 }
 
 func printRuntimeError(w io.Writer, err error) {

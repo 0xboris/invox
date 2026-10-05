@@ -85,15 +85,7 @@ fake open: draft3.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
-
-Usage:
-  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
-
-Examples:
-  invox email invoice.yaml
-  invox email invoice.pdf
-
-Use 'invox email --help' for more information.
+Run 'invox email --help' for usage.
 -- want-not-built.txt --
 $WORK/draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
 -- want-open-failed.txt --

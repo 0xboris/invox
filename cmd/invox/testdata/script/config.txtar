@@ -101,14 +101,7 @@ Opened home/.config/invox/config.yaml
 #     {issuer_name}
 -- want-usage.txt --
 error: unexpected arguments: extra
-
-Usage:
-  invox config
-
-Examples:
-  invox config
-
-Use 'invox config --help' for more information.
+Run 'invox config --help' for usage.
 -- want-editor-failed.txt --
 fake editor: forced failure
 exit status 1

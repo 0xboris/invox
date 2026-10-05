@@ -165,26 +165,10 @@ Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
 Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-
-Usage:
-  invox archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]
-
-Examples:
-  invox archive invoice.yaml
-  invox archive invoices/2026-0021.yaml
-
-Use 'invox archive --help' for more information.
+Run 'invox archive --help' for usage.
 -- want-edit-missing.txt --
 error: missing required arguments: FILENAME
-
-Usage:
-  invox archive edit FILENAME
-
-Examples:
-  invox archive edit 2026-03-06.yaml
-  invox archive edit customer-a/2026-03-06.yaml
-
-Use 'invox archive edit --help' for more information.
+Run 'invox archive edit --help' for usage.
 -- want-duplicate.txt --
 $WORK/duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice $WORK/home/.config/invox/archive/second.yaml
 Run `invox increment -i duplicate.yaml` to give it the next free number, then archive it again.
