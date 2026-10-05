@@ -917,13 +917,11 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", templatePath, err)
 	}
-	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency)
-	for placeholder, value := range buildTemplateValues(ctx) {
-		rendered = strings.ReplaceAll(rendered, placeholder, value)
-	}
-	rendered = strings.ReplaceAll(rendered, epcQRAvailablePlaceholder, epcQRAvailable)
-	rendered = strings.ReplaceAll(rendered, epcQRLabelPlaceholder, epcQRLabel)
-	rendered = strings.ReplaceAll(rendered, epcQRCodePlaceholder, epcQRCode)
+	values := buildTemplateValues(ctx)
+	values[epcQRAvailablePlaceholder] = epcQRAvailable
+	values[epcQRLabelPlaceholder] = epcQRLabel
+	values[epcQRCodePlaceholder] = epcQRCode
+	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, sortedReplacementPairs(values))
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
@@ -1153,21 +1151,41 @@ func validateLineItemPlaceholdersOutsideBlocks(template string, validationErrors
 	}
 }
 
-func renderLineItemTemplateBlocks(template string, items []LineItem, currency string) string {
+// sortedReplacementPairs flattens placeholder values into strings.NewReplacer
+// arguments in sorted key order, so rendering does not depend on map order.
+func sortedReplacementPairs(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys)*2)
+	for _, key := range keys {
+		pairs = append(pairs, key, values[key])
+	}
+	return pairs
+}
+
+// renderLineItemTemplateBlocks substitutes every placeholder in a single pass:
+// text outside line item blocks uses the template pairs, and each block body
+// uses the line item pairs plus the template pairs. Substituted values are
+// never scanned again.
+func renderLineItemTemplateBlocks(template string, items []LineItem, currency string, templatePairs []string) string {
+	replacer := strings.NewReplacer(templatePairs...)
 	matches := lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1)
 	if len(matches) == 0 {
-		return template
+		return replacer.Replace(template)
 	}
 	var builder strings.Builder
 	lastEnd := 0
 	for _, match := range matches {
 		bounds := lineItemTemplateBlockBounds(template, match)
-		builder.WriteString(template[lastEnd:bounds.renderStart])
+		builder.WriteString(replacer.Replace(template[lastEnd:bounds.renderStart]))
 		body := template[bounds.bodyStart:bounds.bodyEnd]
-		builder.WriteString(renderLineItemTemplateBlock(body, items, currency))
+		builder.WriteString(renderLineItemTemplateBlock(body, items, currency, templatePairs))
 		lastEnd = bounds.renderEnd
 	}
-	builder.WriteString(template[lastEnd:])
+	builder.WriteString(replacer.Replace(template[lastEnd:]))
 	return builder.String()
 }
 
@@ -1255,17 +1273,17 @@ func templateLineHasOnlyIndentation(text string) bool {
 	return true
 }
 
-func renderLineItemTemplateBlock(body string, items []LineItem, currency string) string {
+func renderLineItemTemplateBlock(body string, items []LineItem, currency string, templatePairs []string) string {
 	var builder strings.Builder
 	lastIndex := len(items) - 1
 	for index, item := range items {
-		builder.WriteString(renderLineItemTemplate(body, item, currency, lineItemRule(index, lastIndex)))
+		builder.WriteString(renderLineItemTemplate(body, item, currency, lineItemRule(index, lastIndex), templatePairs))
 	}
 	return builder.String()
 }
 
-func renderLineItemTemplate(body string, item LineItem, currency, rule string) string {
-	replacer := strings.NewReplacer(
+func renderLineItemTemplate(body string, item LineItem, currency, rule string, templatePairs []string) string {
+	pairs := []string{
 		lineItemNamePlaceholder, latexEscape(item.Name),
 		lineItemDescriptionPlaceholder, latexEscape(item.Description),
 		lineItemUnitPricePlaceholder, FormatCurrency(quantizeMoney(item.UnitPrice), currency),
@@ -1273,8 +1291,8 @@ func renderLineItemTemplate(body string, item LineItem, currency, rule string) s
 		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
 		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
 		lineItemRulePlaceholder, rule,
-	)
-	return replacer.Replace(body)
+	}
+	return strings.NewReplacer(append(pairs, templatePairs...)...).Replace(body)
 }
 
 func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode bool) (string, string, string, error) {
