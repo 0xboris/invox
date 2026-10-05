@@ -289,6 +289,9 @@ func resolveArchivePath(archiveDir, name string) (string, string, error) {
 	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("%s must stay within %s", cleanName, archiveDir)
 	}
+	if isInArchiveHistory(relativePath) {
+		return "", "", fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, archiveHistoryDirName)
+	}
 	return targetPath, filepath.Clean(relativePath), nil
 }
 

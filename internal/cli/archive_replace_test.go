@@ -147,7 +147,7 @@ func TestArchiveReplaceOnTerminalDeclined(t *testing.T) {
 			if !strings.HasPrefix(stderr, prompt) {
 				t.Fatalf("stderr = %q, want it to start with prompt %q", stderr, prompt)
 			}
-			if !strings.HasSuffix(stderr, "not archived; the archive was not changed\n") {
+			if !strings.HasSuffix(stderr, "not archived; the archive was not changed; pass --yes to replace without asking\n") {
 				t.Fatalf("stderr = %q, want abort notice", stderr)
 			}
 			e.assertUnchanged(t)
@@ -348,4 +348,47 @@ func TestYesFlagIsDocumented(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDevNullIsNotATerminal(t *testing.T) {
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("Open(%s) returned error: %v", os.DevNull, err)
+	}
+	t.Cleanup(func() { _ = devNull.Close() })
+
+	if isTerminal(devNull) {
+		t.Fatalf("isTerminal(%s) = true, want false", os.DevNull)
+	}
+}
+
+func TestArchiveReplaceWithDevNullStdinRequiresYes(t *testing.T) {
+	e := setupEditedArchive(t)
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("Open(%s) returned error: %v", os.DevNull, err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = devNull
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		_ = devNull.Close()
+	})
+	// captureRun pipes stderr, so judge interactivity by stdin alone: input
+	// redirected from the null device is not a terminal to ask on.
+	oldCanPrompt := canPrompt
+	canPrompt = func() bool { return isTerminal(os.Stdin) }
+	t.Cleanup(func() { canPrompt = oldCanPrompt })
+
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	if exitCode != 2 {
+		t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "pass --yes to replace it (no terminal to ask on)") {
+		t.Fatalf("stderr = %q, want the --yes usage error", stderr)
+	}
+	e.assertUnchanged(t)
 }

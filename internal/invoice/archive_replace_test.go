@@ -242,3 +242,42 @@ func TestMarkInvoiceBuiltKeepsArchivedStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestArchiveHistoryPathsAreRefused(t *testing.T) {
+	archiveDir := t.TempDir()
+	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	historyDir := filepath.Join(archiveDir, ".history", "customer-a")
+	if err := os.MkdirAll(historyDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	writeStatusInvoice(t, filepath.Join(historyDir, "first.20261005T123045Z.yaml"), "CUST-001-001", "archived")
+
+	for _, name := range []string{
+		".history/customer-a/first.20261005T123045Z.yaml",
+		"customer-a/../.history/customer-a/first.20261005T123045Z.yaml",
+		".HISTORY/customer-a/first.20261005T123045Z.yaml",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := EditArchivedInvoice(name, t.TempDir())
+			if err == nil || !strings.Contains(err.Error(), "is a backup in .history, not an archived invoice") {
+				t.Fatalf("EditArchivedInvoice error = %v, want backup refusal", err)
+			}
+		})
+	}
+
+	// A working copy whose archive_path points into .history is refused too,
+	// so a backup cannot be overwritten by re-archiving.
+	workingCopy := filepath.Join(t.TempDir(), "first.yaml")
+	writeStatusInvoice(t, workingCopy, "CUST-001-001", "editing")
+	source := readTestFile(t, workingCopy) + "_invox:\n  archive_path: .history/customer-a/first.20261005T123045Z.yaml\n"
+	if err := os.WriteFile(workingCopy, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := ArchiveInvoice(workingCopy, ArchiveOptions{Replace: true})
+	if err == nil || !strings.Contains(err.Error(), "is a backup in .history, not an archived invoice") {
+		t.Fatalf("ArchiveInvoice error = %v, want backup refusal", err)
+	}
+	if _, err := os.Stat(workingCopy); err != nil {
+		t.Fatalf("working copy should stay in place: %v", err)
+	}
+}

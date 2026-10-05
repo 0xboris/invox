@@ -24,11 +24,6 @@ var promptInput = func() io.Reader {
 	return os.Stdin
 }
 
-func isTerminal(file *os.File) bool {
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
-}
-
 // confirm asks question on stderr and reads a yes/no answer. Anything but
 // y or yes, including end of input, is a no.
 func confirm(question string) bool {
@@ -78,7 +73,7 @@ func archiveWithConfirmation(spec commandSpec, opts invoice.Options, errorPrefix
 		invoice.DisplayPath(replaceErr.HistoryDir, opts.BaseDir),
 	)
 	if !confirm(question) {
-		fmt.Fprintf(os.Stderr, "%snot archived; the archive was not changed\n", errorPrefix)
+		fmt.Fprintf(os.Stderr, "%snot archived; the archive was not changed; pass --yes to replace without asking\n", errorPrefix)
 		return invoice.ArchiveResult{}, 2, nil
 	}
 

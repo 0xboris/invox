@@ -3,6 +3,7 @@ package invoice
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -61,6 +62,14 @@ func isArchiveHistoryDir(root, dir string) bool {
 	return filepath.Base(dir) == archiveHistoryDirName && filepath.Dir(dir) == filepath.Clean(root)
 }
 
+// isInArchiveHistory reports whether relativePath, relative to archive.dir,
+// is inside the history directory. The comparison ignores case, matching
+// file systems that do.
+func isInArchiveHistory(relativePath string) bool {
+	first, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(relativePath)), "/")
+	return strings.EqualFold(first, archiveHistoryDirName)
+}
+
 // existingArchivePaths returns the paths that exist, without duplicates.
 func existingArchivePaths(paths ...string) ([]string, error) {
 	var existing []string
@@ -105,8 +114,8 @@ func backupArchivedFiles(archiveDir string, paths []string) ([]ArchiveBackup, er
 		if err != nil {
 			return nil, err
 		}
-		backupPath := archiveBackupPath(filepath.Join(absArchiveDir, archiveHistoryDirName, relativePath), stamp)
-		if err := writeFileAtomic(backupPath, source, 0o644); err != nil {
+		backupPath, err := writeArchiveBackup(filepath.Join(absArchiveDir, archiveHistoryDirName, relativePath), stamp, source)
+		if err != nil {
 			return nil, fmt.Errorf("back up %s: %w", path, err)
 		}
 		backups = append(backups, ArchiveBackup{Path: path, BackupPath: backupPath})
@@ -114,16 +123,48 @@ func backupArchivedFiles(archiveDir string, paths []string) ([]ArchiveBackup, er
 	return backups, nil
 }
 
-// archiveBackupPath inserts stamp before the extension of path and adds a
-// counter when a backup with that name already exists.
-func archiveBackupPath(path, stamp string) string {
+// writeArchiveBackup writes data to path with stamp inserted before the
+// extension, adding a counter when a backup with that name already exists.
+// The name is claimed with O_EXCL, so an existing backup is never replaced,
+// and the data is synced to disk before it returns the backup's path.
+func writeArchiveBackup(path, stamp string, data []byte) (string, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
 	ext := filepath.Ext(path)
 	stem := strings.TrimSuffix(path, ext)
-	candidate := stem + "." + stamp + ext
-	for counter := 2; fileExists(candidate); counter++ {
-		candidate = stem + "." + stamp + "-" + strconv.Itoa(counter) + ext
+	for counter := 1; ; counter++ {
+		candidate := stem + "." + stamp + ext
+		if counter > 1 {
+			candidate = stem + "." + stamp + "-" + strconv.Itoa(counter) + ext
+		}
+		file, err := os.OpenFile(candidate, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if err := writeAndClose(file, data); err != nil {
+			_ = os.Remove(candidate)
+			return "", err
+		}
+		return candidate, syncDir(dir)
 	}
-	return candidate
+}
+
+// writeAndClose writes data to file, syncs it to disk and closes it.
+func writeAndClose(file *os.File, data []byte) error {
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 // MarkInvoiceBuilt sets invoice.status to `built` after a successful PDF
