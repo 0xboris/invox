@@ -6,19 +6,20 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/build"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runVersion(ios *iostreams.IOStreams, args []string) int {
+func runVersion(ios *iostreams.IOStreams, args []string) error {
 	if len(args) == 1 && wantsHelp(args) {
 		printVersionHelp(ios.Out)
-		return 0
+		return nil
 	}
 	if len(args) > 0 {
-		return rootUsageError(ios, fmt.Sprintf("unexpected arguments for version: %s", strings.Join(args, " ")))
+		return cmdutil.FlagErrorf("", "unexpected arguments for version: %s", strings.Join(args, " "))
 	}
 	printVersion(ios.Out)
-	return 0
+	return nil
 }
 
 func printVersion(w io.Writer) {

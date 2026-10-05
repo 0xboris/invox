@@ -7,39 +7,37 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCustomerList(ios *iostreams.IOStreams, args []string) int {
+func runCustomerList(ios *iostreams.IOStreams, args []string) error {
 	spec := customerListSpec()
 
-	opts, _, exitCode, ok := parseCommand(ios, spec, args)
-	if !ok {
-		return exitCode
+	opts, _, err := parseCommand(ios, spec, args)
+	if err != nil {
+		return err
 	}
 
 	customers, err := invoice.ListCustomers(opts.CustomersPath)
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	for _, customer := range customers {
 		fmt.Fprintf(ios.Out, "%s\t%s\t%s\n", customer.ID, customer.LegalCompanyName, customer.Status)
 	}
-	return 0
+	return nil
 }
 
-func runCustomerConfig(ios *iostreams.IOStreams, args []string) int {
+func runCustomerConfig(ios *iostreams.IOStreams, args []string) error {
 	spec := customerConfigSpec()
 
-	opts, _, exitCode, ok := parseCommand(ios, spec, args)
-	if !ok {
-		return exitCode
+	opts, _, err := parseCommand(ios, spec, args)
+	if err != nil {
+		return err
 	}
 
 	if err := openTextFile(ios, opts.CustomersPath); err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
-	return 0
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -29,14 +30,14 @@ func confirm(ios *iostreams.IOStreams, question string) bool {
 
 // archiveWithConfirmation archives the invoice and, when that replaces
 // archived files, asks first unless --yes was passed. errorPrefix starts
-// every message it prints. A non-zero exit code means it stopped and has
-// already reported why; err is a failure the caller reports.
-func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, int, error) {
+// the messages it reports. It returns a *cmdutil.FlagError when there is no
+// terminal to ask on, and cmdutil.CancelError when the user declines.
+func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
 	archiveOpts := invoice.ArchiveOptions{Replace: opts.AssumeYes}
 	result, err := invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
 	var replaceErr *invoice.ArchiveReplaceError
 	if !errors.As(err, &replaceErr) {
-		return result, 0, err
+		return result, err
 	}
 
 	paths := make([]string, 0, len(replaceErr.Paths))
@@ -45,13 +46,13 @@ func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts in
 	}
 	replaced := strings.Join(paths, ", ")
 	if !ios.CanPrompt() {
-		printCommandError(ios.ErrOut, spec, fmt.Sprintf(
+		return invoice.ArchiveResult{}, cmdutil.FlagErrorf(
+			spec.Name,
 			"%sarchiving %s replaces archived invoice %s; pass --yes to replace it (no terminal to ask on)",
 			errorPrefix,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 			replaced,
-		))
-		return invoice.ArchiveResult{}, 2, nil
+		)
 	}
 	question := fmt.Sprintf(
 		"Replace archived invoice %s? The previous version is kept in %s.",
@@ -60,12 +61,11 @@ func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts in
 	)
 	if !confirm(ios, question) {
 		fmt.Fprintf(ios.ErrOut, "%snot archived; the archive was not changed; pass --yes to replace without asking\n", errorPrefix)
-		return invoice.ArchiveResult{}, 2, nil
+		return invoice.ArchiveResult{}, cmdutil.CancelError
 	}
 
 	archiveOpts.Replace = true
-	result, err = invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
-	return result, 0, err
+	return invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
 }
 
 // printArchiveReplacements tells the user on stderr which archived files were

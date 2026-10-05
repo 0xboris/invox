@@ -1,20 +1,24 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func Main(args []string, ios *iostreams.IOStreams) int {
+	return exitCode(ios, run(ios, args))
+}
+
+func run(ios *iostreams.IOStreams, args []string) error {
 	if len(args) == 0 {
-		return rootUsageError(ios, "missing subcommand")
+		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
 
 	if isHelpToken(args[0]) {
 		printRootHelp(ios.Out)
-		return 0
+		return nil
 	}
 
 	if args[0] == "--version" {
@@ -55,108 +59,108 @@ func Main(args []string, ios *iostreams.IOStreams) int {
 	case "version":
 		return runVersion(ios, args[1:])
 	default:
-		return rootUsageError(ios, fmt.Sprintf("unknown subcommand %q", args[0]))
+		return cmdutil.FlagErrorf("", "unknown subcommand %q", args[0])
 	}
 }
 
-func runHelp(ios *iostreams.IOStreams, args []string) int {
+func runHelp(ios *iostreams.IOStreams, args []string) error {
 	if len(args) == 0 {
 		printRootHelp(ios.Out)
-		return 0
+		return nil
 	}
 
 	if args[0] == "customer" {
 		if len(args) == 1 {
 			printCustomerHelp(ios.Out)
-			return 0
+			return nil
 		}
 		if len(args) == 2 && (args[1] == "list" || args[1] == "config") {
 			spec, _ := lookupCommand("customer " + args[1])
 			printCommandHelp(ios.Out, spec)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "template" {
 		if len(args) == 1 {
 			printTemplateHelp(ios.Out)
-			return 0
+			return nil
 		}
 		if len(args) == 2 && args[1] == "list" {
 			printTemplateListHelp(ios.Out)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "completion" {
 		if len(args) == 1 || (len(args) == 2 && args[1] == "zsh") {
 			printCompletionHelp(ios.Out)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "customers" {
 		if len(args) == 1 {
 			printCustomersHelp(ios.Out)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "issuer" {
 		if len(args) == 1 {
 			printIssuerHelp(ios.Out)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "defaults" || args[0] == "invoice-defaults" || args[0] == "invoice_defaults" {
 		if len(args) == 1 {
 			printDefaultsHelp(ios.Out)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	if args[0] == "version" && len(args) == 1 {
 		printVersionHelp(ios.Out)
-		return 0
+		return nil
 	}
 
 	if args[0] == "archive" {
 		if len(args) == 1 {
 			spec, _ := lookupCommand("archive")
 			printCommandHelp(ios.Out, spec)
-			return 0
+			return nil
 		}
 		if len(args) == 2 && (args[1] == "edit" || args[1] == "list") {
 			spec, _ := lookupCommand("archive " + args[1])
 			printCommandHelp(ios.Out, spec)
-			return 0
+			return nil
 		}
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 
 	spec, ok := lookupCommand(strings.Join(args, " "))
 	if !ok {
-		return rootUsageError(ios, fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+		return unknownHelpTopic(args)
 	}
 	printCommandHelp(ios.Out, spec)
-	return 0
+	return nil
 }
 
-func runCustomer(ios *iostreams.IOStreams, args []string) int {
+func runCustomer(ios *iostreams.IOStreams, args []string) error {
 	if len(args) == 0 {
 		printCustomerHelp(ios.Out)
-		return 0
+		return nil
 	}
 	if len(args) == 1 && wantsHelp(args) {
 		printCustomerHelp(ios.Out)
-		return 0
+		return nil
 	}
 
 	switch args[0] {
@@ -165,26 +169,12 @@ func runCustomer(ios *iostreams.IOStreams, args []string) int {
 	case "config":
 		return runCustomerConfig(ios, args[1:])
 	default:
-		return customerUsageError(ios, fmt.Sprintf("unknown customer subcommand %q", args[0]))
+		return cmdutil.FlagErrorf("customer", "unknown customer subcommand %q", args[0])
 	}
 }
 
-func rootUsageError(ios *iostreams.IOStreams, message string) int {
-	fmt.Fprintf(ios.ErrOut, "error: %s\n\n", message)
-	printRootHelp(ios.ErrOut)
-	return 2
-}
-
-func customerUsageError(ios *iostreams.IOStreams, message string) int {
-	fmt.Fprintf(ios.ErrOut, "error: %s\n\n", message)
-	printCustomerHelp(ios.ErrOut)
-	return 2
-}
-
-func templateUsageError(ios *iostreams.IOStreams, message string) int {
-	fmt.Fprintf(ios.ErrOut, "error: %s\n\n", message)
-	printTemplateHelp(ios.ErrOut)
-	return 2
+func unknownHelpTopic(args []string) error {
+	return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
 }
 
 func wantsHelp(args []string) bool {
