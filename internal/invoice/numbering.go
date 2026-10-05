@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v3"
 )
@@ -112,14 +113,26 @@ func CounterFromInvoiceNumber(invoiceNumber, customerID, issueDate string, custo
 	return parseInvoiceCounter(settings.Pattern, invoiceNumber, customerID, issueDate, customer)
 }
 
+// maxCounterWidth bounds {counter:WIDTH}; an int64 counter has at most 19
+// digits.
+const maxCounterWidth = 20
+
 func validateNumberingSettings(settings NumberingSettings) error {
-	pattern := strings.TrimSpace(settings.Pattern)
-	if pattern == "" {
+	pattern := settings.Pattern
+	if strings.TrimSpace(pattern) == "" {
 		return fmt.Errorf("numbering.pattern: missing value")
+	}
+	// Invoice numbers are trimmed when they are formatted and read back, so
+	// surrounding whitespace in the pattern could never be parsed again.
+	if strings.TrimSpace(pattern) != pattern {
+		return fmt.Errorf("numbering.pattern must not start or end with whitespace: %q", pattern)
+	}
+	if !utf8.ValidString(pattern) {
+		return fmt.Errorf("numbering.pattern must be valid UTF-8: %q", pattern)
 	}
 
 	matches := numberingTokenPattern.FindAllStringSubmatch(pattern, -1)
-	hasCounterToken := false
+	counterTokens := 0
 	hasCustomerToken := false
 	consumed := numberingTokenPattern.ReplaceAllString(pattern, "")
 	if strings.Contains(consumed, "{") || strings.Contains(consumed, "}") {
@@ -138,10 +151,10 @@ func validateNumberingSettings(settings NumberingSettings) error {
 				hasCustomerToken = true
 			}
 		case "counter":
-			hasCounterToken = true
+			counterTokens++
 			if format != "" {
-				if _, err := strconv.Atoi(format); err != nil {
-					return fmt.Errorf("numbering.pattern token {counter:%s} uses an invalid width", format)
+				if width, err := strconv.Atoi(format); err != nil || width > maxCounterWidth {
+					return fmt.Errorf("numbering.pattern token {counter:%s} uses an invalid width; use at most %d", format, maxCounterWidth)
 				}
 			}
 		default:
@@ -149,16 +162,45 @@ func validateNumberingSettings(settings NumberingSettings) error {
 		}
 	}
 
-	if !hasCounterToken {
+	if counterTokens == 0 {
 		return fmt.Errorf("numbering.pattern must contain {counter} or {counter:WIDTH}")
+	}
+	// Two counters only parse back when they hold the same digits, which a
+	// regular expression cannot check.
+	if counterTokens > 1 {
+		return fmt.Errorf("numbering.pattern must contain {counter} only once")
 	}
 	if !hasCustomerToken {
 		return fmt.Errorf("numbering.pattern must contain {customer_id} or {customer_code}")
+	}
+	if err := validateCustomerCounterSeparator(pattern); err != nil {
+		return err
 	}
 	if settings.Start <= 0 {
 		return fmt.Errorf("numbering.start must be >= 1")
 	}
 
+	return nil
+}
+
+// validateCustomerCounterSeparator rejects a customer token directly next to
+// the counter: with {customer_code}{counter}, customer A would read customer
+// A1's invoice A1007 as its own counter 1007.
+func validateCustomerCounterSeparator(pattern string) error {
+	tokens := numberingTokenPattern.FindAllStringSubmatchIndex(pattern, -1)
+	for index := 1; index < len(tokens); index++ {
+		previous, current := tokens[index-1], tokens[index]
+		if previous[1] != current[0] {
+			continue
+		}
+		left := pattern[previous[2]:previous[3]]
+		right := pattern[current[2]:current[3]]
+		for _, pair := range [][2]string{{left, right}, {right, left}} {
+			if (pair[0] == "customer_id" || pair[0] == "customer_code") && pair[1] == "counter" {
+				return fmt.Errorf("numbering.pattern needs a separator between {%s} and {counter}, such as {%s}-{counter}", pair[0], pair[0])
+			}
+		}
+	}
 	return nil
 }
 
@@ -371,6 +413,10 @@ func parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate string, c
 		return 0, err
 	}
 
+	// formatInvoiceNumber trims its result, so match against the trimmed
+	// pattern.
+	pattern = strings.TrimSpace(pattern)
+
 	var patternBuilder strings.Builder
 	patternBuilder.WriteString("^")
 
@@ -406,7 +452,11 @@ func parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate string, c
 	patternBuilder.WriteString(regexp.QuoteMeta(pattern[lastIndex:]))
 	patternBuilder.WriteString("$")
 
-	matches := regexp.MustCompile(patternBuilder.String()).FindStringSubmatch(invoiceNumber)
+	numberPattern, err := regexp.Compile(patternBuilder.String())
+	if err != nil {
+		return 0, fmt.Errorf("numbering.pattern %q: %w", pattern, err)
+	}
+	matches := numberPattern.FindStringSubmatch(invoiceNumber)
 	if len(matches) != 2 {
 		return 0, fmt.Errorf("invoice.number %q does not match numbering pattern %q", invoiceNumber, pattern)
 	}

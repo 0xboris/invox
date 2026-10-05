@@ -795,6 +795,10 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	if paidAmount != nil && paidAmount.Sign() < 0 {
 		validationErrors = append(validationErrors, "invoice.paid_amount: must not be negative")
 	}
+	paidAmountCents, ok := moneyCents(paidAmount)
+	if !ok {
+		validationErrors = append(validationErrors, errAmountTooLarge("invoice.paid_amount:").Error())
+	}
 	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
 	customerVATRate := parseOptionalVATRate(getPath(customer, "tax.default_vat_rate"), "customer.tax.default_vat_rate", &validationErrors)
 	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
@@ -812,6 +816,9 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		quantity := coerceDecimal(item["quantity"], fmt.Sprintf("positions[%d].quantity", index+1), &validationErrors, false)
 		if unitPrice != nil && unitPrice.Sign() < 0 {
 			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].unit_price: must be >= 0", index+1))
+		}
+		if _, ok := moneyCents(unitPrice); !ok {
+			validationErrors = append(validationErrors, errAmountTooLarge(fmt.Sprintf("positions[%d].unit_price:", index+1)).Error())
 		}
 		if quantity != nil && quantity.Sign() <= 0 {
 			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].quantity: must be > 0", index+1))
@@ -838,9 +845,14 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	var subtotalCents int64
 	renderedItems := make([]LineItem, 0, len(normalizedItems))
 	vatBuckets := make(map[string]*VATBreakdown, len(normalizedItems))
-	for _, item := range normalizedItems {
-		lineTotal := quantizeMoney(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
-		subtotalCents += lineTotal
+	for index, item := range normalizedItems {
+		lineTotal, ok := moneyCents(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
+		if !ok {
+			return nil, errAmountTooLarge(fmt.Sprintf("positions[%d]: unit_price × quantity", index+1))
+		}
+		if subtotalCents, ok = addMoneyCents(subtotalCents, lineTotal); !ok {
+			return nil, errAmountTooLarge("invoice subtotal")
+		}
 		item.LineTotalCents = lineTotal
 		renderedItems = append(renderedItems, item)
 		key := item.VATRatePercent.RatString()
@@ -851,22 +863,30 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 			}
 			vatBuckets[key] = bucket
 		}
-		bucket.NetCents += lineTotal
+		bucket.NetCents += lineTotal // bounded by the subtotal check above
 	}
 
 	vatBreakdowns := make([]VATBreakdown, 0, len(vatBuckets))
 	var vatAmountCents int64
 	for _, bucket := range vatBuckets {
-		bucket.VATAmountCents = quantizeMoney(percentOfMoney(bucket.NetCents, bucket.RatePercent))
-		vatAmountCents += bucket.VATAmountCents
+		vatCents, ok := moneyCents(percentOfMoney(bucket.NetCents, bucket.RatePercent))
+		if !ok {
+			return nil, errAmountTooLarge("invoice VAT amount")
+		}
+		bucket.VATAmountCents = vatCents
+		if vatAmountCents, ok = addMoneyCents(vatAmountCents, vatCents); !ok {
+			return nil, errAmountTooLarge("invoice VAT amount")
+		}
 		vatBreakdowns = append(vatBreakdowns, *bucket)
 	}
 	sort.Slice(vatBreakdowns, func(left, right int) bool {
 		return vatBreakdowns[left].RatePercent.Cmp(vatBreakdowns[right].RatePercent) < 0
 	})
 
-	totalCents := subtotalCents + vatAmountCents
-	paidAmountCents := quantizeMoney(paidAmount)
+	totalCents, ok := addMoneyCents(subtotalCents, vatAmountCents)
+	if !ok {
+		return nil, errAmountTooLarge("invoice total")
+	}
 	outstandingCents := totalCents - paidAmountCents
 
 	if paidAmountCents > totalCents {
@@ -1347,6 +1367,10 @@ func buildEPCPayload(ctx *Context) ([]byte, error) {
 	if strings.TrimSpace(ctx.Currency) != "EUR" {
 		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
 	}
+	// EPC amounts run from 0.01 to 999999999.99.
+	if ctx.OutstandingCents <= 0 {
+		return nil, errors.New("invoice.outstanding_amount: EPC QR code requires an amount above zero")
+	}
 	if ctx.OutstandingCents > ctx.TotalCents {
 		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", formatMoneyCents(ctx.OutstandingCents), formatMoneyCents(ctx.TotalCents))
 	}
@@ -1431,6 +1455,9 @@ func validateEPCTextField(label, value string, maxChars int) error {
 	if value == "" {
 		return nil
 	}
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%s: must be valid UTF-8", label)
+	}
 	if strings.ContainsAny(value, "\r\n") {
 		return fmt.Errorf("%s: line breaks are not allowed", label)
 	}
@@ -1463,6 +1490,11 @@ func isValidIBAN(value string) bool {
 		return false
 	}
 	if value[2] < '0' || value[2] > '9' || value[3] < '0' || value[3] > '9' {
+		return false
+	}
+	// ISO 13616 check digits are 98 minus a mod-97 remainder, so 00, 01 and
+	// 99 never occur in a valid IBAN even when the checksum works out.
+	if checkDigits := value[2:4]; checkDigits < "02" || checkDigits > "98" {
 		return false
 	}
 	for _, r := range value {
@@ -1786,11 +1818,16 @@ func roundHalfUpToInt(value *big.Rat) int64 {
 	if value == nil {
 		return 0
 	}
+	return roundHalfUp(value).Int64()
+}
+
+// roundHalfUp rounds value to the nearest integer, with halves away from zero.
+func roundHalfUp(value *big.Rat) *big.Int {
 	numerator := new(big.Int).Set(value.Num())
 	denominator := new(big.Int).Set(value.Denom())
 	sign := numerator.Sign()
 	if sign == 0 {
-		return 0
+		return numerator
 	}
 	if sign < 0 {
 		numerator.Neg(numerator)
@@ -1805,7 +1842,7 @@ func roundHalfUpToInt(value *big.Rat) int64 {
 	if sign < 0 {
 		quotient.Neg(quotient)
 	}
-	return quotient.Int64()
+	return quotient
 }
 
 func formatDate(value string) string {

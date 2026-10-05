@@ -13,7 +13,7 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 BUILD_PKG := github.com/0xboris/invox/internal/build
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
-.PHONY: help build test vet lint fmt tidy install clean
+.PHONY: help build test fuzz vet lint fmt tidy install clean
 
 help: ## Show available targets.
 	@printf "Targets:\n"
@@ -22,6 +22,7 @@ help: ## Show available targets.
 	@printf "  GO          Go toolchain to use (default: go)\n"
 	@printf "  BIN_DIR     Build output directory (default: bin)\n"
 	@printf "  VERSION     Version stamped into the binary (default: git describe)\n"
+	@printf "  FUZZTIME    How long make fuzz runs each fuzz target (default: 10s)\n"
 
 # build is phony so it always runs go build; Go's build cache keeps it cheap
 # and the binary can never be stale.
@@ -31,6 +32,15 @@ build: ## Build the local binary at ./bin/invox.
 
 test: ## Run the Go test suite with the race detector.
 	$(GO) test -race ./...
+
+FUZZ_PACKAGE := ./internal/invoice
+FUZZTIME ?= 10s
+
+fuzz: ## Run each fuzz target for FUZZTIME (default: 10s).
+	for target in $$($(GO) test -list '^Fuzz' $(FUZZ_PACKAGE) | grep '^Fuzz'); do \
+		echo "$$target"; \
+		$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $(FUZZ_PACKAGE); \
+	done
 
 vet: ## Run go vet across the module.
 	$(GO) vet ./...
