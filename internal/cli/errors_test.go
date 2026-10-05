@@ -119,17 +119,80 @@ func TestTectonicInstallHintDependsOnOS(t *testing.T) {
 		"linux":   "Install it from https://tectonic-typesetting.github.io, then rerun this command.",
 		"windows": "Install it from https://tectonic-typesetting.github.io, then rerun this command.",
 	}
-	old := hostOS
-	t.Cleanup(func() { hostOS = old })
 	for goos, want := range tests {
-		hostOS = goos
-		ios, _, _, stderr := iostreams.Test()
-
-		exitCode(ios, fmt.Errorf("build: %w", invoice.ErrTectonicNotFound))
-
-		if got, want := stderr.String(), "error: build: tectonic not found in PATH\n"+want+"\n"; got != want {
-			t.Errorf("GOOS=%s: stderr = %q, want %q", goos, got, want)
+		if got := tectonicInstallHint(goos); got != want {
+			t.Errorf("tectonicInstallHint(%q) = %q, want %q", goos, got, want)
 		}
+	}
+}
+
+func TestMissingTectonicPrintsInstallHint(t *testing.T) {
+	ios, _, _, stderr := iostreams.Test()
+
+	exitCode(ios, fmt.Errorf("build: %w", invoice.ErrTectonicNotFound))
+
+	if want := "error: build: tectonic not found in PATH\n" + tectonicInstallHint(hostOS) + "\n"; stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
+}
+
+func TestValidateReportsCustomerProblemsWithoutFieldNoise(t *testing.T) {
+	tests := []struct {
+		name    string
+		replace string
+		with    string
+		extra   string
+		want    string
+	}{
+		{
+			name:    "missing customer_id",
+			replace: "customer_id: CUST-001\n",
+			with:    "",
+			want:    "error: invoice.yaml: missing `customer_id`\n",
+		},
+		{
+			name:    "customer is not a mapping",
+			replace: "customer_id: CUST-001",
+			with:    "customer_id: CUST-SCALAR",
+			extra:   "\nCUST-SCALAR: just a string\n",
+			want:    "error: customers.yaml: customer `CUST-SCALAR` must be a mapping\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
+			source, err := os.ReadFile(invoicePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			customers, err := os.ReadFile(customersPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			chdirForTest(t, dir)
+			if !strings.Contains(string(source), tt.replace) {
+				t.Fatalf("fixture invoice has no %q", tt.replace)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "invoice.yaml"), []byte(strings.Replace(string(source), tt.replace, tt.with, 1)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "customers.yaml"), append(customers, tt.extra...), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			exitCode, stdout, stderr := captureRun(t, []string{"validate", "-i", "invoice.yaml", "-c", "customers.yaml", "-u", issuerPath})
+
+			if exitCode != 1 {
+				t.Errorf("exit code = %d, want 1", exitCode)
+			}
+			if stdout != "" {
+				t.Errorf("stdout = %q, want empty", stdout)
+			}
+			if stderr != tt.want {
+				t.Errorf("stderr = %q, want %q", stderr, tt.want)
+			}
+		})
 	}
 }
 
@@ -147,5 +210,22 @@ func TestBuildExitsOneWhenTectonicExitsTwo(t *testing.T) {
 	}
 	if want := "fake tectonic: forced failure\nerror: tectonic exited with status 2\n"; stderr != want {
 		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+}
+
+func TestRuntimeErrorKeepsPathsThatOnlyContainWorkingDir(t *testing.T) {
+	dir := t.TempDir()
+	chdirForTest(t, dir)
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mirror := filepath.Join(t.TempDir(), "mirror") + filepath.Join(cwd, "bad.yaml")
+	ios, _, _, stderr := iostreams.Test()
+
+	exitCode(ios, fmt.Errorf("%s: invalid", mirror))
+
+	if want := "error: " + mirror + ": invalid\n"; stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
 	}
 }

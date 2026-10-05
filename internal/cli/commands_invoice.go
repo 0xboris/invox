@@ -292,6 +292,8 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
 		result, err := archiveWithConfirmation(ios, spec, opts, errorPrefix)
+		// These already start with errorPrefix, and wrapping a FlagError would
+		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
 			return err
 		}

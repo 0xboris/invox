@@ -6,7 +6,8 @@ import (
 )
 
 // UnknownCustomerError reports a customer_id that customers.yaml does not
-// define. Path is the file that names the customer_id.
+// define. Path is the file the error is about: the invoice that names the
+// customer_id, or customers.yaml when the ID came from the command line.
 type UnknownCustomerError struct {
 	Path       string
 	CustomerID string

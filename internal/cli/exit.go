@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
@@ -46,10 +46,12 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 }
 
 // printError prints message with the error prefix, and with paths under the
-// working directory made relative to it.
+// working directory made relative to it. A path counts only where it starts:
+// at the start of the message or after a space, quote or parenthesis.
 func printError(w io.Writer, message string) {
 	if cwd, err := os.Getwd(); err == nil && filepath.Dir(cwd) != cwd {
-		message = strings.ReplaceAll(message, cwd+string(filepath.Separator), "")
+		pathStart := regexp.MustCompile("(^|[\\s'\"`(])" + regexp.QuoteMeta(cwd+string(filepath.Separator)))
+		message = pathStart.ReplaceAllString(message, "${1}")
 	}
 	fmt.Fprintf(w, "error: %s\n", message)
 }
