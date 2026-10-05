@@ -7,7 +7,10 @@
 # path. The fake opener prints the file it was asked to open.
 #
 # TODO(#18): whether the -o draft is kept, overwritten or deleted afterwards
-# is changing, so the draft file itself is not checked.
+# is changing, so the draft file itself is not checked. Known gap: on Unix the
+# draft cleanup runs the real /bin/sh by absolute path, which the sandbox
+# cannot fake (sleep and rm are not on PATH, so it does nothing); the external
+# program adapters (#38) will close it.
 exec invox email invoice.yaml -o draft.eml
 cmp stdout want-email.txt
 ! stderr .

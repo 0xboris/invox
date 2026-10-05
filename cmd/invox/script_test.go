@@ -81,6 +81,11 @@ func TestScript(t *testing.T) {
 // $WORK/home and leaves only the fake programs on PATH, so a script never
 // sees the developer's config, archive or real tools.
 //
+// Known gap: on Unix, `invox email` schedules the draft cleanup by running
+// /bin/sh by absolute path, which PATH cannot intercept. It is harmless here
+// because sleep and rm are not on PATH, and it goes away once the external
+// program adapters land (#38).
+//
 //	config dir:  $WORK/home/.config/invox (XDG_CONFIG_HOME, on every OS)
 //	archive dir: OS-specific under $WORK/home; scripts that print archive
 //	             paths set archive.dir in config.yaml instead
@@ -154,8 +159,9 @@ func cmdExits(ts *testscript.TestScript, neg bool, args []string) {
 // per-user data directory replaced by $DATA_HOME (or $DATA_HOME_TILDE, as
 // config.yaml spells it) and the work directory by $WORK. On Windows it also
 // turns the backslashes in those paths, and in paths relative to $WORK that
-// start with home\, into slashes. Compare OUTFILE with cmp, which -update can
-// rewrite:
+// start with home\, into slashes, so on Windows the suite cannot catch a path
+// printed with mixed separators. Empty variables are skipped. Compare OUTFILE
+// with cmp, which -update can rewrite:
 //
 //	scrubpaths SOURCE OUTFILE
 func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
@@ -166,9 +172,11 @@ func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 		ts.Fatalf("usage: scrubpaths SOURCE OUTFILE")
 	}
 	text := ts.ReadFile(args[0])
-	text = strings.ReplaceAll(text, ts.Getenv("DATA_HOME"), "$DATA_HOME")
-	text = strings.ReplaceAll(text, ts.Getenv("DATA_HOME_TILDE"), "$DATA_HOME_TILDE")
-	text = strings.ReplaceAll(text, ts.Getenv("WORK"), "$WORK")
+	for _, name := range []string{"DATA_HOME", "DATA_HOME_TILDE", "WORK"} {
+		if value := ts.Getenv(name); value != "" {
+			text = strings.ReplaceAll(text, value, "$"+name)
+		}
+	}
 	if runtime.GOOS == "windows" {
 		text = windowsPathToken.ReplaceAllStringFunc(text, func(token string) string {
 			return strings.ReplaceAll(token, `\`, "/")
