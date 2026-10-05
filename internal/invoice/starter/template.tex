@@ -1,6 +1,8 @@
 \documentclass[11pt,a4paper]{article}
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
+% fontspec loads Latin Modern as OpenType, which covers accented Latin text.
+\usepackage{fontspec}
+% Fail the build when a character has no glyph instead of dropping it.
+\tracinglostchars=3
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{booktabs}
 \usepackage{longtable}

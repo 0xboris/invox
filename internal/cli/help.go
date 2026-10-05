@@ -206,7 +206,7 @@ var invoiceDefaultsFieldGroups = []struct {
 			{Path: "invoice.status", Description: "Usually `draft`; `new` always resets it to `draft`"},
 			{Path: "invoice.period", Description: "Invoice period label copied into the created invoice and required by validate/render/build"},
 			{Path: "invoice.vat_percent", Description: "Optional default VAT rate for the whole invoice; can be filled from customer.tax.default_vat_rate"},
-			{Path: "invoice.paid_amount", Description: "Usually `0`; `new` always resets it to `0`"},
+			{Path: "invoice.paid_amount", Description: "Usually `0`; must be >= 0 and <= the invoice total; `new` always resets it to `0`"},
 		},
 	},
 	{
@@ -396,6 +396,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor (new)\n")
 	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
 	fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders (email)\n")
+	fmt.Fprintf(w, "  --force                 Overwrite an existing -o draft file (email)\n")
 	fmt.Fprintf(w, "  -s, --source PATH       Path to invoice_defaults.yaml (new)\n")
 	fmt.Fprintf(w, "  -u, --issuer PATH       Path to issuer.yaml\n")
 	fmt.Fprintf(w, "  -t, --template PATH     Path to invoice_template.tex (render/build)\n\n")
@@ -406,7 +407,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
 	fmt.Fprintf(w, "  new output: ./<invoice.number>.yaml\n")
 	fmt.Fprintf(w, "  render output: ./invoice.tex\n")
-	fmt.Fprintf(w, "  email draft path: input path with .eml extension\n")
+	fmt.Fprintf(w, "  email draft path: temporary <input name>.eml, removed shortly after it is opened\n")
 	fmt.Fprintf(w, "  build output: input path with .pdf extension\n\n")
 	fmt.Fprintf(w, "Documentation topics:\n")
 	fmt.Fprintf(w, "  %s help config      config.yaml keys, precedence, and email placeholders\n", commandName)
@@ -690,6 +691,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.SupportsSubjectFlag {
 		fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders\n")
 	}
+	if spec.SupportsForceFlag {
+		fmt.Fprintf(w, "  --force                 Overwrite an existing output file\n")
+	}
 	if spec.SupportsArchiveFlag {
 		fmt.Fprintf(w, "  --archive               Archive the invoice after a successful PDF build\n")
 	}
@@ -744,7 +748,8 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  Requires invoice.status to be built or archived and the PDF attachment to exist.\n")
 		fmt.Fprintf(w, "  On macOS, opens an editable compose window in Apple Mail with the PDF attached.\n")
 		fmt.Fprintf(w, "  If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.\n")
-		fmt.Fprintf(w, "  File-based drafts are scheduled for cleanup shortly after they are opened.\n")
+		fmt.Fprintf(w, "  Without -o, the draft is written to a temporary directory that is removed shortly after it is opened.\n")
+		fmt.Fprintf(w, "  With -o, the draft is kept. An existing -o file is not replaced unless --force is set.\n")
 		fmt.Fprintf(w, "  Does not send the email and does not change invoice.status.\n")
 	}
 	fmt.Fprintf(w, "\nExamples:\n")
@@ -758,6 +763,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 }
 
 func defaultOutputDescription(spec commandSpec) string {
+	if spec.Name == "email" {
+		return "a temporary <input name>.eml, removed shortly after it is opened"
+	}
 	if spec.DynamicDefaultOutput {
 		return "<invoice.number>" + spec.OutputExtension + " in the current directory"
 	}
@@ -794,6 +802,11 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "  archive.dir        Override the archive directory for archived invoice files\n")
 	fmt.Fprintf(w, "  email.subject      Override the draft email subject template for the email command\n")
 	fmt.Fprintf(w, "  email.body         Override the plain-text body template for the email command\n\n")
+	fmt.Fprintf(w, "Invoice numbers:\n")
+	fmt.Fprintf(w, "  `new` uses the next counter after the highest one found in archive.dir and in\n")
+	fmt.Fprintf(w, "  draft or built invoice YAML files in the current directory and the output directory.\n")
+	fmt.Fprintf(w, "  `archive` refuses an invoice whose number is already archived under another file;\n")
+	fmt.Fprintf(w, "  `validate` warns about it. Run `invox increment -i FILE` to give it the next free number.\n\n")
 	fmt.Fprintf(w, "email template placeholders:\n")
 	fmt.Fprintf(w, "  {customer_name}        Customer display name\n")
 	fmt.Fprintf(w, "  {email_greeting}       Customer-specific greeting, defaults to Hello,\n")

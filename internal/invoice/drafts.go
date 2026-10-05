@@ -93,7 +93,15 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 
 	now := currentDate().In(time.Local)
 	issueDate := now.Format("2006-01-02")
-	invoiceNumber, _, err := NextInvoiceNumber(customerID, issueDate, customer, 0)
+	draftDirs, err := draftSearchDirs(outputPath)
+	if err != nil {
+		return "", "", err
+	}
+	draftCounter, err := highestDraftCounter(draftDirs, customerID, issueDate, customer)
+	if err != nil {
+		return "", "", err
+	}
+	invoiceNumber, _, err := NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
 	if err != nil {
 		return "", "", err
 	}
@@ -140,6 +148,25 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 	}
 
 	return invoiceNumber, outputPath, nil
+}
+
+// draftSearchDirs returns the directories whose drafts `new` takes into
+// account: the current directory and the directory the new invoice is
+// written to.
+func draftSearchDirs(outputPath string) ([]string, error) {
+	workDir, err := filepath.Abs(".")
+	if err != nil {
+		return nil, err
+	}
+	dirs := []string{workDir}
+	if strings.TrimSpace(outputPath) != "" {
+		absOutputPath, err := filepath.Abs(outputPath)
+		if err != nil {
+			return nil, err
+		}
+		dirs = append(dirs, filepath.Dir(absOutputPath))
+	}
+	return dirs, nil
 }
 
 func loadNewInvoiceDocument(defaultsPath, customerID string, fromLast bool) (*yaml.Node, string, error) {
@@ -324,6 +351,11 @@ func ArchiveInvoice(invoicePath string) (string, error) {
 	}
 	if sourcePath == archivePath {
 		return "", fmt.Errorf("%s is already in the archive directory", invoicePath)
+	}
+
+	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
+	if err := checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root); err != nil {
+		return "", err
 	}
 
 	setMappingString(invoiceNode, "status", "archived")

@@ -133,34 +133,33 @@ invox help template
 ## Notes
 
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
+- Invoice numbers are unique. `invox new` picks the next counter after the highest one in `archive.dir` and in invoice YAML files with `status: draft` or `status: built` in the current directory and the output directory, so drafts created one after another get different numbers. Drafts elsewhere are not seen, so `invox archive` also refuses an invoice whose number is already archived under a different file, and `invox validate` warns about it; run `invox increment -i FILE` to move it to the next free number. Re-archiving an invoice opened with `invox archive edit` keeps working.
 - `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`.
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
-- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup.
+- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft and opens it. Without `-o`, the draft goes to a temporary directory that is removed shortly after it opens. A draft written with `-o` is kept, and an existing `-o` file is only overwritten with `--force`.
 - The starter template already includes VAT summary support and EPC QR placeholders for eligible EUR invoices with a SEPA-scope IBAN.
+- The starter template uses `fontspec` and `\tracinglostchars=3`, so accented names and addresses (for example `Č`, `Ł`, `ő`, `ß`, `§`) appear correctly in the PDF and a character the font cannot show fails the build instead of disappearing. `invox init` does not overwrite an existing `template.tex`; if yours was created by an older version, replace the `\usepackage[T1]{fontenc}` and `\usepackage[utf8]{inputenc}` lines with `\usepackage{fontspec}` and `\tracinglostchars=3`.
 - When rendering outside the template directory, `invox` copies referenced assets such as `fonts/` and `logo.png` next to the generated TeX so `tectonic` can build successfully.
 - `invox` prefers the `invox` config directory but still falls back to the legacy `invoice-tool` directory when it already exists.
 
 ## Development
 
-The `Makefile` is a thin convenience layer around the real CLI:
+The `Makefile` only covers development tasks; use `invox` directly for invoices.
 
 ```sh
-make build
-make test
+make build    # always runs go build (never stale)
+make test     # go test -race ./...
 make vet
+make lint
+make fmt      # gofmt -w .
+make tidy     # go mod tidy -diff
 make install
-make init
-make validate
-make render
-make email
-make pdf
-make archive
+make clean
+make help
 ```
 
-For day-to-day usage, prefer the actual interface:
+## License
 
-```sh
-invox ...
-```
+invox is released under the [MIT License](LICENSE).
 
 Last reviewed: 2026-03-30

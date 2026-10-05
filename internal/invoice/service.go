@@ -26,6 +26,7 @@ type Options struct {
 	PDFPath           string
 	TemplatePath      string
 	OutputPath        string
+	OverwriteOutput   bool
 	EmailTo           string
 	EmailSubject      string
 	ArchiveAfterBuild bool
@@ -634,12 +635,12 @@ func loadConfigRoot() (string, map[string]any, error) {
 	}
 
 	if err := validateConfigSource(configPath); err != nil {
-		return "", nil, err
+		return "", nil, &ConfigError{Path: configPath, Err: err}
 	}
 
 	value, err := loadYAML(configPath)
 	if err != nil {
-		return "", nil, err
+		return "", nil, &ConfigError{Path: configPath, Err: err}
 	}
 	if value == nil {
 		return configPath, map[string]any{}, nil
@@ -647,7 +648,7 @@ func loadConfigRoot() (string, map[string]any, error) {
 
 	root, ok := value.(map[string]any)
 	if !ok {
-		return "", nil, fmt.Errorf("%s: root value must be a mapping", configPath)
+		return "", nil, &ConfigError{Path: configPath, Err: fmt.Errorf("%s: root value must be a mapping", configPath)}
 	}
 	return configPath, root, nil
 }
@@ -791,6 +792,9 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 
 	paidAmount := coerceDecimal(getPath(invoiceBlock, "paid_amount"), "invoice.paid_amount", &validationErrors, true)
+	if paidAmount != nil && paidAmount.Sign() < 0 {
+		validationErrors = append(validationErrors, "invoice.paid_amount: must not be negative")
+	}
 	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
 	customerVATRate := parseOptionalVATRate(getPath(customer, "tax.default_vat_rate"), "customer.tax.default_vat_rate", &validationErrors)
 	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
@@ -914,13 +918,11 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", templatePath, err)
 	}
-	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency)
-	for placeholder, value := range buildTemplateValues(ctx) {
-		rendered = strings.ReplaceAll(rendered, placeholder, value)
-	}
-	rendered = strings.ReplaceAll(rendered, epcQRAvailablePlaceholder, epcQRAvailable)
-	rendered = strings.ReplaceAll(rendered, epcQRLabelPlaceholder, epcQRLabel)
-	rendered = strings.ReplaceAll(rendered, epcQRCodePlaceholder, epcQRCode)
+	values := buildTemplateValues(ctx)
+	values[epcQRAvailablePlaceholder] = epcQRAvailable
+	values[epcQRLabelPlaceholder] = epcQRLabel
+	values[epcQRCodePlaceholder] = epcQRCode
+	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, sortedReplacementPairs(values))
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
@@ -1150,21 +1152,41 @@ func validateLineItemPlaceholdersOutsideBlocks(template string, validationErrors
 	}
 }
 
-func renderLineItemTemplateBlocks(template string, items []LineItem, currency string) string {
+// sortedReplacementPairs flattens placeholder values into strings.NewReplacer
+// arguments in sorted key order, so rendering does not depend on map order.
+func sortedReplacementPairs(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys)*2)
+	for _, key := range keys {
+		pairs = append(pairs, key, values[key])
+	}
+	return pairs
+}
+
+// renderLineItemTemplateBlocks substitutes every placeholder in a single pass:
+// text outside line item blocks uses the template pairs, and each block body
+// uses the line item pairs plus the template pairs. Substituted values are
+// never scanned again.
+func renderLineItemTemplateBlocks(template string, items []LineItem, currency string, templatePairs []string) string {
+	replacer := strings.NewReplacer(templatePairs...)
 	matches := lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1)
 	if len(matches) == 0 {
-		return template
+		return replacer.Replace(template)
 	}
 	var builder strings.Builder
 	lastEnd := 0
 	for _, match := range matches {
 		bounds := lineItemTemplateBlockBounds(template, match)
-		builder.WriteString(template[lastEnd:bounds.renderStart])
+		builder.WriteString(replacer.Replace(template[lastEnd:bounds.renderStart]))
 		body := template[bounds.bodyStart:bounds.bodyEnd]
-		builder.WriteString(renderLineItemTemplateBlock(body, items, currency))
+		builder.WriteString(renderLineItemTemplateBlock(body, items, currency, templatePairs))
 		lastEnd = bounds.renderEnd
 	}
-	builder.WriteString(template[lastEnd:])
+	builder.WriteString(replacer.Replace(template[lastEnd:]))
 	return builder.String()
 }
 
@@ -1252,17 +1274,17 @@ func templateLineHasOnlyIndentation(text string) bool {
 	return true
 }
 
-func renderLineItemTemplateBlock(body string, items []LineItem, currency string) string {
+func renderLineItemTemplateBlock(body string, items []LineItem, currency string, templatePairs []string) string {
 	var builder strings.Builder
 	lastIndex := len(items) - 1
 	for index, item := range items {
-		builder.WriteString(renderLineItemTemplate(body, item, currency, lineItemRule(index, lastIndex)))
+		builder.WriteString(renderLineItemTemplate(body, item, currency, lineItemRule(index, lastIndex), templatePairs))
 	}
 	return builder.String()
 }
 
-func renderLineItemTemplate(body string, item LineItem, currency, rule string) string {
-	replacer := strings.NewReplacer(
+func renderLineItemTemplate(body string, item LineItem, currency, rule string, templatePairs []string) string {
+	pairs := []string{
 		lineItemNamePlaceholder, latexEscape(item.Name),
 		lineItemDescriptionPlaceholder, latexEscape(item.Description),
 		lineItemUnitPricePlaceholder, FormatCurrency(quantizeMoney(item.UnitPrice), currency),
@@ -1270,8 +1292,8 @@ func renderLineItemTemplate(body string, item LineItem, currency, rule string) s
 		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
 		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
 		lineItemRulePlaceholder, rule,
-	)
-	return replacer.Replace(body)
+	}
+	return strings.NewReplacer(append(pairs, templatePairs...)...).Replace(body)
 }
 
 func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode bool) (string, string, string, error) {
@@ -1324,6 +1346,9 @@ func epcQRCodeEligible(ctx *Context) bool {
 func buildEPCPayload(ctx *Context) ([]byte, error) {
 	if strings.TrimSpace(ctx.Currency) != "EUR" {
 		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
+	}
+	if ctx.OutstandingCents > ctx.TotalCents {
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", formatMoneyCents(ctx.OutstandingCents), formatMoneyCents(ctx.TotalCents))
 	}
 	if ctx.OutstandingCents > epcQRMaxAmountCents {
 		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", formatMoneyCents(ctx.OutstandingCents), "999999999,99")
@@ -1670,7 +1695,7 @@ func coerceDecimal(value any, label string, errors *[]string, allowDefault bool)
 	}
 	rat, ok := parseDecimal(asString(value))
 	if !ok {
-		*errors = append(*errors, fmt.Sprintf("%s: expected a number, got `%v`", label, value))
+		*errors = append(*errors, fmt.Sprintf("%s: expected a decimal number such as 12 or 12.50, got `%v`", label, value))
 		return nil
 	}
 	return rat
@@ -1725,9 +1750,17 @@ func coerceNonNegativeInt(value any, label string, errors *[]string) int64 {
 	return parsed
 }
 
+// decimalPattern is the grammar for money, quantities and rates: an optional
+// minus sign, digits, and an optional fraction. Leading zeros are decimal.
+var decimalPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
+
 func parseDecimal(text string) (*big.Rat, bool) {
+	text = strings.TrimSpace(text)
+	if !decimalPattern.MatchString(text) {
+		return nil, false
+	}
 	rat := new(big.Rat)
-	if _, ok := rat.SetString(strings.TrimSpace(text)); ok {
+	if _, ok := rat.SetString(text); ok {
 		return rat, true
 	}
 	return nil, false

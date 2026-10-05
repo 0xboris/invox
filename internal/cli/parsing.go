@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -55,14 +56,12 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		return invoice.Options{}, nil, 0, false
 	}
 
-	opts, err := invoice.DefaultOptions()
+	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return invoice.Options{}, nil, 1, false
 	}
-	opts.InvoicePath = ""
-	opts.PDFPath = ""
-	opts.OutputPath = ""
+	opts := invoice.Options{BaseDir: cwd}
 
 	fs := flag.NewFlagSet(spec.Name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -95,6 +94,10 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
 	}
+	if err := resolveDefaultSupportPaths(spec, &opts); err != nil {
+		printLoadError(os.Stderr, err)
+		return invoice.Options{}, nil, 1, false
+	}
 	if err := validateSupportPaths(spec, opts); err != nil {
 		printCommandError(os.Stderr, spec, err.Error())
 		return invoice.Options{}, nil, 2, false
@@ -117,6 +120,43 @@ func parseCommand(spec commandSpec, args []string) (invoice.Options, []string, i
 	}
 
 	return opts, remainingArgs, 0, true
+}
+
+// resolveDefaultSupportPaths fills in the support files the command needs and
+// no flag provided. It is the only step of argument parsing that reads
+// config.yaml, so usage errors, and commands whose support files all came from
+// flags, do not depend on a readable config.
+func resolveDefaultSupportPaths(spec commandSpec, opts *invoice.Options) error {
+	resolvers := []struct {
+		needed  bool
+		path    *string
+		resolve func(string) (string, error)
+	}{
+		{spec.NeedsCustomers, &opts.CustomersPath, invoice.ResolveDefaultCustomersPath},
+		{spec.NeedsIssuer, &opts.IssuerPath, invoice.ResolveDefaultIssuerPath},
+		{spec.NeedsDefaults, &opts.DefaultsPath, invoice.ResolveDefaultInvoiceDefaultsPath},
+		{spec.NeedsTemplate, &opts.TemplatePath, invoice.ResolveDefaultTemplatePath},
+	}
+	for _, r := range resolvers {
+		if !r.needed || strings.TrimSpace(*r.path) != "" {
+			continue
+		}
+		path, err := r.resolve(opts.BaseDir)
+		if err != nil {
+			return err
+		}
+		*r.path = path
+	}
+	return nil
+}
+
+// printLoadError prints err and, when config.yaml is what failed, how to fix it.
+func printLoadError(w io.Writer, err error) {
+	fmt.Fprintln(w, err)
+	var configErr *invoice.ConfigError
+	if errors.As(err, &configErr) {
+		fmt.Fprintf(w, "Run `%s config` to open and fix the config file.\n", commandName)
+	}
 }
 
 func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec) {
@@ -164,6 +204,9 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 	}
 	if spec.SupportsSubjectFlag {
 		fs.StringVar(&opts.EmailSubject, "subject", opts.EmailSubject, "email subject override")
+	}
+	if spec.SupportsForceFlag {
+		fs.BoolVar(&opts.OverwriteOutput, "force", opts.OverwriteOutput, "overwrite an existing output file")
 	}
 	if spec.SupportsArchiveFlag {
 		fs.BoolVar(&opts.ArchiveAfterBuild, "archive", opts.ArchiveAfterBuild, "archive the invoice after a successful build")

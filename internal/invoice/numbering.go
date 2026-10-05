@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -183,17 +182,7 @@ func highestArchivedCounter(pattern, customerID, issueDate string, customer map[
 	}
 
 	var highest int64
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if !isArchivedInvoicePath(path) {
-			return nil
-		}
-
+	err = walkArchiveDir(archiveDir, func(path string) error {
 		invoiceNumber, ok, err := archivedInvoiceNumber(path)
 		if err != nil || !ok {
 			return err
@@ -212,6 +201,87 @@ func highestArchivedCounter(pattern, customerID, issueDate string, customer map[
 		return 0, err
 	}
 	return highest, nil
+}
+
+// highestDraftCounter returns the highest counter used by unarchived invoices
+// (status draft or built) directly inside dirs, so that two drafts created
+// before either is archived do not get the same number. Files that cannot be
+// parsed, are not invoices, or do not match the numbering pattern are ignored.
+func highestDraftCounter(dirs []string, customerID, issueDate string, customer map[string]any) (int64, error) {
+	settings, err := ResolveNumberingSettings()
+	if err != nil {
+		return 0, err
+	}
+
+	seen := make(map[string]bool, len(dirs))
+	var highest int64
+	for _, dir := range dirs {
+		if strings.TrimSpace(dir) == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			// The draft scan is best effort: the archive check still
+			// guarantees uniqueness, so an unreadable directory must not
+			// stop `new`.
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil || info.Size() > maxDraftScanSize {
+				continue
+			}
+			switch strings.ToLower(filepath.Ext(entry.Name())) {
+			case ".yaml", ".yml":
+			default:
+				continue
+			}
+
+			invoiceNumber, ok := draftInvoiceNumber(filepath.Join(dir, entry.Name()))
+			if !ok {
+				continue
+			}
+			counter, err := parseInvoiceCounter(settings.Pattern, invoiceNumber, customerID, issueDate, customer)
+			if err != nil {
+				continue
+			}
+			if counter > highest {
+				highest = counter
+			}
+		}
+	}
+	return highest, nil
+}
+
+// maxDraftScanSize skips large YAML files in the draft scan; invoices are
+// far smaller.
+const maxDraftScanSize = 1 << 20
+
+func draftInvoiceNumber(path string) (string, bool) {
+	value, err := loadYAML(path)
+	if err != nil {
+		return "", false
+	}
+	root, ok := value.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	invoice, ok := root["invoice"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	switch strings.TrimSpace(asString(invoice["status"])) {
+	case "draft", "built":
+	default:
+		return "", false
+	}
+	invoiceNumber := strings.TrimSpace(asString(invoice["number"]))
+	return invoiceNumber, invoiceNumber != ""
 }
 
 func isArchivedInvoicePath(path string) bool {

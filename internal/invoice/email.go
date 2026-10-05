@@ -183,7 +183,17 @@ func archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	)
 }
 
-func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
+// CreateInvoiceEmailDraft writes the draft to outputPath. Unless overwrite is set, an
+// existing outputPath is left untouched and the returned error matches fs.ErrExist.
+func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
+	if !overwrite {
+		if _, err := os.Lstat(outputPath); err == nil {
+			return EmailDraftResult{}, &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return EmailDraftResult{}, err
+		}
+	}
+
 	emailMessage, err := PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride)
 	if err != nil {
 		return EmailDraftResult{}, err

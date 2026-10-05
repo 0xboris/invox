@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
@@ -95,6 +98,8 @@ func runValidate(args []string) int {
 		return 1
 	}
 
+	warnArchivedDuplicate(opts.InvoicePath, opts.BaseDir)
+
 	fmt.Printf(
 		"Validation OK: %s for %s, %d line item(s), total %s\n",
 		ctx.InvoiceNumber,
@@ -146,6 +151,7 @@ func runEmail(args []string) int {
 		"--issuer":    true,
 		"--to":        true,
 		"--subject":   true,
+		"--force":     false,
 	})
 	explicitOutputPath := false
 	for _, arg := range args {
@@ -186,34 +192,40 @@ func runEmail(args []string) int {
 			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
 			return 1
 		}
-	} else {
-		draft, err := invoice.CreateInvoiceEmailDraft(
-			opts.CustomersPath,
-			opts.IssuerPath,
-			paths.InvoicePath,
-			paths.PDFPath,
-			paths.OutputPath,
-			opts.EmailTo,
-			opts.EmailSubject,
-		)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
+	} else if explicitOutputPath {
+		if code := writeEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
+			return code
 		}
-		if err := openDocument(draft.OutputPath); err != nil {
+		if err := openDocument(paths.OutputPath); err != nil {
 			fmt.Fprintf(
 				os.Stderr,
 				"created %s but failed to open it: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+				invoice.DisplayPath(paths.OutputPath, opts.BaseDir),
 				err,
 			)
 			return 1
 		}
-		if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
+	} else {
+		draftDir, err := os.MkdirTemp("", "invox-email-*")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "create temporary draft directory: %v\n", err)
+			return 1
+		}
+		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
+		if code := writeEmailDraft(opts, paths, draftPath, false); code != 0 {
+			_ = os.RemoveAll(draftDir)
+			return code
+		}
+		if err := openDocument(draftPath); err != nil {
+			_ = os.RemoveAll(draftDir)
+			fmt.Fprintf(os.Stderr, "failed to open email draft: %v\n", err)
+			return 1
+		}
+		if err := cleanupOpenedDocument(draftPath, draftDir); err != nil {
 			fmt.Fprintf(
 				os.Stderr,
 				"opened %s but failed to schedule cleanup: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+				draftPath,
 				err,
 			)
 			return 1
@@ -226,6 +238,34 @@ func runEmail(args []string) int {
 		emailMessage.InvoiceNumber,
 		emailMessage.Recipient,
 	)
+	return 0
+}
+
+// writeEmailDraft writes the .eml draft to outputPath. It returns a non-zero exit code
+// after reporting a failure on stderr.
+func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
+	_, err := invoice.CreateInvoiceEmailDraft(
+		opts.CustomersPath,
+		opts.IssuerPath,
+		paths.InvoicePath,
+		paths.PDFPath,
+		outputPath,
+		overwrite,
+		opts.EmailTo,
+		opts.EmailSubject,
+	)
+	if errors.Is(err, fs.ErrExist) {
+		fmt.Fprintf(
+			os.Stderr,
+			"%s already exists; pass --force or choose another -o path\n",
+			invoice.DisplayPath(outputPath, opts.BaseDir),
+		)
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	return 0
 }
 
@@ -281,6 +321,7 @@ func runBuild(args []string) int {
 				invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 				err,
 			)
+			printDuplicateNumberHint(err, opts.BaseDir)
 			return 1
 		}
 		fmt.Printf(
@@ -323,6 +364,7 @@ func runArchive(args []string) int {
 	archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		printDuplicateNumberHint(err, opts.BaseDir)
 		return 1
 	}
 
@@ -380,4 +422,39 @@ func runArchiveList(args []string) int {
 		)
 	}
 	return 0
+}
+
+// printDuplicateNumberHint tells the user how to resolve an archive refusal
+// caused by an invoice number that is already archived.
+func printDuplicateNumberHint(err error, baseDir string) {
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	if !errors.As(err, &duplicate) {
+		return
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"Run `invox increment -i %s` to give it the next free number, then archive it again.\n",
+		invoice.DisplayPath(duplicate.InvoicePath, baseDir),
+	)
+}
+
+// warnArchivedDuplicate warns on stderr when the invoice's number is already
+// used by an archived invoice. It never fails validation.
+func warnArchivedDuplicate(invoicePath, baseDir string) {
+	err := invoice.CheckArchivedNumberUnique(invoicePath)
+	if err == nil {
+		return
+	}
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	if !errors.As(err, &duplicate) {
+		fmt.Fprintf(os.Stderr, "warning: could not check the archive for duplicate invoice numbers: %v\n", err)
+		return
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"warning: invoice number %s is already used by archived invoice %s; run `invox increment -i %s` before archiving\n",
+		duplicate.InvoiceNumber,
+		invoice.DisplayPath(duplicate.ArchivedPath, baseDir),
+		invoice.DisplayPath(invoicePath, baseDir),
+	)
 }
