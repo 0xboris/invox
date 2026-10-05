@@ -1,0 +1,51 @@
+# A config.yaml that does not parse only breaks commands that need it.
+
+# init, customer list with an explicit -c, help and usage errors still work.
+exec invox init
+scrubpaths stdout got.txt
+cmp got.txt want-init.txt
+! stderr .
+cmp home/.config/invox/config.yaml broken.yaml
+exec invox customer list -c customers.yaml
+cmp stdout want-customers.tsv
+! stderr .
+exec invox help config
+stdout '^Open config\.yaml in the default shell editor\.$'
+! stderr .
+exits 2 invox new --bogus
+! stdout .
+stderr '^error: flag provided but not defined: -bogus$'
+
+# A command that needs the config names the file and line, and suggests
+# `invox config`.
+exits 1 invox validate -i invoice.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-validate.txt
+
+-- home/.config/invox/config.yaml --
+archive:
+  dir: [unclosed
+-- broken.yaml --
+archive:
+  dir: [unclosed
+-- customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+-- want-init.txt --
+Initialized $WORK/home/.config/invox
+exists config.yaml
+created customers.yaml
+created issuer.yaml
+created invoice_defaults.yaml
+created template.tex
+-- want-customers.tsv --
+CUST-001	Appsters GmbH	active
+-- want-validate.txt --
+$WORK/home/.config/invox/config.yaml: yaml: line 1: did not find expected ',' or ']'
+Run `invox config` to open and fix the config file.

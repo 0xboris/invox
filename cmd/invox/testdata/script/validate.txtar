@@ -1,0 +1,190 @@
+# validate checks the invoice against customers and issuer and prints a
+# one-line summary. The total is printed with the raw LaTeX euro macro.
+exec invox validate -i invoice.yaml
+cmp stdout want-ok.txt
+! stderr .
+exec invox validate --input invoice.yaml -c home/.config/invox/customers.yaml -u home/.config/invox/issuer.yaml
+cmp stdout want-ok.txt
+! stderr .
+
+# Usage errors.
+exits 2 invox validate
+! stdout .
+cmp stderr want-missing-input.txt
+exits 2 invox validate -i invoice.yaml --bogus
+! stdout .
+stderr '^error: flag provided but not defined: -bogus$'
+
+# Runtime errors: an invalid invoice lists every problem.
+exits 1 invox validate -i broken.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-broken.txt
+exits 1 invox validate -i missing.yaml
+! stdout .
+stderr 'missing\.yaml'
+
+# A negative paid_amount is invalid.
+exits 1 invox validate -i negative.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-negative.txt
+
+# A number that is already archived under another file still validates, with
+# a warning on stderr.
+mkdir home/.config/invox/archive
+cp invoice.yaml home/.config/invox/archive/earlier.yaml
+exec invox validate -i invoice.yaml
+cmp stdout want-ok.txt
+scrubpaths stderr got.txt
+cmp got.txt want-archived-warning.txt
+
+-- broken.yaml --
+customer_id: NOPE-1
+invoice:
+  number: NOPE-1-001
+  issue_date: not-a-date
+positions:
+  - name: Development
+    unit_price: lots
+    quantity: 1
+-- negative.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+  paid_amount: -10
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 1
+-- want-negative.txt --
+invoice.paid_amount: must not be negative
+-- want-archived-warning.txt --
+warning: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/earlier.yaml; run `invox increment -i invoice.yaml` before archiving
+-- want-ok.txt --
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 \euro
+-- want-missing-input.txt --
+error: missing required flags: -i, --input
+
+Usage:
+  invox validate -i INVOICE.yaml [-c CUSTOMERS.yaml] [-u ISSUER.yaml]
+
+Examples:
+  invox validate -i invoice.yaml
+  invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+
+Use 'invox validate --help' for more information.
+-- want-broken.txt --
+$WORK/broken.yaml: unknown customer_id `NOPE-1`
+customer.name: missing value
+customer.email: missing value
+customer.address.street: missing value
+customer.address.postal_code: missing value
+customer.address.city: missing value
+customer.address.country: missing value
+customer.tax.vat_tax_id: missing value
+invoice.due_date: missing value
+invoice.period: missing value
+invoice.issue_date: expected YYYY-MM-DD, got `not-a-date`
+positions[1].description: missing value
+positions[1].unit_price: expected a decimal number such as 12 or 12.50, got `lots`
+invoice.vat_percent: missing value
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

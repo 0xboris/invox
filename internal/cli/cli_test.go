@@ -2416,10 +2416,7 @@ func quoteYAMLString(value string) string {
 func captureRun(t *testing.T, args []string) (int, string, string) {
 	t.Helper()
 
-	if os.Getenv("XDG_CONFIG_HOME") == "" {
-		t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
-	}
-	isolateDataDirs(t)
+	isolateUserDirs(t)
 
 	stdoutReader, stdoutWriter, err := os.Pipe()
 	if err != nil {

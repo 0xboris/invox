@@ -1,0 +1,294 @@
+# archive moves a built invoice into archive.dir and marks it archived;
+# archive list and archive edit read it back. archive.dir is set in
+# config.yaml (relative to it) so the paths are the same on every OS.
+#
+# Archiving a number that is already archived under another file is refused.
+
+# Nothing archived yet.
+exec invox archive list
+! stdout .
+! stderr .
+
+# build --archive builds and archives in one go.
+exec invox build invoice.yaml --archive
+scrubpaths stdout got.txt
+cmp got.txt want-build-archive.txt
+! stderr .
+! exists invoice.yaml
+grep '^  status: archived$' home/.config/invox/archive/invoice.yaml
+
+# archive on its own.
+exec invox archive second.yaml
+scrubpaths stdout got.txt
+cmp got.txt want-archive.txt
+! stderr .
+! exists second.yaml
+
+# archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS,
+# including Markdown invoices with YAML front matter.
+cp legacy.md home/.config/invox/archive/legacy.md
+exec invox archive list
+cmp stdout want-list.tsv
+! stderr .
+
+# archive edit copies an archived invoice back for editing; archiving the
+# working copy replaces the archived one.
+exec invox archive edit invoice.yaml
+scrubpaths stdout got.txt
+cmp got.txt want-edit.txt
+! stderr .
+grep '^  status: editing$' invoice.yaml
+exec invox archive -i invoice.yaml
+scrubpaths stdout got.txt
+cmp got.txt want-rearchive.txt
+! stderr .
+! exists invoice.yaml
+
+# new --from-last starts from the newest archived invoice of the customer and
+# continues its numbering.
+exec invox new CUST-001 --from-last
+cmp stdout want-from-last.txt
+! stderr .
+grep '^  status: draft$' CUST-001-010.yaml
+grep '^  - name: Development$' CUST-001-010.yaml
+
+# Usage errors.
+exits 2 invox archive
+! stdout .
+cmp stderr want-missing-input.txt
+exits 2 invox archive a.yaml b.yaml
+! stdout .
+stderr '^error: unexpected arguments: b\.yaml$'
+exits 2 invox archive edit
+! stdout .
+cmp stderr want-edit-missing.txt
+exits 2 invox archive list extra
+! stdout .
+stderr '^error: unexpected arguments: extra$'
+
+# Runtime errors.
+exits 1 invox archive draft.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-not-built.txt
+exists draft.yaml
+exits 1 invox archive duplicate.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-duplicate.txt
+exists duplicate.yaml
+! exists home/.config/invox/archive/duplicate.yaml
+exits 1 invox archive edit nosuch.yaml
+! stdout .
+stderr 'nosuch\.yaml'
+exec invox archive edit second.yaml
+exits 1 invox archive edit second.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-edit-exists.txt
+cp archive-file.yaml home/.config/invox/config.yaml
+exits 1 invox archive list
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-not-a-dir.txt
+
+-- home/.config/invox/not-a-dir --
+a file where archive.dir expects a directory
+-- archive-file.yaml --
+archive:
+  dir: not-a-dir
+-- second.yaml --
+customer_id: CUST-003
+invoice:
+  number: CUST-003-001
+  issue_date: 2026-03-07
+  due_date: 2026-04-06
+  status: built
+  period: March
+  vat_percent: 20
+positions:
+  - name: Consulting
+    description: Workshop
+    unit_price: 500
+    quantity: 1
+-- duplicate.yaml --
+customer_id: CUST-003
+invoice:
+  number: CUST-003-001
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: built
+  period: March
+  vat_percent: 20
+positions:
+  - name: Consulting
+    description: Workshop
+    unit_price: 500
+    quantity: 1
+-- legacy.md --
+---
+customer_id: CUST-MD
+invoice:
+  number: CUST-MD-001
+  issue_date: 2026-03-05
+---
+# Archived invoice
+-- want-build-archive.txt --
+Built invoice.pdf for CUST-001 (CUST-001-001)
+Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
+-- want-archive.txt --
+Archived second.yaml -> home/.config/invox/archive/second.yaml
+-- want-list.tsv --
+invoice.yaml	CUST-001	2026-03-06	archived
+legacy.md	CUST-MD	2026-03-05	archived
+second.yaml	CUST-003	2026-03-07	archived
+-- want-edit.txt --
+Editing home/.config/invox/archive/invoice.yaml -> invoice.yaml
+-- want-rearchive.txt --
+Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
+-- want-from-last.txt --
+Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
+-- want-missing-input.txt --
+error: missing required input: INVOICE.yaml or -i, --input
+
+Usage:
+  invox archive (INVOICE.yaml | -i INVOICE.yaml)
+
+Examples:
+  invox archive invoice.yaml
+  invox archive invoices/2026-0021.yaml
+
+Use 'invox archive --help' for more information.
+-- want-edit-missing.txt --
+error: missing required arguments: FILENAME
+
+Usage:
+  invox archive edit FILENAME
+
+Examples:
+  invox archive edit 2026-03-06.yaml
+  invox archive edit customer-a/2026-03-06.yaml
+
+Use 'invox archive edit --help' for more information.
+-- want-duplicate.txt --
+$WORK/duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice $WORK/home/.config/invox/archive/second.yaml
+Run `invox increment -i duplicate.yaml` to give it the next free number, then archive it again.
+-- want-not-built.txt --
+$WORK/draft.yaml: invoice.status must be `built` before archiving, got `draft`
+-- want-edit-exists.txt --
+$WORK/second.yaml already exists; choose a different working directory
+-- want-not-a-dir.txt --
+$WORK/home/.config/invox/not-a-dir: archive.dir must point to a directory
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
+-- draft.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-009
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

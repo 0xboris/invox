@@ -501,6 +501,9 @@ func parseYAMLDocumentSource(source []byte, label string) (*yaml.Node, error) {
 	if err := yaml.Unmarshal(source, &document); err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
+	if err := checkYAMLMappings(&document, label); err != nil {
+		return nil, err
+	}
 	return &document, nil
 }
 
@@ -523,6 +526,7 @@ func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) e
 }
 
 func writeYAMLDocument(path string, document *yaml.Node) error {
+	clearYAMLMergeTags(document)
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)

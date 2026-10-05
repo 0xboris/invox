@@ -57,5 +57,11 @@ Settled decisions (#9):
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
   (`openTextFile`, `openDocument`, `currentDate`, ...) must be restored with `t.Cleanup`.
+- The e2e suite (`cmd/invox/script_test.go`, scripts in `cmd/invox/testdata/script/*.txtar`)
+  pins every command's stdout, stderr and exit code with testscript. Run it with
+  `go test ./cmd/invox -run TestScript` (one script: `-run TestScript/archive`). After an
+  intentional output change, rewrite the goldens with `go test ./cmd/invox -run TestScript -update`
+  and review the diff. Use `exits CODE invox ...` for exit codes and `scrubpaths` before `cmp`
+  when output contains sandbox paths.
 - Tests must pass on Windows and macOS too. Build paths with `filepath.Join`, and remember that
   `os.UserHomeDir` reads `USERPROFILE` on Windows.

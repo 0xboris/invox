@@ -52,3 +52,16 @@ jobs:
             exit 1
           fi
       - run: go vet ./...
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      # Runs each target in internal/invoice/fuzz_test.go for 10s. A crasher
+      # fails the job; reproduce it with the go test command it prints.
+      - run: make fuzz FUZZTIME=10s
