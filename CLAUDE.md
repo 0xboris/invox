@@ -65,3 +65,41 @@ Settled decisions (#9):
   when output contains sandbox paths.
 - Tests must pass on Windows and macOS too. Build paths with `filepath.Join`, and remember that
   `os.UserHomeDir` reads `USERPROFILE` on Windows.
+
+## Agent workflow: poteto-mode (pstack)
+
+`.claude/skills/` vendors [pstack](https://github.com/backnotprop/pstack) at `124f622`
+(MIT, `.claude/skills/PSTACK-LICENSE`), unedited. Left out: `make-bot-ui`,
+`typescript-best-practices`, `setup-pstack`, `poteto-mode/scripts/`, and the `shipping`,
+`autopilot-full` and `autopilot-stack` playbooks. To update, re-copy from a newer pstack
+commit with the same exclusions and bump the commit here.
+
+Every task in this repo runs in poteto-mode. Before any work, read
+`.claude/skills/poteto-mode/SKILL.md` in full (it can't be invoked as a skill by the model),
+then follow it: match a playbook, and read each `principle-*` leaf you apply. Subagents use
+`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which the
+session-start hook installs as `~/.agents/pstack-models.md`.
+
+This file and the harness instructions take precedence over every vendored skill, playbook
+and agent. When they conflict, follow this file and say which rule you overrode:
+
+- Never merge, auto-merge or arm merge-when-ready without the maintainer's explicit go-ahead
+  for that specific PR. "Full autonomy", "land", "ship" and swarm verdicts are not that
+  go-ahead. Merges are squash merges.
+- One issue per PR, `Fixes #N` in the body, diff limited to the issue. No stacked PRs, no
+  drive-by PRs for broken skills or nearby bugs; report them as follow-ups instead.
+- Never force-push, rebase or `git reset --hard` a branch you didn't create.
+- Commit and PR attribution comes from the harness. Playbook title and body formats (for
+  example Conventional Commits) don't replace it or `Fixes #N`.
+- Use the GitHub MCP tools, not `gh` or `gt`. No `bun`, `npx`, `curl | sh` or Cursor cloud
+  agents; use local subagents.
+- Only Claude models exist here. Read any grok, gpt or `claude-*-max` name in a skill as the
+  matching role in `.claude/pstack-models.md`. "A different model family" means a different
+  Claude model.
+- `~/` and `/tmp` don't persist across cloud sessions. Keep notes, plans and decision logs in
+  the PR or the repo.
+- Don't post to chat, tickets or other external services unless asked. poteto-mode's "just do
+  it" covers local, reversible work only.
+- References to the left-out pieces are expected. For landing a PR, the coordinator merges
+  after the maintainer's go-ahead (instead of `shipping`). Do the steps that name
+  `poteto-mode/scripts/` (`watch-pr`, `check-plan.mjs`, `orch`) by hand.
