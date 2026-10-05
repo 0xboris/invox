@@ -224,6 +224,7 @@ Optional flags:
   -e, --edit              Open the created invoice in the default shell editor (new)
   --to EMAIL              Recipient email override (email)
   --subject TEXT          Email subject override, supports placeholders (email)
+  --force                 Overwrite an existing -o draft file (email)
   -s, --source PATH       Path to invoice_defaults.yaml (new)
   -u, --issuer PATH       Path to issuer.yaml
   -t, --template PATH     Path to invoice_template.tex (render/build)
@@ -235,7 +236,7 @@ Defaults:
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
   new output: ./<invoice.number>.yaml
   render output: ./invoice.tex
-  email draft path: input path with .eml extension
+  email draft path: temporary <input name>.eml, removed shortly after it is opened
   build output: input path with .pdf extension
 
 Documentation topics:
@@ -460,7 +461,7 @@ Invoice fields:
   invoice.status                      Usually `draft`; `new` always resets it to `draft`
   invoice.period                      Invoice period label copied into the created invoice and required by validate/render/build
   invoice.vat_percent                 Optional default VAT rate for the whole invoice; can be filled from customer.tax.default_vat_rate
-  invoice.paid_amount                 Usually `0`; `new` always resets it to `0`
+  invoice.paid_amount                 Usually `0`; must be >= 0 and <= the invoice total; `new` always resets it to `0`
 
 Position fields:
   positions[].name                    Line-item name
@@ -633,6 +634,12 @@ Supported settings:
   archive.dir        Override the archive directory for archived invoice files
   email.subject      Override the draft email subject template for the email command
   email.body         Override the plain-text body template for the email command
+
+Invoice numbers:
+  `new` uses the next counter after the highest one found in archive.dir and in
+  draft or built invoice YAML files in the current directory and the output directory.
+  `archive` refuses an invoice whose number is already archived under another file;
+  `validate` warns about it. Run `invox increment -i FILE` to give it the next free number.
 
 email template placeholders:
   {customer_name}        Customer display name
@@ -1076,16 +1083,16 @@ Examples:
   invox render -i invoice.yaml
   invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
 -- want-email.txt --
-Create an email draft, open it in the default mail app, and remove the draft file.
+Create an email draft and open it in the default mail app.
 
 Usage:
-  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
+  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
 
 Required inputs:
   INVOICE.yaml, INVOICE.pdf, or -i, --input PATH  Path to the invoice YAML or built PDF file
 
 Default output:
-  the input path with .eml extension
+  a temporary <input name>.eml, removed shortly after it is opened
 
 Optional flags:
   -h, --help              Show this help page
@@ -1095,6 +1102,7 @@ Optional flags:
   -o, --output PATH       Output file path (must end with .eml)
   --to EMAIL              Recipient email override
   --subject TEXT          Email subject override, supports placeholders
+  --force                 Overwrite an existing output file
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1110,7 +1118,8 @@ Behavior:
   Requires invoice.status to be built or archived and the PDF attachment to exist.
   On macOS, opens an editable compose window in Apple Mail with the PDF attached.
   If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.
-  File-based drafts are scheduled for cleanup shortly after they are opened.
+  Without -o, the draft is written to a temporary directory that is removed shortly after it is opened.
+  With -o, the draft is kept. An existing -o file is not replaced unless --force is set.
   Does not send the email and does not change invoice.status.
 
 Examples:

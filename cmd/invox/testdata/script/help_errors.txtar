@@ -67,6 +67,7 @@ Optional flags:
   -e, --edit              Open the created invoice in the default shell editor (new)
   --to EMAIL              Recipient email override (email)
   --subject TEXT          Email subject override, supports placeholders (email)
+  --force                 Overwrite an existing -o draft file (email)
   -s, --source PATH       Path to invoice_defaults.yaml (new)
   -u, --issuer PATH       Path to issuer.yaml
   -t, --template PATH     Path to invoice_template.tex (render/build)
@@ -78,7 +79,7 @@ Defaults:
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
   new output: ./<invoice.number>.yaml
   render output: ./invoice.tex
-  email draft path: input path with .eml extension
+  email draft path: temporary <input name>.eml, removed shortly after it is opened
   build output: input path with .pdf extension
 
 Documentation topics:

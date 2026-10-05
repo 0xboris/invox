@@ -16,8 +16,6 @@ exits 2 invox validate -i invoice.yaml --bogus
 stderr '^error: flag provided but not defined: -bogus$'
 
 # Runtime errors: an invalid invoice lists every problem.
-# TODO(#20): validating an already archived number will warn; not covered.
-# TODO(#21): negative paid_amount is not covered.
 exits 1 invox validate -i broken.yaml
 ! stdout .
 scrubpaths stderr got.txt
@@ -25,6 +23,21 @@ cmp got.txt want-broken.txt
 exits 1 invox validate -i missing.yaml
 ! stdout .
 stderr 'missing\.yaml'
+
+# A negative paid_amount is invalid.
+exits 1 invox validate -i negative.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-negative.txt
+
+# A number that is already archived under another file still validates, with
+# a warning on stderr.
+mkdir home/.config/invox/archive
+cp invoice.yaml home/.config/invox/archive/earlier.yaml
+exec invox validate -i invoice.yaml
+cmp stdout want-ok.txt
+scrubpaths stderr got.txt
+cmp got.txt want-archived-warning.txt
 
 -- broken.yaml --
 customer_id: NOPE-1
@@ -35,6 +48,24 @@ positions:
   - name: Development
     unit_price: lots
     quantity: 1
+-- negative.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+  paid_amount: -10
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 1
+-- want-negative.txt --
+invoice.paid_amount: must not be negative
+-- want-archived-warning.txt --
+warning: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/earlier.yaml; run `invox increment -i invoice.yaml` before archiving
 -- want-ok.txt --
 Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 \euro
 -- want-missing-input.txt --
@@ -61,7 +92,7 @@ invoice.due_date: missing value
 invoice.period: missing value
 invoice.issue_date: expected YYYY-MM-DD, got `not-a-date`
 positions[1].description: missing value
-positions[1].unit_price: expected a number, got `lots`
+positions[1].unit_price: expected a decimal number such as 12 or 12.50, got `lots`
 invoice.vat_percent: missing value
 -- home/.config/invox/config.yaml --
 archive:

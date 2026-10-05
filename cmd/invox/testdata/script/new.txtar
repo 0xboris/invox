@@ -1,8 +1,5 @@
 # new writes <number>.yaml from invoice_defaults.yaml with a generated number.
 # The issue and due dates come from the clock, so they are matched loosely.
-# TODO(#20): drafts may soon reserve numbers, so each `new` below uses a
-# different customer and nothing pins what a second draft for the same
-# customer is numbered.
 exec invox new CUST-001
 cmp stdout want-new.txt
 ! stderr .
@@ -10,6 +7,11 @@ grep '^  number: CUST-001-001$' CUST-001-001.yaml
 grep '^  status: draft$' CUST-001-001.yaml
 grep '^  issue_date: "?\d{4}-\d{2}-\d{2}"?$' CUST-001-001.yaml
 grep '^customer_id: CUST-001$' CUST-001-001.yaml
+
+# Drafts in the working directory count: the next draft gets the next number.
+exec invox new CUST-001 -o second.yaml
+cmp stdout want-second.txt
+! stderr .
 
 # -o picks the output path.
 exec invox new CUST-002 -o drafts.yaml
@@ -51,6 +53,8 @@ exists edited.yaml
 
 -- want-new.txt --
 Created CUST-001-001.yaml for CUST-001 (CUST-001-001)
+-- want-second.txt --
+Created second.yaml for CUST-001 (CUST-001-002)
 -- want-new-o.txt --
 Created drafts.yaml for CUST-002 (CUST-002-001)
 -- want-new-e.txt --

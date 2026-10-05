@@ -2,8 +2,7 @@
 # archive list and archive edit read it back. archive.dir is set in
 # config.yaml (relative to it) so the paths are the same on every OS.
 #
-# Each archived invoice has its own number. TODO(#20): archiving a number
-# that is already archived is about to be refused; not covered here.
+# Archiving a number that is already archived under another file is refused.
 
 # Nothing archived yet.
 exec invox archive list
@@ -50,8 +49,8 @@ cmp got.txt want-rearchive.txt
 exec invox new CUST-001 --from-last
 cmp stdout want-from-last.txt
 ! stderr .
-grep '^  status: draft$' CUST-001-002.yaml
-grep '^  - name: Development$' CUST-001-002.yaml
+grep '^  status: draft$' CUST-001-010.yaml
+grep '^  - name: Development$' CUST-001-010.yaml
 
 # Usage errors.
 exits 2 invox archive
@@ -73,6 +72,12 @@ exits 1 invox archive draft.yaml
 scrubpaths stderr got.txt
 cmp got.txt want-not-built.txt
 exists draft.yaml
+exits 1 invox archive duplicate.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-duplicate.txt
+exists duplicate.yaml
+! exists home/.config/invox/archive/duplicate.yaml
 exits 1 invox archive edit nosuch.yaml
 ! stdout .
 stderr 'nosuch\.yaml'
@@ -106,6 +111,20 @@ positions:
     description: Workshop
     unit_price: 500
     quantity: 1
+-- duplicate.yaml --
+customer_id: CUST-003
+invoice:
+  number: CUST-003-001
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: built
+  period: March
+  vat_percent: 20
+positions:
+  - name: Consulting
+    description: Workshop
+    unit_price: 500
+    quantity: 1
 -- legacy.md --
 ---
 customer_id: CUST-MD
@@ -128,7 +147,7 @@ Editing home/.config/invox/archive/invoice.yaml -> invoice.yaml
 -- want-rearchive.txt --
 Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
 -- want-from-last.txt --
-Created CUST-001-002.yaml for CUST-001 (CUST-001-002)
+Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
 
@@ -151,6 +170,9 @@ Examples:
   invox archive edit customer-a/2026-03-06.yaml
 
 Use 'invox archive edit --help' for more information.
+-- want-duplicate.txt --
+$WORK/duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice $WORK/home/.config/invox/archive/second.yaml
+Run `invox increment -i duplicate.yaml` to give it the next free number, then archive it again.
 -- want-not-built.txt --
 $WORK/draft.yaml: invoice.status must be `built` before archiving, got `draft`
 -- want-edit-exists.txt --

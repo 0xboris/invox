@@ -1,6 +1,4 @@
 # init writes the starter files into the config directory and reports each.
-# TODO(#22): the starter template's content is changing; only its presence is
-# pinned here.
 exec invox init
 scrubpaths stdout got.txt
 cmp got.txt want-init.txt
@@ -10,6 +8,7 @@ exists home/.config/invox/customers.yaml
 exists home/.config/invox/issuer.yaml
 exists home/.config/invox/invoice_defaults.yaml
 exists home/.config/invox/template.tex
+grep 'fontspec' home/.config/invox/template.tex
 
 # Running it again leaves the existing files alone.
 exec invox init
@@ -23,7 +22,7 @@ exits 2 invox init extra
 cmp stderr want-usage.txt
 
 # Runtime error: the config directory cannot be created.
-# TODO(#26): this covers an unwritable config dir, not a broken config.yaml.
+# broken_config covers a config.yaml that does not parse.
 rm home/.config
 cp invoice.txt home/.config
 exits 1 invox init

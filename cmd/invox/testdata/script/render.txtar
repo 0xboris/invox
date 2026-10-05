@@ -1,5 +1,4 @@
 # render fills the LaTeX template from the invoice and writes the .tex file.
-# TODO(#25): values containing @@...@@ are not covered.
 exec invox render -i invoice.yaml
 cmp stdout want-render.txt
 ! stderr .
@@ -9,6 +8,12 @@ exec invox render -i invoice.yaml -o out.tex -t ./other.tex
 cmp stdout want-render-o.txt
 ! stderr .
 cmp out.tex want-other.tex
+
+# A value that looks like a placeholder is rendered literally.
+exec invox render -i atat.yaml -o atat.tex
+stdout '^Rendered atat\.tex for CUST-001 \(CUST-001-001\)$'
+! stderr .
+cmp atat.tex want-atat.tex
 
 # Usage errors.
 exits 2 invox render
@@ -32,6 +37,30 @@ scrubpaths stderr got.txt
 cmp got.txt want-foreign.txt
 ! exists foreign.tex
 
+-- atat.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Ref @@TOTAL@@
+    unit_price: 100
+    quantity: 1
+-- want-atat.tex --
+Invoice CUST-001-001 for Appsters GmbH
+Issued 06.03.2026, due 05.04.2026
+    Development & Ref @@TOTAL@@ & 100,00 \euro & 1 & 100,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+Subtotal 100,00 \euro
+VAT (20\%): & 20,00 \euro\\
+Total 120,00 \euro
+Outstanding 120,00 \euro
+Pay within 30 days
+IBAN AT611904300234573201
 -- other.tex --
 @@INVOICE_NUMBER@@/@@CUSTOMER_NAME@@/@@TOTAL@@
 -- foreign.yaml --
