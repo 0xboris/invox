@@ -25,11 +25,43 @@ func parseYAMLSource(source []byte, label string) (any, error) {
 	return normalizeYAMLNode(document), nil
 }
 
+// maxYAMLAliasNodes caps how many nodes a document may reach through
+// aliases, counting every node inside each expansion. A real invoice reuses a
+// few small anchors and stays in the thousands; a "billion laughs" file of a
+// few hundred bytes reaches hundreds of millions.
+const maxYAMLAliasNodes = 100_000
+
+// YAMLAliasError reports an alias that normalizeYAMLNode cannot expand: one
+// that refers to a node containing it, or one that takes the document past
+// maxYAMLAliasNodes nodes reached through aliases.
+type YAMLAliasError struct {
+	Label     string
+	Line      int
+	Alias     string
+	Recursive bool
+}
+
+func (e *YAMLAliasError) Error() string {
+	if e.Recursive {
+		return fmt.Sprintf("%s:%d: alias *%s refers to a node that contains it", e.Label, e.Line, e.Alias)
+	}
+	return fmt.Sprintf("%s:%d: aliases expand to more than %d nodes", e.Label, e.Line, maxYAMLAliasNodes)
+}
+
 // checkYAMLMappings rejects what normalizeYAMLNode cannot represent
-// faithfully: a key defined twice in one mapping, and a merge key whose value
-// is not a mapping or a list of mappings. Aliases are not followed, because
-// the anchored node is checked where it is defined.
+// faithfully: a key defined twice in one mapping, a merge key whose value is
+// not a mapping or a list of mappings, and aliases that recurse or expand
+// past maxYAMLAliasNodes.
 func checkYAMLMappings(node *yaml.Node, label string) error {
+	if err := checkYAMLMappingKeys(node, label); err != nil {
+		return err
+	}
+	return checkYAMLAliases(node, label)
+}
+
+// checkYAMLMappingKeys does not follow aliases, because the anchored node is
+// checked where it is defined.
+func checkYAMLMappingKeys(node *yaml.Node, label string) error {
 	if node == nil {
 		return nil
 	}
@@ -56,11 +88,50 @@ func checkYAMLMappings(node *yaml.Node, label string) error {
 		return nil
 	}
 	for _, child := range node.Content {
-		if err := checkYAMLMappings(child, label); err != nil {
+		if err := checkYAMLMappingKeys(child, label); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// checkYAMLAliases walks the document the way normalizeYAMLNode expands it,
+// keeping the nodes on the current path to catch an alias to one of them, and
+// stops once aliases have reached maxYAMLAliasNodes nodes. An error names the
+// outermost alias being expanded.
+func checkYAMLAliases(document *yaml.Node, label string) error {
+	reached := 0
+	enclosing := map[*yaml.Node]bool{}
+	var walk func(node, outerAlias *yaml.Node) error
+	walk = func(node, outerAlias *yaml.Node) error {
+		if node == nil {
+			return nil
+		}
+		if node.Kind == yaml.AliasNode {
+			if enclosing[node.Alias] {
+				return &YAMLAliasError{Label: label, Line: node.Line, Alias: node.Value, Recursive: true}
+			}
+			if outerAlias == nil {
+				outerAlias = node
+			}
+			return walk(node.Alias, outerAlias)
+		}
+		if outerAlias != nil {
+			reached++
+			if reached > maxYAMLAliasNodes {
+				return &YAMLAliasError{Label: label, Line: outerAlias.Line, Alias: outerAlias.Value}
+			}
+		}
+		enclosing[node] = true
+		defer delete(enclosing, node)
+		for _, child := range node.Content {
+			if err := walk(child, outerAlias); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(document, nil)
 }
 
 func isYAMLMergeKey(node *yaml.Node) bool {

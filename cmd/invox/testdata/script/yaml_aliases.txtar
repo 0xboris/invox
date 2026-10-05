@@ -1,0 +1,87 @@
+# An alias to a node that contains it, and nested aliases that expand to
+# hundreds of millions of nodes, are errors with the file and line instead of
+# a stack overflow or a hang.
+exits 1 invox validate -i recursive.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-recursive.txt
+exits 1 invox validate -i laughs.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-laughs.txt
+
+# new reads every archived invoice, so one such file there fails it too.
+mkdir home/.config/invox/archive
+cp recursive.yaml home/.config/invox/archive/recursive.yaml
+exits 1 invox new CUST-001
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-new.txt
+
+-- recursive.yaml --
+customer_id: CUST-001
+positions: &p [*p]
+-- laughs.yaml --
+customer_id: CUST-001
+a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]
+b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]
+c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]
+d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]
+e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]
+f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]
+g: &g [*f,*f,*f,*f,*f,*f,*f,*f,*f]
+h: &h [*g,*g,*g,*g,*g,*g,*g,*g,*g]
+i: &i [*h,*h,*h,*h,*h,*h,*h,*h,*h]
+-- want-recursive.txt --
+$WORK/recursive.yaml:2: alias *p refers to a node that contains it
+-- want-laughs.txt --
+$WORK/laughs.yaml:7: aliases expand to more than 100000 nodes
+-- want-new.txt --
+$WORK/home/.config/invox/archive/recursive.yaml:2: alias *p refers to a node that contains it
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
