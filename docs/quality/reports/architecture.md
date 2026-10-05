@@ -1,0 +1,70 @@
+# invox: architecture and layering review (quality-cli)
+
+## (a) Verdict
+`main` is a proper shim, but there is no dependency injection anywhere below it. Commands and domain code reach straight for `os.Std*` (80 hits), env vars, `runtime.GOOS`, `time.Now` and `exec.Command`, and `internal/invoice` is a mix of CLI flag bag, config loader, validator, money engine, LaTeX renderer and subprocess runner. The domain logic itself is careful and well tested (3,350 test lines), so the fix is a staged extraction: IOStreams, then errors, then adapters, then typed config and models, then cobra. A rewrite isn't needed.
+
+## (b) Findings
+
+**F1 [blocker] Hidden OS/env dependencies make the suite platform-dependent.** Rule: *"No ambient state. Env vars, config files, the clock and the working directory come in through constructor fields."* `go test ./...` **fails on Linux**: `TestEditableConfigPathCreatesCommentedTemplate` expects `~/Library/Application Support/...` because `archiveDataBaseDir` switches on `runtime.GOOS` (service.go:984). §Migrating step 1 (freeze behavior) needs a green suite first. *Fix:* add an `Env{GOOS, Getenv, HomeDir, Getwd}` struct (or a `paths.Dirs` value) resolved once in `Main` and passed down. The test then sets `GOOS:"darwin"`.
+
+**F2 [major] No IOStreams/Factory.** Rule: *"Commands get dependencies injected (Factory + IOStreams): no direct stdout/stdin, env, clock, subprocess."* Counts in non-test code: `os.Stdout` 26, `os.Stderr` 52, `os.Stdin` 2, bare `fmt.Printf` 17, `os.Getenv/Environ` 8 (editor.go 5, service.go 3), `os.UserHomeDir` 7, `os.Getwd` 4, `time.Now` 3 (drafts.go:17, email.go:270,275), `exec.Command/LookPath` 10 (editor.go 8, service.go 2), `runtime.GOOS` 8. Tests work around this with an `os.Pipe` swap of `os.Stdout` (cli_test.go:2428), package-var seams (`openTextFile`, `openDocument`, `preferNativeMailCompose`, editor.go:13-17; `currentDate`, drafts.go:16) and `PATH`-shimmed fake tectonic. That is why there are zero `t.Parallel()` calls. *Fix:* `Run(ctx, io *IOStreams, f *Factory, args) int`, plus `Factory{Config func()(*config.Config,error), Editor, Opener, Mailer, Compiler, Now}`.
+
+**F3 [major] The domain is a CLI flag bag.** Rule: *"One Options type shared by all commands, defined in the domain package"* (anti-pattern). `invoice.Options` (service.go:20-34) holds `EditNewInvoice`, `ArchiveAfterBuild`, `EmailTo`, `EmailSubject`, `FromLastInvoice`. The domain never reads them (grep finds them only in their declaration); they exist for `parseCommand`. More leaks: `DisplayPath` (21 CLI uses), `FormatCurrency` returns LaTeX, so `invox validate` prints `total 120,00 \euro` (verified), and domain errors name flags and commands (`-o/--output` drafts.go:77,107; `-t/--template` templates.go:125; `invox template list` templates.go:101; `brew install tectonic` service.go:936). *Fix:* per-command Options in the command layer, domain params structs, a presentation-level money formatter, and typed errors (`ErrOutputExists{Path}`) translated by commands.
+
+**F4 [major] Tectonic is not behind an adapter, and its chatter lands on stdout.** Rule: *"Each external program sits behind one adapter type… child stdout → stderr unless it is the data… exec.CommandContext… typed error carrying exit code and stderr."* `BuildPDF` (service.go:933-945) uses `exec.Command` with `Stdout=os.Stdout` and `Stdin=os.Stdin`. Verified: `invox build x.yaml 2>/dev/null` prints `TECTONIC-CHATTER-ON-STDOUT` before `Built …`. The CLI side has the same problems: osascript (editor.go:71), `open`/`xdg-open`/`cmd /c start` (editor.go:104-112), `$SHELL -lc eval "$INVOX_EDITOR"` (editor.go:129) and the `sh`/`cmd` delayed-delete (editor.go:82-100). All of them use `exec.Command`, wire the child's stdout to `os.Stdout`, take no ctx and return a bare `*exec.ExitError`. Their only seams are global func vars. *Fix:* `tectonic.Compiler{Path, Stdout, Stderr io.Writer; commandContext}` with `Build(ctx, dir, file) error` returning `NotInstalledError` or `*ExitError{Code, Stderr}`, plus `opener.Opener`, `editor.Editor` and `mail.Composer` behind interfaces on the Factory.
+
+**F5 [major] No context and no signal handling.** Rule: *"Pass the command's context down to… subprocess calls so Ctrl-C cancels."* There are zero `context.` or `signal.` references. Verified: a SIGINT to `invox` during `build` leaves the **tectonic child running** and **leaks `$TMPDIR/invox-build-*`**, because the deferred `RemoveAll` (service.go:952) never runs. The editor case behaves similarly (inferred): Ctrl-C kills invox and the editor shares the TTY. *Fix:* `signal.NotifyContext` in `Main`, `exec.CommandContext` everywhere, and a mapping from a signal-cancelled run to exit 130.
+
+**F6 [major] Config is an untyped tree re-read on every lookup.** Rules: *"no `map[string]any` models"* and *"Loaded once in Main… The domain receives values, not the config object."* `loadConfigRoot` (service.go:630) has 8 call sites, and each one reads the file twice (validate pass plus parse). strace shows `config.yaml` opened **8×** for `build` and **12×** for `new`. `DefaultOptions` (service.go:247) runs before flags are parsed, so a broken config makes `invox init` fail (verified, exit 1), even though `init` is the command that writes config. Explicit flags don't help either: `customer list -c customers.yaml` also fails (verified). Customer, issuer and invoice data are `map[string]any` too (64 occurrences, 34 `getPath` and 77 `asString` calls), and validation sits inline in `LoadContext`. *Fix:* `config.Load(path) (*Config, error)` with a strict `KnownFields(true)` decode into structs, called lazily from the Factory. Commands resolve paths in flag > discovery > config > default order. Typed `Customer`, `Issuer`, `Invoice`.
+
+**F7 [major] service.go (2,026 lines) mixes about 9 concepts.** Rule: *"One service.go holding unrelated concepts"* (anti-pattern). Line ranges: CLI options 20-34 and 247-323; data models 36-72; config discovery, XDG/legacy dirs and the config template 325-673 and 983-1035; load, validate and totals 675-894 (`LoadContext` alone is 220 lines, cyclomatic complexity 33); render and tectonic 896-965; presentation 967-981; template placeholders and line-item blocks 1037-1275; EPC-QR, IBAN/BIC and qrcode TeX 1277-1538; LaTeX tables 1540-1592; map helpers 1594-1662; decimal and money 1663-1824; LaTeX escaping 1826-1857; asset copying and fs helpers 1859-2026. The proposed split is in (c).
+
+**F8 [major] The spec table of booleans drives one generic parser.** Rules: *"Each command = Options struct + constructor… so tests can stop after parsing"* and *"Parse helpers that print and return exit codes"* (anti-pattern). `commandSpec` has 16 booleans (command_specs.go:5-28). `parseCommand` (parsing.go:52-120) parses flags, prints help and errors to `os.Stderr`, and returns `(opts, args, exitCode, ok)`. Each flag is restated in four places: the `reorderArgs` maps (commands_invoice.go:12,136,233), `bindCommandFlags`, `printCommandHelp` and the hand-written zsh script. They have already drifted. Completion covers flags only for `render` and `build`, not `new`, `email` or `validate`. `reorderArgs` exists for only three commands, so the same typo produces different errors depending on position (verified): `build x.yaml --archiv` gives "unexpected arguments: --archiv", while `validate --archiv` gives "flag provided but not defined: -archiv". Exit codes are hard-coded in 74 inline `return 0/1/2` statements. `email` prints usage for a runtime path-resolution failure (commands_invoice.go:166-169).
+
+**F9 [minor] Dead code and duplication.** golangci-lint `unused` reports `renameMappingKey`, `nodeIsEmpty`, `invoiceEmailBody`, `firstPresentPath`, `firstNonEmptyPath` and `prependPath`. Three more are exported but never used in production code: `DiscoverBaseDir`, `TemplateNames`, and `ListTemplates(start)`, whose `start` argument is ignored. Legacy code: the `invoice-tool` config-dir fallback (service.go:360-377), legacy VAT placeholder migration (service.go:1066), markdown front-matter archives (`.md`, drafts.go:420, numbering.go:235), and the undocumented `send` alias (cli.go:39; absent from help and completion). Duplication: `replacePathExtension`, `replaceFileExtension` and `PDFPathForOutput` are three copies of the same helper. The archive-dir stat-and-walk appears 3× (archive.go:71, numbering.go:166, email.go:119). "root value must be a mapping" is checked in 12 places. The file-draft `email` path runs `PrepareInvoiceEmail`, and therefore `LoadContext`, twice (commands_invoice.go:171 and email.go:187). There are two YAML models, `map[string]any` and `yaml.Node`. *Fix:* delete the unused code now. Give each legacy path a stderr deprecation warning for one release, then remove it.
+
+**F10 [minor] Long functions** (go/ast): `LoadContext` 220, `printCommandHelp` 127, `zshCompletionScript` 109, `runEmail` 96, `ArchiveInvoice` 91, `runHelp` 84, `buildEPCPayload` 80, `defaultConfigTemplate` 76, `runBuild` 73, `printRootHelp` 73.
+
+**Q1 (shim):** `main` is `os.Exit(cli.Run(os.Args[1:]))` (main.go:10), which matches the pattern. `Run` returns an int, but it takes no streams, env or ctx, and nothing maps errors to codes in one place.
+
+## (c) Target layout
+```
+cmd/invox/main.go              os.Exit(app.Main())
+internal/app/                  signal ctx, IOStreams, Factory wiring, error→exit (usage=2 kept)
+internal/iostreams/            In/Out/ErrOut, TTY
+internal/cmdutil/              Factory, FlagError/SilentError, DisplayPath
+internal/cmd/root/ + cmd/{invoice/*, archive/*, customer/*, template/list, config, initcmd, completion}
+internal/config/               Dirs(Env), typed Config, Load (strict), Paths resolution
+internal/invoice/              typed Customer/Issuer/Invoice/LineItem, Validate, Totals, Numbering, status rules
+internal/invoice/yamldoc/      comment-preserving yaml.Node edits, atomic write
+internal/archive/              Store{Dir}: List, Latest, Resolve, Put (one walker)
+internal/money/                Cents, big.Rat rounding, formatting
+internal/epc/                  IBAN/BIC validation, EPC payload (pure)
+internal/render/latex/         placeholders, line-item blocks, escape, qrcode TeX, assets
+internal/email/                MIME builder (Now injected), subject/body templates
+internal/adapters/{tectonic,opener,editor,applemail}/
+```
+```
+main → app → cmd/* → cmdutil, iostreams
+cmd/* → invoice, archive, config, render/latex, email, adapters/*
+render/latex → invoice, money, epc     email → invoice, money
+archive → invoice, invoice/yamldoc     invoice → money
+config, money, epc, adapters/* → (stdlib, yaml only)
+nothing below cmd/* imports cmd, cmdutil or iostreams (depguard + archtest)
+```
+
+## (d) Migration plan (each step ships alone)
+1. **Green and frozen.** Inject `Env{GOOS…}` into `archiveDataBaseDir` and fix F1. Add golden stdout/stderr/exit tests for every command and help page.
+2. **IOStreams.** Thread `*IOStreams` through `Run`, the `run*` functions, `parseCommand` and the `print*Help` functions. Replace the `os.Pipe` capture with buffers. Output stays byte-identical.
+3. **Typed errors.** `run*` and `parseCommand` return `error`. `FlagError` maps to usage plus exit 2, anything else to exit 1, in one function. Delete the 74 inline returns.
+4. **Adapters and ctx.** Build a tectonic `Compiler` (stdout → ErrOut, which is the one deliberate output change; note it in the changelog) and Editor/Opener/Mailer interfaces on a Factory. Remove the package-var seams. Add `signal.NotifyContext` and exit 130.
+5. **Move code within the package, no behavior change.** Split service.go into `config.go`, `context.go`, `money.go`, `render.go`, `epc.go`, `assets.go` and `fsutil.go`. Delete the dead code.
+6. **Config once.** Typed `config.Config` loaded lazily by the Factory. Resolve paths after flag parsing. Domain functions take resolved values. Inject `Now`.
+7. **Per-command Options.** Delete `invoice.Options`. Turn the positional runs (`CreateNewInvoice` has 6 string/bool args, `CreateInvoiceEmailDraft` 7 strings) into params structs, and move CLI text out of domain errors.
+8. **Typed models.** Replace `map[string]any` with structs, one file at a time (customers, issuer, invoice). Keep `yaml.Node` only for write-back.
+9. **Extract packages** per (c). Add depguard, forbidigo and an archtest.
+10. **Cobra, one noun at a time** (root first, with unknown commands delegated to the legacy dispatcher). *Pros:* pflag handles interspersed flags (deletes `reorderArgs`), generated help and bash/zsh/fish completion replace about 950 hand-written lines, and you get suggestions and generated docs. *Cons:* about 1–2 MB on a 5.2 MB binary (inferred) and two dependencies. *Risk:* stdlib `flag` accepts single-dash long flags (`-input`, `-customers`, `-help`); pflag reads `-input` as a cluster of shorthands. Add an argv normalizer that rewrites known single-dash long names and warns, and keep it for at least one release. Help wording will change; it's a human contract, so update the goldens deliberately. Keep exit code 2 for usage errors and document it in `help exit-codes`. A spec table on stdlib `flag` remains workable if dependencies must stay at zero. In that case, replace the booleans with per-command `NewCmdX(f, runF)` constructors that register flags once and generate help from `flag.VisitAll`.
+
+## Verified vs inferred
+**Verified** by running commands or reading code: every file:line above; `go build` and `go vet` clean; the F1 test failure; tectonic output on stdout; the orphaned child and leaked temp dir after SIGINT; 8×/12× config reads under strace; broken config breaking `init` and explicit `-c`; `\euro` in `validate` output; the `reorderArgs` error inconsistency; the unused-code list; function lengths; the `cli_audit.sh` warnings. The audit's "ok" on domain I/O streams misses service.go:941, because it only checks imports.
+**Inferred:** behavior with the editor open on Ctrl-C; cobra's binary-size cost; that no script relies on the `send` alias or on single-dash long flags.
