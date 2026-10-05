@@ -137,6 +137,7 @@ invox help template
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
 - On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup.
 - The starter template already includes VAT summary support and EPC QR placeholders for eligible EUR invoices with a SEPA-scope IBAN.
+- The starter template uses `fontspec` and `\tracinglostchars=3`, so accented names and addresses (for example `Č`, `Ł`, `ő`, `ß`, `§`) appear correctly in the PDF and a character the font cannot show fails the build instead of disappearing. `invox init` does not overwrite an existing `template.tex`; if yours was created by an older version, replace the `\usepackage[T1]{fontenc}` and `\usepackage[utf8]{inputenc}` lines with `\usepackage{fontspec}` and `\tracinglostchars=3`.
 - When rendering outside the template directory, `invox` copies referenced assets such as `fonts/` and `logo.png` next to the generated TeX so `tectonic` can build successfully.
 - `invox` prefers the `invox` config directory but still falls back to the legacy `invoice-tool` directory when it already exists.
 
