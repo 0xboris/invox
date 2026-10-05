@@ -15,8 +15,12 @@ func TestDevNullIsNotATerminal(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = devNull.Close() })
 
-	if isTerminal(devNull) {
-		t.Fatalf("isTerminal(%s) = true, want false", os.DevNull)
+	ios := newSystem(devNull, devNull, devNull)
+	if ios.IsStdinTTY() || ios.IsStderrTTY() {
+		t.Fatalf("IsStdinTTY() = %v, IsStderrTTY() = %v on %s, want false", ios.IsStdinTTY(), ios.IsStderrTTY(), os.DevNull)
+	}
+	if ios.CanPrompt() {
+		t.Fatalf("CanPrompt() = true on %s, want false", os.DevNull)
 	}
 }
 

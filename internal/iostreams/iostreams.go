@@ -23,13 +23,17 @@ type IOStreams struct {
 // System returns the process streams. INVOX_FORCE_TTY set to anything but
 // the empty string makes stdout count as a terminal.
 func System() *IOStreams {
+	return newSystem(os.Stdin, os.Stdout, os.Stderr)
+}
+
+func newSystem(in, out, errOut *os.File) *IOStreams {
 	return &IOStreams{
-		In:          os.Stdin,
-		Out:         os.Stdout,
-		ErrOut:      os.Stderr,
-		stdinIsTTY:  isTerminal(os.Stdin),
-		stdoutIsTTY: os.Getenv("INVOX_FORCE_TTY") != "" || isTerminal(os.Stdout),
-		stderrIsTTY: isTerminal(os.Stderr),
+		In:          in,
+		Out:         out,
+		ErrOut:      errOut,
+		stdinIsTTY:  isTerminal(in),
+		stdoutIsTTY: os.Getenv("INVOX_FORCE_TTY") != "" || isTerminal(out),
+		stderrIsTTY: isTerminal(errOut),
 	}
 }
 
