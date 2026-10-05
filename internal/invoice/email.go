@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net/mail"
 	"net/textproto"
 	"os"
@@ -295,20 +296,24 @@ func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte,
 
 	textPart, err := writer.CreatePart(textproto.MIMEHeader{
 		"Content-Type":              {`text/plain; charset="utf-8"`},
-		"Content-Transfer-Encoding": {"7bit"},
+		"Content-Transfer-Encoding": {"quoted-printable"},
 	})
 	if err != nil {
 		return nil, err
 	}
-	if _, err := textPart.Write([]byte(strings.ReplaceAll(emailMessage.Body, "\n", "\r\n"))); err != nil {
+	bodyWriter := quotedprintable.NewWriter(textPart)
+	if _, err := bodyWriter.Write([]byte(emailMessage.Body)); err != nil {
+		return nil, err
+	}
+	if err := bodyWriter.Close(); err != nil {
 		return nil, err
 	}
 
 	filename := filepath.Base(emailMessage.AttachmentPath)
 	attachmentPart, err := writer.CreatePart(textproto.MIMEHeader{
-		"Content-Type":              {fmt.Sprintf(`application/pdf; name="%s"`, filename)},
+		"Content-Type":              {formatMIMEParameter("application/pdf", "name", filename)},
 		"Content-Transfer-Encoding": {"base64"},
-		"Content-Disposition":       {fmt.Sprintf(`attachment; filename="%s"`, filename)},
+		"Content-Disposition":       {formatMIMEParameter("attachment", "filename", filename)},
 	})
 	if err != nil {
 		return nil, err
@@ -392,6 +397,23 @@ func emailTemplateReplacer(ctx *Context) *strings.Replacer {
 
 func emailMoney(cents int64, currency string) string {
 	return formatMoneyCents(cents) + " " + currency
+}
+
+// formatMIMEParameter keeps the plain quoted form for printable ASCII values
+// without quotes or backslashes, and otherwise lets mime.FormatMediaType escape
+// the value or RFC 2231-encode it.
+func formatMIMEParameter(mediaType, key, value string) string {
+	plain := true
+	for i := 0; i < len(value); i++ {
+		if c := value[i]; c < 0x20 || c > 0x7e || c == '"' || c == '\\' {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return fmt.Sprintf(`%s; %s="%s"`, mediaType, key, value)
+	}
+	return mime.FormatMediaType(mediaType, map[string]string{key: value})
 }
 
 func writeBase64MIME(buffer io.Writer, data []byte) error {
