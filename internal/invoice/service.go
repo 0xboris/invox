@@ -634,12 +634,12 @@ func loadConfigRoot() (string, map[string]any, error) {
 	}
 
 	if err := validateConfigSource(configPath); err != nil {
-		return "", nil, err
+		return "", nil, &ConfigError{Path: configPath, Err: err}
 	}
 
 	value, err := loadYAML(configPath)
 	if err != nil {
-		return "", nil, err
+		return "", nil, &ConfigError{Path: configPath, Err: err}
 	}
 	if value == nil {
 		return configPath, map[string]any{}, nil
@@ -647,7 +647,7 @@ func loadConfigRoot() (string, map[string]any, error) {
 
 	root, ok := value.(map[string]any)
 	if !ok {
-		return "", nil, fmt.Errorf("%s: root value must be a mapping", configPath)
+		return "", nil, &ConfigError{Path: configPath, Err: fmt.Errorf("%s: root value must be a mapping", configPath)}
 	}
 	return configPath, root, nil
 }
