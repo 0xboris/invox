@@ -74,7 +74,9 @@ func defaultOpenNativeEmailDraft(message invoice.EmailMessage) error {
 	return cmd.Run()
 }
 
-func defaultCleanupOpenedDocument(path string) error {
+// defaultCleanupOpenedDocument removes dir, a temporary directory created for an
+// opened document, after a short delay so the opening application can read it first.
+func defaultCleanupOpenedDocument(dir string) error {
 	const delay = 5 * time.Second
 
 	switch runtime.GOOS {
@@ -83,9 +85,9 @@ func defaultCleanupOpenedDocument(path string) error {
 			"cmd",
 			"/c",
 			fmt.Sprintf(
-				`start "" /b cmd /c "ping -n %d 127.0.0.1 >nul && del /f /q %q"`,
+				`start "" /b cmd /c "ping -n %d 127.0.0.1 >nul && rmdir /s /q %q"`,
 				int(delay/time.Second)+1,
-				path,
+				dir,
 			),
 		)
 		return cmd.Run()
@@ -93,9 +95,9 @@ func defaultCleanupOpenedDocument(path string) error {
 		cmd := exec.Command(
 			"/bin/sh",
 			"-c",
-			fmt.Sprintf(`(sleep %d; rm -f "$1") >/dev/null 2>&1 &`, int(delay/time.Second)),
+			fmt.Sprintf(`(sleep %d; rm -rf "$1") >/dev/null 2>&1 &`, int(delay/time.Second)),
 			"invox",
-			path,
+			dir,
 		)
 		return cmd.Run()
 	}

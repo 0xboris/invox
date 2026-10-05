@@ -20,6 +20,7 @@ type commandSpec struct {
 	SupportsEditFlag       bool
 	SupportsEmailToFlag    bool
 	SupportsSubjectFlag    bool
+	SupportsForceFlag      bool
 	AcceptsPositionalInput bool
 	DynamicDefaultOutput   bool
 	InputBasedOutput       bool
@@ -174,8 +175,8 @@ func renderSpec() commandSpec {
 func emailSpec() commandSpec {
 	return commandSpec{
 		Name:                   "email",
-		Summary:                "Create an email draft, open it in the default mail app, and remove the draft file.",
-		Usage:                  "email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]",
+		Summary:                "Create an email draft and open it in the default mail app.",
+		Usage:                  "email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]",
 		RequiresInput:          true,
 		AcceptsPDFInput:        true,
 		NeedsCustomers:         true,
@@ -183,6 +184,7 @@ func emailSpec() commandSpec {
 		NeedsPDF:               true,
 		SupportsEmailToFlag:    true,
 		SupportsSubjectFlag:    true,
+		SupportsForceFlag:      true,
 		AcceptsPositionalInput: true,
 		InputBasedOutput:       true,
 		OutputExtension:        ".eml",

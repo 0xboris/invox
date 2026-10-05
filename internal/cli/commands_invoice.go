@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
@@ -146,6 +149,7 @@ func runEmail(args []string) int {
 		"--issuer":    true,
 		"--to":        true,
 		"--subject":   true,
+		"--force":     false,
 	})
 	explicitOutputPath := false
 	for _, arg := range args {
@@ -186,34 +190,26 @@ func runEmail(args []string) int {
 			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
 			return 1
 		}
+	} else if explicitOutputPath {
+		if code := writeAndOpenEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
+			return code
+		}
 	} else {
-		draft, err := invoice.CreateInvoiceEmailDraft(
-			opts.CustomersPath,
-			opts.IssuerPath,
-			paths.InvoicePath,
-			paths.PDFPath,
-			paths.OutputPath,
-			opts.EmailTo,
-			opts.EmailSubject,
-		)
+		draftDir, err := os.MkdirTemp("", "invox-email-*")
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintf(os.Stderr, "create temporary draft directory: %v\n", err)
 			return 1
 		}
-		if err := openDocument(draft.OutputPath); err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"created %s but failed to open it: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-				err,
-			)
-			return 1
+		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
+		if code := writeAndOpenEmailDraft(opts, paths, draftPath, false); code != 0 {
+			_ = os.RemoveAll(draftDir)
+			return code
 		}
-		if err := cleanupOpenedDocument(draft.OutputPath); err != nil {
+		if err := cleanupOpenedDocument(draftDir); err != nil {
 			fmt.Fprintf(
 				os.Stderr,
 				"opened %s but failed to schedule cleanup: %v\n",
-				invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+				draftPath,
 				err,
 			)
 			return 1
@@ -226,6 +222,43 @@ func runEmail(args []string) int {
 		emailMessage.InvoiceNumber,
 		emailMessage.Recipient,
 	)
+	return 0
+}
+
+// writeAndOpenEmailDraft writes the .eml draft to outputPath and opens it. It returns
+// a non-zero exit code after reporting a failure on stderr.
+func writeAndOpenEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
+	draft, err := invoice.CreateInvoiceEmailDraft(
+		opts.CustomersPath,
+		opts.IssuerPath,
+		paths.InvoicePath,
+		paths.PDFPath,
+		outputPath,
+		overwrite,
+		opts.EmailTo,
+		opts.EmailSubject,
+	)
+	if errors.Is(err, fs.ErrExist) {
+		fmt.Fprintf(
+			os.Stderr,
+			"%s already exists; pass --force or choose another -o path\n",
+			invoice.DisplayPath(outputPath, opts.BaseDir),
+		)
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if err := openDocument(draft.OutputPath); err != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"created %s but failed to open it: %v\n",
+			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
+			err,
+		)
+		return 1
+	}
 	return 0
 }
 
