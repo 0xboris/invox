@@ -1448,7 +1448,7 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1502,7 +1502,7 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1541,7 +1541,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	if _, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", ""); err != nil {
+	if _, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -1589,7 +1589,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, "", "")
+	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1632,6 +1632,7 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 		invoicePath,
 		pdfPath,
 		outputPath,
+		false,
 		"",
 		"Invoice {invoice_number} for {contact_person}",
 	)
@@ -1657,6 +1658,7 @@ func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T
 		invoicePath,
 		pdfPath,
 		filepath.Join(t.TempDir(), "invoice.eml"),
+		false,
 		"",
 		"",
 	)

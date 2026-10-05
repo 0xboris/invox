@@ -1128,7 +1128,8 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 		"-o, --output PATH",
 		"--to EMAIL",
 		"--subject TEXT",
-		"the input path with .eml extension",
+		"--force",
+		"a temporary <input name>.eml, removed shortly after it is opened",
 		"Accepts either the invoice YAML file or the built PDF as input.",
 		"The PDF lookup checks next to the PDF first, then archive.dir.",
 		"Requires invoice.status to be built or archived and the PDF attachment to exist.",
@@ -1178,9 +1179,12 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.Remove(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1203,11 +1207,11 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if openedPath != outputPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != outputPath {
-		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	if cleanupPath != filepath.Dir(openedPath) {
+		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
 	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
 		t.Fatalf("stdout %q does not contain email summary", stdout)
@@ -1256,9 +1260,12 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.Remove(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1281,11 +1288,11 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if openedPath != outputPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != outputPath {
-		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	if cleanupPath != filepath.Dir(openedPath) {
+		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
 	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
 		t.Fatalf("stdout %q does not contain email summary", stdout)
@@ -1332,9 +1339,12 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 		openedPath = path
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.Remove(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1357,11 +1367,11 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if openedPath != outputPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, outputPath)
+	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != outputPath {
-		t.Fatalf("cleanupPath = %q, want %q", cleanupPath, outputPath)
+	if cleanupPath != filepath.Dir(openedPath) {
+		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
 	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
 		t.Fatalf("stdout %q does not contain email summary", stdout)
@@ -1425,8 +1435,8 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		t.Fatalf("cleanupOpenedDocument(%q) should not be called when native compose is enabled", path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		t.Fatalf("cleanupOpenedDocument(%q, %q) should not be called when native compose is enabled", file, dir)
 		return nil
 	}
 	t.Cleanup(func() {

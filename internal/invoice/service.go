@@ -26,6 +26,7 @@ type Options struct {
 	PDFPath           string
 	TemplatePath      string
 	OutputPath        string
+	OverwriteOutput   bool
 	EmailTo           string
 	EmailSubject      string
 	ArchiveAfterBuild bool

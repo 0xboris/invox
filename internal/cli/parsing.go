@@ -205,6 +205,9 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 	if spec.SupportsSubjectFlag {
 		fs.StringVar(&opts.EmailSubject, "subject", opts.EmailSubject, "email subject override")
 	}
+	if spec.SupportsForceFlag {
+		fs.BoolVar(&opts.OverwriteOutput, "force", opts.OverwriteOutput, "overwrite an existing output file")
+	}
 	if spec.SupportsArchiveFlag {
 		fs.BoolVar(&opts.ArchiveAfterBuild, "archive", opts.ArchiveAfterBuild, "archive the invoice after a successful build")
 	}
