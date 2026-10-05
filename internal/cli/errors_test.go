@@ -73,6 +73,7 @@ func TestExitCodeMapsErrorTypes(t *testing.T) {
 	}{
 		{"success", nil, 0, ""},
 		{"help shown", flag.ErrHelp, 0, ""},
+		{"help flag with a value", &cmdutil.FlagError{Command: "validate", Err: flag.ErrHelp}, 2, "error: flag: help requested\nRun 'invox validate --help' for usage.\n"},
 		{"runtime error", errors.New("disk full"), 1, "error: disk full\n"},
 		{"usage error", cmdutil.FlagErrorf("customer list", "unexpected arguments: x"), 2, "error: unexpected arguments: x\nRun 'invox customer list --help' for usage.\n"},
 		{"root usage error", cmdutil.FlagErrorf("", "missing subcommand"), 2, "error: missing subcommand\nRun 'invox --help' for usage.\n"},

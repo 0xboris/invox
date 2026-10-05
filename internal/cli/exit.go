@@ -24,7 +24,7 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 	var flagErr *cmdutil.FlagError
 	var execErr *cmdutil.ExecError
 	switch {
-	case err == nil, errors.Is(err, flag.ErrHelp):
+	case err == nil, err == flag.ErrHelp:
 		return 0
 	case errors.Is(err, cmdutil.SilentError):
 		return 1
@@ -54,7 +54,7 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 // printError prints message with the error prefix, and with paths under the
 // working directory made relative to it.
 func printError(w io.Writer, message string) {
-	if cwd, err := os.Getwd(); err == nil {
+	if cwd, err := os.Getwd(); err == nil && filepath.Dir(cwd) != cwd {
 		message = strings.ReplaceAll(message, cwd+string(filepath.Separator), "")
 	}
 	fmt.Fprintf(w, "error: %s\n", message)
