@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func runConfig(args []string) int {

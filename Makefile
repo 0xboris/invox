@@ -21,6 +21,11 @@ EMAIL_TO ?=
 EMAIL_SUBJECT ?=
 ARGS ?=
 
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo DEV)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
+BUILD_PKG := github.com/0xboris/invox/internal/build
+LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
+
 COMMON_FLAGS = -i "$(INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)")
 RENDER_FLAGS = $(COMMON_FLAGS) $(if $(strip $(TEMPLATE)),-t "$(TEMPLATE)")
 
@@ -56,7 +61,7 @@ help: ## Show available targets and overridable variables.
 
 $(BINARY_PATH):
 	mkdir -p "$(BIN_DIR)"
-	$(GO) build -o "$(BINARY_PATH)" "$(PACKAGE)"
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o "$(BINARY_PATH)" "$(PACKAGE)"
 
 build: $(BINARY_PATH) ## Build the local binary at ./bin/invox.
 
@@ -67,7 +72,7 @@ vet: ## Run go vet across the module.
 	$(GO) vet ./...
 
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.
-	$(GO) install "$(PACKAGE)"
+	$(GO) install -trimpath -ldflags "$(LDFLAGS)" "$(PACKAGE)"
 
 init: $(BINARY_PATH) ## Create starter support files in the global config directory.
 	$(CLI) init $(ARGS)

@@ -26,7 +26,13 @@ brew install tectonic
 
 ## Installation
 
-Install from this checkout:
+Install the latest version:
+
+```sh
+go install github.com/0xboris/invox/cmd/invox@latest
+```
+
+Or install from this checkout:
 
 ```sh
 go install ./cmd/invox
@@ -112,6 +118,7 @@ Support files resolve in this order:
 | `invox archive invoice.yaml` | Move a built or edited invoice into the archive |
 | `invox archive edit FILENAME` | Copy an archived invoice into the current directory as an editable working copy |
 | `invox archive list` | List archived invoices |
+| `invox version` | Show the installed invox version |
 
 Run `invox -h` for the top-level command summary. The built-in help also includes focused references for the supported file formats and template system:
 

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func reorderArgs(args []string, flagSpecs map[string]bool) []string {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 type templatePlaceholder struct {
@@ -375,7 +375,8 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  render         Render a LaTeX invoice file\n")
 	fmt.Fprintf(w, "  email          Create and open an email draft with the invoice PDF attached\n")
 	fmt.Fprintf(w, "  build          Render and compile an invoice PDF with Tectonic\n")
-	fmt.Fprintf(w, "  archive        Archive invoices and manage archived invoices\n\n")
+	fmt.Fprintf(w, "  archive        Archive invoices and manage archived invoices\n")
+	fmt.Fprintf(w, "  version        Show the %s version\n\n", commandName)
 	fmt.Fprintf(w, "Required inputs by command:\n")
 	fmt.Fprintf(w, "  new        CUSTOMER_ID\n")
 	fmt.Fprintf(w, "  increment  -i, --input\n")
@@ -386,6 +387,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  archive    INVOICE.yaml or -i, --input\n\n")
 	fmt.Fprintf(w, "Optional flags:\n")
 	fmt.Fprintf(w, "  -h, --help              Show help\n")
+	fmt.Fprintf(w, "  --version               Show the %s version\n", commandName)
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n")
 	fmt.Fprintf(w, "  -o, --output PATH       Output file path (defaults vary by command)\n")
 	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")

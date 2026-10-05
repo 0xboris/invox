@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func runInit(args []string) int {
