@@ -283,42 +283,47 @@ func EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
 	return outputPath, archivePath, nil
 }
 
-func ArchiveInvoice(invoicePath string) (string, error) {
+// ArchiveInvoice moves a built invoice, or a working copy from `archive edit`,
+// into the archive. Re-archiving a working copy over archived files returns
+// an *ArchiveReplaceError, after all other checks passed and before anything
+// is written, unless opts.Replace is set. With opts.Replace the replaced
+// files are first copied to the archive's history directory.
+func ArchiveInvoice(invoicePath string, opts ArchiveOptions) (ArchiveResult, error) {
 	document, err := loadYAMLDocument(invoicePath)
 	if err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
 
 	root, err := documentRootMapping(document, invoicePath)
 	if err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
 
 	invoiceNode := findMappingValue(root, "invoice")
 	if invoiceNode == nil {
-		return "", fmt.Errorf("%s: missing `invoice` mapping", invoicePath)
+		return ArchiveResult{}, fmt.Errorf("%s: missing `invoice` mapping", invoicePath)
 	}
 	if invoiceNode.Kind != yaml.MappingNode {
-		return "", fmt.Errorf("%s: `invoice` must be a mapping", invoicePath)
+		return ArchiveResult{}, fmt.Errorf("%s: `invoice` must be a mapping", invoicePath)
 	}
 
 	status := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "status"))))
 	archiveDir, err := ResolveArchiveDir()
 	if err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
 	if strings.TrimSpace(archiveDir) == "" {
-		return "", fmt.Errorf("archive directory is unavailable")
+		return ArchiveResult{}, fmt.Errorf("archive directory is unavailable")
 	}
 
 	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
 	sourcePath, err := filepath.Abs(invoicePath)
 	if err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
 	archivePath, err = filepath.Abs(archivePath)
 	if err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
 
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
@@ -327,57 +332,80 @@ func ArchiveInvoice(invoicePath string) (string, error) {
 		switch status {
 		case "editing", "built":
 		default:
-			return "", fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", invoicePath, status)
+			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", invoicePath, status)
 		}
 		archivePath, err = resolveArchiveTargetPath(archiveDir, archiveTargetPath)
 		if err != nil {
-			return "", err
+			return ArchiveResult{}, err
 		}
 	} else {
 		switch status {
 		case "":
-			return "", fmt.Errorf("%s: invoice.status: missing value", invoicePath)
+			return ArchiveResult{}, fmt.Errorf("%s: invoice.status: missing value", invoicePath)
 		case "built":
 		default:
-			return "", fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", invoicePath, status)
+			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", invoicePath, status)
 		}
 		archivePath, err = filepath.Abs(filepath.Join(archiveDir, filepath.Base(invoicePath)))
 		if err != nil {
-			return "", err
+			return ArchiveResult{}, err
 		}
 		if fileExists(archivePath) {
-			return "", fmt.Errorf("%s already exists", archivePath)
+			return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
 		}
 	}
 	if sourcePath == archivePath {
-		return "", fmt.Errorf("%s is already in the archive directory", invoicePath)
+		return ArchiveResult{}, fmt.Errorf("%s is already in the archive directory", invoicePath)
 	}
 
 	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
 	if err := checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root); err != nil {
-		return "", err
+		return ArchiveResult{}, err
+	}
+
+	var replacePath string
+	if editingArchive && strings.TrimSpace(archiveReplacePath) != "" && archiveReplacePath != archiveTargetPath {
+		replacePath, err = resolveArchiveTargetPath(archiveDir, archiveReplacePath)
+		if err != nil {
+			return ArchiveResult{}, err
+		}
+		if replacePath == archivePath {
+			replacePath = ""
+		}
+	}
+	var replaced []string
+	if editingArchive {
+		replaced, err = existingArchivePaths(archivePath, replacePath)
+		if err != nil {
+			return ArchiveResult{}, err
+		}
+	}
+	if len(replaced) > 0 && !opts.Replace {
+		return ArchiveResult{}, &ArchiveReplaceError{
+			InvoicePath: invoicePath,
+			Paths:       replaced,
+			HistoryDir:  filepath.Join(archiveDir, archiveHistoryDirName),
+		}
+	}
+	backups, err := backupArchivedFiles(archiveDir, replaced)
+	if err != nil {
+		return ArchiveResult{}, err
 	}
 
 	setMappingString(invoiceNode, "status", "archived")
 	clearArchiveMetadata(root)
 	if err := writeYAMLDocument(archivePath, document); err != nil {
-		return "", err
+		return ArchiveResult{}, err
 	}
-	if editingArchive && strings.TrimSpace(archiveReplacePath) != "" && archiveReplacePath != archiveTargetPath {
-		replacePath, err := resolveArchiveTargetPath(archiveDir, archiveReplacePath)
-		if err != nil {
-			return "", err
-		}
-		if replacePath != archivePath {
-			if err := os.Remove(replacePath); err != nil && !os.IsNotExist(err) {
-				return "", fmt.Errorf("remove %s: %w", replacePath, err)
-			}
+	if replacePath != "" {
+		if err := os.Remove(replacePath); err != nil && !os.IsNotExist(err) {
+			return ArchiveResult{}, fmt.Errorf("remove %s: %w", replacePath, err)
 		}
 	}
 	if err := os.Remove(sourcePath); err != nil {
-		return "", fmt.Errorf("remove %s: %w", sourcePath, err)
+		return ArchiveResult{}, fmt.Errorf("remove %s: %w", sourcePath, err)
 	}
-	return archivePath, nil
+	return ArchiveResult{Path: archivePath, Replaced: backups}, nil
 }
 
 func invoiceIdentity(invoicePath string) (string, string, string, error) {

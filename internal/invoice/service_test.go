@@ -2942,10 +2942,11 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	finalArchivePath, err := ArchiveInvoice(outputPath)
+	result, err := ArchiveInvoice(outputPath, ArchiveOptions{Replace: true})
 	if err != nil {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
+	finalArchivePath := result.Path
 	wantArchivePath := filepath.Join(archiveDir, "customer-a", "2026-03-06.yaml")
 	if finalArchivePath != wantArchivePath {
 		t.Fatalf("finalArchivePath = %q, want %q", finalArchivePath, wantArchivePath)

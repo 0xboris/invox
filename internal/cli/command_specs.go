@@ -21,6 +21,7 @@ type commandSpec struct {
 	SupportsEmailToFlag    bool
 	SupportsSubjectFlag    bool
 	SupportsForceFlag      bool
+	SupportsYesFlag        bool
 	AcceptsPositionalInput bool
 	DynamicDefaultOutput   bool
 	InputBasedOutput       bool
@@ -201,12 +202,13 @@ func buildSpec() commandSpec {
 	return commandSpec{
 		Name:                   "build",
 		Summary:                "Render and compile an invoice PDF with Tectonic.",
-		Usage:                  "build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive]",
+		Usage:                  "build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]",
 		RequiresInput:          true,
 		NeedsCustomers:         true,
 		NeedsIssuer:            true,
 		NeedsTemplate:          true,
 		SupportsArchiveFlag:    true,
+		SupportsYesFlag:        true,
 		AcceptsPositionalInput: true,
 		InputBasedOutput:       true,
 		OutputExtension:        ".pdf",
@@ -222,12 +224,14 @@ func archiveSpec() commandSpec {
 	return commandSpec{
 		Name:                   "archive",
 		Summary:                "Archive a built or edited invoice YAML file into the configured archive directory.",
-		Usage:                  "archive (INVOICE.yaml | -i INVOICE.yaml)",
+		Usage:                  "archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]",
 		RequiresInput:          true,
+		SupportsYesFlag:        true,
 		AcceptsPositionalInput: true,
 		Examples: []string{
 			commandExample("archive invoice.yaml"),
 			commandExample("archive invoices/2026-0021.yaml"),
+			commandExample("archive 2026-03-06.yaml --yes"),
 		},
 	}
 }

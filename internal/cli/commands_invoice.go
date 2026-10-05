@@ -282,6 +282,7 @@ func runBuild(args []string) int {
 		"-t":          true,
 		"--template":  true,
 		"--archive":   false,
+		"--yes":       false,
 	})
 
 	spec := buildSpec()
@@ -301,7 +302,7 @@ func runBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err := invoice.SetInvoiceStatus(opts.InvoicePath, "built"); err != nil {
+	if err := invoice.MarkInvoiceBuilt(opts.InvoicePath); err != nil {
 		fmt.Fprintf(
 			os.Stderr,
 			"built %s but failed to update %s: %v\n",
@@ -312,7 +313,14 @@ func runBuild(args []string) int {
 		return 1
 	}
 	if opts.ArchiveAfterBuild {
-		archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
+		errorPrefix := fmt.Sprintf(
+			"built %s but ",
+			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
+		)
+		result, exitCode, err := archiveWithConfirmation(spec, opts, errorPrefix)
+		if exitCode != 0 {
+			return exitCode
+		}
 		if err != nil {
 			fmt.Fprintf(
 				os.Stderr,
@@ -324,13 +332,14 @@ func runBuild(args []string) int {
 			printDuplicateNumberHint(err, opts.BaseDir)
 			return 1
 		}
+		printArchiveReplacements(result, opts.BaseDir)
 		fmt.Printf(
 			"Built %s for %s (%s)\nArchived %s -> %s\n",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 			ctx.CustomerID,
 			ctx.InvoiceNumber,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
-			invoice.DisplayPath(archivePath, opts.BaseDir),
+			invoice.DisplayPath(result.Path, opts.BaseDir),
 		)
 		return 0
 	}
@@ -354,6 +363,12 @@ func runArchive(args []string) int {
 		}
 	}
 
+	args = reorderArgs(args, map[string]bool{
+		"-i":      true,
+		"--input": true,
+		"--yes":   false,
+	})
+
 	spec := archiveSpec()
 
 	opts, _, exitCode, ok := parseCommand(spec, args)
@@ -361,17 +376,21 @@ func runArchive(args []string) int {
 		return exitCode
 	}
 
-	archivePath, err := invoice.ArchiveInvoice(opts.InvoicePath)
+	result, exitCode, err := archiveWithConfirmation(spec, opts, "")
+	if exitCode != 0 {
+		return exitCode
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		printDuplicateNumberHint(err, opts.BaseDir)
 		return 1
 	}
 
+	printArchiveReplacements(result, opts.BaseDir)
 	fmt.Printf(
 		"Archived %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
-		invoice.DisplayPath(archivePath, opts.BaseDir),
+		invoice.DisplayPath(result.Path, opts.BaseDir),
 	)
 	return 0
 }
