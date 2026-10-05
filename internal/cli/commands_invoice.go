@@ -191,8 +191,17 @@ func runEmail(args []string) int {
 			return 1
 		}
 	} else if explicitOutputPath {
-		if code := writeAndOpenEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
+		if code := writeEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
 			return code
+		}
+		if err := openDocument(paths.OutputPath); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"created %s but failed to open it: %v\n",
+				invoice.DisplayPath(paths.OutputPath, opts.BaseDir),
+				err,
+			)
+			return 1
 		}
 	} else {
 		draftDir, err := os.MkdirTemp("", "invox-email-*")
@@ -201,11 +210,16 @@ func runEmail(args []string) int {
 			return 1
 		}
 		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
-		if code := writeAndOpenEmailDraft(opts, paths, draftPath, false); code != 0 {
+		if code := writeEmailDraft(opts, paths, draftPath, false); code != 0 {
 			_ = os.RemoveAll(draftDir)
 			return code
 		}
-		if err := cleanupOpenedDocument(draftDir); err != nil {
+		if err := openDocument(draftPath); err != nil {
+			_ = os.RemoveAll(draftDir)
+			fmt.Fprintf(os.Stderr, "failed to open email draft: %v\n", err)
+			return 1
+		}
+		if err := cleanupOpenedDocument(draftPath, draftDir); err != nil {
 			fmt.Fprintf(
 				os.Stderr,
 				"opened %s but failed to schedule cleanup: %v\n",
@@ -225,10 +239,10 @@ func runEmail(args []string) int {
 	return 0
 }
 
-// writeAndOpenEmailDraft writes the .eml draft to outputPath and opens it. It returns
-// a non-zero exit code after reporting a failure on stderr.
-func writeAndOpenEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
-	draft, err := invoice.CreateInvoiceEmailDraft(
+// writeEmailDraft writes the .eml draft to outputPath. It returns a non-zero exit code
+// after reporting a failure on stderr.
+func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
+	_, err := invoice.CreateInvoiceEmailDraft(
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
@@ -248,15 +262,6 @@ func writeAndOpenEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths,
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	if err := openDocument(draft.OutputPath); err != nil {
-		fmt.Fprintf(
-			os.Stderr,
-			"created %s but failed to open it: %v\n",
-			invoice.DisplayPath(draft.OutputPath, opts.BaseDir),
-			err,
-		)
 		return 1
 	}
 	return 0

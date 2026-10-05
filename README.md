@@ -135,7 +135,7 @@ invox help template
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
 - `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`.
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
-- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup.
+- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft and opens it. Without `-o`, the draft goes to a temporary directory that is removed shortly after it opens. A draft written with `-o` is kept, and an existing `-o` file is only overwritten with `--force`.
 - The starter template already includes VAT summary support and EPC QR placeholders for eligible EUR invoices with a SEPA-scope IBAN.
 - When rendering outside the template directory, `invox` copies referenced assets such as `fonts/` and `logo.png` next to the generated TeX so `tectonic` can build successfully.
 - `invox` prefers the `invox` config directory but still falls back to the legacy `invoice-tool` directory when it already exists.

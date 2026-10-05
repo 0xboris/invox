@@ -1179,9 +1179,12 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.RemoveAll(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1257,9 +1260,12 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.RemoveAll(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1333,9 +1339,12 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 		openedPath = path
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleanupPath = path
-		return os.RemoveAll(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleanupPath = dir
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -1426,8 +1435,8 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		t.Fatalf("cleanupOpenedDocument(%q) should not be called when native compose is enabled", path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		t.Fatalf("cleanupOpenedDocument(%q, %q) should not be called when native compose is enabled", file, dir)
 		return nil
 	}
 	t.Cleanup(func() {

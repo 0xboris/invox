@@ -74,19 +74,24 @@ func defaultOpenNativeEmailDraft(message invoice.EmailMessage) error {
 	return cmd.Run()
 }
 
-// defaultCleanupOpenedDocument removes dir, a temporary directory created for an
-// opened document, after a short delay so the opening application can read it first.
-func defaultCleanupOpenedDocument(dir string) error {
+// defaultCleanupOpenedDocument removes file and then its directory dir, a temporary
+// directory created for the opened document, after a short delay so the opening
+// application can read the file first. Neither removal is recursive.
+func defaultCleanupOpenedDocument(file, dir string) error {
 	const delay = 5 * time.Second
 
 	switch runtime.GOOS {
 	case "windows":
+		// Known issue (#38): Go's %q quoting nested inside cmd /c "..." is not how cmd
+		// parses quotes, so this can fail for some paths and leave the temporary
+		// directory behind.
 		cmd := exec.Command(
 			"cmd",
 			"/c",
 			fmt.Sprintf(
-				`start "" /b cmd /c "ping -n %d 127.0.0.1 >nul && rmdir /s /q %q"`,
+				`start "" /b cmd /c "ping -n %d 127.0.0.1 >nul & del /f /q %q & rmdir /q %q"`,
 				int(delay/time.Second)+1,
+				file,
 				dir,
 			),
 		)
@@ -95,8 +100,9 @@ func defaultCleanupOpenedDocument(dir string) error {
 		cmd := exec.Command(
 			"/bin/sh",
 			"-c",
-			fmt.Sprintf(`(sleep %d; rm -rf "$1") >/dev/null 2>&1 &`, int(delay/time.Second)),
+			fmt.Sprintf(`(sleep %d; rm -f -- "$1"; rmdir -- "$2") >/dev/null 2>&1 &`, int(delay/time.Second)),
 			"invox",
+			file,
 			dir,
 		)
 		return cmd.Run()

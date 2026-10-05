@@ -44,9 +44,12 @@ func stubEmailOpeners(t *testing.T) (*[]string, *[]string) {
 		opened = append(opened, path)
 		return nil
 	}
-	cleanupOpenedDocument = func(path string) error {
-		cleaned = append(cleaned, path)
-		return os.RemoveAll(path)
+	cleanupOpenedDocument = func(file, dir string) error {
+		if filepath.Dir(file) != dir {
+			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
+		}
+		cleaned = append(cleaned, dir)
+		return os.RemoveAll(dir)
 	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
@@ -194,5 +197,37 @@ func TestEmailImplicitDraftLeavesSiblingEMLUntouched(t *testing.T) {
 	}
 	if string(content) != "keep\n" {
 		t.Fatalf("sibling .eml content = %q, want it untouched", content)
+	}
+}
+
+func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
+	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
+	_, cleaned := stubEmailOpeners(t)
+
+	openedPath := ""
+	openDocument = func(path string) error {
+		openedPath = path
+		return errors.New("no mail app")
+	}
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"email", invoicePath,
+		"-c", customersPath,
+		"-u", issuerPath,
+	})
+	if exitCode != 1 {
+		t.Fatalf("exitCode = %d, want 1, stderr=%q", exitCode, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if stderr != "failed to open email draft: no mail app\n" {
+		t.Fatalf("stderr = %q, want %q", stderr, "failed to open email draft: no mail app\n")
+	}
+	if len(*cleaned) != 0 {
+		t.Fatalf("cleanupOpenedDocument called with %q, want no delayed cleanup after a failed open", *cleaned)
+	}
+	if _, err := os.Stat(filepath.Dir(openedPath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(draft directory) error = %v, want not exists", err)
 	}
 }
