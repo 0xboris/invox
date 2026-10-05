@@ -8,29 +8,30 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runTemplate(args []string) int {
+func runTemplate(ios *iostreams.IOStreams, args []string) int {
 	if len(args) == 0 {
-		printTemplateHelp(os.Stdout)
+		printTemplateHelp(ios.Out)
 		return 0
 	}
 	if len(args) == 1 && wantsHelp(args) {
-		printTemplateHelp(os.Stdout)
+		printTemplateHelp(ios.Out)
 		return 0
 	}
 
 	switch args[0] {
 	case "list":
-		return runTemplateList(args[1:])
+		return runTemplateList(ios, args[1:])
 	default:
-		return templateUsageError(fmt.Sprintf("unknown template subcommand %q", args[0]))
+		return templateUsageError(ios, fmt.Sprintf("unknown template subcommand %q", args[0]))
 	}
 }
 
-func runTemplateList(args []string) int {
+func runTemplateList(ios *iostreams.IOStreams, args []string) int {
 	if wantsHelp(args) {
-		printTemplateListHelp(os.Stdout)
+		printTemplateListHelp(ios.Out)
 		return 0
 	}
 
@@ -42,52 +43,52 @@ func runTemplateList(args []string) int {
 	fs.BoolVar(&namesOnly, "names", false, "print only template names")
 
 	if err := fs.Parse(args); err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return 2
 	}
 	if len(fs.Args()) > 0 {
-		printCommandError(os.Stderr, spec, "unexpected arguments: "+strings.Join(fs.Args(), " "))
+		printCommandError(ios.ErrOut, spec, "unexpected arguments: "+strings.Join(fs.Args(), " "))
 		return 2
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	templates, err := invoice.ListTemplates(cwd)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	for _, template := range templates {
 		if namesOnly {
-			fmt.Println(template.Name)
+			fmt.Fprintln(ios.Out, template.Name)
 			continue
 		}
-		fmt.Printf("%s\t%s\n", template.Name, template.Path)
+		fmt.Fprintf(ios.Out, "%s\t%s\n", template.Name, template.Path)
 	}
 	return 0
 }
 
-func runCompletion(args []string) int {
+func runCompletion(ios *iostreams.IOStreams, args []string) int {
 	if len(args) == 0 || wantsHelp(args) {
-		printCompletionHelp(os.Stdout)
+		printCompletionHelp(ios.Out)
 		return 0
 	}
 	if len(args) != 1 {
-		printCommandError(os.Stderr, completionSpec(), "unexpected arguments: "+strings.Join(args, " "))
+		printCommandError(ios.ErrOut, completionSpec(), "unexpected arguments: "+strings.Join(args, " "))
 		return 2
 	}
 
 	switch args[0] {
 	case "zsh":
-		fmt.Fprint(os.Stdout, zshCompletionScript())
+		fmt.Fprint(ios.Out, zshCompletionScript())
 		return 0
 	default:
-		printCommandError(os.Stderr, completionSpec(), fmt.Sprintf("unsupported shell %q", args[0]))
+		printCommandError(ios.ErrOut, completionSpec(), fmt.Sprintf("unsupported shell %q", args[0]))
 		return 2
 	}
 }

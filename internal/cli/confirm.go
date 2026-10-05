@@ -4,33 +4,19 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
-
-// canPrompt reports whether the user can answer a confirmation prompt: stdin
-// and stderr are both terminals. Tests swap it and restore it with t.Cleanup.
-// The IOStreams abstraction (#33) replaces it.
-var canPrompt = func() bool {
-	return isTerminal(os.Stdin) && isTerminal(os.Stderr)
-}
-
-// promptInput returns the reader confirmation answers are read from. Tests
-// swap it and restore it with t.Cleanup.
-var promptInput = func() io.Reader {
-	return os.Stdin
-}
 
 // confirm asks question on stderr and reads a yes/no answer. Anything but
 // y or yes, including end of input, is a no.
-func confirm(question string) bool {
-	fmt.Fprintf(os.Stderr, "%s [y/N] ", question)
-	answer, err := bufio.NewReader(promptInput()).ReadString('\n')
+func confirm(ios *iostreams.IOStreams, question string) bool {
+	fmt.Fprintf(ios.ErrOut, "%s [y/N] ", question)
+	answer, err := bufio.NewReader(ios.In).ReadString('\n')
 	if err != nil && answer == "" {
-		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(ios.ErrOut)
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(answer)) {
@@ -45,7 +31,7 @@ func confirm(question string) bool {
 // archived files, asks first unless --yes was passed. errorPrefix starts
 // every message it prints. A non-zero exit code means it stopped and has
 // already reported why; err is a failure the caller reports.
-func archiveWithConfirmation(spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, int, error) {
+func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, int, error) {
 	archiveOpts := invoice.ArchiveOptions{Replace: opts.AssumeYes}
 	result, err := invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
 	var replaceErr *invoice.ArchiveReplaceError
@@ -58,8 +44,8 @@ func archiveWithConfirmation(spec commandSpec, opts invoice.Options, errorPrefix
 		paths = append(paths, invoice.DisplayPath(path, opts.BaseDir))
 	}
 	replaced := strings.Join(paths, ", ")
-	if !canPrompt() {
-		printCommandError(os.Stderr, spec, fmt.Sprintf(
+	if !ios.CanPrompt() {
+		printCommandError(ios.ErrOut, spec, fmt.Sprintf(
 			"%sarchiving %s replaces archived invoice %s; pass --yes to replace it (no terminal to ask on)",
 			errorPrefix,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
@@ -72,8 +58,8 @@ func archiveWithConfirmation(spec commandSpec, opts invoice.Options, errorPrefix
 		replaced,
 		invoice.DisplayPath(replaceErr.HistoryDir, opts.BaseDir),
 	)
-	if !confirm(question) {
-		fmt.Fprintf(os.Stderr, "%snot archived; the archive was not changed; pass --yes to replace without asking\n", errorPrefix)
+	if !confirm(ios, question) {
+		fmt.Fprintf(ios.ErrOut, "%snot archived; the archive was not changed; pass --yes to replace without asking\n", errorPrefix)
 		return invoice.ArchiveResult{}, 2, nil
 	}
 
@@ -84,10 +70,10 @@ func archiveWithConfirmation(spec commandSpec, opts invoice.Options, errorPrefix
 
 // printArchiveReplacements tells the user on stderr which archived files were
 // replaced and where their previous versions are.
-func printArchiveReplacements(result invoice.ArchiveResult, baseDir string) {
+func printArchiveReplacements(ios *iostreams.IOStreams, result invoice.ArchiveResult, baseDir string) {
 	for _, backup := range result.Replaced {
 		fmt.Fprintf(
-			os.Stderr,
+			ios.ErrOut,
 			"Replaced archived invoice %s; previous version kept at %s\n",
 			invoice.DisplayPath(backup.Path, baseDir),
 			invoice.DisplayPath(backup.BackupPath, baseDir),

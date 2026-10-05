@@ -3,6 +3,7 @@ package invoice
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"os/exec"
@@ -953,7 +954,14 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	return copyTemplateAssets(templatePath, outputPath, rendered)
 }
 
-func BuildPDF(outputPath string) error {
+// ProcessIO holds the streams a child process such as tectonic runs with.
+type ProcessIO struct {
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func BuildPDF(outputPath string, processIO ProcessIO) error {
 	tectonicPath, err := exec.LookPath("tectonic")
 	if err != nil {
 		return errors.New("tectonic not found in PATH\nInstall it with `brew install tectonic`, then rerun this command.")
@@ -961,13 +969,13 @@ func BuildPDF(outputPath string) error {
 
 	cmd := exec.Command(tectonicPath, filepath.Base(outputPath))
 	cmd.Dir = filepath.Dir(outputPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	cmd.Stdout = processIO.Stdout
+	cmd.Stderr = processIO.Stderr
+	cmd.Stdin = processIO.Stdin
 	return cmd.Run()
 }
 
-func BuildInvoicePDF(templatePath, outputPath string, ctx *Context) error {
+func BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO ProcessIO) error {
 	tempDir, err := os.MkdirTemp("", tempBuildDirPrefix)
 	if err != nil {
 		return err
@@ -981,7 +989,7 @@ func BuildInvoicePDF(templatePath, outputPath string, ctx *Context) error {
 	if err := RenderInvoice(templatePath, renderPath, ctx); err != nil {
 		return err
 	}
-	if err := BuildPDF(renderPath); err != nil {
+	if err := BuildPDF(renderPath, processIO); err != nil {
 		return err
 	}
 	return copyFile(PDFPathForOutput(renderPath), outputPath)

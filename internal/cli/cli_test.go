@@ -1,14 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestNewRequiresCustomerID(t *testing.T) {
@@ -79,7 +80,7 @@ func TestConfigOpensConfigFile(t *testing.T) {
 
 	openedPath := ""
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
@@ -128,7 +129,7 @@ func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
 
 	openedPath := ""
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
@@ -430,7 +431,7 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 
 	openedPath := ""
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
@@ -822,7 +823,7 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 
 	openedPath := ""
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
@@ -864,7 +865,7 @@ func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		return errors.New("editor unavailable")
 	}
 	t.Cleanup(func() {
@@ -1170,7 +1171,7 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		source, err := os.ReadFile(path)
 		if err != nil {
@@ -1251,7 +1252,7 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		source, err := os.ReadFile(path)
 		if err != nil {
@@ -1335,7 +1336,7 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	oldOpenDocument := openDocument
 	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
@@ -1427,11 +1428,11 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	preferNativeMailCompose = true
 
 	var opened invoice.EmailMessage
-	openNativeEmailDraft = func(message invoice.EmailMessage) error {
+	openNativeEmailDraft = func(_ *iostreams.IOStreams, message invoice.EmailMessage) error {
 		opened = message
 		return nil
 	}
-	openDocument = func(path string) error {
+	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
 		return nil
 	}
@@ -2416,62 +2417,16 @@ func quoteYAMLString(value string) string {
 func captureRun(t *testing.T, args []string) (int, string, string) {
 	t.Helper()
 
+	ios, _, _, _ := iostreams.Test()
+	return captureRunStreams(t, ios, args)
+}
+
+// captureRunStreams runs args with ios, which must come from iostreams.Test,
+// and returns the exit code, stdout and stderr.
+func captureRunStreams(t *testing.T, ios *iostreams.IOStreams, args []string) (int, string, string) {
+	t.Helper()
+
 	isolateUserDirs(t)
-
-	stdoutReader, stdoutWriter, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe(stdout) returned error: %v", err)
-	}
-	stderrReader, stderrWriter, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe(stderr) returned error: %v", err)
-	}
-
-	// Drain both pipes while Run executes: pipe buffers are small (4 KiB on
-	// Windows) and some help pages are larger, so reading only after Run
-	// returns would deadlock.
-	stdoutDone := drainPipe(stdoutReader)
-	stderrDone := drainPipe(stderrReader)
-
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	os.Stdout = stdoutWriter
-	os.Stderr = stderrWriter
-
-	var exitCode int
-	func() {
-		defer func() {
-			os.Stdout = oldStdout
-			os.Stderr = oldStderr
-			_ = stdoutWriter.Close()
-			_ = stderrWriter.Close()
-		}()
-		exitCode = Run(args)
-	}()
-
-	stdout := <-stdoutDone
-	stderr := <-stderrDone
-	if stdout.err != nil {
-		t.Fatalf("ReadAll(stdout) returned error: %v", stdout.err)
-	}
-	if stderr.err != nil {
-		t.Fatalf("ReadAll(stderr) returned error: %v", stderr.err)
-	}
-
-	return exitCode, stdout.text, stderr.text
-}
-
-type pipeResult struct {
-	text string
-	err  error
-}
-
-func drainPipe(r *os.File) <-chan pipeResult {
-	done := make(chan pipeResult, 1)
-	go func() {
-		defer r.Close()
-		data, err := io.ReadAll(r)
-		done <- pipeResult{text: string(data), err: err}
-	}()
-	return done
+	exitCode := Main(args, ios)
+	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }

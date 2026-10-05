@@ -2,44 +2,44 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCustomerList(args []string) int {
+func runCustomerList(ios *iostreams.IOStreams, args []string) int {
 	spec := customerListSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	customers, err := invoice.ListCustomers(opts.CustomersPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	for _, customer := range customers {
-		fmt.Printf("%s\t%s\t%s\n", customer.ID, customer.LegalCompanyName, customer.Status)
+		fmt.Fprintf(ios.Out, "%s\t%s\t%s\n", customer.ID, customer.LegalCompanyName, customer.Status)
 	}
 	return 0
 }
 
-func runCustomerConfig(args []string) int {
+func runCustomerConfig(ios *iostreams.IOStreams, args []string) int {
 	spec := customerConfigSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
-	if err := openTextFile(opts.CustomersPath); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := openTextFile(ios, opts.CustomersPath); err != nil {
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	fmt.Printf("Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
+	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
 	return 0
 }

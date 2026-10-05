@@ -7,42 +7,43 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runConfig(args []string) int {
+func runConfig(ios *iostreams.IOStreams, args []string) int {
 	spec := configSpec()
 
 	if wantsHelp(args) {
-		printConfigHelp(os.Stdout)
+		printConfigHelp(ios.Out)
 		return 0
 	}
 	if len(args) > 0 {
-		printCommandError(os.Stderr, spec, fmt.Sprintf("unexpected arguments: %s", strings.Join(args, " ")))
+		printCommandError(ios.ErrOut, spec, fmt.Sprintf("unexpected arguments: %s", strings.Join(args, " ")))
 		return 2
 	}
 
 	configPath, err := invoice.EditableConfigPath()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	if err := openTextFile(configPath); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := openTextFile(ios, configPath); err != nil {
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	baseDir, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 	baseDir, err = filepath.Abs(baseDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	fmt.Printf("Opened %s\n", invoice.DisplayPath(configPath, baseDir))
+	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(configPath, baseDir))
 	return 0
 }

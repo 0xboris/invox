@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // brokenConfigSource is a config.yaml with a YAML syntax error on line 3.
@@ -81,7 +83,7 @@ func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 
 	openedPath := ""
 	oldOpenTextFile := openTextFile
-	openTextFile = func(path string) error {
+	openTextFile = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}

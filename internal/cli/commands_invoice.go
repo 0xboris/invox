@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runNew(args []string) int {
+func runNew(ios *iostreams.IOStreams, args []string) int {
 	args = reorderArgs(args, map[string]bool{
 		"-c":          true,
 		"--customers": true,
@@ -28,7 +29,7 @@ func runNew(args []string) int {
 
 	spec := newSpec()
 
-	opts, extraArgs, exitCode, ok := parseCommand(spec, args)
+	opts, extraArgs, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
@@ -36,13 +37,13 @@ func runNew(args []string) int {
 	customerID := strings.TrimSpace(extraArgs[0])
 	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 	if opts.EditNewInvoice {
-		if err := openTextFile(outputPath); err != nil {
+		if err := openTextFile(ios, outputPath); err != nil {
 			fmt.Fprintf(
-				os.Stderr,
+				ios.ErrOut,
 				"created %s but failed to open it: %v\n",
 				invoice.DisplayPath(outputPath, opts.BaseDir),
 				err,
@@ -51,7 +52,8 @@ func runNew(args []string) int {
 		}
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Created %s for %s (%s)\n",
 		invoice.DisplayPath(outputPath, opts.BaseDir),
 		customerID,
@@ -60,21 +62,22 @@ func runNew(args []string) int {
 	return 0
 }
 
-func runIncrement(args []string) int {
+func runIncrement(ios *iostreams.IOStreams, args []string) int {
 	spec := incrementSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	customerID, oldNumber, newNumber, err := invoice.IncrementInvoiceNumber(opts.InvoicePath, opts.CustomersPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Incremented %s for %s: %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 		customerID,
@@ -84,23 +87,24 @@ func runIncrement(args []string) int {
 	return 0
 }
 
-func runValidate(args []string) int {
+func runValidate(ios *iostreams.IOStreams, args []string) int {
 	spec := validateSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	ctx, err := invoice.LoadContext(opts.CustomersPath, opts.IssuerPath, opts.InvoicePath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	warnArchivedDuplicate(opts.InvoicePath, opts.BaseDir)
+	warnArchivedDuplicate(ios, opts.InvoicePath, opts.BaseDir)
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Validation OK: %s for %s, %d line item(s), total %s\n",
 		ctx.InvoiceNumber,
 		ctx.CustomerID,
@@ -110,25 +114,26 @@ func runValidate(args []string) int {
 	return 0
 }
 
-func runRender(args []string) int {
+func runRender(ios *iostreams.IOStreams, args []string) int {
 	spec := renderSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	ctx, err := invoice.LoadContext(opts.CustomersPath, opts.IssuerPath, opts.InvoicePath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 	if err := invoice.RenderInvoice(opts.TemplatePath, opts.OutputPath, ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Rendered %s for %s (%s)\n",
 		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		ctx.CustomerID,
@@ -137,7 +142,7 @@ func runRender(args []string) int {
 	return 0
 }
 
-func runEmail(args []string) int {
+func runEmail(ios *iostreams.IOStreams, args []string) int {
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -163,14 +168,14 @@ func runEmail(args []string) int {
 
 	spec := emailSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	paths, err := invoice.ResolveEmailDraftPaths(opts.InvoicePath, opts.PDFPath, opts.OutputPath)
 	if err != nil {
-		printCommandError(os.Stderr, spec, err.Error())
+		printCommandError(ios.ErrOut, spec, err.Error())
 		return 2
 	}
 
@@ -183,22 +188,22 @@ func runEmail(args []string) int {
 		opts.EmailSubject,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	if preferNativeMailCompose && !explicitOutputPath {
-		if err := openNativeEmailDraft(emailMessage); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to open editable email draft: %v\n", err)
+		if err := openNativeEmailDraft(ios, emailMessage); err != nil {
+			fmt.Fprintf(ios.ErrOut, "failed to open editable email draft: %v\n", err)
 			return 1
 		}
 	} else if explicitOutputPath {
-		if code := writeEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
+		if code := writeEmailDraft(ios, opts, paths, paths.OutputPath, opts.OverwriteOutput); code != 0 {
 			return code
 		}
-		if err := openDocument(paths.OutputPath); err != nil {
+		if err := openDocument(ios, paths.OutputPath); err != nil {
 			fmt.Fprintf(
-				os.Stderr,
+				ios.ErrOut,
 				"created %s but failed to open it: %v\n",
 				invoice.DisplayPath(paths.OutputPath, opts.BaseDir),
 				err,
@@ -208,22 +213,22 @@ func runEmail(args []string) int {
 	} else {
 		draftDir, err := os.MkdirTemp("", "invox-email-*")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "create temporary draft directory: %v\n", err)
+			fmt.Fprintf(ios.ErrOut, "create temporary draft directory: %v\n", err)
 			return 1
 		}
 		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
-		if code := writeEmailDraft(opts, paths, draftPath, false); code != 0 {
+		if code := writeEmailDraft(ios, opts, paths, draftPath, false); code != 0 {
 			_ = os.RemoveAll(draftDir)
 			return code
 		}
-		if err := openDocument(draftPath); err != nil {
+		if err := openDocument(ios, draftPath); err != nil {
 			_ = os.RemoveAll(draftDir)
-			fmt.Fprintf(os.Stderr, "failed to open email draft: %v\n", err)
+			fmt.Fprintf(ios.ErrOut, "failed to open email draft: %v\n", err)
 			return 1
 		}
 		if err := cleanupOpenedDocument(draftPath, draftDir); err != nil {
 			fmt.Fprintf(
-				os.Stderr,
+				ios.ErrOut,
 				"opened %s but failed to schedule cleanup: %v\n",
 				draftPath,
 				err,
@@ -232,7 +237,8 @@ func runEmail(args []string) int {
 		}
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Opened email draft for %s (%s) to %s\n",
 		emailMessage.CustomerID,
 		emailMessage.InvoiceNumber,
@@ -243,7 +249,7 @@ func runEmail(args []string) int {
 
 // writeEmailDraft writes the .eml draft to outputPath. It returns a non-zero exit code
 // after reporting a failure on stderr.
-func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
+func writeEmailDraft(ios *iostreams.IOStreams, opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) int {
 	_, err := invoice.CreateInvoiceEmailDraft(
 		opts.CustomersPath,
 		opts.IssuerPath,
@@ -256,20 +262,20 @@ func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, output
 	)
 	if errors.Is(err, fs.ErrExist) {
 		fmt.Fprintf(
-			os.Stderr,
+			ios.ErrOut,
 			"%s already exists; pass --force or choose another -o path\n",
 			invoice.DisplayPath(outputPath, opts.BaseDir),
 		)
 		return 1
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 	return 0
 }
 
-func runBuild(args []string) int {
+func runBuild(ios *iostreams.IOStreams, args []string) int {
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -287,24 +293,24 @@ func runBuild(args []string) int {
 
 	spec := buildSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	ctx, err := invoice.LoadContext(opts.CustomersPath, opts.IssuerPath, opts.InvoicePath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	if err := invoice.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := invoice.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx, invoice.ProcessIO{Stdin: ios.In, Stdout: ios.Out, Stderr: ios.ErrOut}); err != nil {
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 	if err := invoice.MarkInvoiceBuilt(opts.InvoicePath); err != nil {
 		fmt.Fprintf(
-			os.Stderr,
+			ios.ErrOut,
 			"built %s but failed to update %s: %v\n",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
@@ -317,23 +323,24 @@ func runBuild(args []string) int {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, exitCode, err := archiveWithConfirmation(spec, opts, errorPrefix)
+		result, exitCode, err := archiveWithConfirmation(ios, spec, opts, errorPrefix)
 		if exitCode != 0 {
 			return exitCode
 		}
 		if err != nil {
 			fmt.Fprintf(
-				os.Stderr,
+				ios.ErrOut,
 				"built %s but failed to archive %s: %v\n",
 				invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 				invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 				err,
 			)
-			printDuplicateNumberHint(err, opts.BaseDir)
+			printDuplicateNumberHint(ios, err, opts.BaseDir)
 			return 1
 		}
-		printArchiveReplacements(result, opts.BaseDir)
-		fmt.Printf(
+		printArchiveReplacements(ios, result, opts.BaseDir)
+		fmt.Fprintf(
+			ios.Out,
 			"Built %s for %s (%s)\nArchived %s -> %s\n",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 			ctx.CustomerID,
@@ -344,7 +351,8 @@ func runBuild(args []string) int {
 		return 0
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Built %s for %s (%s)\n",
 		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		ctx.CustomerID,
@@ -353,13 +361,13 @@ func runBuild(args []string) int {
 	return 0
 }
 
-func runArchive(args []string) int {
+func runArchive(ios *iostreams.IOStreams, args []string) int {
 	if len(args) > 0 {
 		switch args[0] {
 		case "edit":
-			return runArchiveEdit(args[1:])
+			return runArchiveEdit(ios, args[1:])
 		case "list":
-			return runArchiveList(args[1:])
+			return runArchiveList(ios, args[1:])
 		}
 	}
 
@@ -371,23 +379,24 @@ func runArchive(args []string) int {
 
 	spec := archiveSpec()
 
-	opts, _, exitCode, ok := parseCommand(spec, args)
+	opts, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
-	result, exitCode, err := archiveWithConfirmation(spec, opts, "")
+	result, exitCode, err := archiveWithConfirmation(ios, spec, opts, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		printDuplicateNumberHint(err, opts.BaseDir)
+		fmt.Fprintln(ios.ErrOut, err)
+		printDuplicateNumberHint(ios, err, opts.BaseDir)
 		return 1
 	}
 
-	printArchiveReplacements(result, opts.BaseDir)
-	fmt.Printf(
+	printArchiveReplacements(ios, result, opts.BaseDir)
+	fmt.Fprintf(
+		ios.Out,
 		"Archived %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 		invoice.DisplayPath(result.Path, opts.BaseDir),
@@ -395,21 +404,22 @@ func runArchive(args []string) int {
 	return 0
 }
 
-func runArchiveEdit(args []string) int {
+func runArchiveEdit(ios *iostreams.IOStreams, args []string) int {
 	spec := archiveEditSpec()
 
-	opts, extraArgs, exitCode, ok := parseCommand(spec, args)
+	opts, extraArgs, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	outputPath, archivePath, err := invoice.EditArchivedInvoice(strings.TrimSpace(extraArgs[0]), opts.BaseDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
-	fmt.Printf(
+	fmt.Fprintf(
+		ios.Out,
 		"Editing %s -> %s\n",
 		invoice.DisplayPath(archivePath, opts.BaseDir),
 		invoice.DisplayPath(outputPath, opts.BaseDir),
@@ -417,22 +427,23 @@ func runArchiveEdit(args []string) int {
 	return 0
 }
 
-func runArchiveList(args []string) int {
+func runArchiveList(ios *iostreams.IOStreams, args []string) int {
 	spec := archiveListSpec()
 
-	_, _, exitCode, ok := parseCommand(spec, args)
+	_, _, exitCode, ok := parseCommand(ios, spec, args)
 	if !ok {
 		return exitCode
 	}
 
 	archivedInvoices, err := invoice.ListArchivedInvoices()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
 
 	for _, archivedInvoice := range archivedInvoices {
-		fmt.Printf(
+		fmt.Fprintf(
+			ios.Out,
 			"%s\t%s\t%s\t%s\n",
 			archivedInvoice.Filename,
 			archivedInvoice.CustomerID,
@@ -445,13 +456,13 @@ func runArchiveList(args []string) int {
 
 // printDuplicateNumberHint tells the user how to resolve an archive refusal
 // caused by an invoice number that is already archived.
-func printDuplicateNumberHint(err error, baseDir string) {
+func printDuplicateNumberHint(ios *iostreams.IOStreams, err error, baseDir string) {
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		return
 	}
 	fmt.Fprintf(
-		os.Stderr,
+		ios.ErrOut,
 		"Run `invox increment -i %s` to give it the next free number, then archive it again.\n",
 		invoice.DisplayPath(duplicate.InvoicePath, baseDir),
 	)
@@ -459,18 +470,18 @@ func printDuplicateNumberHint(err error, baseDir string) {
 
 // warnArchivedDuplicate warns on stderr when the invoice's number is already
 // used by an archived invoice. It never fails validation.
-func warnArchivedDuplicate(invoicePath, baseDir string) {
+func warnArchivedDuplicate(ios *iostreams.IOStreams, invoicePath, baseDir string) {
 	err := invoice.CheckArchivedNumberUnique(invoicePath)
 	if err == nil {
 		return
 	}
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
-		fmt.Fprintf(os.Stderr, "warning: could not check the archive for duplicate invoice numbers: %v\n", err)
+		fmt.Fprintf(ios.ErrOut, "warning: could not check the archive for duplicate invoice numbers: %v\n", err)
 		return
 	}
 	fmt.Fprintf(
-		os.Stderr,
+		ios.ErrOut,
 		"warning: invoice number %s is already used by archived invoice %s; run `invox increment -i %s` before archiving\n",
 		duplicate.InvoiceNumber,
 		invoice.DisplayPath(duplicate.ArchivedPath, baseDir),
