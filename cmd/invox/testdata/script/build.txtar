@@ -50,6 +50,7 @@ error: missing required input: INVOICE.yaml or -i, --input
 Run 'invox build --help' for usage.
 -- want-tectonic-failed.txt --
 fake tectonic: forced failure
+error: tectonic exited with status 1
 -- want-no-tectonic.txt --
 error: tectonic not found in PATH
 Install it from https://tectonic-typesetting.github.io, then rerun this command.

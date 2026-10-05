@@ -22,7 +22,6 @@ var hostOS = runtime.GOOS
 // It is the only place that maps errors to exit codes.
 func exitCode(ios *iostreams.IOStreams, err error) int {
 	var flagErr *cmdutil.FlagError
-	var execErr *cmdutil.ExecError
 	switch {
 	case err == nil, err == flag.ErrHelp:
 		return 0
@@ -30,11 +29,6 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 		return 1
 	case errors.Is(err, cmdutil.CancelError):
 		return 2
-	case errors.As(err, &execErr):
-		if execErr.Code > 0 {
-			return execErr.Code
-		}
-		return 1
 	case errors.As(err, &flagErr):
 		command := commandName
 		if flagErr.Command != "" {

@@ -18,6 +18,7 @@ const fakeTectonicEnv = "INVOX_TEST_FAKE_TECTONIC"
 const (
 	fakeTectonicWritePDF = "write-pdf"
 	fakeTectonicFail     = "fail"
+	fakeTectonicExit2    = "exit-2"
 )
 
 func TestMain(m *testing.M) {
@@ -28,11 +29,15 @@ func TestMain(m *testing.M) {
 }
 
 // runFakeTectonic writes an empty PDF next to the single .tex argument, or
-// fails when mode is fakeTectonicFail.
+// fails with exit code 1 (fakeTectonicFail) or 2 (fakeTectonicExit2).
 func runFakeTectonic(mode string, args []string) int {
-	if mode == fakeTectonicFail {
+	switch mode {
+	case fakeTectonicFail:
 		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
 		return 1
+	case fakeTectonicExit2:
+		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
+		return 2
 	}
 	if len(args) != 1 {
 		fmt.Fprintf(os.Stderr, "fake tectonic: want one input file, got %q\n", args)

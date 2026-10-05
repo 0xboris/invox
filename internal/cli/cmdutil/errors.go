@@ -29,13 +29,18 @@ var SilentError = errors.New("SilentError")
 // CancelError means the user declined a prompt or interrupted it.
 var CancelError = errors.New("CancelError")
 
-// ExecError is the failure of an external program that has already reported
-// on stderr. invox exits with the program's exit code.
+// ExecError is the failure of an external program. Code is the program's exit
+// code, or -1 when it did not exit normally. invox itself exits 1.
 type ExecError struct {
 	Program string
 	Code    int
 	Err     error
 }
 
-func (e *ExecError) Error() string { return fmt.Sprintf("%s failed: %v", e.Program, e.Err) }
+func (e *ExecError) Error() string {
+	if e.Code < 0 {
+		return fmt.Sprintf("%s failed: %v", e.Program, e.Err)
+	}
+	return fmt.Sprintf("%s exited with status %d", e.Program, e.Code)
+}
 func (e *ExecError) Unwrap() error { return e.Err }
