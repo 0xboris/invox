@@ -111,7 +111,8 @@ func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
 
 // walkArchiveDir calls visit for every archived invoice file below
 // archiveDir. A symlinked archiveDir is followed, and visit receives paths
-// below archiveDir as configured, not below the symlink target.
+// below archiveDir as configured, not below the symlink target. Backups in
+// the history directory are not archived invoices and are skipped.
 func walkArchiveDir(archiveDir string, visit func(path string) error) error {
 	walkRoot, err := filepath.EvalSymlinks(archiveDir)
 	if err != nil {
@@ -120,6 +121,9 @@ func walkArchiveDir(archiveDir string, visit func(path string) error) error {
 	return filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if entry.IsDir() && isArchiveHistoryDir(walkRoot, path) {
+			return filepath.SkipDir
 		}
 		if entry.IsDir() || !isArchivedInvoicePath(path) {
 			return nil
@@ -284,6 +288,9 @@ func resolveArchivePath(archiveDir, name string) (string, string, error) {
 	}
 	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("%s must stay within %s", cleanName, archiveDir)
+	}
+	if isInArchiveHistory(relativePath) {
+		return "", "", fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, archiveHistoryDirName)
 	}
 	return targetPath, filepath.Clean(relativePath), nil
 }

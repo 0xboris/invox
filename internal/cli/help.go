@@ -392,6 +392,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -o, --output PATH       Output file path (defaults vary by command)\n")
 	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")
 	fmt.Fprintf(w, "  --archive               Archive after a successful PDF build (build)\n")
+	fmt.Fprintf(w, "  --yes                   Replace an archived invoice without asking (archive, build --archive)\n")
 	fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)\n")
 	fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor (new)\n")
 	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
@@ -697,6 +698,9 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.SupportsArchiveFlag {
 		fmt.Fprintf(w, "  --archive               Archive the invoice after a successful PDF build\n")
 	}
+	if spec.SupportsYesFlag {
+		fmt.Fprintf(w, "  --yes                   Replace an archived invoice without asking (required without a terminal)\n")
+	}
 	if spec.NeedsTemplate {
 		fmt.Fprintf(w, "  -t, --template PATH     Path to invoice_template.tex\n")
 	}
@@ -739,6 +743,20 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  Copies the archived invoice from archive.dir into the current directory.\n")
 		fmt.Fprintf(w, "  The working copy is written as YAML with invoice.status set to editing.\n")
 		fmt.Fprintf(w, "  Re-running %s archive on that working copy replaces the archived invoice.\n", commandName)
+		fmt.Fprintf(w, "  It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.\n")
+	}
+	if spec.SupportsYesFlag {
+		fmt.Fprintf(w, "\nReplacing an archived invoice:\n")
+		if spec.SupportsArchiveFlag {
+			fmt.Fprintf(w, "  An invoice with invoice.status archived keeps that status when its PDF is rebuilt.\n")
+			fmt.Fprintf(w, "  With --archive, a working copy from `%s archive edit` replaces the archived invoice it came from.\n", commandName)
+		} else {
+			fmt.Fprintf(w, "  Archiving a working copy from `%s archive edit` replaces the archived invoice it came from.\n", commandName)
+		}
+		fmt.Fprintf(w, "  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.\n")
+		fmt.Fprintf(w, "  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,\n")
+		fmt.Fprintf(w, "  which archive list, numbering and the duplicate-number check ignore.\n")
+		fmt.Fprintf(w, "  --yes only answers the question; every other check still applies.\n")
 	}
 	if spec.Name == "email" {
 		fmt.Fprintf(w, "\nBehavior:\n")

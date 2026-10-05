@@ -48,7 +48,7 @@ Built copy.pdf for CUST-001 (CUST-001-001)
 error: missing required input: INVOICE.yaml or -i, --input
 
 Usage:
-  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive]
+  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]
 
 Examples:
   invox build invoice.yaml

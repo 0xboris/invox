@@ -30,6 +30,7 @@ type Options struct {
 	EmailTo           string
 	EmailSubject      string
 	ArchiveAfterBuild bool
+	AssumeYes         bool
 	FromLastInvoice   bool
 	EditNewInvoice    bool
 }

@@ -150,12 +150,12 @@ func TestArchiveEditThenRearchiveKeepsSameNumber(t *testing.T) {
 		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("archive: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("archive: stderr = %q, want empty", stderr)
+	if !strings.HasPrefix(stderr, "Replaced archived invoice "+archivedPath+"; previous version kept at ") {
+		t.Fatalf("archive: stderr = %q, want replacement notice", stderr)
 	}
 	if want := "Archived first.yaml -> " + archivedPath + "\n"; stdout != want {
 		t.Fatalf("archive: stdout = %q, want %q", stdout, want)
@@ -289,12 +289,12 @@ func TestArchiveEditMarkdownThenRearchiveReplacesOriginal(t *testing.T) {
 		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("archive: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("archive: stderr = %q, want empty", stderr)
+	if !strings.HasPrefix(stderr, "Replaced archived invoice "+markdownPath+"; previous version kept at ") {
+		t.Fatalf("archive: stderr = %q, want replacement notice", stderr)
 	}
 	yamlPath := filepath.Join(archiveDir, "first.yaml")
 	if want := "Archived first.yaml -> " + yamlPath + "\n"; stdout != want {

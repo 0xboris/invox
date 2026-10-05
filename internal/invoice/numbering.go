@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v3"
+	"runtime"
+	"syscall"
 )
 
 type NumberingSettings struct {
@@ -580,6 +582,10 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		_ = tempFile.Close()
 		return err
 	}
+	if err := tempFile.Sync(); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
 	if err := tempFile.Close(); err != nil {
 		return err
 	}
@@ -587,5 +593,23 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	success = true
+	return syncDir(filepath.Dir(path))
+}
+
+// syncDir flushes changes to dir's entries, such as a rename into it, to
+// disk. Windows cannot sync a directory, and some file systems do not
+// support it; there it does nothing.
+func syncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	handle, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
+	if err := handle.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTSUP) {
+		return err
+	}
 	return nil
 }

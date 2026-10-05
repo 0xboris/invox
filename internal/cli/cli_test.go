@@ -2152,12 +2152,13 @@ positions:
 	exitCode, stdout, stderr = captureRun(t, []string{
 		"archive",
 		editedPath,
+		"--yes",
 	})
 	if exitCode != 0 {
 		t.Fatalf("archive exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("archive stderr = %q, want empty", stderr)
+	if !strings.HasPrefix(stderr, "Replaced archived invoice "+archivedPath+"; previous version kept at ") {
+		t.Fatalf("archive stderr = %q, want replacement notice", stderr)
 	}
 	if !strings.Contains(stdout, "Archived 2026-03-06.yaml -> "+archivedPath) {
 		t.Fatalf("stdout %q does not contain re-archive summary", stdout)

@@ -211,6 +211,9 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 	if spec.SupportsArchiveFlag {
 		fs.BoolVar(&opts.ArchiveAfterBuild, "archive", opts.ArchiveAfterBuild, "archive the invoice after a successful build")
 	}
+	if spec.SupportsYesFlag {
+		fs.BoolVar(&opts.AssumeYes, "yes", opts.AssumeYes, "replace an archived invoice without asking")
+	}
 }
 
 func validateRequiredInputs(spec commandSpec, opts invoice.Options) error {

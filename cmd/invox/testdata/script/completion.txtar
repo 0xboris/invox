@@ -114,7 +114,27 @@ _invox() {
         '(-u --issuer)'{-u+,--issuer=}'[issuer.yaml]:issuer:_files -g "*.yaml"' \
         '(-t --template)'{-t+,--template=}'[template file or known template name]:template:_invox_template_values' \
         '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"' \
-        '--archive[archive after a successful PDF build]'
+        '--archive[archive after a successful PDF build]' \
+        '--yes[replace an archived invoice without asking]'
+      return
+      ;;
+    archive)
+      if (( CURRENT == 3 )); then
+        _alternative \
+          'archive-commands:archive command:((edit\:"Copy an archived invoice for editing" list\:"List archived invoices"))' \
+          'files:invoice:_invox_invoice_files'
+        return
+      fi
+      case $words[3] in
+        edit|list)
+          return
+          ;;
+      esac
+      _invox_shift_words 1
+      _arguments -s \
+        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
+        '--yes[replace an archived invoice without asking]' \
+        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"'
       return
       ;;
   esac
