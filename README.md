@@ -142,25 +142,22 @@ invox help template
 
 ## Development
 
-The `Makefile` is a thin convenience layer around the real CLI:
+The `Makefile` only covers development tasks; use `invox` directly for invoices.
 
 ```sh
-make build
-make test
+make build    # always runs go build (never stale)
+make test     # go test -race ./...
 make vet
+make lint
+make fmt      # gofmt -w .
+make tidy     # go mod tidy -diff
 make install
-make init
-make validate
-make render
-make email
-make pdf
-make archive
+make clean
+make help
 ```
 
-For day-to-day usage, prefer the actual interface:
+## License
 
-```sh
-invox ...
-```
+invox is released under the [MIT License](LICENSE).
 
 Last reviewed: 2026-03-30

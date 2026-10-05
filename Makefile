@@ -7,63 +7,27 @@ PACKAGE ?= ./cmd/invox
 BIN_DIR ?= bin
 BINARY_NAME ?= invox
 BINARY_PATH ?= $(BIN_DIR)/$(BINARY_NAME)
-CLI ?= ./$(BINARY_PATH)
-
-INPUT ?= invoice.yaml
-PDF_INPUT ?= $(basename $(INPUT)).pdf
-CUSTOMERS ?=
-ISSUER ?=
-TEMPLATE ?=
-TEX_OUTPUT ?= invoice.tex
-PDF_OUTPUT ?= $(basename $(INPUT)).pdf
-EMAIL_OUTPUT ?= $(basename $(INPUT)).eml
-EMAIL_TO ?=
-EMAIL_SUBJECT ?=
-ARGS ?=
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo DEV)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 BUILD_PKG := github.com/0xboris/invox/internal/build
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
-COMMON_FLAGS = -i "$(INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)")
-RENDER_FLAGS = $(COMMON_FLAGS) $(if $(strip $(TEMPLATE)),-t "$(TEMPLATE)")
+.PHONY: help build test vet lint fmt tidy install clean
 
-.PHONY: help build test vet install init validate render email send pdf clean
-.PHONY: archive
-
-help: ## Show available targets and overridable variables.
+help: ## Show available targets.
 	@printf "Targets:\n"
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' "$(lastword $(MAKEFILE_LIST))"
 	@printf "\nVariables:\n"
-	@printf "  INPUT       Invoice YAML input path (default: invoice.yaml)\n"
-	@printf "  PDF_INPUT   PDF attachment path for email (default: INPUT with .pdf extension)\n"
-	@printf "  CUSTOMERS   Optional customers.yaml path override\n"
-	@printf "  ISSUER      Optional issuer.yaml path override\n"
-	@printf "  TEMPLATE    Optional template.tex path override for render/pdf\n"
-	@printf "  TEX_OUTPUT  TeX output path for render (default: invoice.tex)\n"
-	@printf "  PDF_OUTPUT  PDF output path for pdf (default: INPUT with .pdf extension)\n"
-	@printf "  EMAIL_OUTPUT Temporary draft email path for email (default: INPUT with .eml extension)\n"
-	@printf "  EMAIL_TO    Optional recipient override for email\n"
-	@printf "  EMAIL_SUBJECT Optional subject override for email\n"
-	@printf "  CLI         CLI executable for validate/render/email/pdf/archive (default: ./bin/invox)\n"
-	@printf "  ARGS        Extra CLI arguments appended to the command\n"
-	@printf "\nExamples:\n"
-	@printf "  make build\n"
-	@printf "  make test\n"
-	@printf "  make install\n"
-	@printf "  make init\n"
-	@printf "  make validate\n"
-	@printf "  make render CUSTOMERS=customers.yaml ISSUER=issuer.yaml TEMPLATE=invoice_template.tex\n"
-	@printf "  make email INPUT=invoice.yaml\n"
-	@printf "  make pdf CLI=invox INPUT=invoice.yaml\n"
-	@printf "  make archive CLI=invox INPUT=invoice.yaml\n"
+	@printf "  GO          Go toolchain to use (default: go)\n"
+	@printf "  BIN_DIR     Build output directory (default: bin)\n"
+	@printf "  VERSION     Version stamped into the binary (default: git describe)\n"
 
-$(BINARY_PATH):
+# build is phony so it always runs go build; Go's build cache keeps it cheap
+# and the binary can never be stale.
+build: ## Build the local binary at ./bin/invox.
 	mkdir -p "$(BIN_DIR)"
-	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o "$(BINARY_PATH)" "$(PACKAGE)"
-
-build: $(BINARY_PATH) ## Build the local binary at ./bin/invox.
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o "$(BINARY_PATH)" "$(PACKAGE)"
 
 test: ## Run the Go test suite with the race detector.
 	$(GO) test -race ./...
@@ -71,28 +35,17 @@ test: ## Run the Go test suite with the race detector.
 vet: ## Run go vet across the module.
 	$(GO) vet ./...
 
+lint: ## Run the linters (go vet for now).
+	$(GO) vet ./...
+
+fmt: ## Format all Go files in place with gofmt.
+	gofmt -w .
+
+tidy: ## Check that go.mod and go.sum are tidy (prints the diff otherwise).
+	$(GO) mod tidy -diff
+
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.
-	$(GO) install -trimpath -ldflags "$(LDFLAGS)" "$(PACKAGE)"
-
-init: $(BINARY_PATH) ## Create starter support files in the global config directory.
-	$(CLI) init $(ARGS)
-
-validate: $(BINARY_PATH) ## Validate INPUT with the local CLI.
-	$(CLI) validate $(COMMON_FLAGS) $(ARGS)
-
-render: $(BINARY_PATH) ## Render INPUT to TEX_OUTPUT with the local CLI.
-	$(CLI) render $(RENDER_FLAGS) -o "$(TEX_OUTPUT)" $(ARGS)
-
-email: $(BINARY_PATH) ## Create, open, and remove an email draft for INPUT with the built PDF attached.
-	$(CLI) email -i "$(INPUT)" -p "$(PDF_INPUT)" $(if $(strip $(CUSTOMERS)),-c "$(CUSTOMERS)") $(if $(strip $(ISSUER)),-u "$(ISSUER)") -o "$(EMAIL_OUTPUT)" $(if $(strip $(EMAIL_TO)),--to "$(EMAIL_TO)") $(if $(strip $(EMAIL_SUBJECT)),--subject "$(EMAIL_SUBJECT)") $(ARGS)
-
-send: email ## Alias for email.
-
-pdf: $(BINARY_PATH) ## Build INPUT to PDF_OUTPUT with the local CLI.
-	$(CLI) build $(RENDER_FLAGS) -o "$(PDF_OUTPUT)" $(ARGS)
-
-archive: $(BINARY_PATH) ## Move a built INPUT invoice into the configured archive directory.
-	$(CLI) archive -i "$(INPUT)" $(ARGS)
+	CGO_ENABLED=0 $(GO) install -trimpath -ldflags "$(LDFLAGS)" "$(PACKAGE)"
 
 clean: ## Remove the local build output directory.
 	rm -rf "$(BIN_DIR)"
