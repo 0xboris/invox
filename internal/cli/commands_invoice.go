@@ -440,10 +440,18 @@ func runArchiveList(ios *iostreams.IOStreams, args []string) int {
 		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
+	archiveDir, err := invoice.ResolveArchiveDir()
+	if err != nil {
+		fmt.Fprintln(ios.ErrOut, err)
+		return 1
+	}
 
 	list := table{
 		columns:   []column{{header: "FILE"}, {header: "CUSTOMER"}, {header: "ISSUE DATE"}, {header: "STATUS"}},
-		emptyHint: "No archived invoices found",
+		emptyHint: "No archived invoices found in " + archiveDir,
+	}
+	if archiveDir == "" {
+		list.emptyHint = "No archived invoices found"
 	}
 	for _, archivedInvoice := range archivedInvoices {
 		list.addRow(archivedInvoice.Filename, archivedInvoice.CustomerID, archivedInvoice.IssueDate, archivedInvoice.Status)

@@ -161,29 +161,33 @@ func cmdExits(ts *testscript.TestScript, neg bool, args []string) {
 // config.yaml spells it) and the work directory by $WORK. On Windows it also
 // turns the backslashes in those paths, and in paths relative to $WORK that
 // start with home\, into slashes, so on Windows the suite cannot catch a path
-// printed with mixed separators. Empty variables are skipped. Compare OUTFILE
-// with cmp, which -update can rewrite:
+// printed with mixed separators. Empty variables are skipped. With -tsv, the
+// source is piped list output, whose backslashes are escaped as \\, so the
+// paths are matched and unescaped in that form. Compare OUTFILE with cmp,
+// which -update can rewrite:
 //
-//	scrubpaths SOURCE OUTFILE
+//	scrubpaths [-tsv] SOURCE OUTFILE
 func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 	if neg {
 		ts.Fatalf("unsupported: ! scrubpaths")
 	}
+	separator := `\`
+	if len(args) > 0 && args[0] == "-tsv" {
+		separator = `\\`
+		args = args[1:]
+	}
 	if len(args) != 2 {
-		ts.Fatalf("usage: scrubpaths SOURCE OUTFILE")
+		ts.Fatalf("usage: scrubpaths [-tsv] SOURCE OUTFILE")
 	}
 	text := ts.ReadFile(args[0])
 	for _, name := range []string{"DATA_HOME", "DATA_HOME_TILDE", "WORK"} {
 		if value := ts.Getenv(name); value != "" {
-			// Piped list output escapes backslashes, so Windows paths can
-			// appear with doubled separators.
-			text = strings.ReplaceAll(text, strings.ReplaceAll(value, `\`, `\\`), "$"+name)
-			text = strings.ReplaceAll(text, value, "$"+name)
+			text = strings.ReplaceAll(text, strings.ReplaceAll(value, `\`, separator), "$"+name)
 		}
 	}
 	if runtime.GOOS == "windows" {
 		text = windowsPathToken.ReplaceAllStringFunc(text, func(token string) string {
-			return strings.ReplaceAll(strings.ReplaceAll(token, `\\`, "/"), `\`, "/")
+			return strings.ReplaceAll(token, separator, "/")
 		})
 	}
 	ts.Check(os.WriteFile(ts.MkAbs(args[1]), []byte(text), 0o666))

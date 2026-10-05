@@ -62,10 +62,15 @@ func runTemplateList(ios *iostreams.IOStreams, args []string) int {
 		fmt.Fprintln(ios.ErrOut, err)
 		return 1
 	}
+	templateDir, err := invoice.TemplateCatalogDir()
+	if err != nil {
+		fmt.Fprintln(ios.ErrOut, err)
+		return 1
+	}
 
 	list := table{
 		columns:   []column{{header: "NAME"}, {header: "PATH"}},
-		emptyHint: "No templates found",
+		emptyHint: "No templates found in " + templateDir,
 	}
 	if namesOnly {
 		list.columns = list.columns[:1]

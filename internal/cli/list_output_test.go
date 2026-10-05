@@ -45,6 +45,11 @@ func TestCustomerListOutput(t *testing.T) {
 	writeListFile(t, filepath.Join(dir, "customers.yaml"), `ACME:
   name: "Acme\tTools\nLtd \e[31mred\e[0m C:\\x"
   status: active
+CTRL:
+  name: "a\x01b\bc\x7fd\Ne\rf\u202eg\u2066h\u200bi\u00adj"
+EMOJI:
+  name: "🚀⭐✅👍🏽"
+  status: active
 LONG:
   name: Very Long Company Name Gesellschaft mit beschraenkter Haftung
   status: active
@@ -59,6 +64,8 @@ WIDE:
 			name: "pipe",
 			args: []string{"customer", "list", "-c", "customers.yaml"},
 			wantStdout: "ACME\tAcme\\tTools\\nLtd red C:\\\\x\tactive\n" +
+				"CTRL\tabcde\\rfghij\t\n" +
+				"EMOJI\t🚀⭐✅👍🏽\tactive\n" +
 				"LONG\tVery Long Company Name Gesellschaft mit beschraenkter Haftung\tactive\n" +
 				"WIDE\t株式会社テスト\tinactive\n",
 		},
@@ -66,10 +73,12 @@ WIDE:
 			name: "terminal",
 			tty:  true,
 			args: []string{"customer", "list", "-c", "customers.yaml"},
-			wantStdout: "ID    NAME" + strings.Repeat(" ", 38) + "STATUS\n" +
-				"ACME  Acme Tools Ltd red C:\\x" + strings.Repeat(" ", 19) + "active\n" +
-				"LONG  Very Long Company Name Gesellschaft mit…  active\n" +
-				"WIDE  株式会社テスト" + strings.Repeat(" ", 28) + "inactive\n",
+			wantStdout: "ID     NAME" + strings.Repeat(" ", 38) + "STATUS\n" +
+				"ACME   Acme Tools Ltd red C:\\x" + strings.Repeat(" ", 19) + "active\n" +
+				"CTRL   abcde fghij\n" +
+				"EMOJI  🚀⭐✅👍🏽" + strings.Repeat(" ", 34) + "active\n" +
+				"LONG   Very Long Company Name Gesellschaft mit…  active\n" +
+				"WIDE   株式会社テスト" + strings.Repeat(" ", 28) + "inactive\n",
 		},
 		{
 			name: "pipe empty",
@@ -120,7 +129,7 @@ invoice:
 			name:       "terminal empty",
 			tty:        true,
 			args:       []string{"archive", "list"},
-			wantStderr: "No archived invoices found\n",
+			wantStderr: "No archived invoices found in " + archiveDir + "\n",
 		},
 	})
 }
@@ -177,7 +186,7 @@ func TestTemplateListOutputEmpty(t *testing.T) {
 			name:       "terminal",
 			tty:        true,
 			args:       []string{"template", "list"},
-			wantStderr: "No templates found\n",
+			wantStderr: "No templates found in " + dir + "\n",
 		},
 	})
 }
@@ -196,6 +205,8 @@ func TestStripEscapeSequences(t *testing.T) {
 		{name: "two-byte escape", in: "a\x1bcb", want: "ab"},
 		{name: "c1 csi", in: "a\u009b2Jb", want: "ab"},
 		{name: "unterminated csi", in: "a\x1b[31", want: "a"},
+		{name: "charset designation", in: "a\x1b(Bb", want: "ab"},
+		{name: "esc before non-ascii", in: "a\x1bäb", want: "a\x1bäb"},
 		{name: "plain", in: "Müller & Söhne", want: "Müller & Söhne"},
 	}
 	for _, tc := range tests {
