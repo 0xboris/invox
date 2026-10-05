@@ -588,7 +588,8 @@ func printTemplateListHelp(w io.Writer) {
 	fmt.Fprintf(w, "  --names                 Print only template names\n\n")
 	fmt.Fprintf(w, "Output:\n")
 	fmt.Fprintf(w, "  Default: NAME<TAB>ABSOLUTE_PATH\n")
-	fmt.Fprintf(w, "  --names: TEMPLATE_NAME per line\n\n")
+	fmt.Fprintf(w, "  --names: TEMPLATE_NAME per line\n")
+	fmt.Fprintf(w, "  On a terminal, aligned columns under a header. Piped, \\, tab and newline in a field are written as \\\\, \\t and \\n.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
 	fmt.Fprintf(w, "  The directory is derived from the resolved default template path.\n")
 	fmt.Fprintf(w, "  Name-only -t/--template values are resolved in that same directory.\n\n")
@@ -737,6 +738,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	if spec.Name == "archive list" {
 		fmt.Fprintf(w, "\nOutput:\n")
 		fmt.Fprintf(w, "  One archived invoice per line as FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS\n")
+		fmt.Fprintf(w, "  On a terminal, aligned columns under a header. Piped, \\, tab and newline in a field are written as \\\\, \\t and \\n.\n")
 	}
 	if spec.Name == "archive edit" {
 		fmt.Fprintf(w, "\nBehavior:\n")

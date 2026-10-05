@@ -441,16 +441,14 @@ func runArchiveList(ios *iostreams.IOStreams, args []string) int {
 		return 1
 	}
 
-	for _, archivedInvoice := range archivedInvoices {
-		fmt.Fprintf(
-			ios.Out,
-			"%s\t%s\t%s\t%s\n",
-			archivedInvoice.Filename,
-			archivedInvoice.CustomerID,
-			archivedInvoice.IssueDate,
-			archivedInvoice.Status,
-		)
+	list := table{
+		columns:   []column{{header: "FILE"}, {header: "CUSTOMER"}, {header: "ISSUE DATE"}, {header: "STATUS"}},
+		emptyHint: "No archived invoices found",
 	}
+	for _, archivedInvoice := range archivedInvoices {
+		list.addRow(archivedInvoice.Filename, archivedInvoice.CustomerID, archivedInvoice.IssueDate, archivedInvoice.Status)
+	}
+	list.print(ios)
 	return 0
 }
 

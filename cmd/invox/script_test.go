@@ -175,12 +175,15 @@ func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 	text := ts.ReadFile(args[0])
 	for _, name := range []string{"DATA_HOME", "DATA_HOME_TILDE", "WORK"} {
 		if value := ts.Getenv(name); value != "" {
+			// Piped list output escapes backslashes, so Windows paths can
+			// appear with doubled separators.
+			text = strings.ReplaceAll(text, strings.ReplaceAll(value, `\`, `\\`), "$"+name)
 			text = strings.ReplaceAll(text, value, "$"+name)
 		}
 	}
 	if runtime.GOOS == "windows" {
 		text = windowsPathToken.ReplaceAllStringFunc(text, func(token string) string {
-			return strings.ReplaceAll(token, `\`, "/")
+			return strings.ReplaceAll(strings.ReplaceAll(token, `\\`, "/"), `\`, "/")
 		})
 	}
 	ts.Check(os.WriteFile(ts.MkAbs(args[1]), []byte(text), 0o666))
