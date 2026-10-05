@@ -30,9 +30,19 @@ func editArchivedForTest(t *testing.T, archiveName string) string {
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	source := readTestFile(t, workingCopy) + "notes: edited\n"
-	if err := os.WriteFile(workingCopy, []byte(source), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) returned error: %v", workingCopy, err)
+	// Set notes instead of appending it, so editing an invoice that was
+	// already edited once still writes a single notes key.
+	document, err := loadYAMLDocument(workingCopy)
+	if err != nil {
+		t.Fatalf("loadYAMLDocument returned error: %v", err)
+	}
+	root, err := documentRootMapping(document, workingCopy)
+	if err != nil {
+		t.Fatalf("documentRootMapping returned error: %v", err)
+	}
+	setMappingString(root, "notes", "edited")
+	if err := writeYAMLDocument(workingCopy, document); err != nil {
+		t.Fatalf("writeYAMLDocument(%s) returned error: %v", workingCopy, err)
 	}
 	return workingCopy
 }
