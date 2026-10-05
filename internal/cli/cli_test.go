@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func TestNewRequiresCustomerID(t *testing.T) {

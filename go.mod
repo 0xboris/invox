@@ -1,4 +1,4 @@
-module invox
+module github.com/0xboris/invox
 
 go 1.24
 

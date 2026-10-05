@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func runCustomerList(args []string) int {

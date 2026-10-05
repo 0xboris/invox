@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func runNew(args []string) int {

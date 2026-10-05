@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 var openTextFile = defaultOpenTextFile

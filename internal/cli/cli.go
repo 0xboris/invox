@@ -16,6 +16,10 @@ func Run(args []string) int {
 		return 0
 	}
 
+	if args[0] == "--version" {
+		return runVersion(args[1:])
+	}
+
 	if args[0] == "help" {
 		return runHelp(args[1:])
 	}
@@ -47,6 +51,8 @@ func Run(args []string) int {
 		return runBuild(args[1:])
 	case "archive":
 		return runArchive(args[1:])
+	case "version":
+		return runVersion(args[1:])
 	default:
 		return rootUsageError(fmt.Sprintf("unknown subcommand %q", args[0]))
 	}
@@ -113,6 +119,11 @@ func runHelp(args []string) int {
 			return 0
 		}
 		return rootUsageError(fmt.Sprintf("unknown help topic %q", strings.Join(args, " ")))
+	}
+
+	if args[0] == "version" && len(args) == 1 {
+		printVersionHelp(os.Stdout)
+		return 0
 	}
 
 	if args[0] == "archive" {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"invox/internal/invoice"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func runTemplate(args []string) int {

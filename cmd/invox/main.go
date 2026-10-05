@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"invox/internal/cli"
+	"github.com/0xboris/invox/internal/cli"
 )
 
 func main() {
