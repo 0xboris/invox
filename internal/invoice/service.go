@@ -791,6 +791,9 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 
 	paidAmount := coerceDecimal(getPath(invoiceBlock, "paid_amount"), "invoice.paid_amount", &validationErrors, true)
+	if paidAmount != nil && paidAmount.Sign() < 0 {
+		validationErrors = append(validationErrors, "invoice.paid_amount: must not be negative")
+	}
 	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
 	customerVATRate := parseOptionalVATRate(getPath(customer, "tax.default_vat_rate"), "customer.tax.default_vat_rate", &validationErrors)
 	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
@@ -1324,6 +1327,9 @@ func epcQRCodeEligible(ctx *Context) bool {
 func buildEPCPayload(ctx *Context) ([]byte, error) {
 	if strings.TrimSpace(ctx.Currency) != "EUR" {
 		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
+	}
+	if ctx.OutstandingCents > ctx.TotalCents {
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", formatMoneyCents(ctx.OutstandingCents), formatMoneyCents(ctx.TotalCents))
 	}
 	if ctx.OutstandingCents > epcQRMaxAmountCents {
 		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", formatMoneyCents(ctx.OutstandingCents), "999999999,99")

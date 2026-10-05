@@ -206,7 +206,7 @@ var invoiceDefaultsFieldGroups = []struct {
 			{Path: "invoice.status", Description: "Usually `draft`; `new` always resets it to `draft`"},
 			{Path: "invoice.period", Description: "Invoice period label copied into the created invoice and required by validate/render/build"},
 			{Path: "invoice.vat_percent", Description: "Optional default VAT rate for the whole invoice; can be filled from customer.tax.default_vat_rate"},
-			{Path: "invoice.paid_amount", Description: "Usually `0`; `new` always resets it to `0`"},
+			{Path: "invoice.paid_amount", Description: "Usually `0`; must be >= 0 and <= the invoice total; `new` always resets it to `0`"},
 		},
 	},
 	{
