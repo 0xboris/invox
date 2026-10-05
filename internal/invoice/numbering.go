@@ -312,7 +312,9 @@ func markdownFrontMatter(source []byte) ([]byte, bool) {
 	if end < 0 {
 		return nil, false
 	}
-	return []byte(remainder[:end]), true
+	// The leading newline stands in for the opening `---`, so YAML line
+	// numbers in errors match the lines of the Markdown file.
+	return []byte("\n" + remainder[:end]), true
 }
 
 func invoiceNumberFromValue(value any) string {
@@ -432,14 +434,9 @@ func numberingValues(customerID string, customer map[string]any, issueDate strin
 }
 
 func writeInvoiceNumber(path, invoiceNumber string) error {
-	source, err := os.ReadFile(path)
+	document, err := loadYAMLDocument(path)
 	if err != nil {
 		return err
-	}
-
-	var document yaml.Node
-	if err := yaml.Unmarshal(source, &document); err != nil {
-		return fmt.Errorf("%s: %w", path, err)
 	}
 	if len(document.Content) == 0 {
 		return fmt.Errorf("%s: root value must be a mapping", path)
@@ -467,10 +464,11 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 		numberNode.Value = invoiceNumber
 	}
 
+	clearYAMLMergeTags(document)
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
-	if err := encoder.Encode(&document); err != nil {
+	if err := encoder.Encode(document); err != nil {
 		return err
 	}
 	if err := encoder.Close(); err != nil {

@@ -60,6 +60,11 @@ func TestParseYAMLSourceMergeKeys(t *testing.T) {
 			want:   map[string]any{"a": "1", "b": "2", "c": "3"},
 		},
 		{
+			name:   "merge inside a sequence item",
+			source: "base: &base {a: 1}\nitem:\n  <<: *base\n  list:\n    - <<: *base\n      b: 2\n",
+			want:   map[string]any{"a": "1", "list": []any{map[string]any{"a": "1", "b": "2"}}},
+		},
+		{
 			name:   "quoted << is a plain key",
 			source: "item:\n  \"<<\": text\n",
 			want:   map[string]any{"<<": "text"},
@@ -102,6 +107,11 @@ func TestParseYAMLSourceRejectsInvalidMappings(t *testing.T) {
 			wantErr: `test.yaml:3: duplicate key "a" (first defined on line 2)`,
 		},
 		{
+			name:    "quoted and unquoted duplicate",
+			source:  "a: 1\n\"a\": 2\n",
+			wantErr: `test.yaml:2: duplicate key "a" (first defined on line 1)`,
+		},
+		{
 			name:    "two merge keys",
 			source:  "one: &one {a: 1}\ntwo: &two {b: 2}\nitem:\n  <<: *one\n  <<: *two\n",
 			wantErr: `test.yaml:5: duplicate key "<<" (first defined on line 4)`,
@@ -114,6 +124,11 @@ func TestParseYAMLSourceRejectsInvalidMappings(t *testing.T) {
 		{
 			name:    "merge of a list with a scalar",
 			source:  "base: &base {a: 1}\nitem:\n  <<: [*base, text]\n",
+			wantErr: "test.yaml:3: merge key `<<` must refer to a mapping or a list of mappings",
+		},
+		{
+			name:    "merge of an alias to a list",
+			source:  "list: &list [{a: 1}]\nitem:\n  <<: *list\n",
 			wantErr: "test.yaml:3: merge key `<<` must refer to a mapping or a list of mappings",
 		},
 	}
@@ -188,5 +203,71 @@ func TestLoadContextRejectsDuplicateKeyInCustomers(t *testing.T) {
 	}
 	if want := customersPath + `:4: duplicate key "status"`; !strings.Contains(err.Error(), want) {
 		t.Fatalf("error %q does not contain %q", err.Error(), want)
+	}
+}
+
+func TestArchivedInvoiceValueReportsMarkdownFileLines(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invoice.md")
+	source := "---\ninvoice:\n  number: A-1\n  number: A-2\n---\n# Invoice\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	_, _, err := archivedInvoiceValue(path)
+	if err == nil {
+		t.Fatal("archivedInvoiceValue returned nil error, want duplicate key error")
+	}
+	if want := "front matter in " + path + `:4: duplicate key "number" (first defined on line 3)`; err.Error() != want {
+		t.Fatalf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
+	source := "defaults: &d\n  currency: EUR\ninvoice:\n  <<: *d\n  number: A-1\n"
+	tests := []struct {
+		name  string
+		write func(path string) error
+	}{
+		{name: "writeInvoiceNumber", write: func(path string) error { return writeInvoiceNumber(path, "A-2") }},
+		{name: "writeInvoiceStringField", write: func(path string) error { return writeInvoiceStringField(path, "status", "sent") }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "invoice.yaml")
+			if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+				t.Fatalf("WriteFile returned error: %v", err)
+			}
+			if err := tt.write(path); err != nil {
+				t.Fatalf("write returned error: %v", err)
+			}
+
+			written, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile returned error: %v", err)
+			}
+			if strings.Contains(string(written), "!!merge") || !strings.Contains(string(written), "  <<: *d\n") {
+				t.Fatalf("written file does not keep `<<: *d`:\n%s", written)
+			}
+			value, err := loadYAML(path)
+			if err != nil {
+				t.Fatalf("loadYAML returned error: %v", err)
+			}
+			if got := getPath(value.(map[string]any), "invoice.currency"); got != "EUR" {
+				t.Fatalf("invoice.currency = %#v, want %q", got, "EUR")
+			}
+		})
+	}
+}
+
+func TestWriteInvoiceNumberRejectsDuplicateKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invoice.yaml")
+	if err := os.WriteFile(path, []byte("invoice:\n  number: A-1\n  number: A-2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	err := writeInvoiceNumber(path, "A-3")
+	if want := path + `:3: duplicate key "number" (first defined on line 2)`; err == nil || err.Error() != want {
+		t.Fatalf("error = %v, want %q", err, want)
 	}
 }

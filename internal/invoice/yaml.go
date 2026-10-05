@@ -67,13 +67,12 @@ func isYAMLMergeKey(node *yaml.Node) bool {
 	return node.Kind == yaml.ScalarNode && node.Value == "<<" && node.ShortTag() == "!!merge"
 }
 
+// isYAMLMergeValue accepts what yaml.v3's typed decoding accepts: a mapping
+// or an alias to one, or a literal sequence of those. An alias to a sequence
+// is not a merge value.
 func isYAMLMergeValue(node *yaml.Node) bool {
-	node = resolveYAMLAlias(node)
-	if node.Kind == yaml.MappingNode {
-		return true
-	}
 	if node.Kind != yaml.SequenceNode {
-		return false
+		return resolveYAMLAlias(node).Kind == yaml.MappingNode
 	}
 	for _, child := range node.Content {
 		if resolveYAMLAlias(child).Kind != yaml.MappingNode {
@@ -88,6 +87,24 @@ func resolveYAMLAlias(node *yaml.Node) *yaml.Node {
 		node = node.Alias
 	}
 	return node
+}
+
+// clearYAMLMergeTags drops the resolved `!!merge` tag from merge keys, which
+// yaml.v3's encoder would otherwise write out as `!!merge <<: *anchor`.
+func clearYAMLMergeTags(node *yaml.Node) {
+	if node == nil || node.Kind == yaml.AliasNode {
+		return
+	}
+	if node.Kind == yaml.MappingNode {
+		for index := 0; index+1 < len(node.Content); index += 2 {
+			if isYAMLMergeKey(node.Content[index]) {
+				node.Content[index].Tag = ""
+			}
+		}
+	}
+	for _, child := range node.Content {
+		clearYAMLMergeTags(child)
+	}
 }
 
 func normalizeYAMLNode(node *yaml.Node) any {
@@ -137,7 +154,6 @@ func normalizeYAMLNode(node *yaml.Node) any {
 // mergeYAMLValue copies the keys of a merge key's value into target, keeping
 // keys target already has.
 func mergeYAMLValue(target map[string]any, value *yaml.Node) {
-	value = resolveYAMLAlias(value)
 	sources := []*yaml.Node{value}
 	if value.Kind == yaml.SequenceNode {
 		sources = value.Content

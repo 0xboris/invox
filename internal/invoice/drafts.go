@@ -498,6 +498,7 @@ func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) e
 }
 
 func writeYAMLDocument(path string, document *yaml.Node) error {
+	clearYAMLMergeTags(document)
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
