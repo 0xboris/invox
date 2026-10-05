@@ -60,8 +60,8 @@ $(BINARY_PATH):
 
 build: $(BINARY_PATH) ## Build the local binary at ./bin/invox.
 
-test: ## Run the Go test suite.
-	$(GO) test ./...
+test: ## Run the Go test suite with the race detector.
+	$(GO) test -race ./...
 
 vet: ## Run go vet across the module.
 	$(GO) vet ./...

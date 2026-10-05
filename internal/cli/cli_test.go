@@ -1754,14 +1754,8 @@ func TestBuildRejectsNonPDFOutput(t *testing.T) {
 func TestBuildDefaultsPDFPathFromInputFile(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 	workDir := t.TempDir()
-	fakeBinDir := t.TempDir()
-	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
-	script := "#!/bin/sh\nset -eu\ninput=\"$1\"\npdf=\"${input%.tex}.pdf\"\n: > \"$pdf\"\n"
-	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
-	}
+	installFakeTectonic(t, fakeTectonicWritePDF)
 
-	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	chdirForTest(t, workDir)
 
 	inputDir := t.TempDir()
@@ -1822,16 +1816,10 @@ func TestBuildDefaultsPDFPathFromInputFile(t *testing.T) {
 
 func TestBuildWithArchiveMovesInvoiceToArchiveDir(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	fakeBinDir := t.TempDir()
-	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
-	script := "#!/bin/sh\nset -eu\ninput=\"$1\"\npdf=\"${input%.tex}.pdf\"\n: > \"$pdf\"\n"
-	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
-	}
+	installFakeTectonic(t, fakeTectonicWritePDF)
 
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	inputDir := t.TempDir()
 	customInvoicePath := filepath.Join(inputDir, "BL00210002.yaml")
@@ -1885,14 +1873,7 @@ func TestBuildWithArchiveMovesInvoiceToArchiveDir(t *testing.T) {
 
 func TestBuildDoesNotMarkInvoiceBuiltWhenPDFBuildFails(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	fakeBinDir := t.TempDir()
-	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
-	script := "#!/bin/sh\nset -eu\nexit 1\n"
-	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
-	}
-
-	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	installFakeTectonic(t, fakeTectonicFail)
 
 	sourceBefore, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -1930,16 +1911,10 @@ func TestBuildDoesNotMarkInvoiceBuiltWhenPDFBuildFails(t *testing.T) {
 
 func TestBuildWithArchiveLeavesInvoiceBuiltWhenArchiveFails(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	fakeBinDir := t.TempDir()
-	tectonicPath := filepath.Join(fakeBinDir, "tectonic")
-	script := "#!/bin/sh\nset -eu\ninput=\"$1\"\npdf=\"${input%.tex}.pdf\"\n: > \"$pdf\"\n"
-	if err := os.WriteFile(tectonicPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(tectonic) returned error: %v", err)
-	}
+	installFakeTectonic(t, fakeTectonicWritePDF)
 
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	t.Setenv("PATH", fakeBinDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	inputDir := t.TempDir()
 	customInvoicePath := filepath.Join(inputDir, "BL00210003.yaml")
@@ -2441,28 +2416,51 @@ func captureRun(t *testing.T, args []string) (int, string, string) {
 		t.Fatalf("os.Pipe(stderr) returned error: %v", err)
 	}
 
+	// Drain both pipes while Run executes: pipe buffers are small (4 KiB on
+	// Windows) and some help pages are larger, so reading only after Run
+	// returns would deadlock.
+	stdoutDone := drainPipe(stdoutReader)
+	stderrDone := drainPipe(stderrReader)
+
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
 	os.Stdout = stdoutWriter
 	os.Stderr = stderrWriter
 
-	exitCode := Run(args)
+	var exitCode int
+	func() {
+		defer func() {
+			os.Stdout = oldStdout
+			os.Stderr = oldStderr
+			_ = stdoutWriter.Close()
+			_ = stderrWriter.Close()
+		}()
+		exitCode = Run(args)
+	}()
 
-	_ = stdoutWriter.Close()
-	_ = stderrWriter.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	stdoutBytes, err := io.ReadAll(stdoutReader)
-	if err != nil {
-		t.Fatalf("ReadAll(stdout) returned error: %v", err)
+	stdout := <-stdoutDone
+	stderr := <-stderrDone
+	if stdout.err != nil {
+		t.Fatalf("ReadAll(stdout) returned error: %v", stdout.err)
 	}
-	stderrBytes, err := io.ReadAll(stderrReader)
-	if err != nil {
-		t.Fatalf("ReadAll(stderr) returned error: %v", err)
+	if stderr.err != nil {
+		t.Fatalf("ReadAll(stderr) returned error: %v", stderr.err)
 	}
-	_ = stdoutReader.Close()
-	_ = stderrReader.Close()
 
-	return exitCode, string(stdoutBytes), string(stderrBytes)
+	return exitCode, stdout.text, stderr.text
+}
+
+type pipeResult struct {
+	text string
+	err  error
+}
+
+func drainPipe(r *os.File) <-chan pipeResult {
+	done := make(chan pipeResult, 1)
+	go func() {
+		defer r.Close()
+		data, err := io.ReadAll(r)
+		done <- pipeResult{text: string(data), err: err}
+	}()
+	return done
 }

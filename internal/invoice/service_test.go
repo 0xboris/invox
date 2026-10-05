@@ -2234,21 +2234,7 @@ func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Setenv("HOME", homeDir)
-
-	var expected string
-	switch runtime.GOOS {
-	case "darwin":
-		expected = filepath.Join(homeDir, "Library", "Application Support", "invox", "invoices")
-	case "windows":
-		appData := filepath.Join(homeDir, "AppData", "Roaming")
-		t.Setenv("APPDATA", appData)
-		expected = filepath.Join(appData, "invox", "invoices")
-	default:
-		dataHome := filepath.Join(homeDir, ".local", "share")
-		t.Setenv("XDG_DATA_HOME", "")
-		expected = filepath.Join(dataHome, "invox", "invoices")
-	}
+	expected := setPlatformHome(t, homeDir)
 
 	got, err := ResolveArchiveDir()
 	if err != nil {
@@ -2274,7 +2260,7 @@ func TestResolveArchiveDirUsesConfigOverride(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Setenv("HOME", homeDir)
+	setPlatformHome(t, homeDir)
 
 	got, err := ResolveArchiveDir()
 	if err != nil {
@@ -2341,7 +2327,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Setenv("HOME", homeDir)
+	archiveDir := setPlatformHome(t, homeDir)
 
 	path, err := EditableConfigPath()
 	if err != nil {
@@ -2385,7 +2371,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#   pattern: '{customer_code}-{counter:03}'",
 		"#   start: 1",
 		"# archive:",
-		"#   dir: '~/Library/Application Support/invox/invoices'",
+		"#   dir: '" + configTemplatePath(archiveDir) + "'",
 		"# email:",
 		"#   subject: 'Invoice {invoice_number}'",
 		"#   body: |",
@@ -3347,4 +3333,26 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// setPlatformHome points the home and platform data directories at homeDir
+// and returns the default archive directory invox derives from them on the
+// current OS.
+func setPlatformHome(t *testing.T, homeDir string) string {
+	t.Helper()
+
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(homeDir, "Library", "Application Support", "invox", "invoices")
+	case "windows":
+		appData := filepath.Join(homeDir, "AppData", "Roaming")
+		t.Setenv("APPDATA", appData)
+		return filepath.Join(appData, "invox", "invoices")
+	default:
+		t.Setenv("XDG_DATA_HOME", "")
+		return filepath.Join(homeDir, ".local", "share", "invox", "invoices")
+	}
 }
