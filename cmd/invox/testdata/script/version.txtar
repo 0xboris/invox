@@ -1,0 +1,18 @@
+# version prints the build version; test binaries are unstamped DEV builds.
+# It has no runtime failure mode.
+exec invox version
+cmp stdout want-version.txt
+! stderr .
+
+exec invox --version
+cmp stdout want-version.txt
+! stderr .
+
+# Usage error: extra arguments print the root help on stderr.
+exits 2 invox version extra
+! stdout .
+stderr '^error: unexpected arguments for version: extra$'
+stderr '^Subcommands:$'
+
+-- want-version.txt --
+invox version DEV

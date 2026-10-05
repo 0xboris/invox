@@ -1,0 +1,176 @@
+# build renders the template into a temp dir, runs tectonic on it (the fake
+# writes an empty PDF), copies the PDF next to the invoice and marks the
+# invoice built.
+exec invox build invoice.yaml
+cmp stdout want-build.txt
+! stderr .
+exists invoice.pdf
+grep '^  status: built$' invoice.yaml
+
+# -i and -o work too.
+exec invox build -i invoice.yaml -o copy.pdf
+cmp stdout want-build-o.txt
+! stderr .
+exists copy.pdf
+
+# Usage errors.
+exits 2 invox build
+! stdout .
+cmp stderr want-missing-input.txt
+exits 2 invox build invoice.yaml -o out.tex
+! stdout .
+stderr '^error: -o, --output must end with \.pdf$'
+exits 2 invox build invoice.yaml other.yaml
+! stdout .
+stderr '^error: unexpected arguments: other\.yaml$'
+
+# Runtime errors: tectonic fails, or is not installed. The invoice status is
+# left alone.
+env FAKE_TECTONIC_FAIL=1
+exits 1 invox build draft.yaml
+! stdout .
+cmp stderr want-tectonic-failed.txt
+! exists draft.pdf
+grep '^  status: draft$' draft.yaml
+env FAKE_TECTONIC_FAIL=
+mkdir empty
+env PATH=$WORK${/}empty
+exits 1 $BIN${/}invox$exe build draft.yaml
+! stdout .
+cmp stderr want-no-tectonic.txt
+! exists draft.pdf
+
+-- want-build.txt --
+Built invoice.pdf for CUST-001 (CUST-001-001)
+-- want-build-o.txt --
+Built copy.pdf for CUST-001 (CUST-001-001)
+-- want-missing-input.txt --
+error: missing required input: INVOICE.yaml or -i, --input
+
+Usage:
+  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive]
+
+Examples:
+  invox build invoice.yaml
+  invox build invoice.yaml --archive
+
+Use 'invox build --help' for more information.
+-- want-tectonic-failed.txt --
+fake tectonic: forced failure
+exit status 1
+-- want-no-tectonic.txt --
+tectonic not found in PATH
+Install it with `brew install tectonic`, then rerun this command.
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
+-- draft.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

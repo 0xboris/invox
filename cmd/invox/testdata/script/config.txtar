@@ -1,0 +1,114 @@
+# config creates config.yaml from its template if needed and opens it in
+# $VISUAL (the fake editor prints the file name it was given).
+exec invox config
+scrubpaths stdout got.txt
+cmp got.txt want-opened.txt
+! stderr .
+scrubpaths home/.config/invox/config.yaml got.yaml
+cmp got.yaml want-config.yaml
+
+# An existing config.yaml is opened unchanged.
+cp custom.yaml home/.config/invox/config.yaml
+exec invox config
+scrubpaths stdout got.txt
+cmp got.txt want-opened.txt
+cmp home/.config/invox/config.yaml custom.yaml
+
+# Usage error: config takes no arguments.
+exits 2 invox config extra
+! stdout .
+cmp stderr want-usage.txt
+
+# Runtime error: the editor fails.
+env FAKE_EDITOR_FAIL=1
+exits 1 invox config
+! stdout .
+cmp stderr want-editor-failed.txt
+
+-- custom.yaml --
+archive:
+  dir: archive
+-- want-opened.txt --
+fake editor: config.yaml
+Opened home/.config/invox/config.yaml
+-- want-config.yaml --
+# Invox user configuration.
+#
+# Uncomment a setting and change it to override the default.
+#
+# Supported settings:
+#   paths.customers
+#   paths.issuer
+#   paths.defaults
+#   paths.template
+#   numbering.pattern
+#   numbering.start
+#   archive.dir
+#     Directory where archived invoice files are stored.
+#   email.subject
+#     Subject template for the email command.
+#   email.body
+#     Plain-text body template for the email command.
+#     Supported placeholders for email.subject and email.body:
+#       {customer_name}
+#       {email_greeting}
+#       {contact_person}
+#       {customer_id}
+#       {invoice_number}
+#       {issue_date}
+#       {due_date}
+#       {total_amount}
+#       {outstanding_amount}
+#       {payment_terms_text}
+#       {issuer_name}
+#
+# Notes:
+# - Top-level keys must not be indented.
+# - Relative paths are resolved relative to this file.
+# - "~/" expands to your home directory.
+# - Per-customer numbering overrides live in customers.yaml at:
+#   <customer>.numbering.start
+# - Support file resolution order is:
+#   1. explicit CLI flag
+#   2. upward project search
+#   3. paths.* in this file
+#   4. conventional files in this config directory
+#
+# paths:
+#   customers: 'customers.yaml'
+#   issuer: 'issuer.yaml'
+#   defaults: 'invoice_defaults.yaml'
+#   template: 'template.tex'
+#
+# numbering:
+#   pattern: '{customer_code}-{counter:03}'
+#   start: 1
+#
+# archive:
+#   dir: '$DATA_HOME_TILDE/invox/invoices'
+#
+# email:
+#   subject: 'Invoice {invoice_number}'
+#   body: |
+#     {email_greeting}
+#     
+#     Please find attached invoice {invoice_number}.
+#     Issue date: {issue_date}
+#     Due date: {due_date}
+#     Outstanding amount: {outstanding_amount}
+#     
+#     Regards,
+#     {issuer_name}
+-- want-usage.txt --
+error: unexpected arguments: extra
+
+Usage:
+  invox config
+
+Examples:
+  invox config
+
+Use 'invox config --help' for more information.
+-- want-editor-failed.txt --
+fake editor: forced failure
+exit status 1

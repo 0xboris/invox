@@ -1,0 +1,214 @@
+# email builds a message from the invoice and opens it in the mail app.
+#
+# On macOS, without -o, invox hands the message to Apple Mail through
+# osascript; everywhere else, and whenever -o is given, it writes a .eml
+# draft and opens that with open/xdg-open/`cmd /c start`. These scripts always
+# pass -o so every OS takes the same path; email_macos covers the osascript
+# path. The fake opener prints the file it was asked to open.
+#
+# Known gap: on Unix the cleanup of a temporary draft (no -o) runs the real
+# /bin/sh by absolute path, which the sandbox cannot fake (sleep and rm are not
+# on PATH, so it does nothing); the external program adapters (#38) will close
+# it.
+exec invox email invoice.yaml -o draft.eml
+cmp stdout want-email.txt
+! stderr .
+
+# An -o draft is kept, and an existing file is only replaced with --force.
+exists draft.eml
+grep '^To: .*office@appsters\.example' draft.eml
+cp keep.eml existing.eml
+exits 1 invox email invoice.yaml -o existing.eml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-exists.txt
+cmp existing.eml keep.eml
+exec invox email invoice.yaml -o existing.eml --force
+cmp stdout want-force.txt
+! stderr .
+grep '^To: .*office@appsters\.example' existing.eml
+
+# The PDF can be the input; --to and --subject override the defaults.
+exec invox email invoice.pdf -o draft2.eml --to someone@example.com --subject 'Re: {invoice_number}'
+cmp stdout want-email-to.txt
+! stderr .
+
+# send is an alias.
+exec invox send -i invoice.yaml -o draft3.eml
+cmp stdout want-send.txt
+! stderr .
+
+# Usage errors.
+exits 2 invox email
+! stdout .
+cmp stderr want-missing-input.txt
+exits 2 invox email invoice.txt -o draft.eml
+! stdout .
+stderr '^error: input must end with \.yaml, \.yml, or \.pdf$'
+exits 2 invox email invoice.yaml -o draft.txt
+! stdout .
+stderr '^error: -o, --output must end with \.eml$'
+exits 2 invox email invoice.yaml -p invoice.txt -o draft.eml
+! stdout .
+stderr '^error: -p, --pdf must end with \.pdf$'
+
+# Runtime errors: the invoice is not built yet, the PDF is missing, and the
+# mail app cannot be opened.
+exits 1 invox email draft.yaml -p invoice.pdf -o draft4.eml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-not-built.txt
+exits 1 invox email invoice.yaml -p missing.pdf -o draft5.eml
+! stdout .
+stderr '^read .*missing\.pdf: '
+env FAKE_OPEN_FAIL=1
+exits 1 invox email invoice.yaml -o draft6.eml
+! stdout .
+cmp stderr want-open-failed.txt
+
+-- keep.eml --
+keep me
+-- invoice.pdf --
+-- want-exists.txt --
+existing.eml already exists; pass --force or choose another -o path
+-- want-force.txt --
+fake open: existing.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-email.txt --
+fake open: draft.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-email-to.txt --
+fake open: draft2.eml
+Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
+-- want-send.txt --
+fake open: draft3.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-missing-input.txt --
+error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
+
+Usage:
+  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
+
+Examples:
+  invox email invoice.yaml
+  invox email invoice.pdf
+
+Use 'invox email --help' for more information.
+-- want-not-built.txt --
+$WORK/draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
+-- want-open-failed.txt --
+fake open: forced failure
+created draft6.eml but failed to open it: exit status 1
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: built
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
+-- draft.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
