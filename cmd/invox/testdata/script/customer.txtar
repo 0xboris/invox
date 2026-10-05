@@ -41,7 +41,8 @@ stderr 'missing\.yaml'
 env FAKE_EDITOR_FAIL=1
 exits 1 invox customer config
 ! stdout .
-cmp stderr want-editor-failed.txt
+scrubpaths stderr got.txt
+cmp got.txt want-editor-failed.txt
 
 -- other.yaml --
 OTHER-1:
