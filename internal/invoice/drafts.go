@@ -631,17 +631,19 @@ func archiveMetadata(root *yaml.Node) (string, string) {
 	if internalNode == nil || internalNode.Kind != yaml.MappingNode {
 		return "", ""
 	}
-	return strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchivePathKey)))),
-		strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchiveReplaceKey))))
+	return filepath.FromSlash(strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchivePathKey))))),
+		filepath.FromSlash(strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchiveReplaceKey)))))
 }
 
+// setArchiveMetadata records archive-relative paths with forward slashes so
+// a working copy stays portable between operating systems.
 func setArchiveMetadata(root *yaml.Node, archivePath, archiveReplacePath string) {
 	internalNode := getOrCreateMappingNode(root, internalMetadataKey)
-	setMappingString(internalNode, internalArchivePathKey, archivePath)
+	setMappingString(internalNode, internalArchivePathKey, filepath.ToSlash(archivePath))
 	if strings.TrimSpace(archiveReplacePath) == "" || archiveReplacePath == archivePath {
 		deleteMappingKey(internalNode, internalArchiveReplaceKey)
 	} else {
-		setMappingString(internalNode, internalArchiveReplaceKey, archiveReplacePath)
+		setMappingString(internalNode, internalArchiveReplaceKey, filepath.ToSlash(archiveReplacePath))
 	}
 }
 

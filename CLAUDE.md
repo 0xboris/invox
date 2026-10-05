@@ -13,7 +13,7 @@ gofmt -l .                     # must print nothing
 go mod tidy -diff              # must print nothing
 ```
 
-CI (`.github/workflows/ci.yml`) runs the tests on linux/macos/windows with Go 1.22 (the
+CI (`.github/workflows/ci.yml`) runs the tests on linux/macos/windows with Go 1.24 (the
 minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it green.
 
 ## Layout

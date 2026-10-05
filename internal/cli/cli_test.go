@@ -2396,8 +2396,10 @@ func writeArchivedInvoiceMarkdown(t *testing.T, dir, name, invoiceNumber string)
 	return path
 }
 
+// quoteYAMLString single-quotes value for YAML, where backslashes (as in
+// Windows paths) are literal.
 func quoteYAMLString(value string) string {
-	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func captureRun(t *testing.T, args []string) (int, string, string) {

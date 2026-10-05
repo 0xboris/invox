@@ -14,7 +14,7 @@
 
 ## Requirements
 
-- Go `1.22+`
+- Go `1.24+`
 - `tectonic` in `PATH` for `invox build`
 - A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer config`, and `invox new -e`
 
