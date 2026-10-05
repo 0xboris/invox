@@ -1,0 +1,2 @@
+go test fuzz v1
+string("@@LINE_ITEMS_BEGIN@@LINE_ITEMS_END@@@@LINE_ITEMS_END@@")

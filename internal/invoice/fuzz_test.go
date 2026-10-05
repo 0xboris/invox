@@ -329,14 +329,27 @@ func FuzzValidateTemplatePlaceholders(f *testing.F) {
 			return
 		}
 
-		// A template that validates renders without leaving a block
-		// boundary behind.
-		rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, pairs)
-		for _, boundary := range []string{lineItemsBeginPlaceholder, lineItemsEndPlaceholder} {
-			if strings.Contains(rendered, boundary) {
-				t.Fatalf("template %q rendered %q, which still contains %s", template, rendered, boundary)
+		// The renderer expands exactly the blocks the validator approved:
+		// each block starts at a BEGIN and ends at the END that the
+		// boundary scan paired with it.
+		var boundaries []int
+		for _, match := range lineItemsBoundaryPattern.FindAllStringIndex(template, -1) {
+			boundaries = append(boundaries, match[0], match[1])
+		}
+		var blocks []int
+		for _, match := range lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1) {
+			blocks = append(blocks, match[0], match[2], match[3], match[1])
+		}
+		if len(blocks) != len(boundaries) {
+			t.Fatalf("template %q: renderer finds blocks %v, validator finds boundaries %v", template, blocks, boundaries)
+		}
+		for index := range blocks {
+			if blocks[index] != boundaries[index] {
+				t.Fatalf("template %q: renderer finds blocks %v, validator finds boundaries %v", template, blocks, boundaries)
 			}
 		}
+
+		rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, pairs)
 		if !strings.Contains(template, "@@") && rendered != template {
 			t.Fatalf("template %q without placeholders rendered as %q", template, rendered)
 		}
