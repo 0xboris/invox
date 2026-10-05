@@ -133,6 +133,7 @@ invox help template
 ## Notes
 
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
+- Invoice numbers are unique. `invox new` picks the next counter after the highest one in `archive.dir` and in invoice YAML files with `status: draft` or `status: built` in the current directory and the output directory, so drafts created one after another get different numbers. Drafts elsewhere are not seen, so `invox archive` also refuses an invoice whose number is already archived under a different file, and `invox validate` warns about it; run `invox increment -i FILE` to move it to the next free number. Re-archiving an invoice opened with `invox archive edit` keeps working.
 - `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`.
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
 - On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft, opens it, and schedules that file for cleanup.

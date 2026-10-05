@@ -214,6 +214,79 @@ func highestArchivedCounter(pattern, customerID, issueDate string, customer map[
 	return highest, nil
 }
 
+// highestDraftCounter returns the highest counter used by unarchived invoices
+// (status draft or built) directly inside dirs, so that two drafts created
+// before either is archived do not get the same number. Files that cannot be
+// parsed, are not invoices, or do not match the numbering pattern are ignored.
+func highestDraftCounter(dirs []string, customerID, issueDate string, customer map[string]any) (int64, error) {
+	settings, err := ResolveNumberingSettings()
+	if err != nil {
+		return 0, err
+	}
+
+	seen := make(map[string]bool, len(dirs))
+	var highest int64
+	for _, dir := range dirs {
+		if strings.TrimSpace(dir) == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+
+		entries, err := os.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			switch strings.ToLower(filepath.Ext(entry.Name())) {
+			case ".yaml", ".yml":
+			default:
+				continue
+			}
+
+			invoiceNumber, ok := draftInvoiceNumber(filepath.Join(dir, entry.Name()))
+			if !ok {
+				continue
+			}
+			counter, err := parseInvoiceCounter(settings.Pattern, invoiceNumber, customerID, issueDate, customer)
+			if err != nil {
+				continue
+			}
+			if counter > highest {
+				highest = counter
+			}
+		}
+	}
+	return highest, nil
+}
+
+func draftInvoiceNumber(path string) (string, bool) {
+	value, err := loadYAML(path)
+	if err != nil {
+		return "", false
+	}
+	root, ok := value.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	invoice, ok := root["invoice"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	switch strings.TrimSpace(asString(invoice["status"])) {
+	case "draft", "built":
+	default:
+		return "", false
+	}
+	invoiceNumber := strings.TrimSpace(asString(invoice["number"]))
+	return invoiceNumber, invoiceNumber != ""
+}
+
 func isArchivedInvoicePath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".md", ".markdown", ".yaml", ".yml":
