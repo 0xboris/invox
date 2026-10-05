@@ -18,7 +18,9 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
 
 ## Layout
 
-- `cmd/invox/main.go`: shim, `os.Exit(cli.Run(os.Args[1:]))`.
+- `cmd/invox/main.go`: shim, `os.Exit(cli.Main(os.Args[1:], iostreams.System()))`.
+- `internal/iostreams`: stdin, stdout and stderr plus TTY detection. Only `iostreams.System()`
+  touches the process streams; everything else writes to the `IOStreams` it is given.
 - `internal/cli`: argument parsing (`command_specs.go`, `parsing.go`), commands
   (`commands_*.go`), hand-written help (`help.go`), editor/opener/mail launchers (`editor.go`).
 - `internal/invoice`: domain logic (loading and validation, money and VAT, numbering,
@@ -50,7 +52,9 @@ Settled decisions (#9):
 
 ## Testing
 
-- CLI tests: `captureRun(t, args)` returns `(exitCode, stdout, stderr)`; assert all three.
+- CLI tests: `captureRun(t, args)` returns `(exitCode, stdout, stderr)`; assert all three. It runs
+  `Main` with `iostreams.Test()` buffers; `captureRunStreams` takes streams you set up (stdin input,
+  TTY flags). Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
 - Never depend on the developer's real config: point `XDG_CONFIG_HOME` (and for paths derived
   from home, `setPlatformHome(t, dir)` in `internal/invoice`) at `t.TempDir()`.
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
