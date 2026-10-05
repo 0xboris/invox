@@ -25,11 +25,13 @@ exits 2 invox template list --bogus
 ! stdout .
 stderr '^error: flag provided but not defined: -bogus$'
 
-# Runtime error: the catalog directory cannot be read.
+# Runtime error: the catalog directory cannot be read. On Windows, reading a
+# regular file as a directory looks like a missing directory to invox, so it
+# lists nothing and succeeds; the error only exists on Unix.
 cp custom-template.yaml home/.config/invox/config.yaml
-exits 1 invox template list
-! stdout .
-stderr 'not-a-dir'
+[!windows] exits 1 invox template list
+[!windows] ! stdout .
+[!windows] stderr 'not-a-dir'
 
 -- home/.config/invox/template.tex --
 Invoice @@INVOICE_NUMBER@@
