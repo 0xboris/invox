@@ -8,6 +8,7 @@ import {
   parseVerdict,
   type Counts,
   type Frontier,
+  type FrontierSource,
   type InboxPointer,
   type OpenGate,
   type StandingLine,
@@ -82,6 +83,7 @@ interface GateResolveOptions {
 interface FrontierSetOptions {
   readonly repo?: string;
   readonly prs?: readonly number[];
+  readonly source: FrontierSource;
 }
 
 function message(error: unknown): string {
@@ -472,14 +474,23 @@ function createProgram(io: Io): Command {
 
   const frontier = program
     .command("frontier")
-    .description("manage the Graphite stack frontier")
+    .description("manage the PR stack frontier")
     .action(() => requireSubcommand(program));
-  leaf(frontier, "set", "discover the Graphite stack and set the frontier")
+  leaf(frontier, "set", "discover the PR stack and set the frontier")
     .addOption(
       new Option(
         "--repo <dir>",
         "repository directory (or ORCH_REPO)"
       ).env("ORCH_REPO")
+    )
+    .addOption(
+      new Option(
+        "--source <source>",
+        "stack source: gt (Graphite) or rest (gh api open PRs)"
+      )
+        .choices(["gt", "rest"])
+        .default("gt")
+        .env("ORCH_FRONTIER_SOURCE")
     )
     .option(
       "--prs <n,...>",
@@ -494,6 +505,7 @@ function createProgram(io: Io): Command {
           store.frontier.set({
             repo: frontierRepo(options),
             prs: options.prs,
+            source: options.source,
           }),
         frontierLine
       )

@@ -165,9 +165,12 @@ export interface ResolveGateParams {
   readonly answer: string;
 }
 
+export type FrontierSource = "gt" | "rest";
+
 export interface SetFrontierParams {
   readonly repo: string;
   readonly prs?: readonly number[];
+  readonly source?: FrontierSource;
 }
 
 export interface AddStandingParams {
@@ -1168,9 +1171,11 @@ function resolveFrontier(repo: string): readonly FrontierPr[] {
 function validateFrontierPin({
   actual,
   expected,
+  source,
 }: {
   actual: readonly number[];
   expected: readonly number[];
+  source: FrontierSource;
 }): void {
   if (
     actual.length === expected.length &&
@@ -1184,17 +1189,238 @@ function validateFrontierPin({
   const extra = actual.filter((pr) => !expectedSet.has(pr));
   const drift: string[] = [];
   if (missing.length > 0) {
-    drift.push(`missing from gt: ${missing.join(",")}`);
+    drift.push(`missing from ${source}: ${missing.join(",")}`);
   }
   if (extra.length > 0) {
-    drift.push(`extra in gt: ${extra.join(",")}`);
+    drift.push(`extra in ${source}: ${extra.join(",")}`);
   }
   if (missing.length === 0 && extra.length === 0) {
     drift.push(
-      `order differs: expected ${expected.join(",")}; gt ${actual.join(",")}`
+      `order differs: expected ${expected.join(",")}; ${source} ${actual.join(",")}`
     );
   }
   throw new UserError(`frontier pin mismatch: ${drift.join("; ")}`);
+}
+
+const REST_PAGE_SIZE = 100;
+const REST_MAX_PAGES = 10;
+
+interface RestPull extends FrontierPr {
+  readonly base: string;
+  readonly sameRepo: boolean;
+}
+
+function capture({
+  args,
+  command,
+  repo,
+}: {
+  args: readonly string[];
+  command: string;
+  repo: string;
+}): string {
+  try {
+    return execFileSync(command, args, {
+      cwd: repo,
+      encoding: "utf8",
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch (error) {
+    throw new UserError(
+      `${command} ${args.join(" ")} failed: ${errorMessage(error)}`
+    );
+  }
+}
+
+function githubRepo(repo: string): string {
+  const url = capture({
+    command: "git",
+    args: ["remote", "get-url", "origin"],
+    repo,
+  });
+  const match =
+    /^(?:https:\/\/github\.com\/|git@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(
+      url
+    );
+  if (match === null) {
+    throw new UserError(`origin is not a github.com remote: ${url}`);
+  }
+  return match[1] ?? "";
+}
+
+function ghApi({ path, repo }: { path: string; repo: string }): unknown {
+  const raw = capture({ command: "gh", args: ["api", path], repo });
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new UserError(`gh api ${path} returned invalid JSON`);
+  }
+}
+
+function parseRestPull({
+  path,
+  value,
+}: {
+  path: string;
+  value: unknown;
+}): RestPull {
+  const head = isRecord(value) ? value.head : null;
+  const base = isRecord(value) ? value.base : null;
+  if (
+    !isRecord(value) ||
+    !isRecord(head) ||
+    !isRecord(base) ||
+    typeof value.number !== "number" ||
+    !Number.isSafeInteger(value.number) ||
+    (value.state !== "open" && value.state !== "closed") ||
+    typeof head.ref !== "string" ||
+    typeof head.sha !== "string" ||
+    !/^[0-9a-f]{40,64}$/i.test(head.sha) ||
+    typeof base.ref !== "string"
+  ) {
+    throw new UserError(`gh api ${path} returned an invalid pull request`);
+  }
+  const headRepo = isRecord(head.repo) ? head.repo.full_name : null;
+  const baseRepo = isRecord(base.repo) ? base.repo.full_name : null;
+  return {
+    pr: value.number,
+    branches: head.ref,
+    // The API head, not local git rev-parse: this clone may lack or lag the branch.
+    sha: head.sha,
+    state:
+      typeof value.merged_at === "string"
+        ? "MERGED"
+        : value.state === "closed"
+          ? "CLOSED"
+          : "OPEN",
+    base: base.ref,
+    sameRepo: typeof headRepo === "string" && headRepo === baseRepo,
+  };
+}
+
+function openPulls({
+  repo,
+  slug,
+}: {
+  repo: string;
+  slug: string;
+}): readonly RestPull[] {
+  const pulls: RestPull[] = [];
+  // Page by hand: --paginate follows Link URLs that proxied sessions refuse.
+  for (let page = 1; page <= REST_MAX_PAGES; page += 1) {
+    const path = `repos/${slug}/pulls?state=open&per_page=${REST_PAGE_SIZE}&page=${page}`;
+    const rows = ghApi({ path, repo });
+    if (!isUnknownArray(rows)) {
+      throw new UserError(`gh api ${path} did not return a list`);
+    }
+    pulls.push(...rows.map((value) => parseRestPull({ path, value })));
+    if (rows.length < REST_PAGE_SIZE) {
+      return pulls;
+    }
+  }
+  throw new UserError(
+    `gh api listed more than ${REST_MAX_PAGES * REST_PAGE_SIZE} open pull requests; refusing to read further`
+  );
+}
+
+function restChain({
+  branch,
+  pulls,
+}: {
+  branch: string;
+  pulls: readonly RestPull[];
+}): readonly RestPull[] {
+  // A fork's head ref is not a branch of this repo, so it can't be in the stack.
+  const local = pulls.filter((pull) => pull.sameRepo);
+  const headedBy = (ref: string): RestPull | undefined => {
+    const matches = local.filter((pull) => pull.branches === ref);
+    if (matches.length > 1) {
+      throw new UserError(
+        `branch ${ref} heads several open pull requests: ${matches.map((pull) => pull.pr).join(",")}`
+      );
+    }
+    return matches[0];
+  };
+  let bottom = headedBy(branch);
+  if (bottom === undefined) {
+    throw new UserError(
+      `branch ${branch} has no open pull request; pin the stack with --prs`
+    );
+  }
+  const seen = new Set([bottom.pr]);
+  for (
+    let below = headedBy(bottom.base);
+    below !== undefined;
+    below = headedBy(below.base)
+  ) {
+    if (seen.has(below.pr)) {
+      throw new UserError(
+        `open pull requests form a base cycle at #${below.pr}`
+      );
+    }
+    seen.add(below.pr);
+    bottom = below;
+  }
+  const chain = [bottom];
+  for (let top = bottom; ; ) {
+    const children = local.filter((pull) => pull.base === top.branches);
+    if (children.length > 1) {
+      throw new UserError(
+        `stack forks at branch ${top.branches}: open pull requests ${children.map((pull) => pull.pr).join(",")} all target it`
+      );
+    }
+    const child = children[0];
+    if (child === undefined) {
+      return chain;
+    }
+    chain.push(child);
+    top = child;
+  }
+}
+
+function frontierRow({ pr, branches, sha, state }: RestPull): FrontierPr {
+  return { pr, branches, sha, state };
+}
+
+function restFrontier({
+  pin,
+  repo,
+}: {
+  pin: readonly number[] | undefined;
+  repo: string;
+}): readonly FrontierPr[] {
+  const slug = githubRepo(repo);
+  const pulls = openPulls({ repo, slug });
+  if (pin === undefined) {
+    const branch = capture({
+      command: "git",
+      args: ["branch", "--show-current"],
+      repo,
+    });
+    if (branch.length === 0) {
+      throw new UserError(
+        "HEAD is detached; check out a stack branch or pin the stack with --prs"
+      );
+    }
+    return restChain({ branch, pulls }).map(frontierRow);
+  }
+  const pinned = pin.map((pr) => {
+    const path = `repos/${slug}/pulls/${pr}`;
+    return parseRestPull({ path, value: ghApi({ path, repo }) });
+  });
+  // Merged and closed members keep their pinned slot but sit outside the
+  // open-PR list, so only the open members are checked against the chain.
+  const open = pinned.filter((row) => row.state === "OPEN");
+  const anchor = open[0];
+  const chain =
+    anchor === undefined ? [] : restChain({ branch: anchor.branches, pulls });
+  validateFrontierPin({
+    actual: chain.map((row) => row.pr),
+    expected: open.map((row) => row.pr),
+    source: "rest",
+  });
+  return pinned.map(frontierRow);
 }
 
 export function openStore(
@@ -1492,11 +1718,16 @@ export function openStore(
           throw new UserError("--prs must not contain duplicates");
         }
         const old = await readFrontier(store);
-        const prs = resolveFrontier(repo);
-        if (pin !== undefined) {
+        const source = params.source ?? "gt";
+        const prs =
+          source === "rest"
+            ? restFrontier({ repo, pin })
+            : resolveFrontier(repo);
+        if (pin !== undefined && source === "gt") {
           validateFrontierPin({
             actual: prs.map((row) => row.pr),
             expected: pin,
+            source,
           });
         }
         const value: Frontier = {

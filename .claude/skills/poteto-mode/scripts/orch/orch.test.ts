@@ -632,3 +632,346 @@ describe("orch CLI", () => {
     expect(missingLedger.stderr).toBe("");
   });
 });
+
+const SLUG = "acme/widgets";
+
+function sha(seed: number): string {
+  return seed.toString(16).padStart(40, "0");
+}
+
+function pull({
+  number,
+  head,
+  base,
+  merged = false,
+  fork = false,
+}: {
+  number: number;
+  head: string;
+  base: string;
+  merged?: boolean;
+  fork?: boolean;
+}): unknown {
+  return {
+    number,
+    state: merged ? "closed" : "open",
+    merged_at: merged ? "2026-10-01T00:00:00Z" : null,
+    head: {
+      ref: head,
+      sha: sha(number),
+      repo: { full_name: fork ? "someone/widgets" : SLUG },
+    },
+    base: { ref: base, repo: { full_name: SLUG } },
+  };
+}
+
+function filler(number: number): unknown {
+  return pull({ number, head: `other/${number}`, base: "main" });
+}
+
+function openPage(page: number): string {
+  return `repos/${SLUG}/pulls?state=open&per_page=100&page=${page}`;
+}
+
+async function makeRestRepo({
+  branch,
+  directory,
+  remote = `git@github.com:${SLUG}.git`,
+}: {
+  branch: string;
+  directory: string;
+  remote?: string;
+}): Promise<string> {
+  const repo = join(directory, "repo");
+  await mkdir(repo);
+  git({ repo, args: ["init", `--initial-branch=${branch}`] });
+  git({ repo, args: ["remote", "add", "origin", remote] });
+  return repo;
+}
+
+async function withFakeGh<T>({
+  directory,
+  operation,
+  responses,
+}: {
+  directory: string;
+  operation: () => Promise<T>;
+  responses: Readonly<Record<string, unknown>>;
+}): Promise<T> {
+  const bin = join(directory, "gh-bin");
+  await mkdir(bin);
+  const cases: string[] = [];
+  for (const [index, [path, body]] of Object.entries(responses).entries()) {
+    const file = join(directory, `gh-response-${index}.json`);
+    await writeFile(file, JSON.stringify(body));
+    cases.push(`  "${path}") cat "${file}" ;;`);
+  }
+  const gh = join(bin, "gh");
+  await writeFile(
+    gh,
+    `#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *graphql*|*--paginate*)
+    printf 'fake gh refuses: %s\\n' "$*" >&2
+    exit 1
+    ;;
+esac
+if [ "$#" -ne 2 ] || [ "$1" != "api" ]; then
+  printf 'fake gh only answers "api <path>": %s\\n' "$*" >&2
+  exit 1
+fi
+case "$2" in
+${cases.join("\n")}
+  *)
+    printf 'fake gh has no fixture for %s\\n' "$2" >&2
+    exit 1
+    ;;
+esac
+`
+  );
+  await chmod(gh, 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${bin}:${originalPath ?? ""}`;
+  try {
+    return await operation();
+  } finally {
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+  }
+}
+
+describe("REST frontier source", () => {
+  it("discovers a linear stack from its middle branch, trunk-up with API head SHAs", async () => {
+    const directory = await makeDirectory();
+    const repo = await makeRestRepo({ directory, branch: "stack/b" });
+    expect(runCli(["--store", directory, "init"]).code).toBe(0);
+
+    await withFakeGh({
+      directory,
+      responses: {
+        [openPage(1)]: [
+          pull({ number: 23, head: "stack/c", base: "stack/b" }),
+          pull({ number: 30, head: "main", base: "main", fork: true }),
+          pull({ number: 21, head: "stack/a", base: "main" }),
+          filler(31),
+          pull({ number: 22, head: "stack/b", base: "stack/a" }),
+        ],
+      },
+      operation: async () => {
+        const result = runCli([
+          "--store",
+          directory,
+          "frontier",
+          "set",
+          "--repo",
+          repo,
+          "--source",
+          "rest",
+        ]);
+        expect(result).toEqual({
+          code: 0,
+          stdout:
+            "generation=1 prs=" +
+            "stack/a#21@0000000000000000000000000000000000000015:OPEN," +
+            "stack/b#22@0000000000000000000000000000000000000016:OPEN," +
+            "stack/c#23@0000000000000000000000000000000000000017:OPEN" +
+            " lowest-unmerged=21\n",
+          stderr: "",
+        });
+      },
+    });
+  });
+
+  it("pages the open-PR list by hand until a short page", async () => {
+    const { directory, store } = await initializedStore();
+    const repo = await makeRestRepo({ directory, branch: "stack/a" });
+    const fillers = Array.from({ length: 98 }, (_, index) =>
+      filler(100 + index)
+    );
+
+    await withFakeGh({
+      directory,
+      responses: {
+        [openPage(1)]: [
+          pull({ number: 21, head: "stack/a", base: "main" }),
+          pull({ number: 22, head: "stack/b", base: "stack/a" }),
+          ...fillers,
+        ],
+        [openPage(2)]: [
+          filler(300),
+          pull({ number: 23, head: "stack/c", base: "stack/b" }),
+        ],
+      },
+      operation: async () => {
+        expect(
+          await store.frontier.set({ repo, source: "rest" })
+        ).toEqual({
+          generation: 1,
+          prs: [
+            { pr: 21, branches: "stack/a", sha: sha(21), state: "OPEN" },
+            { pr: 22, branches: "stack/b", sha: sha(22), state: "OPEN" },
+            { pr: 23, branches: "stack/c", sha: sha(23), state: "OPEN" },
+          ],
+          lowestUnmerged: 21,
+        });
+      },
+    });
+  });
+
+  it("fails loudly past the page cap", async () => {
+    const { directory, store } = await initializedStore();
+    const repo = await makeRestRepo({ directory, branch: "stack/a" });
+    const responses: Record<string, unknown> = {};
+    for (let page = 1; page <= 10; page += 1) {
+      responses[openPage(page)] = Array.from({ length: 100 }, (_, index) =>
+        filler(page * 1000 + index)
+      );
+    }
+
+    await withFakeGh({
+      directory,
+      responses,
+      operation: async () => {
+        await expect(
+          store.frontier.set({ repo, source: "rest" })
+        ).rejects.toThrow(
+          "gh api listed more than 1000 open pull requests; refusing to read further"
+        );
+      },
+    });
+  });
+
+  it("refuses a forked stack, a branch without a PR, and a non-GitHub origin", async () => {
+    const { directory, store } = await initializedStore();
+    const repo = await makeRestRepo({ directory, branch: "stack/b" });
+    const forked = {
+      [openPage(1)]: [
+        pull({ number: 21, head: "stack/a", base: "main" }),
+        pull({ number: 22, head: "stack/b", base: "stack/a" }),
+        pull({ number: 24, head: "stack/b2", base: "stack/a" }),
+      ],
+    };
+
+    await withFakeGh({
+      directory,
+      responses: forked,
+      operation: async () => {
+        await expect(
+          store.frontier.set({ repo, source: "rest" })
+        ).rejects.toThrow(
+          "stack forks at branch stack/a: open pull requests 22,24 all target it"
+        );
+        git({ repo, args: ["symbolic-ref", "HEAD", "refs/heads/feature/none"] });
+        await expect(
+          store.frontier.set({ repo, source: "rest" })
+        ).rejects.toThrow(
+          "branch feature/none has no open pull request; pin the stack with --prs"
+        );
+        git({
+          repo,
+          args: [
+            "remote",
+            "set-url",
+            "origin",
+            "https://gitlab.com/acme/widgets.git",
+          ],
+        });
+        await expect(
+          store.frontier.set({ repo, source: "rest" })
+        ).rejects.toThrow(
+          "origin is not a github.com remote: https://gitlab.com/acme/widgets.git"
+        );
+      },
+    });
+  });
+
+  it("validates a --prs pin against the open chain and keeps merged members", async () => {
+    const { directory, store } = await initializedStore();
+    const repo = await makeRestRepo({ directory, branch: "main" });
+
+    await withFakeGh({
+      directory,
+      responses: {
+        [openPage(1)]: [
+          pull({ number: 21, head: "stack/a", base: "stack/z" }),
+          pull({ number: 22, head: "stack/b", base: "stack/a" }),
+          filler(25),
+        ],
+        [`repos/${SLUG}/pulls/20`]: pull({
+          number: 20,
+          head: "stack/z",
+          base: "main",
+          merged: true,
+        }),
+        [`repos/${SLUG}/pulls/21`]: pull({
+          number: 21,
+          head: "stack/a",
+          base: "stack/z",
+        }),
+        [`repos/${SLUG}/pulls/22`]: pull({
+          number: 22,
+          head: "stack/b",
+          base: "stack/a",
+        }),
+        [`repos/${SLUG}/pulls/25`]: filler(25),
+      },
+      operation: async () => {
+        expect(
+          await store.frontier.set({
+            repo,
+            source: "rest",
+            prs: [20, 21, 22],
+          })
+        ).toEqual({
+          generation: 1,
+          prs: [
+            { pr: 20, branches: "stack/z", sha: sha(20), state: "MERGED" },
+            { pr: 21, branches: "stack/a", sha: sha(21), state: "OPEN" },
+            { pr: 22, branches: "stack/b", sha: sha(22), state: "OPEN" },
+          ],
+          lowestUnmerged: 21,
+        });
+        await expect(
+          store.frontier.set({ repo, source: "rest", prs: [21, 25] })
+        ).rejects.toThrow(
+          "frontier pin mismatch: missing from rest: 25; extra in rest: 22"
+        );
+      },
+    });
+  });
+
+  it("selects the source from ORCH_FRONTIER_SOURCE", async () => {
+    const directory = await makeDirectory();
+    const repo = await makeRestRepo({
+      directory,
+      branch: "stack/a",
+      remote: `https://github.com/${SLUG}.git`,
+    });
+    expect(runCli(["--store", directory, "init"]).code).toBe(0);
+
+    await withFakeGh({
+      directory,
+      responses: {
+        [openPage(1)]: [pull({ number: 21, head: "stack/a", base: "main" })],
+      },
+      operation: async () => {
+        const result = runCli(["--store", directory, "frontier", "set"], {
+          ...process.env,
+          ORCH_FRONTIER_SOURCE: "rest",
+          ORCH_REPO: repo,
+        });
+        expect(result).toEqual({
+          code: 0,
+          stdout:
+            "generation=1 prs=stack/a#21@0000000000000000000000000000000000000015:OPEN lowest-unmerged=21\n",
+          stderr: "",
+        });
+      },
+    });
+  });
+});
