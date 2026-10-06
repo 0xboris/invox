@@ -15,6 +15,19 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
 mkdir -p "$HOME/.agents"
 cp .claude/pstack-models.md "$HOME/.agents/pstack-models.md"
 
+# pstack's watch-pr and orch run on bun. Install their pinned deps, then run
+# watch-pr once so bootstrap.ts records its install key and later runs skip
+# their own `bun install`.
+if command -v bun >/dev/null 2>&1; then
+  (
+    cd .claude/skills/poteto-mode/scripts
+    bun install --frozen-lockfile
+    bun watch-pr/watch-pr --help >/dev/null
+  )
+else
+  echo "session-start: bun not found; pstack's watch-pr and orch are unavailable" >&2
+fi
+
 go mod download
 # Compile packages and test binaries without running any tests.
 go build ./...
