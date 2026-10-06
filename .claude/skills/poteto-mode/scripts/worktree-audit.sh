@@ -17,10 +17,21 @@ main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
 # origin/main drives the merge check. Best-effort; stale is fine for a first pass.
 git fetch origin main --quiet 2>/dev/null || echo "warn: could not fetch origin/main; merged column may be stale" >&2
 
-# PR state by branch, fetched once. Empty if gh is unavailable.
+# PR state by branch, fetched once. Empty if gh is unavailable. REST paged by
+# hand: Claude Code cloud sessions refuse GraphQL (`gh pr list`) and the
+# numeric-ID next links that `gh api --paginate` follows.
 prs=$(mktemp)
-gh pr list --author "@me" --state all --limit 1000 \
-	--json number,state,headRefName 2>/dev/null > "$prs" || echo "[]" > "$prs"
+me=$(gh api user --jq .login 2>/dev/null)
+page=1
+while [ "$page" -le 10 ]; do
+	batch=$(gh api "repos/{owner}/{repo}/pulls?state=all&per_page=100&page=$page" 2>/dev/null) || break
+	printf '%s\n' "$batch"
+	[ "$(printf '%s' "$batch" | jq length)" -lt 100 ] && break
+	page=$((page + 1))
+done | jq -s --arg me "$me" '[.[][] | select($me == "" or .user.login == $me)
+	| {number, headRefName: .head.ref,
+		state: (if .merged_at then "MERGED" else (.state | ascii_upcase) end)}]' \
+	> "$prs" 2>/dev/null || echo "[]" > "$prs"
 
 # Chat transcript dirs for a path, per harness: Cursor, Claude Code, Pi.
 # Codex and OpenCode don't group sessions by project, so they aren't searched.
