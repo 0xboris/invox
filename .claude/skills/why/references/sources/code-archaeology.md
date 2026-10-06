@@ -44,9 +44,12 @@ For each substantive commit, pull the PR context:
 git log -1 --format=%B <hash>
 
 # Full PR context: body, review comments, linked issues
-gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews,files
+gh api repos/{owner}/{repo}/pulls/<number>
+gh api 'repos/{owner}/{repo}/issues/<number>/comments?per_page=100'
+gh api 'repos/{owner}/{repo}/pulls/<number>/reviews?per_page=100'
+gh api 'repos/{owner}/{repo}/pulls/<number>/files?per_page=100'
 
-# The --json reviews and comments fields are where the real signal is
+# The reviews and comments are where the real signal is
 ```
 
 Look for out-of-band docs:
