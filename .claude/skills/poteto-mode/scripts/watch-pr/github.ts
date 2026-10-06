@@ -1,18 +1,15 @@
 import { spawn } from "node:child_process";
 import type * as T from "./types.ts";
 import { nonEmpty, parsePrNumber } from "./types.ts";
-export const REVIEW_THREADS_QUERY =
-  "\nquery ReviewThreads($owner: String!, $repo: String!, $pr: Int!) {\n  repository(owner: $owner, name: $repo) {\n    pullRequest(number: $pr) {\n      reviewThreads(first: 100) {\n        nodes {\n          id\n          isResolved\n          comments(first: 10) {\n            nodes {\n              body\n              createdAt\n              path\n              line\n              author { login }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n";
-export const PR_COMMIT_STATUS_QUERY =
-  "\nquery PrCommitStatuses($owner: String!, $repo: String!, $pr: Int!) {\n  repository(owner: $owner, name: $repo) {\n    pullRequest(number: $pr) {\n      commits(last: 50) {\n        nodes {\n          commit {\n            oid\n            statusCheckRollup {\n              state\n            }\n          }\n        }\n      }\n    }\n  }\n}\n";
-export const PR_CHECK_ROLLUP_QUERY =
-  "\nquery PrCheckRollup($owner: String!, $repo: String!, $pr: Int!, $after: String) {\n  repository(owner: $owner, name: $repo) {\n    pullRequest(number: $pr) {\n      commits(last: 1) {\n        nodes {\n          commit {\n            statusCheckRollup {\n              contexts(first: 100, after: $after) {\n                pageInfo {\n                  hasNextPage\n                  endCursor\n                }\n                nodes {\n                  __typename\n                  ... on CheckRun {\n                    name\n                    status\n                    conclusion\n                    detailsUrl\n                  }\n                  ... on StatusContext {\n                    context\n                    state\n                    targetUrl\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n";
 
-interface CommandResult {
+export interface CommandResult {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
 }
+export type CommandRunner = (
+  argv: readonly [string, ...string[]]
+) => Promise<CommandResult>;
 export class WatcherQueryError extends Error {
   readonly failure: T.QueryFailure;
   constructor(failure: T.QueryFailure) {
@@ -29,7 +26,9 @@ export class ChecksUnavailable extends WatcherQueryError {
 }
 const firstLine = (value: string): string =>
   value.trim().split(/\r?\n/, 1)[0]?.slice(0, 240) ?? "";
-function run(argv: readonly [string, ...string[]]): Promise<CommandResult> {
+function spawnCommand(
+  argv: readonly [string, ...string[]]
+): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(argv[0], argv.slice(1), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -59,17 +58,13 @@ function parseJson(text: string, label: string): unknown {
     });
   }
 }
-async function runJson(argv: readonly [string, ...string[]]): Promise<unknown> {
-  const result = await run(argv);
-  if (result.code !== 0)
-    throw new WatcherQueryError({
-      kind: "command-exit",
-      retryable: true,
-      code: result.code,
-      detail:
-        firstLine(result.stderr) || `${argv.join(" ")} exited ${result.code}`,
-    });
-  return parseJson(result.stdout, argv.join(" "));
+function commandExit(code: number, detail: string): never {
+  throw new WatcherQueryError({
+    kind: "command-exit",
+    retryable: true,
+    code,
+    detail,
+  });
 }
 function raw(value: unknown): string {
   try {
@@ -115,6 +110,8 @@ function string(value: unknown, path: string): string {
 }
 const optionalString = (value: unknown, path: string): string | null =>
   value === null ? null : string(value, path);
+const displayString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
 function enumValue<const V extends readonly string[]>(
   value: unknown,
   values: V,
@@ -124,43 +121,34 @@ function enumValue<const V extends readonly string[]>(
     for (const candidate of values) if (candidate === value) return candidate;
   return missing(path, value);
 }
-const nullableEnum = <const V extends readonly string[]>(
-  value: unknown,
-  values: V,
-  path: string
-): V[number] | null => (value === null ? null : enumValue(value, values, path));
-const MERGE_STATES = [
-  "BEHIND",
-  "BLOCKED",
-  "CLEAN",
-  "CONFLICTING",
-  "DIRTY",
-  "DRAFT",
-  "HAS_HOOKS",
-  "UNKNOWN",
-  "UNSTABLE",
-] as const satisfies readonly T.MergeStateStatus[];
-const ROLLUP_STATES = [
-  "ERROR",
-  "EXPECTED",
-  "FAILURE",
-  "PENDING",
-  "SUCCESS",
+function commentId(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0)
+    missing(path, value);
+  return value;
+}
+const MERGE_STATE_KEYS = [
+  "behind",
+  "blocked",
+  "clean",
+  "dirty",
+  "draft",
+  "has_hooks",
+  "unknown",
+  "unstable",
 ] as const;
-const REVIEW_DECISIONS = [
-  "APPROVED",
-  "CHANGES_REQUESTED",
-  "REVIEW_REQUIRED",
-] as const;
-// `gh pr view` reports no review decision as "", not null. Only this field does
-// it, so the normalization stays here rather than in nullableEnum, where it
-// would stop a genuinely unexpected rollup state from failing closed.
-const reviewDecision = (value: unknown): T.ReviewDecision =>
-  nullableEnum(
-    value === "" ? null : value,
-    REVIEW_DECISIONS,
-    "pull request.reviewDecision"
-  );
+const MERGE_STATES: Record<
+  (typeof MERGE_STATE_KEYS)[number],
+  T.MergeStateStatus
+> = {
+  behind: "BEHIND",
+  blocked: "BLOCKED",
+  clean: "CLEAN",
+  dirty: "DIRTY",
+  draft: "DRAFT",
+  has_hooks: "HAS_HOOKS",
+  unknown: "UNKNOWN",
+  unstable: "UNSTABLE",
+};
 function parseRemote(value: string): T.Repository | null {
   let normalized = value.trim();
   if (normalized.startsWith("git@github.com:"))
@@ -219,48 +207,16 @@ function parsePrUrl(value: string): T.PrContext {
     });
   }
 }
-function checkDetails(value: Record<string, unknown>, nameKey: string) {
-  return {
-    name: string(value[nameKey], nameKey),
-    description: typeof value.description === "string" ? value.description : "",
-    link:
-      typeof value.link === "string"
-        ? value.link
-        : typeof value.detailsUrl === "string"
-          ? value.detailsUrl
-          : "",
-    workflow: typeof value.workflow === "string" ? value.workflow : "",
-  };
-}
-export function parseFastCheck(value: unknown): T.Check {
-  const object = record(value, "check");
-  const details = checkDetails(object, "name");
-  const state = string(object.state, "check.state").toUpperCase();
-  const bucket = string(object.bucket, "check.bucket");
-  if (
-    bucket === "fail" ||
-    ["FAILURE", "ERROR", "ACTION_REQUIRED"].includes(state)
-  )
-    return { ...details, kind: "failed", reportedState: state };
-  if (bucket === "pending") return pendingOrGate(details, state);
-  if (bucket === "pass")
-    return { ...details, kind: "passed", reportedState: state };
-  if (bucket === "skipping")
-    return { ...details, kind: "skipped", reportedState: state };
-  return { ...details, kind: "failed", reportedState: state };
+interface CheckDetails {
+  readonly name: string;
+  readonly description: string;
+  readonly link: string;
+  readonly workflow: string;
 }
 // The owner-approval gate is excluded from pending everywhere, so the rule has
 // one home. Classifying it as pending on either read path makes the watcher
 // wait on a human, which is the behaviour #172004 removed from the Python.
-function pendingOrGate(
-  details: {
-    readonly name: string;
-    readonly description: string;
-    readonly link: string;
-    readonly workflow: string;
-  },
-  reportedState: string
-): T.Check {
+function pendingOrGate(details: CheckDetails, reportedState: string): T.Check {
   return details.name === "Code Review Gate"
     ? {
         ...details,
@@ -270,64 +226,73 @@ function pendingOrGate(
       }
     : { ...details, kind: "pending", reportedState };
 }
-export function mapRollupNode(value: unknown): T.Check | null {
-  const object = record(value, "rollup node");
-  const typename = object.__typename;
-  if (typename !== "CheckRun" && typename !== "StatusContext") return null;
-  const details = checkDetails(
-    object,
-    typename === "CheckRun" ? "name" : "context"
-  );
-  const link =
-    typeof object.targetUrl === "string" ? object.targetUrl : details.link;
-  if (typename === "CheckRun") {
-    const status =
-      typeof object.status === "string" ? object.status.toUpperCase() : "";
-    const conclusion =
-      typeof object.conclusion === "string"
-        ? object.conclusion.toUpperCase()
-        : "";
-    if (status !== "COMPLETED")
-      return pendingOrGate({ ...details, link }, "PENDING");
-    if (conclusion === "SUCCESS")
-      return { ...details, link, kind: "passed", reportedState: "SUCCESS" };
-    if (conclusion === "NEUTRAL" || conclusion === "SKIPPED")
-      return { ...details, link, kind: "skipped", reportedState: conclusion };
-    return {
-      ...details,
-      link,
-      kind: "failed",
-      reportedState: conclusion === "ACTION_REQUIRED" ? conclusion : "FAILURE",
-    };
-  }
-  const state =
-    typeof object.state === "string" ? object.state.toUpperCase() : "";
+export function parseCheckRun(value: unknown): T.Check {
+  const run = record(value, "check run");
+  const details = {
+    name: string(run.name, "check run.name"),
+    description: isRecord(run.output) ? displayString(run.output.title) : "",
+    link: displayString(run.details_url) || displayString(run.html_url),
+    workflow: "",
+  };
+  const status = string(run.status, "check run.status").toUpperCase();
+  const conclusion = displayString(run.conclusion).toUpperCase();
+  if (status !== "COMPLETED") return pendingOrGate(details, "PENDING");
+  if (conclusion === "SUCCESS")
+    return { ...details, kind: "passed", reportedState: "SUCCESS" };
+  if (conclusion === "NEUTRAL" || conclusion === "SKIPPED")
+    return { ...details, kind: "skipped", reportedState: conclusion };
+  return {
+    ...details,
+    kind: "failed",
+    reportedState: conclusion === "ACTION_REQUIRED" ? conclusion : "FAILURE",
+  };
+}
+export function parseCommitStatus(value: unknown): T.Check {
+  const status = record(value, "commit status");
+  const details = {
+    name: string(status.context, "commit status.context"),
+    description: displayString(status.description),
+    link: displayString(status.target_url),
+    workflow: "",
+  };
+  const state = string(status.state, "commit status.state").toUpperCase();
   if (state === "PENDING" || state === "EXPECTED")
-    return pendingOrGate({ ...details, link }, "PENDING");
+    return pendingOrGate(details, "PENDING");
   return state === "SUCCESS"
-    ? { ...details, link, kind: "passed", reportedState: state }
-    : { ...details, link, kind: "failed", reportedState: state || "FAILURE" };
+    ? { ...details, kind: "passed", reportedState: state }
+    : { ...details, kind: "failed", reportedState: state || "FAILURE" };
+}
+export function deriveRollupState(checks: readonly T.Check[]): T.RollupState {
+  const failed = checks.filter((check) => check.kind === "failed");
+  if (failed.some((check) => check.reportedState !== "ERROR")) return "FAILURE";
+  if (failed.length > 0) return "ERROR";
+  if (
+    checks.some(
+      (check) => check.kind === "pending" || check.kind === "code-review-gate"
+    )
+  )
+    return "PENDING";
+  return checks.length > 0 ? "SUCCESS" : null;
 }
 function parseComment(value: unknown): T.ReviewComment {
   const object = record(value, "review comment");
-  const author =
-    object.author === null
-      ? null
-      : record(object.author, "review comment.author");
+  const user =
+    object.user === null ? null : record(object.user, "review comment.user");
+  const line = object.line ?? object.original_line ?? null;
   return {
     authorLogin:
-      author === null
+      user === null
         ? null
-        : optionalString(author.login, "review comment.author.login"),
+        : optionalString(user.login, "review comment.user.login"),
     body: string(object.body, "review comment.body"),
     path: optionalString(object.path, "review comment.path"),
     line:
-      object.line === null
+      line === null
         ? null
-        : Number.isInteger(object.line)
-          ? Number(object.line)
-          : missing("review comment.line", object.line),
-    createdAt: string(object.createdAt, "review comment.createdAt"),
+        : Number.isInteger(line)
+          ? Number(line)
+          : missing("review comment.line", line),
+    createdAt: string(object.created_at, "review comment.created_at"),
   };
 }
 function isBugbot(comment: T.ReviewComment | null): boolean {
@@ -357,30 +322,29 @@ function passKey(comment: T.ReviewComment | null): string | null {
   }
   return null;
 }
-export function parseReviewThreads(value: unknown): readonly T.ReviewThread[] {
-  const nodes = list(
-    at(value, ["data", "repository", "pullRequest", "reviewThreads", "nodes"]),
-    "reviewThreads.nodes"
-  );
-  const threads: {
-    readonly id: string;
-    readonly firstComment: T.ReviewComment | null;
-    readonly resolved: boolean;
-  }[] = [];
-  for (const node of nodes) {
-    const thread = record(node, "review thread");
-    if (typeof thread.isResolved !== "boolean")
-      missing("review thread.isResolved", thread.isResolved);
-    const comments = list(
-      at(thread, ["comments", "nodes"]),
-      "review thread.comments.nodes"
+export function parseCcrThreads(
+  rows: unknown,
+  comments: readonly unknown[]
+): readonly T.ReviewThread[] {
+  const byId = new Map<number, T.ReviewComment>();
+  for (const item of comments)
+    byId.set(
+      commentId(record(item, "review comment").id, "review comment.id"),
+      parseComment(item)
     );
-    threads.push({
-      id: string(thread.id, "review thread.id"),
-      firstComment: comments.length === 0 ? null : parseComment(comments[0]),
-      resolved: thread.isResolved,
-    });
-  }
+  const threads = list(rows, "review threads").map((row) => {
+    const thread = record(row, "review thread");
+    if (typeof thread.resolved !== "boolean")
+      missing("review thread.resolved", thread.resolved);
+    const ids = list(thread.comment_ids, "review thread.comment_ids");
+    if (ids.length === 0) missing("review thread.comment_ids", ids);
+    const opening = commentId(ids[0], "review thread.comment_ids[0]");
+    return {
+      id: String(opening),
+      firstComment: byId.get(opening) ?? null,
+      resolved: thread.resolved,
+    };
+  });
   const keys = new Set<string>();
   let keyless = false;
   for (const thread of threads) {
@@ -399,205 +363,288 @@ export function parseReviewThreads(value: unknown): readonly T.ReviewThread[] {
       bugbotReviewPasses: passes,
     }));
 }
-export function parsePullRequest(
+const DECIDING_REVIEW_STATES = new Set([
+  "APPROVED",
+  "CHANGES_REQUESTED",
+  "DISMISSED",
+]);
+// REST has no reviewDecision, and REVIEW_REQUIRED would need branch-protection
+// reads. Policy gates only on CHANGES_REQUESTED, and mergeStateStatus BLOCKED
+// already covers a missing required review.
+export function deriveReviewDecision(
+  reviews: readonly unknown[]
+): T.ReviewDecision {
+  const latest = new Map<string, string>();
+  for (const item of reviews) {
+    const review = record(item, "review");
+    const state = string(review.state, "review.state");
+    if (!DECIDING_REVIEW_STATES.has(state)) continue;
+    const user =
+      review.user === null ? null : record(review.user, "review.user");
+    latest.set(
+      user === null ? "" : string(user.login, "review.user.login"),
+      state
+    );
+  }
+  const states = [...latest.values()];
+  if (states.includes("CHANGES_REQUESTED")) return "CHANGES_REQUESTED";
+  return states.includes("APPROVED") ? "APPROVED" : null;
+}
+export function parsePullRequestRest(
   value: unknown,
+  reviewDecision: T.ReviewDecision,
   context: T.PrContext
 ): T.PullRequestFacts {
-  const object = record(value, "pull request");
-  if (typeof object.isDraft !== "boolean")
-    missing("pull request.isDraft", object.isDraft);
+  const pull = record(value, "pull request");
+  const head = record(pull.head, "pull request.head");
+  const base = record(pull.base, "pull request.base");
+  if (typeof pull.draft !== "boolean")
+    missing("pull request.draft", pull.draft);
+  const mergedAt = optionalString(pull.merged_at, "pull request.merged_at");
+  const state = enumValue(
+    pull.state,
+    ["open", "closed"] as const,
+    "pull request.state"
+  );
   return {
     context,
-    mergeable: enumValue(
-      object.mergeable,
-      ["MERGEABLE", "CONFLICTING", "UNKNOWN"] as const,
-      "pull request.mergeable"
-    ),
-    mergeStateStatus: enumValue(
-      object.mergeStateStatus,
-      MERGE_STATES,
-      "pull request.mergeStateStatus"
-    ),
-    reviewDecision: reviewDecision(object.reviewDecision),
-    headRefOid: optionalString(object.headRefOid, "pull request.headRefOid"),
-    headRefName: string(object.headRefName, "pull request.headRefName"),
-    baseRefName: string(object.baseRefName, "pull request.baseRefName"),
-    state: enumValue(
-      object.state,
-      ["OPEN", "CLOSED", "MERGED"] as const,
-      "pull request.state"
-    ),
-    mergedAt: optionalString(object.mergedAt, "pull request.mergedAt"),
-    isDraft: object.isDraft,
+    mergeable:
+      pull.mergeable === null
+        ? "UNKNOWN"
+        : pull.mergeable === true
+          ? "MERGEABLE"
+          : pull.mergeable === false
+            ? "CONFLICTING"
+            : missing("pull request.mergeable", pull.mergeable),
+    mergeStateStatus:
+      MERGE_STATES[
+        enumValue(
+          pull.mergeable_state,
+          MERGE_STATE_KEYS,
+          "pull request.mergeable_state"
+        )
+      ],
+    reviewDecision,
+    headRefOid: optionalString(head.sha, "pull request.head.sha"),
+    headRefName: string(head.ref, "pull request.head.ref"),
+    baseRefName: string(base.ref, "pull request.base.ref"),
+    state:
+      state === "open"
+        ? "OPEN"
+        : mergedAt !== null || pull.merged === true
+          ? "MERGED"
+          : "CLOSED",
+    mergedAt,
+    isDraft: pull.draft,
   };
 }
-function graphqlArgs(
-  query: string,
-  context: T.PrContext
-): [string, ...string[]] {
-  return [
-    "gh",
-    "api",
-    "graphql",
-    "-f",
-    `query=${query}`,
-    "-f",
-    `owner=${context.owner}`,
-    "-f",
-    `repo=${context.repo}`,
-    "-F",
-    `pr=${context.number}`,
-  ];
+const PER_PAGE = 100;
+const MAX_PAGES = 50;
+// Bounds the REST calls per poll. Policy reads only the head's rollup and
+// whether any earlier commit passed, so older commits add nothing.
+const MAX_PREVIOUS_COMMITS = 10;
+type PageItems = (page: unknown, path: string) => readonly unknown[];
+const arrayItems: PageItems = (page, path) => list(page, path);
+const itemsAt =
+  (key: string): PageItems =>
+  (page, path) =>
+    list(at(page, [key]), `${path}.${key}`);
+const checkRunItems = itemsAt("check_runs");
+// `.state` of the combined status reads "pending" for a commit that has no
+// statuses at all, so only the listed statuses count.
+const statusItems = itemsAt("statuses");
+function tooManyPages(path: string): never {
+  throw new WatcherQueryError({
+    kind: "missing-key",
+    retryable: true,
+    detail: `${path}: more than ${MAX_PAGES} full pages`,
+  });
+}
+const repoPath = (repository: T.Repository): string =>
+  `repos/${repository.owner}/${repository.repo}`;
+const pullPath = (context: T.PrContext): string =>
+  `${repoPath(context)}/pulls/${context.number}`;
+function cursorPage(after: string | null): number {
+  if (after === null) return 1;
+  if (!/^[1-9][0-9]*$/.test(after)) missing("check rollup cursor", after);
+  return Number(after);
 }
 
 export class GhGitHubReader implements T.GitHubReader {
+  readonly #run: CommandRunner;
+  constructor(run: CommandRunner = spawnCommand) {
+    this.#run = run;
+  }
+  async #json(path: string): Promise<unknown> {
+    const argv = ["gh", "api", path] as const;
+    const result = await this.#run(argv);
+    if (result.code !== 0)
+      commandExit(
+        result.code,
+        firstLine(result.stderr) || `${argv.join(" ")} exited ${result.code}`
+      );
+    return parseJson(result.stdout, argv.join(" "));
+  }
+  async #page(
+    path: string,
+    page: number,
+    items: PageItems
+  ): Promise<readonly unknown[]> {
+    if (page > MAX_PAGES) tooManyPages(path);
+    const separator = path.includes("?") ? "&" : "?";
+    const url = `${path}${separator}per_page=${PER_PAGE}&page=${page}`;
+    return items(await this.#json(url), url);
+  }
+  // Pages are walked by number because `gh api --paginate` follows Link
+  // headers to /repositories/{id}/..., which the cloud egress proxy refuses.
+  async #all(
+    path: string,
+    items: PageItems = arrayItems
+  ): Promise<readonly unknown[]> {
+    const collected: unknown[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.#page(path, page, items);
+      collected.push(...batch);
+      if (batch.length < PER_PAGE) return collected;
+    }
+  }
+  async #headSha(context: T.PrContext): Promise<string> {
+    return string(
+      at(await this.#json(pullPath(context)), ["head", "sha"]),
+      "pull request.head.sha"
+    );
+  }
+  async #commitChecks(
+    repository: T.Repository,
+    sha: string
+  ): Promise<readonly T.Check[]> {
+    const commit = `${repoPath(repository)}/commits/${sha}`;
+    const runs = await this.#all(`${commit}/check-runs`, checkRunItems);
+    const statuses = await this.#all(`${commit}/status`, statusItems);
+    return [...runs.map(parseCheckRun), ...statuses.map(parseCommitStatus)];
+  }
   async originRepo(): Promise<T.Repository | null> {
-    const result = await run(["git", "remote", "get-url", "origin"]);
+    const result = await this.#run(["git", "remote", "get-url", "origin"]);
     return result.code === 0 ? parseRemote(result.stdout) : null;
   }
   async currentPr(pr: T.PrNumber | null): Promise<T.PrContext> {
-    const argv: [string, ...string[]] = ["gh", "pr", "view"];
-    if (pr !== null) argv.push(String(pr));
-    argv.push("--json", "number,url");
-    const object = record(await runJson(argv), "current PR");
-    const parsed = parsePrUrl(string(object.url, "current PR.url"));
+    const origin = await this.originRepo();
+    if (origin === null)
+      return commandExit(1, "git remote origin is not a GitHub repository");
+    if (pr !== null) {
+      const pull = record(
+        await this.#json(`${repoPath(origin)}/pulls/${pr}`),
+        "current PR"
+      );
+      return {
+        ...parsePrUrl(string(pull.html_url, "current PR.html_url")),
+        number: pr,
+      };
+    }
+    const branch = await this.#run(["git", "branch", "--show-current"]);
+    const name = branch.code === 0 ? branch.stdout.trim() : "";
+    if (name === "")
+      return commandExit(
+        branch.code || 1,
+        firstLine(branch.stderr) || "could not determine the current branch"
+      );
+    const head = `${origin.owner}:${encodeURIComponent(name)}`;
+    const [first] = list(
+      await this.#json(`${repoPath(origin)}/pulls?state=open&head=${head}`),
+      "current PR"
+    );
+    if (first === undefined)
+      return commandExit(
+        1,
+        `no open pull requests found for branch "${name}"`
+      );
+    const pull = record(first, "current PR");
     return {
-      ...parsed,
-      number: pr ?? parsePrNumber(object.number, "current PR.number"),
+      ...parsePrUrl(string(pull.html_url, "current PR.html_url")),
+      number: parsePrNumber(pull.number, "current PR.number"),
     };
   }
   async pullRequest(context: T.PrContext): Promise<T.PullRequestFacts> {
-    return parsePullRequest(
-      await runJson([
-        "gh",
-        "pr",
-        "view",
-        String(context.number),
-        "--repo",
-        `${context.owner}/${context.repo}`,
-        "--json",
-        "mergeable,mergeStateStatus,reviewDecision,headRefOid,headRefName,baseRefName,state,mergedAt,isDraft",
-      ]),
-      context
-    );
+    const pull = await this.#json(pullPath(context));
+    const reviews = await this.#all(`${pullPath(context)}/reviews`);
+    return parsePullRequestRest(pull, deriveReviewDecision(reviews), context);
   }
   async openPullRequests(
     repository: T.Repository
   ): Promise<readonly T.OpenPullRequest[]> {
-    const value = await runJson([
-      "gh",
-      "pr",
-      "list",
-      "--repo",
-      `${repository.owner}/${repository.repo}`,
-      "--state",
-      "open",
-      "--limit",
-      "300",
-      "--json",
-      "number,headRefName,baseRefName",
-    ]);
-    return list(value, "open PRs").map((item, index) => {
+    const pulls = await this.#all(`${repoPath(repository)}/pulls?state=open`);
+    return pulls.map((item, index) => {
       const object = record(item, `open PRs[${index}]`);
       return {
         number: parsePrNumber(object.number, `open PRs[${index}].number`),
         headRefName: string(
-          object.headRefName,
-          `open PRs[${index}].headRefName`
+          at(object, ["head", "ref"]),
+          `open PRs[${index}].head.ref`
         ),
         baseRefName: string(
-          object.baseRefName,
-          `open PRs[${index}].baseRefName`
+          at(object, ["base", "ref"]),
+          `open PRs[${index}].base.ref`
         ),
       };
     });
   }
   async checksFastPath(context: T.PrContext): Promise<T.ChecksFastPath> {
-    const result = await run([
-      "gh",
-      "pr",
-      "checks",
-      String(context.number),
-      "--repo",
-      `${context.owner}/${context.repo}`,
-      "--json",
-      "name,state,description,link,workflow,bucket",
-    ]);
-    if ([0, 1, 8].includes(result.code) && result.stdout.trim()) {
-      try {
-        const value = parseJson(result.stdout, "gh pr checks");
-        if (Array.isArray(value))
-          return { kind: "checks", checks: value.map(parseFastCheck) };
-      } catch (error) {
-        if (!(error instanceof WatcherQueryError)) throw error;
-      }
+    try {
+      const sha = await this.#headSha(context);
+      const checks = await this.#commitChecks(context, sha);
+      return { kind: "checks", checks };
+    } catch (error) {
+      if (
+        !(error instanceof WatcherQueryError) ||
+        error.failure.kind !== "command-exit"
+      )
+        throw error;
+      return {
+        kind: "unusable",
+        exitCode: error.failure.code,
+        stderr: error.failure.detail,
+      };
     }
-    return { kind: "unusable", exitCode: result.code, stderr: result.stderr };
   }
   async checkRollupPage(
     context: T.PrContext,
     after: string | null
   ): Promise<T.RollupPage> {
-    const argv = graphqlArgs(PR_CHECK_ROLLUP_QUERY, context);
-    if (after !== null) argv.push("-f", `after=${after}`);
-    const value = await runJson(argv);
-    const commits = list(
-      at(value, ["data", "repository", "pullRequest", "commits", "nodes"]),
-      "commits.nodes"
-    );
-    if (commits.length === 0) return { checks: [], endCursor: null };
-    const commit = record(
-      at(commits[commits.length - 1], ["commit"]),
-      "commit"
-    );
-    if (commit.statusCheckRollup === null)
-      return { checks: [], endCursor: null };
-    const contexts = record(
-      at(commit, ["statusCheckRollup", "contexts"]),
-      "contexts"
-    );
-    const checks = list(contexts.nodes, "contexts.nodes")
-      .map(mapRollupNode)
-      .filter((check): check is T.Check => check !== null);
-    const page = record(contexts.pageInfo, "contexts.pageInfo");
-    if (typeof page.hasNextPage !== "boolean")
-      missing("contexts.pageInfo.hasNextPage", page.hasNextPage);
-    const cursor = optionalString(
-      page.endCursor,
-      "contexts.pageInfo.endCursor"
-    );
-    return { checks, endCursor: page.hasNextPage && cursor ? cursor : null };
+    const page = cursorPage(after);
+    const sha = await this.#headSha(context);
+    const commit = `${repoPath(context)}/commits/${sha}`;
+    const runs = await this.#page(`${commit}/check-runs`, page, checkRunItems);
+    const statuses =
+      page === 1 ? await this.#all(`${commit}/status`, statusItems) : [];
+    return {
+      checks: [...runs.map(parseCheckRun), ...statuses.map(parseCommitStatus)],
+      endCursor: runs.length === PER_PAGE ? String(page + 1) : null,
+    };
   }
   async reviewThreads(
     context: T.PrContext
   ): Promise<readonly T.ReviewThread[]> {
-    return parseReviewThreads(
-      await runJson(graphqlArgs(REVIEW_THREADS_QUERY, context))
-    );
+    // Only the cloud egress proxy serves ccr/ routes. github.com answers 404.
+    const rows = await this.#json(`${pullPath(context)}/ccr/review_threads`);
+    const comments = await this.#all(`${pullPath(context)}/comments`);
+    return parseCcrThreads(rows, comments);
   }
   async commitRollups(
     context: T.PrContext
   ): Promise<readonly T.CommitRollup[]> {
-    const value = await runJson(graphqlArgs(PR_COMMIT_STATUS_QUERY, context));
-    const commits = list(
-      at(value, ["data", "repository", "pullRequest", "commits", "nodes"]),
-      "commits.nodes"
-    );
-    return commits.map((item, index) => {
-      const commit = record(at(item, ["commit"]), `commits[${index}].commit`);
-      const rollup = commit.statusCheckRollup;
-      return {
-        oid: string(commit.oid, `commits[${index}].oid`),
-        state:
-          rollup === null
-            ? null
-            : nullableEnum(
-                at(rollup, ["state"]),
-                ROLLUP_STATES,
-                `commits[${index}].statusCheckRollup.state`
-              ),
-      };
-    });
+    const commits = await this.#all(`${pullPath(context)}/commits`);
+    const rollups: T.CommitRollup[] = [];
+    for (let index = commits.length - 1; index >= 0; index--) {
+      const oid = string(
+        record(commits[index], `commits[${index}]`).sha,
+        `commits[${index}].sha`
+      );
+      const state = deriveRollupState(await this.#commitChecks(context, oid));
+      rollups.push({ oid, state });
+      if (rollups.length > MAX_PREVIOUS_COMMITS) break;
+      if (rollups.length > 1 && state === "SUCCESS") break;
+    }
+    return rollups;
   }
 }
 
@@ -619,8 +666,8 @@ export async function resolveChecks(
   if (fallback !== null) return { source: "graphql-rollup", checks: fallback };
   const suffix =
     fast.kind === "unusable"
-      ? `fast path exit=${fast.exitCode}; GraphQL rollup was empty${firstLine(fast.stderr) ? `; ${firstLine(fast.stderr)}` : ""}`
-      : "fast path and GraphQL rollup were empty";
+      ? `fast path exit=${fast.exitCode}; paged rollup was empty${firstLine(fast.stderr) ? `; ${firstLine(fast.stderr)}` : ""}`
+      : "fast path and paged rollup were empty";
   throw new ChecksUnavailable(`could not read PR checks: ${suffix}`);
 }
 export async function resolveContext(args: {
