@@ -36,22 +36,22 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 		{
 			name:   "integer into a string",
 			source: "email:\n  subject: 5\n",
-			want:   "F:2: expected a string, got integer 5",
+			want:   "F:2: email.subject: expected a string, got integer 5",
 		},
 		{
 			name:   "boolean into a path",
 			source: "archive:\n  dir: true\n",
-			want:   "F:2: expected a string, got boolean true",
+			want:   "F:2: archive.dir: expected a string, got boolean true",
 		},
 		{
 			name:   "quoted start",
 			source: "numbering:\n  start: \"3\"\n",
-			want:   `F:2: expected an integer, got string "3"`,
+			want:   `F:2: numbering.start: expected an integer, got string "3"`,
 		},
 		{
 			name:   "fractional start",
 			source: "numbering:\n  start: 1.9\n",
-			want:   "F:2: expected an integer, got number 1.9",
+			want:   "F:2: numbering.start: expected an integer, got number 1.9",
 		},
 		{
 			name:   "section not a mapping",
@@ -62,6 +62,11 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 			name:   "top level not a mapping",
 			source: "- a\n- b\n",
 			want:   "F:1: the top level must be a mapping, got a list",
+		},
+		{
+			name:   "flow mapping cannot name the key",
+			source: "numbering: {pattern: x, start: \"3\"}\n",
+			want:   `F:1: expected an integer, got string "3"`,
 		},
 		{
 			name:   "syntax error keeps the parser text",
@@ -77,8 +82,8 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 			name:   "every problem in one pass, in file order",
 			source: "paths:\n  customer: c.yaml\nnumbering:\n  start: \"3\"\nemail:\n  body: [x]\n",
 			want: "F:2: unknown key \"customer\" in paths\n" +
-				"F:4: expected an integer, got string \"3\"\n" +
-				"F:6: expected a string, got a list",
+				"F:4: numbering.start: expected an integer, got string \"3\"\n" +
+				"F:6: email.body: expected a string, got a list",
 		},
 	}
 	for _, tt := range tests {

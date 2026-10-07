@@ -175,9 +175,10 @@ func Load(path string) (*Config, error) {
 	switch {
 	case errors.Is(err, io.EOF), err == nil:
 	case errors.As(err, &typeErr):
+		keys := keysByLine(src)
 		problems := make([]error, 0, len(typeErr.Errors))
 		for _, msg := range typeErr.Errors {
-			problems = append(problems, decodeProblem(path, msg))
+			problems = append(problems, decodeProblem(path, msg, keys))
 		}
 		return nil, errors.Join(problems...)
 	default:
@@ -217,7 +218,41 @@ var sections = map[string]string{
 	"Email":     "email",
 }
 
-func decodeProblem(path, msg string) error {
+// keysByLine maps the line of each setting's value to its dotted key, so a
+// wrong-type message can name the key. A line that holds more than one value,
+// as in a flow mapping, maps to no key.
+func keysByLine(src []byte) map[int]string {
+	var doc yaml.Node
+	if yaml.Unmarshal(src, &doc) != nil || len(doc.Content) == 0 {
+		return nil
+	}
+	keys := map[int]string{}
+	ambiguous := map[int]bool{}
+	var walk func(n *yaml.Node, prefix string)
+	walk = func(n *yaml.Node, prefix string) {
+		if n.Kind != yaml.MappingNode {
+			return
+		}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key, value := prefix+n.Content[i].Value, n.Content[i+1]
+			if value.Kind == yaml.MappingNode {
+				walk(value, key+".")
+				continue
+			}
+			if _, seen := keys[value.Line]; seen {
+				ambiguous[value.Line] = true
+			}
+			keys[value.Line] = key
+		}
+	}
+	walk(doc.Content[0], "")
+	for line := range ambiguous {
+		delete(keys, line)
+	}
+	return keys
+}
+
+func decodeProblem(path, msg string, keys map[int]string) error {
 	m := problemLine.FindStringSubmatch(msg)
 	if m == nil {
 		return &Error{File: path, Err: errors.New(msg)}
@@ -237,6 +272,8 @@ func decodeProblem(path, msg string) error {
 			}
 			text = fmt.Sprintf("%s must be a mapping, got %s", section, tagName(u[1]))
 		}
+	} else if key := keys[line]; key != "" && strings.HasPrefix(text, "expected ") {
+		text = key + ": " + text
 	}
 	return &Error{File: path, Line: line, Err: errors.New(text)}
 }
