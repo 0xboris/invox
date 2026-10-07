@@ -89,7 +89,7 @@ template		none
 archive	$DATA_HOME/invox/invoices	default
 -- want-bad.txt --
 error: bad.yaml:2: unknown key "patern" in numbering
-Run 'invox config' to open and fix the config file.
+Run 'invox --config bad.yaml config' to open and fix the config file.
 -- want-missing.txt --
 error: config file missing.yaml does not exist
 -- want-no-value.txt --

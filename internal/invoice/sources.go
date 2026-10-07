@@ -139,10 +139,14 @@ func (h Host) projectDirs(start string) []string {
 	if hasProjectMarker(start) {
 		return dirs
 	}
-	underHome := h.isUnderHome(start)
+	homes := h.homeForms()
+	underHome := false
+	for _, home := range homes {
+		underHome = underHome || h.isUnder(start, home)
+	}
 	for dir := start; ; {
 		parent := filepath.Dir(dir)
-		if parent == dir || (underHome && h.samePath(parent, h.home)) {
+		if parent == dir || (underHome && h.isHome(parent, homes)) {
 			break
 		}
 		dir = parent
@@ -166,15 +170,35 @@ func hasProjectMarker(dir string) bool {
 	return false
 }
 
-// isUnderHome reports whether path is strictly inside the home directory.
-// An unknown home counts as outside.
-func (h Host) isUnderHome(path string) bool {
+// homeForms returns the home directory as given and, when it differs, with
+// its symlinks resolved, because the working directory usually comes back in
+// the resolved form. An unknown home gives none.
+func (h Host) homeForms() []string {
 	home := strings.TrimSpace(h.home)
 	if home == "" {
-		return false
+		return nil
 	}
-	rel, err := filepath.Rel(h.fold(filepath.Clean(home)), h.fold(path))
+	home = filepath.Clean(home)
+	forms := []string{home}
+	if real, err := filepath.EvalSymlinks(home); err == nil && !h.samePath(real, home) {
+		forms = append(forms, real)
+	}
+	return forms
+}
+
+// isUnder reports whether path is strictly inside dir.
+func (h Host) isUnder(path, dir string) bool {
+	rel, err := filepath.Rel(h.fold(dir), h.fold(path))
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func (h Host) isHome(path string, homes []string) bool {
+	for _, home := range homes {
+		if h.samePath(path, home) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h Host) samePath(a, b string) bool {

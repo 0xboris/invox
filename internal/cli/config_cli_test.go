@@ -44,7 +44,11 @@ func newConfigLayout(t *testing.T) configLayout {
 func tsv(rows ...[]string) string {
 	var b strings.Builder
 	for _, row := range rows {
-		b.WriteString(strings.Join(row, "\t") + "\n")
+		fields := make([]string, len(row))
+		for i, field := range row {
+			fields[i] = escapeTSVField(field)
+		}
+		b.WriteString(strings.Join(fields, "\t") + "\n")
 	}
 	return b.String()
 }
@@ -213,7 +217,7 @@ func TestDirectoryVariablesBecomeAbsolute(t *testing.T) {
 			}
 
 			exitCode, stdout, stderr := runWithEnv(e, "config", "paths")
-			want := "config-dir\t" + filepath.Join(root, filepath.FromSlash(tt.wantDir)) + "\t" + tt.wantSource + "\n"
+			want := tsv([]string{"config-dir", filepath.Join(root, filepath.FromSlash(tt.wantDir)), tt.wantSource})
 			if exitCode != 0 || !strings.HasPrefix(stdout, want) {
 				t.Fatalf("exit %d, stdout %q, stderr %q; want stdout to start with %q", exitCode, stdout, stderr, want)
 			}
@@ -253,13 +257,13 @@ func TestInitCopiesLegacyFiles(t *testing.T) {
 		{
 			name: "yes on a terminal", args: []string{"init"}, tty: true, answer: "y\n", wantCode: 0, wantCopied: true,
 			wantStderr: func(l configLayout) string {
-				return "Copy files from " + l.legacyDir + " to " + l.invoxDir + "? [y/N] " + copiedLines(l)
+				return "Copy customers.yaml from " + l.legacyDir + " to " + l.invoxDir + "? [y/N] " + copiedLines(l)
 			},
 		},
 		{
 			name: "no on a terminal", args: []string{"init"}, tty: true, answer: "n\n", wantCode: 2,
 			wantStderr: func(l configLayout) string {
-				return "Copy files from " + l.legacyDir + " to " + l.invoxDir + "? [y/N] not initialized; nothing was changed\n"
+				return "Copy customers.yaml from " + l.legacyDir + " to " + l.invoxDir + "? [y/N] not initialized; nothing was changed\n"
 			},
 		},
 		{
@@ -320,11 +324,11 @@ func TestLegacyWarningStopsAfterInit(t *testing.T) {
 		t.Fatalf("init: exit %d, stderr %q; want exit 0 and no warning", exitCode, stderr)
 	}
 	exitCode, _, stderr = captureRun(t, []string{"init"})
-	if exitCode != 0 || strings.Contains(stderr, "Copy files") || strings.Contains(stderr, "copied") {
+	if exitCode != 0 || strings.Contains(stderr, "Copy ") || strings.Contains(stderr, "copied") {
 		t.Fatalf("second init without a terminal: exit %d, stderr %q; want exit 0 and nothing to copy", exitCode, stderr)
 	}
 	exitCode, stdout, stderr := captureRun(t, []string{"config", "paths"})
-	if exitCode != 0 || stderr != "" || !strings.Contains(stdout, "issuer\t"+filepath.Join(l.invoxDir, "issuer.yaml")+"\tdefault\n") {
+	if exitCode != 0 || stderr != "" || !strings.Contains(stdout, tsv([]string{"issuer", filepath.Join(l.invoxDir, "issuer.yaml"), "default"})) {
 		t.Fatalf("config paths after init: exit %d, stdout %q, stderr %q; want issuer from the invox dir and no warning", exitCode, stdout, stderr)
 	}
 }
@@ -338,5 +342,17 @@ func TestInitWritesToInvoxConfigDir(t *testing.T) {
 	exitCode, _, stderr := captureRun(t, []string{"init"})
 	if want := "Initialized " + envDir + "\ncreated config.yaml\ncreated customers.yaml\n"; exitCode != 0 || !strings.HasPrefix(stderr, want) {
 		t.Fatalf("init: exit %d, stderr %q; want exit 0, no legacy copy, and stderr starting with %q", exitCode, stderr, want)
+	}
+}
+
+func TestConfigFlagErrorHintNamesTheFlag(t *testing.T) {
+	dir := t.TempDir()
+	chdirForTest(t, dir)
+	writeTestFile(t, filepath.Join(dir, "acme.yaml"), "numbering:\n  patern: x\n")
+
+	exitCode, stdout, stderr := captureRun(t, []string{"--config", "acme.yaml", "new", "CUST-001"})
+	want := "error: acme.yaml:2: unknown key \"patern\" in numbering\nRun 'invox --config acme.yaml config' to open and fix the config file.\n"
+	if exitCode != 1 || stdout != "" || stderr != want {
+		t.Fatalf("exit %d, stdout %q, stderr %q; want exit 1 and stderr %q", exitCode, stdout, stderr, want)
 	}
 }

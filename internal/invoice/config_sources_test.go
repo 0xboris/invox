@@ -322,3 +322,48 @@ func TestCopyLegacyFilesNeverReplacesAndIsIdempotent(t *testing.T) {
 		t.Fatalf("customers after the copy = %+v, %v; want it from the invox directory", issuer, err)
 	}
 }
+
+func TestCopyLegacyFilesFollowsSymlinks(t *testing.T) {
+	_, in := configDirs(t)
+	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
+	target := filepath.Join(t.TempDir(), "dotfiles-customers.yaml")
+	writeFile(t, target, "linked customers\n")
+	if err := os.Symlink(target, filepath.Join(legacyDir, "customers.yaml")); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+	h := NewHost(in)
+
+	copied, err := h.CopyLegacyFiles()
+	if err != nil || !reflect.DeepEqual(copied, []string{"customers.yaml"}) {
+		t.Fatalf("CopyLegacyFiles() = %q, %v; want [customers.yaml]", copied, err)
+	}
+	got, err := os.ReadFile(filepath.Join(in.XDGConfigHome, "invox", "customers.yaml"))
+	if err != nil || string(got) != "linked customers\n" {
+		t.Fatalf("copied customers.yaml = %q, %v; want the symlink target's content", got, err)
+	}
+}
+
+func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
+	_, in := configDirs(t)
+	realHome := filepath.Join(t.TempDir(), "real-home")
+	writeFile(t, filepath.Join(realHome, ".git", "HEAD"), "ref: refs/heads/main\n")
+	stray := filepath.Join(realHome, "customers.yaml")
+	writeFile(t, stray, "stray\n")
+	start := filepath.Join(realHome, "invoices", "2026")
+	if err := os.MkdirAll(start, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkedHome := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(realHome, linkedHome); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+	in.Home = linkedHome
+
+	got, err := NewHost(in).ResolveSupportFile(Customers, start)
+	if err != nil {
+		t.Fatalf("ResolveSupportFile returned error: %v", err)
+	}
+	if got.Path == stray {
+		t.Fatalf("ResolveSupportFile found %s in the symlinked home; want the search to stop below it", stray)
+	}
+}

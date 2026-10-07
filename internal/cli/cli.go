@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/config"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
@@ -34,6 +35,10 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	f.ConfigFile = configFile
 	err = dispatch(ctx, f, rest)
 	warnLegacyFiles(f)
+	var configErr *config.Error
+	if configFile != "" && errors.As(err, &configErr) {
+		err = &configFlagError{err: err, path: configFile}
+	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
 		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {

@@ -10,7 +10,6 @@ import (
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
-	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -54,11 +53,6 @@ func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory
 // that a test can set up its environment after building the Factory.
 func (f *Factory) Host() invoice.Host {
 	return f.host()
-}
-
-// Config returns the config file, read on the first call.
-func (f *Factory) Config() (*config.Config, error) {
-	return f.Host().Config()
 }
 
 // newHost resolves the user directories. Relative directory values are

@@ -63,7 +63,10 @@ func errorHint(err error) string {
 	var configErr *config.Error
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	var noTectonic *tectonic.NotInstalledError
+	var configFlag *configFlagError
 	switch {
+	case errors.As(err, &configFlag):
+		return fmt.Sprintf("Run '%s --config %s config' to open and fix the config file.", commandName, configFlag.path)
 	case errors.As(err, &unknownCustomer):
 		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
 	case errors.As(err, &configErr):
@@ -75,3 +78,13 @@ func errorHint(err error) string {
 	}
 	return ""
 }
+
+// configFlagError is a config error in the file named with --config, whose
+// hint must name that file: `invox config` alone opens the default one.
+type configFlagError struct {
+	err  error
+	path string
+}
+
+func (e *configFlagError) Error() string { return e.err.Error() }
+func (e *configFlagError) Unwrap() error { return e.err }

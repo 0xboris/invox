@@ -130,19 +130,20 @@ func splitLines(s string) []string {
 }
 
 func TestLoadDecodesSettings(t *testing.T) {
-	path := writeConfig(t, "# comment\npaths:\n  customers: ' sub/c.yaml '\n  issuer: ~/i.yaml\n  template: /abs/t.tex\narchive:\n  dir: null\nnumbering:\n  pattern: ' {counter} '\n  start: 7\nemail:\n  subject: Hi\n")
+	template := filepath.Join(t.TempDir(), "t.tex")
+	path := writeConfig(t, "# comment\npaths:\n  customers: ' sub/c.yaml '\n  issuer: ~/i.yaml\n  template: '"+template+"'\narchive:\n  dir: null\nnumbering:\n  pattern: ' {counter} '\n  start: 7\nemail:\n  subject: Hi\n")
 
 	c, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	home := filepath.Join(string(filepath.Separator), "home", "ada")
+	home := filepath.Join(t.TempDir(), "ada")
 	dir := filepath.Dir(path)
 	for _, check := range []struct{ what, got, want string }{
 		{"File", c.File, path},
 		{"customers", c.Resolve(c.Paths.Customers, home), filepath.Join(dir, "sub", "c.yaml")},
 		{"issuer", c.Resolve(c.Paths.Issuer, home), filepath.Join(home, "i.yaml")},
-		{"template", c.Resolve(c.Paths.Template, home), filepath.Clean("/abs/t.tex")},
+		{"template", c.Resolve(c.Paths.Template, home), template},
 		{"defaults", c.Resolve(c.Paths.Defaults, home), ""},
 		{"archive", c.Resolve(c.Archive.Dir, home), ""},
 		{"pattern", string(c.Numbering.Pattern), "{counter}"},

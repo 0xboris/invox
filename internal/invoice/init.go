@@ -87,8 +87,11 @@ func (h Host) LegacyFilesToCopy() ([]string, error) {
 		if errors.Is(err, fs.ErrNotExist) && path == legacyDir {
 			return filepath.SkipDir
 		}
-		if err != nil || !entry.Type().IsRegular() {
+		if err != nil || entry.IsDir() {
 			return err
+		}
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			return nil
 		}
 		rel, err := filepath.Rel(legacyDir, path)
 		if err != nil {
