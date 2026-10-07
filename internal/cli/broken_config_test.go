@@ -80,7 +80,7 @@ func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 	configPath := setupBrokenConfig(t)
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {

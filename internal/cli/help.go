@@ -388,6 +388,7 @@ func printRootHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Optional flags:\n")
 	fmt.Fprintf(w, "  -h, --help              Show help\n")
 	fmt.Fprintf(w, "  --version               Show the %s version\n", commandName)
+	fmt.Fprintf(w, "  --no-input              Never prompt or open an editor; fail with exit 2 instead\n")
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n")
 	fmt.Fprintf(w, "  -o, --output PATH       Output file path (defaults vary by command)\n")
 	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")

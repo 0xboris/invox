@@ -35,7 +35,6 @@ var updateScripts = flag.Bool("update", false, "rewrite cmp golden blocks in tes
 // Environment variables that make the fake programs fail.
 const (
 	fakeTectonicFailEnv = "FAKE_TECTONIC_FAIL"
-	fakeEditorFailEnv   = "FAKE_EDITOR_FAIL"
 	fakeOpenFailEnv     = "FAKE_OPEN_FAIL"
 )
 
@@ -55,11 +54,10 @@ func TestMain(m *testing.M) {
 			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())
 			os.Exit(cli.Main(os.Args[1:], f))
 		},
-		"tectonic":    func() { os.Exit(fakeTectonic(os.Args[1:])) },
-		"fake-editor": func() { os.Exit(fakeEditor(os.Args[1:])) },
-		"open":        func() { os.Exit(fakeOpen(os.Args[1:])) },
-		"xdg-open":    func() { os.Exit(fakeOpen(os.Args[1:])) },
-		"osascript":   func() { os.Exit(fakeOsascript(os.Args[1:])) },
+		"tectonic":  func() { os.Exit(fakeTectonic(os.Args[1:])) },
+		"open":      func() { os.Exit(fakeOpen(os.Args[1:])) },
+		"xdg-open":  func() { os.Exit(fakeOpen(os.Args[1:])) },
+		"osascript": func() { os.Exit(fakeOsascript(os.Args[1:])) },
 		// On Windows invox opens documents with `cmd /c start "" FILE`. PATH
 		// holds only the fakes, so this `cmd` is the one it finds.
 		"cmd": func() { os.Exit(fakeCmd(os.Args[1:])) },
@@ -117,8 +115,6 @@ func setupSandbox(env *testscript.Env) error {
 	// $BIN lets a script run invox with a PATH that lacks the fakes.
 	env.Setenv("BIN", binDir)
 
-	env.Setenv("VISUAL", "fake-editor")
-	env.Setenv("EDITOR", "fake-editor")
 	return nil
 }
 
@@ -209,21 +205,6 @@ func fakeTectonic(args []string) int {
 		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
 		return 1
 	}
-	return 0
-}
-
-// fakeEditor prints the name of the file it was asked to edit, or fails when
-// FAKE_EDITOR_FAIL is set.
-func fakeEditor(args []string) int {
-	if os.Getenv(fakeEditorFailEnv) != "" {
-		fmt.Fprintln(os.Stderr, "fake editor: forced failure")
-		return 1
-	}
-	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "fake editor: want one file, got %q\n", args)
-		return 2
-	}
-	fmt.Printf("fake editor: %s\n", filepath.Base(args[0]))
 	return 0
 }
 

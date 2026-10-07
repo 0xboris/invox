@@ -42,10 +42,11 @@ func runCustomerConfig(ctx context.Context, f *cmdutil.Factory, args []string) e
 		return err
 	}
 
-	if err := f.Editor.Edit(ctx, opts.CustomersPath); err != nil {
+	displayPath := invoice.DisplayPath(opts.CustomersPath, opts.BaseDir)
+	if err := openInEditor(ctx, f, spec.Name, opts.CustomersPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", opts.CustomersPath, err)
 	}
 
-	fmt.Fprintf(ios.ErrOut, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
+	fmt.Fprintf(ios.ErrOut, "Opened %s\n", displayPath)
 	return nil
 }

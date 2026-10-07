@@ -38,6 +38,10 @@ var environmentVariables = []environmentVariable{
 		"Editor used when VISUAL is unset, read the same way. Without either: vi, or",
 		"notepad on Windows.",
 	}},
+	{"INVOX_PROMPT_DISABLED", []string{
+		"Any non-empty value works like --no-input. With either, invox never prompts or",
+		"opens an editor, and a step that needs one fails with exit 2.",
+	}},
 	{"INVOX_FORCE_TTY", []string{
 		"Testing aid: any non-empty value makes invox treat stdout as a terminal.",
 	}},
@@ -91,8 +95,9 @@ func printExitCodesHelp(w io.Writer) {
 	fmt.Fprintf(w, "       a failed build or a failed external program.\n")
 	fmt.Fprintf(w, "  2    Usage error: unknown command, topic or flag, or a missing or extra\n")
 	fmt.Fprintf(w, "       argument. Also used when a confirmation was declined, or was needed\n")
-	fmt.Fprintf(w, "       without a terminal to ask on and without --yes. The step that needed\n")
-	fmt.Fprintf(w, "       confirmation was not done.\n")
+	fmt.Fprintf(w, "       without a terminal to ask on and without --yes, and when an editor was\n")
+	fmt.Fprintf(w, "       needed without a terminal or with --no-input. The step that needed\n")
+	fmt.Fprintf(w, "       confirmation or the editor was not done.\n")
 	fmt.Fprintf(w, "  130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not\n")
 	fmt.Fprintf(w, "       return it itself yet.\n")
 }

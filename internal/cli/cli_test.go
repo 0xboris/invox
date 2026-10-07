@@ -83,7 +83,7 @@ func TestConfigOpensConfigFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
@@ -125,7 +125,7 @@ func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
 	configPath := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\n")
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
@@ -409,7 +409,7 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 	}
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"customer",
@@ -783,7 +783,7 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",
@@ -819,7 +819,7 @@ func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	f, stub := testFactory(t)
-	expectEditor(stub, errors.New("editor unavailable"))
+	expectEditor(f, stub, errors.New("editor unavailable"))
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",

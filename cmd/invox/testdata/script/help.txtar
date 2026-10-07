@@ -216,6 +216,7 @@ Required inputs by command:
 Optional flags:
   -h, --help              Show help
   --version               Show the invox version
+  --no-input              Never prompt or open an editor; fail with exit 2 instead
   -c, --customers PATH    Path to customers.yaml
   -o, --output PATH       Output file path (defaults vary by command)
   -p, --pdf PATH          Path to the invoice PDF (email)

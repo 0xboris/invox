@@ -56,6 +56,9 @@ Environment variables:
   EDITOR
       Editor used when VISUAL is unset, read the same way. Without either: vi, or
       notepad on Windows.
+  INVOX_PROMPT_DISABLED
+      Any non-empty value works like --no-input. With either, invox never prompts or
+      opens an editor, and a step that needs one fails with exit 2.
   INVOX_FORCE_TTY
       Testing aid: any non-empty value makes invox treat stdout as a terminal.
 
@@ -101,7 +104,8 @@ Exit codes:
        a failed build or a failed external program.
   2    Usage error: unknown command, topic or flag, or a missing or extra
        argument. Also used when a confirmation was declined, or was needed
-       without a terminal to ask on and without --yes. The step that needed
-       confirmation was not done.
+       without a terminal to ask on and without --yes, and when an editor was
+       needed without a terminal or with --no-input. The step that needed
+       confirmation or the editor was not done.
   130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not
        return it itself yet.

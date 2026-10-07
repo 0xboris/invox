@@ -51,20 +51,21 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		return err
 	}
+	displayPath := invoice.DisplayPath(outputPath, opts.BaseDir)
 	if opts.EditNewInvoice {
-		if err := f.Editor.Edit(ctx, outputPath); err != nil {
-			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(outputPath, opts.BaseDir), err)
+		nextStep := fmt.Sprintf("edit it and run '%s validate -i %s'", commandName, displayPath)
+		err := openInEditor(ctx, f, spec.Name, outputPath, nextStep)
+		var flagErr *cmdutil.FlagError
+		if errors.As(err, &flagErr) {
+			return &cmdutil.FlagError{Command: flagErr.Command, Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}
+		}
+		if err != nil {
+			return fmt.Errorf("created %s but failed to open it: %w", displayPath, err)
 		}
 	}
 
-	fmt.Fprintf(
-		ios.ErrOut,
-		"Created %s for %s (%s)\n",
-		invoice.DisplayPath(outputPath, opts.BaseDir),
-		customerID,
-		invoiceNumber,
-	)
-	fmt.Fprintln(ios.Out, invoice.DisplayPath(outputPath, opts.BaseDir))
+	fmt.Fprintf(ios.ErrOut, "Created %s for %s (%s)\n", displayPath, customerID, invoiceNumber)
+	fmt.Fprintln(ios.Out, displayPath)
 	return nil
 }
 
