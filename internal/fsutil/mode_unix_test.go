@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build unix
 
 package fsutil
 
@@ -22,55 +22,102 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 	}
 }
 
-type modeCase struct {
-	name  string
-	write func(path string, data []byte, perm Perm) error
-	perm  Perm
-	file  fs.FileMode
-	dir   fs.FileMode
-}
-
-var modeCases = []modeCase{
-	{name: "WriteFile private", write: WriteFile, perm: Private, file: 0o600, dir: 0o700},
-	{name: "WriteFile public", write: WriteFile, perm: Public, file: 0o644, dir: 0o755},
-	{name: "WriteNewFile private", write: WriteNewFile, perm: Private, file: 0o600, dir: 0o700},
-	{name: "WriteNewFile public", write: WriteNewFile, perm: Public, file: 0o644, dir: 0o755},
-	{name: "WriteFile custom", write: WriteFile, perm: Perm{File: 0o640, Dir: 0o750}, file: 0o640, dir: 0o750},
-}
-
-// runModeCases checks the mode of a new file and of each directory created
-// for it, under whatever umask is in effect.
-func runModeCases(t *testing.T) {
+// setUmask sets the umask fsutil read at init for the rest of the test.
+func setUmask(t *testing.T, mask fs.FileMode) {
 	t.Helper()
-	for _, tc := range modeCases {
-		t.Run(tc.name, func(t *testing.T) {
+	old := umask
+	umask = mask
+	t.Cleanup(func() { umask = old })
+}
+
+var writers = []struct {
+	name  string
+	write func(t *testing.T, path string, data []byte, perm Perm) error
+}{
+	{name: "WriteFile", write: func(_ *testing.T, path string, data []byte, perm Perm) error {
+		return WriteFile(path, data, perm)
+	}},
+	{name: "WriteNewFile", write: func(_ *testing.T, path string, data []byte, perm Perm) error {
+		return WriteNewFile(path, data, perm)
+	}},
+	{name: "WriteNewFile without hard links", write: func(t *testing.T, path string, data []byte, perm Perm) error {
+		withoutHardLinks(t)
+		return WriteNewFile(path, data, perm)
+	}},
+}
+
+func TestNewFileModes(t *testing.T) {
+	tests := []struct {
+		name      string
+		umask     fs.FileMode
+		perm      Perm
+		file, dir fs.FileMode
+	}{
+		{name: "private", umask: 0o022, perm: Private, file: 0o600, dir: 0o700},
+		{name: "private", umask: 0o077, perm: Private, file: 0o600, dir: 0o700},
+		{name: "private", umask: 0o777, perm: Private, file: 0o600, dir: 0o700},
+		{name: "public", umask: 0o022, perm: Public, file: 0o644, dir: 0o755},
+		{name: "public", umask: 0o077, perm: Public, file: 0o600, dir: 0o700},
+		{name: "custom", umask: 0o022, perm: Perm{File: 0o640, Dir: 0o750}, file: 0o640, dir: 0o750},
+		{name: "custom", umask: 0o077, perm: Perm{File: 0o640, Dir: 0o750}, file: 0o600, dir: 0o700},
+	}
+	for _, w := range writers {
+		for _, tc := range tests {
+			t.Run(fmt.Sprintf("%s %s umask %#o", w.name, tc.name, tc.umask), func(t *testing.T) {
+				setUmask(t, tc.umask)
+				root := t.TempDir()
+				if err := os.Chmod(root, 0o711); err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(root, "outer", "inner", "file.yaml")
+				if err := w.write(t, path, []byte("data"), tc.perm); err != nil {
+					t.Fatalf("write returned error: %v", err)
+				}
+				assertMode(t, path, tc.file)
+				assertMode(t, filepath.Join(root, "outer", "inner"), tc.dir)
+				assertMode(t, filepath.Join(root, "outer"), tc.dir)
+				assertMode(t, root, 0o711)
+			})
+		}
+	}
+}
+
+func TestMkdirAllGivesParentsPublicMode(t *testing.T) {
+	tests := []struct {
+		name          string
+		umask         fs.FileMode
+		perm          Perm
+		leaf, parents fs.FileMode
+	}{
+		{name: "private", umask: 0o022, perm: Private, leaf: 0o700, parents: 0o755},
+		{name: "private", umask: 0o077, perm: Private, leaf: 0o700, parents: 0o700},
+		{name: "public", umask: 0o022, perm: Public, leaf: 0o755, parents: 0o755},
+		{name: "public", umask: 0o027, perm: Public, leaf: 0o750, parents: 0o750},
+		{name: "custom", umask: 0o022, perm: Perm{Dir: 0o711}, leaf: 0o711, parents: 0o755},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%s umask %#o", tc.name, tc.umask), func(t *testing.T) {
+			setUmask(t, tc.umask)
 			root := t.TempDir()
-			if err := os.Chmod(root, 0o711); err != nil {
-				t.Fatal(err)
+			leaf := filepath.Join(root, "a", "b", "leaf")
+			if err := MkdirAll(leaf, tc.perm); err != nil {
+				t.Fatalf("MkdirAll returned error: %v", err)
 			}
-			path := filepath.Join(root, "outer", "inner", "file.yaml")
-			if err := tc.write(path, []byte("data"), tc.perm); err != nil {
-				t.Fatalf("write returned error: %v", err)
-			}
-			assertMode(t, path, tc.file)
-			assertMode(t, filepath.Join(root, "outer", "inner"), tc.dir)
-			assertMode(t, filepath.Join(root, "outer"), tc.dir)
-			assertMode(t, root, 0o711)
+			assertMode(t, leaf, tc.leaf)
+			assertMode(t, filepath.Join(root, "a", "b"), tc.parents)
+			assertMode(t, filepath.Join(root, "a"), tc.parents)
 		})
 	}
 }
 
-func TestNewFileModes(t *testing.T) {
-	runModeCases(t)
-}
-
-func TestNewFileModesIgnoreUmask(t *testing.T) {
-	for _, umask := range []int{0o077, 0o022} {
-		t.Run(fmt.Sprintf("umask %#o", umask), func(t *testing.T) {
-			old := syscall.Umask(umask)
-			t.Cleanup(func() { syscall.Umask(old) })
-			runModeCases(t)
-		})
+func TestReadUmask(t *testing.T) {
+	old := syscall.Umask(0o027)
+	t.Cleanup(func() { syscall.Umask(old) })
+	if got := readUmask(); got != 0o027 {
+		t.Fatalf("readUmask() = %#o, want 0o027", got)
+	}
+	if got := syscall.Umask(0o027); got != 0o027 {
+		t.Fatalf("readUmask left the umask at %#o, want 0o027", got)
 	}
 }
 
@@ -130,7 +177,7 @@ func TestExistingDirectoriesKeepTheirMode(t *testing.T) {
 	}{
 		{name: "WriteFile", write: WriteFile},
 		{name: "WriteNewFile", write: WriteNewFile},
-		{name: "MkdirAll", write: func(path string, _ []byte, perm Perm) error { return MkdirAll(filepath.Dir(path), perm.Dir) }},
+		{name: "MkdirAll", write: func(path string, _ []byte, perm Perm) error { return MkdirAll(filepath.Dir(path), perm) }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

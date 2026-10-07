@@ -13,11 +13,15 @@ import (
 )
 
 // fileWrites lists, per import path, the package-level identifiers that
-// create, replace or rename files. A dot import of any of these paths counts
-// too, since its uses can't be told apart from local names.
+// create, replace, rename or truncate files, or create directories. A dot
+// import of any of these paths counts too, since its uses can't be told
+// apart from local names. os.MkdirTemp is allowed: it creates a new 0700
+// scratch directory, as build and email do, and never touches an existing
+// one.
 var fileWrites = map[string][]string{
-	"os":        {"WriteFile", "Create", "CreateTemp", "OpenFile", "Rename", "Link"},
+	"os":        {"WriteFile", "Create", "CreateTemp", "OpenFile", "Rename", "Link", "Truncate", "Symlink", "Mkdir", "MkdirAll"},
 	"io/ioutil": {"WriteFile", "TempFile"},
+	"syscall":   {"Open"},
 }
 
 // TestOnlyFsutilWritesFiles fails when non-test code under cmd/ or internal/
@@ -98,8 +102,18 @@ func TestFileWriteUsesFindsEveryForm(t *testing.T) {
 			want: []string{"os.Create", "os.CreateTemp", "os.OpenFile", "os.Link"},
 		},
 		{
-			name: "reads, removes and directories",
-			src:  "import \"os\"\n\nfunc f() { _, _ = os.ReadFile(\"a\"); _ = os.Remove(\"a\"); _ = os.MkdirAll(\"d\", 0o755); _, _ = os.Open(\"a\") }\n",
+			name: "truncate, symlinks and directories",
+			src:  "import \"os\"\n\nvar _ = []any{os.Truncate, os.Symlink, os.Mkdir, os.MkdirAll}\n",
+			want: []string{"os.Truncate", "os.Symlink", "os.Mkdir", "os.MkdirAll"},
+		},
+		{
+			name: "syscall open",
+			src:  "import \"syscall\"\n\nvar _ = syscall.Open\n",
+			want: []string{"syscall.Open"},
+		},
+		{
+			name: "reads, removes and temp dirs",
+			src:  "import \"os\"\n\nfunc f() { _, _ = os.ReadFile(\"a\"); _ = os.Remove(\"a\"); _, _ = os.MkdirTemp(\"\", \"x\"); _, _ = os.Open(\"a\") }\n",
 			want: nil,
 		},
 	}

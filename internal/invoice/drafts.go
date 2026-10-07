@@ -386,6 +386,9 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 			HistoryDir:  filepath.Join(archiveDir, archiveHistoryDirName),
 		}
 	}
+	if err := fsutil.MkdirAll(archiveDir, fsutil.Private); err != nil {
+		return ArchiveResult{}, err
+	}
 	backups, err := backupArchivedFiles(archiveDir, replaced, now)
 	if err != nil {
 		return ArchiveResult{}, err

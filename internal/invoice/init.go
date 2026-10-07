@@ -23,7 +23,7 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 	if strings.TrimSpace(configDir) == "" {
 		return "", nil, errors.New("config directory is unavailable")
 	}
-	if err := fsutil.MkdirAll(configDir, fsutil.Private.Dir); err != nil {
+	if err := fsutil.MkdirAll(configDir, fsutil.Private); err != nil {
 		return "", nil, err
 	}
 
@@ -60,7 +60,8 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 }
 
 // ensureStarterFile writes content to path if path is missing or empty and
-// reports whether it did. A file created by someone else in the meantime is
+// reports whether it did. A dangling symlink at path counts as missing, and
+// its target is written. A file created by someone else in the meantime is
 // left alone.
 func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, error) {
 	info, err := os.Stat(path)
@@ -74,6 +75,12 @@ func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, err
 		return true, nil
 	case !errors.Is(err, os.ErrNotExist):
 		return false, err
+	}
+	if info, err := os.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		if err := fsutil.WriteFile(path, content, perm); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 
 	err = fsutil.WriteNewFile(path, content, perm)

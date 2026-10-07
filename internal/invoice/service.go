@@ -369,7 +369,7 @@ func (h Host) EditableConfigPath() (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("config directory is unavailable")
 	}
-	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private.Dir); err != nil {
+	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private); err != nil {
 		return "", err
 	}
 	if err := h.ensureConfigTemplate(path); err != nil {
@@ -1993,7 +1993,7 @@ func copyDir(sourceDir, destDir string) error {
 		}
 		targetPath := filepath.Join(destDir, relPath)
 		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode().Perm())
+			return fsutil.MkdirAll(targetPath, fsutil.Perm{Dir: info.Mode().Perm()})
 		}
 		return copyFile(path, targetPath)
 	})

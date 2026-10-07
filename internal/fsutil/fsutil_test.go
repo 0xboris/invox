@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -169,8 +170,8 @@ func TestWriteFileRejectsSymlinkLoop(t *testing.T) {
 	symlinkOrSkip(t, "b", a)
 	symlinkOrSkip(t, "a", b)
 	err := WriteFile(a, []byte("data"), Public)
-	if err == nil || !strings.Contains(err.Error(), "too many levels of symbolic links") {
-		t.Fatalf("WriteFile(loop) error = %v, want too many levels of symbolic links", err)
+	if !errors.Is(err, syscall.ELOOP) {
+		t.Fatalf("WriteFile(loop) error = %v, want syscall.ELOOP", err)
 	}
 	assertSymlinkTo(t, a, "b")
 	assertNoTempFiles(t, dir)
@@ -275,6 +276,58 @@ func TestWriteNewFileLosesRaceWithoutClobbering(t *testing.T) {
 	assertNoTempFiles(t, dir)
 }
 
+// withoutHardLinks makes WriteNewFile act as on a file system that has no
+// hard links, for the rest of the test.
+func withoutHardLinks(t *testing.T) {
+	t.Helper()
+	link = func(oldname, newname string) error {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: syscall.EPERM}
+	}
+	t.Cleanup(func() { link = os.Link })
+}
+
+func TestWriteNewFileWithoutHardLinks(t *testing.T) {
+	withoutHardLinks(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "draft.eml")
+
+	if err := WriteNewFile(path, []byte("hello\n"), Public); err != nil {
+		t.Fatalf("WriteNewFile returned error: %v", err)
+	}
+	if got := readFile(t, path); got != "hello\n" {
+		t.Fatalf("content = %q, want %q", got, "hello\n")
+	}
+	assertNoTempFiles(t, dir)
+
+	err := WriteNewFile(path, []byte("clobbered\n"), Public)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("WriteNewFile(existing) error = %v, want fs.ErrExist", err)
+	}
+	if got := readFile(t, path); got != "hello\n" {
+		t.Fatalf("content = %q, want %q", got, "hello\n")
+	}
+	assertNoTempFiles(t, dir)
+}
+
+func TestWriteNewFileWithoutHardLinksLosesRaceWithoutClobbering(t *testing.T) {
+	withoutHardLinks(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "invoice.yaml")
+	testHookBeforeCommit = func(target string) {
+		writeTestFile(t, target, "racer\n")
+	}
+	t.Cleanup(func() { testHookBeforeCommit = nil })
+
+	err := WriteNewFile(path, []byte("loser\n"), Public)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("WriteNewFile error = %v, want fs.ErrExist", err)
+	}
+	if got := readFile(t, path); got != "racer\n" {
+		t.Fatalf("content = %q, want the racing writer's %q", got, "racer\n")
+	}
+	assertNoTempFiles(t, dir)
+}
+
 func TestWriteFileReplacesRacingFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invoice.yaml")
@@ -299,7 +352,7 @@ func TestMkdirAllRejectsFile(t *testing.T) {
 	file := filepath.Join(dir, "file")
 	writeTestFile(t, file, "")
 	for _, target := range []string{file, filepath.Join(file, "child")} {
-		if err := MkdirAll(target, 0o700); err == nil {
+		if err := MkdirAll(target, Private); err == nil {
 			t.Fatalf("MkdirAll(%s) returned nil, want an error", target)
 		}
 	}
