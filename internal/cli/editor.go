@@ -21,14 +21,17 @@ var openNativeEmailDraft = defaultOpenNativeEmailDraft
 func defaultOpenTextFile(ios *iostreams.IOStreams, path string) error {
 	cmd := shellEditorCommand(path)
 	cmd.Stdin = ios.In
-	cmd.Stdout = ios.Out
-	cmd.Stderr = ios.ErrOut
-	return cmd.Run()
+	return runChild(ios, cmd)
 }
 
 func defaultOpenDocument(ios *iostreams.IOStreams, path string) error {
-	cmd := defaultOpenDocumentCommand(path)
-	cmd.Stdout = ios.Out
+	return runChild(ios, defaultOpenDocumentCommand(path))
+}
+
+// runChild runs cmd with both of its output streams on stderr, so stdout
+// carries only the data a command prints.
+func runChild(ios *iostreams.IOStreams, cmd *exec.Cmd) error {
+	cmd.Stdout = ios.ErrOut
 	cmd.Stderr = ios.ErrOut
 	return cmd.Run()
 }
@@ -69,10 +72,7 @@ func defaultOpenNativeEmailDraft(ios *iostreams.IOStreams, message invoice.Email
 		message.SenderAddress,
 	}
 
-	cmd := exec.Command("osascript", args...)
-	cmd.Stdout = ios.Out
-	cmd.Stderr = ios.ErrOut
-	return cmd.Run()
+	return runChild(ios, exec.Command("osascript", args...))
 }
 
 // defaultCleanupOpenedDocument removes file and then its directory dir, a temporary

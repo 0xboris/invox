@@ -60,12 +60,12 @@ func TestBrokenConfigInitSucceeds(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	for _, want := range []string{"Initialized ", "exists config.yaml", "created customers.yaml"} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout = %q, want it to contain %q", stdout, want)
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
 		}
 	}
 
@@ -95,11 +95,11 @@ func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if !strings.HasPrefix(stdout, "Opened ") {
-		t.Fatalf("stdout = %q, want it to start with %q", stdout, "Opened ")
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if !strings.HasPrefix(stderr, "Opened ") {
+		t.Fatalf("stderr = %q, want it to start with %q", stderr, "Opened ")
 	}
 	if openedPath != configPath {
 		t.Fatalf("openedPath = %q, want %q", openedPath, configPath)

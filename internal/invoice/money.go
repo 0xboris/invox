@@ -13,7 +13,7 @@ const maxMoneyCents int64 = 1_000_000_000_000_000
 // errAmountTooLarge reports an amount above maxMoneyCents. subject names the
 // amount, such as "invoice.paid_amount:" or "invoice total".
 func errAmountTooLarge(subject string) error {
-	return fmt.Errorf("%s exceeds the maximum amount of `%s`", subject, formatMoneyCents(maxMoneyCents))
+	return fmt.Errorf("%s exceeds the maximum amount of `%s`", subject, FormatMoneyCents(maxMoneyCents))
 }
 
 // moneyCents rounds value to cents like quantizeMoney, and reports false when

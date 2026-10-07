@@ -1,11 +1,11 @@
 # validate checks the invoice against customers and issuer and prints a
-# one-line summary. The total is printed with the raw LaTeX euro macro.
+# one-line summary to stderr.
 exec invox validate -i invoice.yaml
-cmp stdout want-ok.txt
-! stderr .
+! stdout .
+cmp stderr want-ok.txt
 exec invox validate --input invoice.yaml -c home/.config/invox/customers.yaml -u home/.config/invox/issuer.yaml
-cmp stdout want-ok.txt
-! stderr .
+! stdout .
+cmp stderr want-ok.txt
 
 # Usage errors.
 exits 2 invox validate
@@ -35,7 +35,7 @@ cmp got.txt want-negative.txt
 mkdir home/.config/invox/archive
 cp invoice.yaml home/.config/invox/archive/earlier.yaml
 exec invox validate -i invoice.yaml
-cmp stdout want-ok.txt
+! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-archived-warning.txt
 
@@ -66,8 +66,9 @@ positions:
 error: invoice.paid_amount: must not be negative
 -- want-archived-warning.txt --
 warning: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/earlier.yaml; run 'invox increment -i invoice.yaml' before archiving
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-ok.txt --
-Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 \euro
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-missing-input.txt --
 error: missing required flags: -i, --input
 Run 'invox validate --help' for usage.

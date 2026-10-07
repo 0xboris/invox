@@ -92,9 +92,6 @@ func TestConfigOpensConfigFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	wantPath := filepath.Join(configHome, "invox", "config.yaml")
 	if openedPath != wantPath {
@@ -119,8 +116,11 @@ func TestConfigOpensConfigFile(t *testing.T) {
 			t.Fatalf("config template %q does not contain %q", string(source), want)
 		}
 	}
-	if !strings.Contains(stdout, "Opened "+wantPath) {
-		t.Fatalf("stdout %q does not contain opened path", stdout)
+	if want := "Opened " + wantPath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 }
 
@@ -141,14 +141,14 @@ func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 	if openedPath != configPath {
 		t.Fatalf("openedPath = %q, want %q", openedPath, configPath)
 	}
-	if !strings.Contains(stdout, "Opened "+configPath) {
-		t.Fatalf("stdout %q does not contain opened path", stdout)
+	if want := "Opened " + configPath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 }
 
@@ -199,22 +199,11 @@ func TestInitCreatesStarterFilesAndAllowsNewWithGlobalDefaults(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Initialized " + configDir + "\ncreated config.yaml\ncreated customers.yaml\ncreated issuer.yaml\ncreated invoice_defaults.yaml\ncreated template.tex\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Initialized "+configDir) {
-		t.Fatalf("stdout %q does not contain initialized config dir", stdout)
-	}
-	for _, want := range []string{
-		"created config.yaml",
-		"created customers.yaml",
-		"created issuer.yaml",
-		"created invoice_defaults.yaml",
-		"created template.tex",
-	} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout %q does not contain %q", stdout, want)
-		}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 
 	for _, file := range []struct {
@@ -244,11 +233,11 @@ func TestInitCreatesStarterFilesAndAllowsNewWithGlobalDefaults(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("new exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("new stderr = %q, want empty", stderr)
+	if want := "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)") {
-		t.Fatalf("stdout %q does not contain created invoice summary", stdout)
+	if stdout != "CUST-001-001.yaml\n" {
+		t.Fatalf("new stdout = %q, want %q", stdout, "CUST-001-001.yaml\n")
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "CUST-001-001.yaml")); err != nil {
 		t.Fatalf("starter config should allow invoice creation: %v", err)
@@ -273,11 +262,11 @@ func TestInitDoesNotOverwriteExistingSupportFiles(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Initialized " + configDir + "\ncreated config.yaml\nexists customers.yaml\ncreated issuer.yaml\ncreated invoice_defaults.yaml\ncreated template.tex\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "exists customers.yaml") {
-		t.Fatalf("stdout %q does not contain existing customers.yaml status", stdout)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 
 	source, err := os.ReadFile(customersPath)
@@ -447,14 +436,14 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 	if openedPath != customersPath {
 		t.Fatalf("openedPath = %q, want %q", openedPath, customersPath)
 	}
-	if !strings.Contains(stdout, "Opened "+customersPath) {
-		t.Fatalf("stdout %q does not contain opened path", stdout)
+	if want := "Opened " + customersPath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 }
 
@@ -717,11 +706,11 @@ Customer @@CUSTOMER_NAME@@
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Rendered " + outputPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Rendered "+outputPath+" for CUST-001 (CUST-001-001)") {
-		t.Fatalf("stdout %q does not contain rendered output path", stdout)
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 
 	rendered, err := os.ReadFile(outputPath)
@@ -806,11 +795,11 @@ func TestNewCreatesDefaultOutputInvoiceFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Created CUST-001-002.yaml for CUST-001 (CUST-001-002)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Created CUST-001-002.yaml for CUST-001") {
-		t.Fatalf("stdout %q does not contain success output", stdout)
+	if stdout != "CUST-001-002.yaml\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "CUST-001-002.yaml\n")
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "CUST-001-002.yaml")); err != nil {
 		t.Fatalf("default invoice file was not created: %v", err)
@@ -844,16 +833,16 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	wantPath := filepath.Join(workDir, "CUST-001-002.yaml")
 	if openedPath != wantPath {
 		t.Fatalf("openedPath = %q, want %q", openedPath, wantPath)
 	}
-	if !strings.Contains(stdout, "Created CUST-001-002.yaml for CUST-001 (CUST-001-002)") {
-		t.Fatalf("stdout %q does not contain success output", stdout)
+	if want := "Created CUST-001-002.yaml for CUST-001 (CUST-001-002)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "CUST-001-002.yaml\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "CUST-001-002.yaml\n")
 	}
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Fatalf("edited invoice file was not created: %v", err)
@@ -914,11 +903,11 @@ func TestNewUsesCustomerSpecificStartFromCustomersFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Created CUST-001-007.yaml for CUST-001 (CUST-001-007)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Created CUST-001-007.yaml for CUST-001 (CUST-001-007)") {
-		t.Fatalf("stdout %q does not contain customer-specific invoice number", stdout)
+	if stdout != "CUST-001-007.yaml\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "CUST-001-007.yaml\n")
 	}
 }
 
@@ -937,11 +926,11 @@ func TestNewAcceptsInlineLongFlagsAfterCustomerID(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Created " + outputPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Created "+outputPath+" for CUST-001") {
-		t.Fatalf("stdout %q does not contain created output path", stdout)
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 	if _, err := os.Stat(outputPath); err != nil {
 		t.Fatalf("output file was not created: %v", err)
@@ -1003,11 +992,11 @@ positions:
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)") {
-		t.Fatalf("stdout %q does not contain cloned invoice output", stdout)
+	if stdout != "CUST-001-003.yaml\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "CUST-001-003.yaml\n")
 	}
 
 	createdPath := filepath.Join(workDir, "CUST-001-003.yaml")
@@ -1202,9 +1191,6 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
@@ -1213,8 +1199,11 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	if cleanupPath != filepath.Dir(openedPath) {
 		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
-	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stdout %q does not contain email summary", stdout)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
 		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
@@ -1283,9 +1272,6 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
@@ -1294,8 +1280,11 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	if cleanupPath != filepath.Dir(openedPath) {
 		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
-	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stdout %q does not contain email summary", stdout)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
 		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
@@ -1362,9 +1351,6 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
@@ -1373,8 +1359,11 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	if cleanupPath != filepath.Dir(openedPath) {
 		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
 	}
-	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stdout %q does not contain email summary", stdout)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(outputPath) error = %v, want not exists", err)
@@ -1455,9 +1444,6 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 	if opened.Recipient != "office@appsters.example" {
 		t.Fatalf("Recipient = %q, want %q", opened.Recipient, "office@appsters.example")
 	}
@@ -1473,8 +1459,11 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	if strings.Contains(opened.Body, "\r") {
 		t.Fatalf("Body = %q, want LF-only newlines", opened.Body)
 	}
-	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stdout %q does not contain email summary", stdout)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	if _, err := os.Stat(filepath.Join(inputDir, "BL00210001.eml")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(default .eml path) error = %v, want not exists", err)
@@ -1644,11 +1633,11 @@ func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Validation OK:") {
-		t.Fatalf("stdout %q does not contain validation success output", stdout)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 }
 
@@ -1667,11 +1656,11 @@ func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Rendered invoice.tex for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Rendered invoice.tex") {
-		t.Fatalf("stdout %q does not contain default output path", stdout)
+	if stdout != "invoice.tex\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "invoice.tex\n")
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "invoice.tex")); err != nil {
 		t.Fatalf("default invoice.tex was not created: %v", err)
@@ -1702,11 +1691,11 @@ invoice:
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Incremented " + invoicePath + " for CUST-001: CUST-001-009 -> CUST-001-012\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "CUST-001-009 -> CUST-001-012") {
-		t.Fatalf("stdout %q does not contain increment summary", stdout)
+	if stdout != invoicePath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, invoicePath+"\n")
 	}
 
 	updated, err := os.ReadFile(invoicePath)
@@ -1788,14 +1777,13 @@ func TestBuildDefaultsPDFPathFromInputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	if !strings.Contains(stdout, "Built "+customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))]+".pdf") {
-		t.Fatalf("stdout %q does not contain build output", stdout)
-	}
-
 	outputPath := customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))] + ".pdf"
+	if want := "Built " + outputPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
+	}
 	if _, err := os.Stat(outputPath); err != nil {
 		t.Fatalf("default output PDF was not created: %v", err)
 	}
@@ -1852,17 +1840,14 @@ func TestBuildWithArchiveMovesInvoiceToArchiveDir(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	outputPath := customInvoicePath[:len(customInvoicePath)-len(filepath.Ext(customInvoicePath))] + ".pdf"
 	archivePath := filepath.Join(archiveDir, filepath.Base(customInvoicePath))
-	if !strings.Contains(stdout, "Built "+outputPath) {
-		t.Fatalf("stdout %q does not contain build output", stdout)
+	if want := "Built " + outputPath + " for CUST-001 (CUST-001-001)\nArchived " + customInvoicePath + " -> " + archivePath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Archived "+customInvoicePath+" -> "+archivePath) {
-		t.Fatalf("stdout %q does not contain archive output", stdout)
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 	if _, err := os.Stat(outputPath); err != nil {
 		t.Fatalf("output PDF was not created: %v", err)
@@ -2009,13 +1994,13 @@ positions:
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
-	if !strings.Contains(stdout, "Archived "+invoicePath+" -> "+archivePath) {
-		t.Fatalf("stdout %q does not contain archive summary", stdout)
+	if want := "Archived " + invoicePath + " -> " + archivePath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != archivePath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, archivePath+"\n")
 	}
 	if _, err := os.Stat(invoicePath); err == nil {
 		t.Fatalf("source invoice should have been removed: %s", invoicePath)
@@ -2070,13 +2055,13 @@ positions:
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 
 	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
-	if !strings.Contains(stdout, "Editing "+archivedPath+" -> 2026-03-06.yaml") {
-		t.Fatalf("stdout %q does not contain edit summary", stdout)
+	if want := "Editing " + archivedPath + " -> 2026-03-06.yaml\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "2026-03-06.yaml\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, "2026-03-06.yaml\n")
 	}
 	editedSource, err := os.ReadFile(editedPath)
 	if err != nil {
@@ -2132,11 +2117,11 @@ positions:
 	if exitCode != 0 {
 		t.Fatalf("edit exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("edit stderr = %q, want empty", stderr)
+	if want := "Editing " + archivedPath + " -> 2026-03-06.yaml\n"; stderr != want {
+		t.Fatalf("edit stderr = %q, want %q", stderr, want)
 	}
-	if stdout == "" {
-		t.Fatal("edit stdout should not be empty")
+	if stdout != "2026-03-06.yaml\n" {
+		t.Fatalf("edit stdout = %q, want %q", stdout, "2026-03-06.yaml\n")
 	}
 
 	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
@@ -2160,8 +2145,11 @@ positions:
 	if !strings.HasPrefix(stderr, "Replaced archived invoice "+archivedPath+"; previous version kept at ") {
 		t.Fatalf("archive stderr = %q, want replacement notice", stderr)
 	}
-	if !strings.Contains(stdout, "Archived 2026-03-06.yaml -> "+archivedPath) {
-		t.Fatalf("stdout %q does not contain re-archive summary", stdout)
+	if !strings.HasSuffix(stderr, "\nArchived 2026-03-06.yaml -> "+archivedPath+"\n") {
+		t.Fatalf("archive stderr %q does not end with the re-archive summary", stderr)
+	}
+	if stdout != archivedPath+"\n" {
+		t.Fatalf("archive stdout = %q, want %q", stdout, archivedPath+"\n")
 	}
 	if _, err := os.Stat(editedPath); err == nil {
 		t.Fatalf("edited working copy should have been removed: %s", editedPath)

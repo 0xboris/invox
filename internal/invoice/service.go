@@ -899,7 +899,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	outstandingCents := totalCents - paidAmountCents
 
 	if paidAmountCents > totalCents {
-		return nil, fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", formatMoneyCents(paidAmountCents), formatMoneyCents(totalCents))
+		return nil, fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", FormatMoneyCents(paidAmountCents), FormatMoneyCents(totalCents))
 	}
 
 	currency := customerCurrency(customer)
@@ -1003,7 +1003,7 @@ func BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO Pr
 }
 
 func FormatCurrency(cents int64, currency string) string {
-	return withCurrency(formatMoneyCents(cents), currency)
+	return withCurrency(FormatMoneyCents(cents), currency)
 }
 
 // Unit prices are shown with as many decimals as they need, at least
@@ -1433,10 +1433,10 @@ func buildEPCPayload(ctx *Context) ([]byte, error) {
 		return nil, errors.New("invoice.outstanding_amount: EPC QR code requires an amount above zero")
 	}
 	if ctx.OutstandingCents > ctx.TotalCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", formatMoneyCents(ctx.OutstandingCents), formatMoneyCents(ctx.TotalCents))
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", FormatMoneyCents(ctx.OutstandingCents), FormatMoneyCents(ctx.TotalCents))
 	}
 	if ctx.OutstandingCents > epcQRMaxAmountCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", formatMoneyCents(ctx.OutstandingCents), "999999999,99")
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", FormatMoneyCents(ctx.OutstandingCents), "999999999,99")
 	}
 
 	name := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.name")))
@@ -1914,7 +1914,8 @@ func formatDate(value string) string {
 	return t.Format("02.01.2006")
 }
 
-func formatMoneyCents(cents int64) string {
+// FormatMoneyCents formats cents as 1.234,56, without a currency.
+func FormatMoneyCents(cents int64) string {
 	sign := ""
 	if cents < 0 {
 		sign = "-"

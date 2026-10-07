@@ -26,13 +26,13 @@ func runInit(ios *iostreams.IOStreams, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(ios.Out, "Initialized %s\n", configDir)
+	fmt.Fprintf(ios.ErrOut, "Initialized %s\n", configDir)
 	for _, result := range results {
 		status := "exists"
 		if result.Created {
 			status = "created"
 		}
-		fmt.Fprintf(ios.Out, "%s %s\n", status, invoice.DisplayPath(result.Path, configDir))
+		fmt.Fprintf(ios.ErrOut, "%s %s\n", status, invoice.DisplayPath(result.Path, configDir))
 	}
 	return nil
 }

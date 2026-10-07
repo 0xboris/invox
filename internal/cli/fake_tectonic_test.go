@@ -19,17 +19,25 @@ const (
 	fakeTectonicWritePDF = "write-pdf"
 	fakeTectonicFail     = "fail"
 	fakeTectonicExit2    = "exit-2"
+	fakeTectonicChatter  = "chatter"
 )
 
 func TestMain(m *testing.M) {
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
 		os.Exit(runFakeTectonic(mode, os.Args[1:]))
 	}
+	if os.Getenv(fakeShellEnv) != "" {
+		os.Exit(runFakeShell(os.Args[1:]))
+	}
+	if os.Getenv(fakeChildEnv) != "" {
+		os.Exit(runFakeChild(os.Args[1:]))
+	}
 	os.Exit(m.Run())
 }
 
 // runFakeTectonic writes an empty PDF next to the single .tex argument, or
 // fails with exit code 1 (fakeTectonicFail) or 2 (fakeTectonicExit2).
+// fakeTectonicChatter also prints progress to stdout, as tectonic does.
 func runFakeTectonic(mode string, args []string) int {
 	switch mode {
 	case fakeTectonicFail:
@@ -44,6 +52,10 @@ func runFakeTectonic(mode string, args []string) int {
 		return 2
 	}
 
+	if mode == fakeTectonicChatter {
+		fmt.Println("note: running TeX ...")
+		fmt.Println("note: writing `invoice.pdf`")
+	}
 	pdfPath := strings.TrimSuffix(args[0], filepath.Ext(args[0])) + ".pdf"
 	if err := os.WriteFile(pdfPath, nil, 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)

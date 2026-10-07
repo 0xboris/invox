@@ -112,11 +112,11 @@ func TestEmailKeepsExplicitOutputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if !strings.Contains(stdout, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stdout %q does not contain email summary", stdout)
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 	if len(*opened) != 1 || (*opened)[0] != outputPath {
 		t.Fatalf("opened = %q, want [%q]", *opened, outputPath)
@@ -142,7 +142,7 @@ func TestEmailForceOverwritesExistingOutputFile(t *testing.T) {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	exitCode, _, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRun(t, []string{
 		"email", invoicePath,
 		"--force",
 		"-o", outputPath,
@@ -152,8 +152,11 @@ func TestEmailForceOverwritesExistingOutputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 	if len(*cleaned) != 0 {
 		t.Fatalf("cleanupOpenedDocument called with %q, want no cleanup for an explicit -o", *cleaned)

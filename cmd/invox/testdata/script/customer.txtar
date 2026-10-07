@@ -16,9 +16,9 @@ cmp stdout want-list-escapes.tsv
 
 # customer config opens customers.yaml in $VISUAL.
 exec invox customer config
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-config.txt
-! stderr .
 
 # Without a subcommand, customer prints its help.
 exec invox customer
