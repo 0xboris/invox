@@ -72,17 +72,46 @@ Settled decisions (#9):
 
 ## Agent workflow: poteto-mode (pstack)
 
-`.claude/skills/` vendors [pstack](https://github.com/backnotprop/pstack) at `124f622`
-(MIT, `.claude/skills/PSTACK-LICENSE`), unedited. Left out: `make-bot-ui`,
-`typescript-best-practices`, `setup-pstack`, `poteto-mode/scripts/`, and the `shipping`,
-`autopilot-full` and `autopilot-stack` playbooks. To update, re-copy from a newer pstack
-commit with the same exclusions and bump the commit here.
+`.claude/skills/` vendors all of [pstack](https://github.com/backnotprop/pstack)'s `skills/`
+at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli` is this repo's own skill.
+`agents/comment-sicko.md` is left out of `.claude/agents/`: "Comment Sicko" isn't a valid
+Claude Code agent name, and `no-comments` falls back to a general subagent with its bundled
+prompt.
+
+Local edits, all so pstack's GitHub calls work in Claude Code cloud sessions (REST only):
+
+- `poteto-mode/scripts/watch-pr/github.ts` reads PRs, checks, reviews and threads through
+  `gh api` REST and the `/ccr/review_threads` route; `github.test.ts` covers it. The check
+  source labels `gh-pr-checks` and `graphql-rollup` in `types.ts` are kept unchanged on purpose:
+  they are part of the verdict JSON, and renaming them would edit more upstream files.
+- `poteto-mode/scripts/orch/`: `frontier set --source rest` reads the open-PR list through
+  `gh api`, with tests in `orch.test.ts`.
+- `poteto-mode/scripts/worktree-audit.sh` lists PRs through `gh api`, paged by hand.
+- The playbooks `shipping`, `babysit`, `opening-a-pr`, `multi-phase-plan`, `autopilot-full`,
+  `autopilot-stack` and `orchestrate`, plus `why/SKILL.md` and
+  `why/references/sources/code-archaeology.md`, use `gh api` REST commands.
+- New: `poteto-mode/references/github-rest.md`, the REST and `/ccr/` command sheet.
+
+To update to a newer pstack commit:
+
+1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x PSTACK-LICENSE
+   -x node_modules <old>/skills .claude/skills` must show only the local edits above.
+2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli` and `PSTACK-LICENSE`.
+3. Re-apply each local edit. `git diff HEAD -- <path>` shows what the copy reverted.
+4. Check: the diff against the new commit shows only the list above;
+   `grep -rnE 'gh (pr|issue) |graphql' .claude/` finds only notes that explain the ban; and
+   `bun install --frozen-lockfile && bun test orch watch-pr && bun run typecheck` pass in
+   `.claude/skills/poteto-mode/scripts`. Bump the commit here.
 
 Every task in this repo runs in poteto-mode. Before any work, read
 `.claude/skills/poteto-mode/SKILL.md` in full (it can't be invoked as a skill by the model),
 then follow it: match a playbook, and read each `principle-*` leaf you apply. Subagents use
-`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which the
-session-start hook installs as `~/.agents/pstack-models.md`.
+`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which is
+the source of truth. The session-start hook copies it over `~/.agents/pstack-models.md` at
+every cloud session start, so anything `/setup-pstack` writes there is lost in the next session.
+To change models, run `/setup-pstack`, then copy `~/.agents/pstack-models.md` back into
+`.claude/pstack-models.md` and commit it in its own PR. Or edit the repo file directly. Locally,
+copy it to `~/.agents/` once, as the hook does in the cloud.
 
 This file and the harness instructions take precedence over every vendored skill, playbook
 and agent. When they conflict, follow this file and say which rule you overrode:
@@ -95,15 +124,26 @@ and agent. When they conflict, follow this file and say which rule you overrode:
 - Never force-push, rebase or `git reset --hard` a branch you didn't create.
 - Commit and PR attribution comes from the harness. Playbook title and body formats (for
   example Conventional Commits) don't replace it or `Fixes #N`.
-- Use the GitHub MCP tools, not `gh` or `gt`. No `bun`, `npx`, `curl | sh` or Cursor cloud
+- For GitHub, use `gh api` REST calls (`.claude/skills/poteto-mode/references/github-rest.md`)
+  or the GitHub MCP tools. Cloud sessions refuse GraphQL, so no `gh pr`, `gh issue` or
+  `gh api graphql`. Page lists by hand (`per_page=100&page=N`); `gh api --paginate` fails
+  there past the first page. The `/ccr/` routes exist only in cloud sessions.
+- `bun` is allowed for the pstack scripts. No `gt`, `npx`, `curl | sh` or Cursor cloud
   agents; use local subagents.
 - Only Claude models exist here. Read any grok, gpt or `claude-*-max` name in a skill as the
   matching role in `.claude/pstack-models.md`. "A different model family" means a different
   Claude model.
 - `~/` and `/tmp` don't persist across cloud sessions. Keep notes, plans and decision logs in
-  the PR or the repo.
-- Don't post to chat, tickets or other external services unless asked. poteto-mode's "just do
-  it" covers local, reversible work only.
-- References to the left-out pieces are expected. For landing a PR, the coordinator merges
-  after the maintainer's go-ahead (instead of `shipping`). Do the steps that name
-  `poteto-mode/scripts/` (`watch-pr`, `check-plan.mjs`, `orch`) by hand.
+  the PR description or the repo.
+- Agents may post review findings and verification verdicts on PRs in this repo. This covers
+  PR review comments, a review summary, and the Shipping playbook's per-PR PASS / PASS+NOTES /
+  FAIL verdict. They end with the harness's Claude Code footer.
+- Everything else external still needs the maintainer to ask: other comments or issues, chat,
+  and any other service. poteto-mode's "just do it" covers local, reversible work only.
+- The Shipping and Autopilot playbooks run under the rules above. Their overrides:
+  - Merge and auto-merge wait for the maintainer's go-ahead for that specific PR, and merges
+    are squash merges with `sha=<verified head>`.
+  - Local subagents replace their Cursor cloud agents.
+  - Autopilot-stack's stacked delivery isn't used here, because PRs aren't stacked.
+- Run the `poteto-mode/scripts/` tools (`watch-pr`, `check-plan.mjs`, `orch`) with `bun` from
+  that directory. This repo doesn't use Graphite, so `orch frontier set` takes `--source rest`.

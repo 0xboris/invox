@@ -15,5 +15,8 @@ coverage.out
 *.log
 *.xdv
 
+# pstack script dependencies (bun install)
+node_modules/
+
 # OS files
 .DS_Store
