@@ -15,6 +15,9 @@ import (
 const childEnv = "RUN_TEST_CHILD"
 
 func TestMain(m *testing.M) {
+	if mode := os.Getenv(cancelChildEnv); mode != "" {
+		os.Exit(runCancelChild(mode))
+	}
 	if os.Getenv(childEnv) != "" {
 		cwd, _ := os.Getwd()
 		fmt.Printf("dir=%s value=%s args=%q\n", filepath.Base(cwd), os.Getenv("RUN_TEST_VALUE"), os.Args[1:])

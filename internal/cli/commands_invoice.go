@@ -351,7 +351,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, errorPrefix)
+		result, err := archiveWithConfirmation(ctx, ios, h, e.Now, spec, opts, errorPrefix)
 		// These already start with errorPrefix, and wrapping a FlagError would
 		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
@@ -390,7 +390,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runArchive(f *cmdutil.Factory, args []string) error {
+func runArchive(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
 	h := f.Host()
@@ -416,7 +416,7 @@ func runArchive(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, "")
+	result, err := archiveWithConfirmation(ctx, ios, h, e.Now, spec, opts, "")
 	if err != nil {
 		return err
 	}

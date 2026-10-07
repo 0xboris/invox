@@ -34,7 +34,8 @@ func TestHelpTopicsWorkWithAndWithoutConfig(t *testing.T) {
 				"  0    Success.\n",
 				"  1    The command failed",
 				"  2    Usage error",
-				"  130  Reserved for an interrupted command (Ctrl-C).",
+				"  130  Interrupted by Ctrl-C (SIGINT).",
+				"  143  Stopped by SIGTERM",
 			},
 		},
 	}
