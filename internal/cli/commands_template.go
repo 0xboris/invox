@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runTemplate(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runTemplate(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	if len(args) == 0 {
 		printTemplateHelp(ios.Out)
 		return nil
@@ -23,14 +23,15 @@ func runTemplate(ios *iostreams.IOStreams, e env.Env, args []string) error {
 
 	switch args[0] {
 	case "list":
-		return runTemplateList(ios, e, args[1:])
+		return runTemplateList(f, args[1:])
 	default:
 		return cmdutil.FlagErrorf("template", "unknown template subcommand %q", args[0])
 	}
 }
 
-func runTemplateList(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runTemplateList(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	if wantsHelp(args) {
 		printTemplateListHelp(ios.Out)
 		return nil

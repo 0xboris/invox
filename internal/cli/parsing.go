@@ -9,9 +9,7 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func reorderArgs(args []string, flagSpecs map[string]bool) []string {
@@ -54,8 +52,10 @@ func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
 
 // parseCommand parses args for spec into options and the remaining positional
 // arguments. When args ask for help it prints the help and returns flag.ErrHelp.
-func parseCommand(ios *iostreams.IOStreams, e env.Env, spec commandSpec, args []string) (invoice.Options, []string, error) {
-	h := userHost(e)
+func parseCommand(f *cmdutil.Factory, spec commandSpec, args []string) (invoice.Options, []string, error) {
+	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	if wantsHelp(args) {
 		printCommandHelp(ios.Out, h, spec)
 		return invoice.Options{}, nil, flag.ErrHelp

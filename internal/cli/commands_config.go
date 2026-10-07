@@ -13,7 +13,7 @@ import (
 func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
-	h := userHost(e)
+	h := f.Host()
 	spec := configSpec()
 
 	if wantsHelp(args) {

@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
@@ -15,13 +13,12 @@ func Main(args []string, f *cmdutil.Factory) int {
 
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
-	e := f.Env
 	if len(args) == 0 {
 		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
 
 	if isHelpToken(args[0]) {
-		printRootHelp(ios.Out, userHost(e))
+		printRootHelp(ios.Out, f.Host())
 		return nil
 	}
 
@@ -30,7 +27,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 
 	if args[0] == "help" {
-		return runHelp(ios, e, args[1:])
+		return runHelp(f, args[1:])
 	}
 
 	switch args[0] {
@@ -39,19 +36,19 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "config":
 		return runConfig(ctx, f, args[1:])
 	case "init":
-		return runInit(ios, e, args[1:])
+		return runInit(f, args[1:])
 	case "template":
-		return runTemplate(ios, e, args[1:])
+		return runTemplate(f, args[1:])
 	case "completion":
 		return runCompletion(ios, args[1:])
 	case "new":
 		return runNew(ctx, f, args[1:])
 	case "increment":
-		return runIncrement(ios, e, args[1:])
+		return runIncrement(f, args[1:])
 	case "validate":
-		return runValidate(ios, e, args[1:])
+		return runValidate(f, args[1:])
 	case "render":
-		return runRender(ios, e, args[1:])
+		return runRender(f, args[1:])
 	case "email":
 		return runEmail(ctx, f, args[1:])
 	case "send":
@@ -59,7 +56,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "build":
 		return runBuild(ctx, f, args[1:])
 	case "archive":
-		return runArchive(ios, e, args[1:])
+		return runArchive(f, args[1:])
 	case "version":
 		return runVersion(ios, args[1:])
 	default:
@@ -67,8 +64,9 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 }
 
-func runHelp(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runHelp(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	if len(args) == 0 {
 		printRootHelp(ios.Out, h)
 		return nil
@@ -170,8 +168,7 @@ func runHelp(ios *iostreams.IOStreams, e env.Env, args []string) error {
 
 func runCustomer(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
-	e := f.Env
-	h := userHost(e)
+	h := f.Host()
 	if len(args) == 0 {
 		printCustomerHelp(ios.Out, h)
 		return nil
@@ -183,7 +180,7 @@ func runCustomer(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	switch args[0] {
 	case "list":
-		return runCustomerList(ios, e, args[1:])
+		return runCustomerList(f, args[1:])
 	case "config":
 		return runCustomerConfig(ctx, f, args[1:])
 	default:

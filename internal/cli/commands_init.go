@@ -2,18 +2,18 @@ package cli
 
 import (
 	"fmt"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"path/filepath"
 
-	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runInit(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runInit(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := initSpec()
 
-	_, _, err := parseCommand(ios, e, spec, args)
+	_, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}

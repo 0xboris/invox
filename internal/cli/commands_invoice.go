@@ -13,7 +13,6 @@ import (
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -21,7 +20,7 @@ import (
 func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
-	h := userHost(e)
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-c":          true,
 		"--customers": true,
@@ -38,7 +37,7 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := newSpec()
 
-	opts, extraArgs, err := parseCommand(ios, e, spec, args)
+	opts, extraArgs, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -69,11 +68,12 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runIncrement(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runIncrement(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := incrementSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -95,11 +95,12 @@ func runIncrement(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runValidate(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runValidate(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := validateSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -122,11 +123,12 @@ func runValidate(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runRender(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runRender(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := renderSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -153,7 +155,7 @@ func runRender(ios *iostreams.IOStreams, e env.Env, args []string) error {
 func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
-	h := userHost(e)
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -179,7 +181,7 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := emailSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -300,7 +302,7 @@ func writeEmailDraft(h invoice.Host, now time.Time, opts invoice.Options, paths 
 func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
-	h := userHost(e)
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -318,7 +320,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := buildSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -387,14 +389,16 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runArchive(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	if len(args) > 0 {
 		switch args[0] {
 		case "edit":
-			return runArchiveEdit(ios, e, args[1:])
+			return runArchiveEdit(f, args[1:])
 		case "list":
-			return runArchiveList(ios, e, args[1:])
+			return runArchiveList(f, args[1:])
 		}
 	}
 
@@ -406,7 +410,7 @@ func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
 
 	spec := archiveSpec()
 
-	opts, _, err := parseCommand(ios, e, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -427,11 +431,12 @@ func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runArchiveEdit(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runArchiveEdit(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := archiveEditSpec()
 
-	opts, extraArgs, err := parseCommand(ios, e, spec, args)
+	opts, extraArgs, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -451,11 +456,12 @@ func runArchiveEdit(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runArchiveList(ios *iostreams.IOStreams, e env.Env, args []string) error {
-	h := userHost(e)
+func runArchiveList(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := archiveListSpec()
 
-	_, _, err := parseCommand(ios, e, spec, args)
+	_, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
