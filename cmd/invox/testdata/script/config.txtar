@@ -3,7 +3,7 @@
 exec invox config
 scrubpaths stdout got.txt
 cmp got.txt want-opened.txt
-! stderr .
+cmp stderr want-opened-stderr.txt
 scrubpaths home/.config/invox/config.yaml got.yaml
 cmp got.yaml want-config.yaml
 
@@ -30,8 +30,9 @@ cmp got.txt want-editor-failed.txt
 archive:
   dir: archive
 -- want-opened.txt --
-fake editor: config.yaml
 Opened home/.config/invox/config.yaml
+-- want-opened-stderr.txt --
+fake editor: config.yaml
 -- want-config.yaml --
 # Invox user configuration.
 #

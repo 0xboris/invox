@@ -4,13 +4,14 @@
 
 exec invox email invoice.yaml
 cmp stdout want-email.txt
-! stderr .
+cmp stderr want-email-stderr.txt
 ! exists invoice.eml
 
 -- invoice.pdf --
 -- want-email.txt --
-fake osascript: to=office@appsters.example subject="Invoice CUST-001-001" attachment=invoice.pdf
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-email-stderr.txt --
+fake osascript: to=office@appsters.example subject="Invoice CUST-001-001" attachment=invoice.pdf
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

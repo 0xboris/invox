@@ -22,7 +22,7 @@ exists drafts.yaml
 # -e opens the new invoice in $VISUAL before reporting it.
 exec invox new CUST-003 -e
 cmp stdout want-new-e.txt
-! stderr .
+cmp stderr want-new-e-stderr.txt
 
 # Usage errors.
 exits 2 invox new
@@ -58,8 +58,9 @@ Created second.yaml for CUST-001 (CUST-001-002)
 -- want-new-o.txt --
 Created drafts.yaml for CUST-002 (CUST-002-001)
 -- want-new-e.txt --
-fake editor: CUST-003-001.yaml
 Created CUST-003-001.yaml for CUST-003 (CUST-003-001)
+-- want-new-e-stderr.txt --
+fake editor: CUST-003-001.yaml
 -- want-missing-id.txt --
 error: missing required arguments: CUSTOMER_ID
 Run 'invox new --help' for usage.

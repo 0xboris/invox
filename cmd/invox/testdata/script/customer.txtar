@@ -18,7 +18,7 @@ cmp stdout want-list-escapes.tsv
 exec invox customer config
 scrubpaths stdout got.txt
 cmp got.txt want-config.txt
-! stderr .
+cmp stderr want-config-stderr.txt
 
 # Without a subcommand, customer prints its help.
 exec invox customer
@@ -67,8 +67,9 @@ CUST-003	Third Customer KG	active
 -- want-list-other.tsv --
 OTHER-1	Other Ltd	active
 -- want-config.txt --
-fake editor: customers.yaml
 Opened home/.config/invox/customers.yaml
+-- want-config-stderr.txt --
+fake editor: customers.yaml
 -- want-list-extra.txt --
 error: unexpected arguments: extra
 Run 'invox customer list --help' for usage.

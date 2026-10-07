@@ -271,7 +271,7 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 		return err
 	}
 
-	if err := invoice.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx, invoice.ProcessIO{Stdin: ios.In, Stdout: ios.Out, Stderr: ios.ErrOut}); err != nil {
+	if err := invoice.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx, invoice.ProcessIO{Stdin: ios.In, Stdout: ios.ErrOut, Stderr: ios.ErrOut}); err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return &cmdutil.ExecError{Program: "tectonic", Code: exitErr.ExitCode(), Err: err}
