@@ -4,10 +4,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // fakeTectonicEnv makes the test binary act as tectonic instead of running
@@ -15,14 +24,31 @@ import (
 // PATH, so the build tests need no shell and run on every OS.
 const fakeTectonicEnv = "INVOX_TEST_FAKE_TECTONIC"
 
+// fakeTectonicPidfileEnv names the file fakeTectonicSleep writes its pid to.
+const fakeTectonicPidfileEnv = "INVOX_TEST_FAKE_TECTONIC_PIDFILE"
+
+// runMainEnv makes the test binary act as invox, so tests can send it real
+// signals.
+const runMainEnv = "INVOX_TEST_RUN_MAIN"
+
 const (
 	fakeTectonicWritePDF = "write-pdf"
 	fakeTectonicFail     = "fail"
 	fakeTectonicExit2    = "exit-2"
 	fakeTectonicChatter  = "chatter"
+	fakeTectonicSleep    = "sleep"
+	// fakeTectonicSleepIgnoreTerm sleeps like fakeTectonicSleep but ignores
+	// SIGTERM, so invox keeps waiting for it after the first signal.
+	fakeTectonicSleepIgnoreTerm = "sleep-ignore-sigterm"
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv(runMainEnv) != "" {
+		// Unset so the programs invox runs, such as the fake tectonic, are not
+		// invox too.
+		os.Unsetenv(runMainEnv)
+		os.Exit(Main(os.Args[1:], cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())))
+	}
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
 		os.Exit(runFakeTectonic(mode, os.Args[1:]))
 	}
@@ -38,8 +64,25 @@ func TestMain(m *testing.M) {
 // runFakeTectonic writes an empty PDF next to the single .tex argument, or
 // fails with exit code 1 (fakeTectonicFail) or 2 (fakeTectonicExit2).
 // fakeTectonicChatter also prints progress to stdout, as tectonic does.
+// fakeTectonicSleep writes its pid to the file named by
+// fakeTectonicPidfileEnv and sleeps for a minute.
 func runFakeTectonic(mode string, args []string) int {
 	switch mode {
+	case fakeTectonicSleep, fakeTectonicSleepIgnoreTerm:
+		if mode == fakeTectonicSleepIgnoreTerm {
+			signal.Ignore(syscall.SIGTERM)
+		}
+		pidfile := os.Getenv(fakeTectonicPidfileEnv)
+		if err := os.WriteFile(pidfile+".tmp", []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+			return 1
+		}
+		if err := os.Rename(pidfile+".tmp", pidfile); err != nil {
+			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+			return 1
+		}
+		time.Sleep(time.Minute)
+		return 0
 	case fakeTectonicFail:
 		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
 		return 1

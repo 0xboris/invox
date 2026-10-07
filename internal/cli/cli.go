@@ -2,19 +2,42 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
+	ctx, stop := signalContext(context.Background())
+	defer stop()
+	return mainContext(ctx, args, f)
+}
+
+// mainContext runs the command under ctx. When a signal cancelled ctx, the
+// command's error becomes the signal's, except that Ctrl-C at a prompt stays
+// a quiet cancel.
+//
+// A terminal Ctrl-C also reaches the child program, so the command can fail
+// before ctx is cancelled. That ordering is not expected in practice: the
+// signal goroutine needs a few scheduler hand-offs, while the command first
+// waits for the child to exit and be reaped. If it ever happened, invox would
+// exit 1 and print the child's error instead of exiting 130.
+func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	configFile, rest, err := splitGlobalFlags(args)
-	if err == nil {
-		f.ConfigFile = configFile
-		err = dispatch(context.Background(), f, rest)
-		warnLegacyFiles(f)
+	if err != nil {
+		return exitCode(f.IOStreams, err)
+	}
+	f.ConfigFile = configFile
+	err = dispatch(ctx, f, rest)
+	warnLegacyFiles(f)
+	var sigErr *SignalError
+	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
+		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
+		err = sigErr
 	}
 	return exitCode(f.IOStreams, err)
 }
@@ -67,7 +90,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "config":
 		return runConfig(ctx, f, args[1:])
 	case "init":
-		return runInit(f, args[1:])
+		return runInit(ctx, f, args[1:])
 	case "template":
 		return runTemplate(f, args[1:])
 	case "completion":
@@ -87,7 +110,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "build":
 		return runBuild(ctx, f, args[1:])
 	case "archive":
-		return runArchive(f, args[1:])
+		return runArchive(ctx, f, args[1:])
 	case "version":
 		return runVersion(ios, args[1:])
 	default:

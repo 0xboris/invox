@@ -20,6 +20,7 @@ import (
 // It is the only place that maps errors to exit codes.
 func exitCode(ios *iostreams.IOStreams, err error) int {
 	var flagErr *cmdutil.FlagError
+	var sigErr *SignalError
 	switch {
 	case err == nil, err == flag.ErrHelp:
 		return 0
@@ -27,6 +28,8 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 		return 1
 	case errors.Is(err, cmdutil.CancelError):
 		return 2
+	case errors.As(err, &sigErr):
+		return 128 + int(sigErr.Signal)
 	case errors.As(err, &flagErr):
 		command := commandName
 		if flagErr.Command != "" {
