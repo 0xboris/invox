@@ -246,48 +246,37 @@ var (
 
 const defaultEPCQRLabel = "Pay via EPC-QR"
 
-func NormalizeOptions(opts *Options) error {
-	var err error
-	opts.BaseDir, err = filepath.Abs(opts.BaseDir)
-	if err != nil {
-		return err
-	}
-	if opts.CustomersPath != "" {
-		if opts.CustomersPath, err = filepath.Abs(opts.CustomersPath); err != nil {
-			return err
+// NormalizeOptions makes every path in opts absolute, resolving relative
+// paths against opts.BaseDir, the working directory the CLI was given.
+func NormalizeOptions(opts *Options) {
+	opts.BaseDir = filepath.Clean(opts.BaseDir)
+	for _, path := range []*string{
+		&opts.CustomersPath,
+		&opts.IssuerPath,
+		&opts.DefaultsPath,
+		&opts.InvoicePath,
+		&opts.PDFPath,
+		&opts.TemplatePath,
+		&opts.OutputPath,
+	} {
+		if *path != "" {
+			*path = absPath(opts.BaseDir, *path)
 		}
 	}
-	if opts.IssuerPath != "" {
-		if opts.IssuerPath, err = filepath.Abs(opts.IssuerPath); err != nil {
-			return err
-		}
+}
+
+// absPath is filepath.Abs with base in place of the process working
+// directory.
+func absPath(base, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
 	}
-	if opts.DefaultsPath != "" {
-		if opts.DefaultsPath, err = filepath.Abs(opts.DefaultsPath); err != nil {
-			return err
-		}
+	if path != "" && os.IsPathSeparator(path[0]) {
+		// A rooted path without a volume, such as \x on Windows, stays on
+		// base's drive, as filepath.Abs keeps it on the current drive.
+		return filepath.Join(filepath.VolumeName(base), path)
 	}
-	if opts.InvoicePath != "" {
-		if opts.InvoicePath, err = filepath.Abs(opts.InvoicePath); err != nil {
-			return err
-		}
-	}
-	if opts.PDFPath != "" {
-		if opts.PDFPath, err = filepath.Abs(opts.PDFPath); err != nil {
-			return err
-		}
-	}
-	if opts.TemplatePath != "" {
-		if opts.TemplatePath, err = filepath.Abs(opts.TemplatePath); err != nil {
-			return err
-		}
-	}
-	if opts.OutputPath != "" {
-		if opts.OutputPath, err = filepath.Abs(opts.OutputPath); err != nil {
-			return err
-		}
-	}
-	return nil
+	return filepath.Join(base, path)
 }
 
 func DiscoverBaseDir(start string) string {

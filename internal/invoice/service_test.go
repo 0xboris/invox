@@ -2561,6 +2561,7 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 
 	invoiceNumber, _, err := h.CreateNewInvoice(
 		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2635,7 +2636,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(now, defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2666,7 +2667,7 @@ CUST-001:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(now, defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2696,6 +2697,7 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := h.CreateNewInvoice(
 		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2735,6 +2737,7 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	_, _, err := h.CreateNewInvoice(
 		time.Now(),
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2767,6 +2770,7 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 
 	_, _, err := h.CreateNewInvoice(
 		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2800,6 +2804,7 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := h.CreateNewInvoice(
 		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2867,6 +2872,7 @@ positions:
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := h.CreateNewInvoice(
 		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2925,6 +2931,7 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	_, _, err := h.CreateNewInvoice(
 		time.Now(),
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2968,7 +2975,7 @@ line_items:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(time.Now(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
+	_, _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
 	}

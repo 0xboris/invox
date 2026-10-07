@@ -40,7 +40,7 @@ func runNew(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	}
 
 	customerID := strings.TrimSpace(extraArgs[0])
-	invoiceNumber, outputPath, err := h.CreateNewInvoice(e.Now(), opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
+	invoiceNumber, outputPath, err := h.CreateNewInvoice(e.Now(), opts.BaseDir, opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; choose a different -o/--output path", exists)
@@ -306,7 +306,7 @@ func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, err := archiveWithConfirmation(ios, e, h, spec, opts, errorPrefix)
+		result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, errorPrefix)
 		// These already start with errorPrefix, and wrapping a FlagError would
 		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
@@ -369,7 +369,7 @@ func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	result, err := archiveWithConfirmation(ios, e, h, spec, opts, "")
+	result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, "")
 	if err != nil {
 		return err
 	}

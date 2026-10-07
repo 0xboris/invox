@@ -68,7 +68,7 @@ func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
 	return payment, nil
 }
 
-func (h Host) CreateNewInvoice(now time.Time, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
+func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
 	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
 		return "", "", &OutputExistsError{Path: outputPath}
 	}
@@ -89,10 +89,7 @@ func (h Host) CreateNewInvoice(now time.Time, defaultsPath, outputPath, customer
 
 	now = now.In(time.Local)
 	issueDate := now.Format("2006-01-02")
-	draftDirs, err := draftSearchDirs(outputPath)
-	if err != nil {
-		return "", "", err
-	}
+	draftDirs := draftSearchDirs(workDir, outputPath)
 	draftCounter, err := h.highestDraftCounter(draftDirs, customerID, issueDate, customer)
 	if err != nil {
 		return "", "", err
@@ -102,10 +99,7 @@ func (h Host) CreateNewInvoice(now time.Time, defaultsPath, outputPath, customer
 		return "", "", err
 	}
 	if strings.TrimSpace(outputPath) == "" {
-		outputPath, err = filepath.Abs(invoiceNumber + ".yaml")
-		if err != nil {
-			return "", "", err
-		}
+		outputPath = filepath.Join(workDir, invoiceNumber+".yaml")
 	}
 	if fileExists(outputPath) {
 		return "", "", &OutputExistsError{Path: outputPath}
@@ -149,20 +143,12 @@ func (h Host) CreateNewInvoice(now time.Time, defaultsPath, outputPath, customer
 // draftSearchDirs returns the directories whose drafts `new` takes into
 // account: the current directory and the directory the new invoice is
 // written to.
-func draftSearchDirs(outputPath string) ([]string, error) {
-	workDir, err := filepath.Abs(".")
-	if err != nil {
-		return nil, err
-	}
+func draftSearchDirs(workDir, outputPath string) []string {
 	dirs := []string{workDir}
 	if strings.TrimSpace(outputPath) != "" {
-		absOutputPath, err := filepath.Abs(outputPath)
-		if err != nil {
-			return nil, err
-		}
-		dirs = append(dirs, filepath.Dir(absOutputPath))
+		dirs = append(dirs, filepath.Dir(absPath(workDir, outputPath)))
 	}
-	return dirs, nil
+	return dirs
 }
 
 func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast bool) (*yaml.Node, string, error) {

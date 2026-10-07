@@ -5,11 +5,6 @@ import (
 	"testing"
 )
 
-func chdirForTest(t *testing.T, dir string) {
-	t.Helper()
-	t.Chdir(dir)
-}
-
 // testHost returns a Linux Host whose config directory is under configHome
 // and whose archive directory is under home/.local/share.
 func testHost(configHome, home string) Host {

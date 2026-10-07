@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -22,7 +23,7 @@ var allowedFiles = []string{
 // process environment.
 var allowedFuncs = map[string][]string{
 	"internal/env":       {"System"},
-	"internal/iostreams": {"System", "newSystem"}, // INVOX_FORCE_TTY; System passes the process files to newSystem
+	"internal/iostreams": {"newSystem"}, // reads INVOX_FORCE_TTY
 }
 
 // ambientReads lists, per import path, the package-level identifiers that
@@ -31,7 +32,8 @@ var allowedFuncs = map[string][]string{
 // from local names.
 var ambientReads = map[string][]string{
 	"os":      {"Getenv", "LookupEnv", "Environ", "ExpandEnv", "UserHomeDir", "UserConfigDir", "UserCacheDir", "Getwd"},
-	"time":    {"Now"},
+	"time":    {"Now", "Since", "Until"},
+	"syscall": {"Getenv", "LookupEnv", "Environ"},
 	"runtime": {"GOOS"},
 }
 
@@ -43,6 +45,11 @@ func TestOnlyEnvSystemReadsTheProcessEnvironment(t *testing.T) {
 
 	root := filepath.Join("..", "..")
 	var violations []string
+	for _, file := range allowedFiles {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); err != nil {
+			violations = append(violations, file+": allowlisted but missing; drop it from allowedFiles")
+		}
+	}
 	for _, dir := range []string{"cmd", "internal"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -100,6 +107,16 @@ func TestAmbientUsesFindsEveryForm(t *testing.T) {
 			name: "function value",
 			src:  "import \"time\"\n\nvar clock = struct{ Now func() time.Time }{Now: time.Now}\n",
 			want: []string{"time.Now"},
+		},
+		{
+			name: "clock reads not spelled Now",
+			src:  "import \"time\"\n\nvar start time.Time\n\nfunc f() (time.Duration, time.Duration) { return time.Since(start), time.Until(start) }\n",
+			want: []string{"time.Since", "time.Until"},
+		},
+		{
+			name: "syscall environment",
+			src:  "import \"syscall\"\n\nfunc f() []string { v, _ := syscall.Getenv(\"A\"); _ = v; return syscall.Environ() }\n",
+			want: []string{"syscall.Getenv", "syscall.Environ"},
 		},
 		{
 			name: "runtime.GOOS",

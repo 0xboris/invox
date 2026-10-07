@@ -115,9 +115,7 @@ func parseCommand(ios *iostreams.IOStreams, e env.Env, spec commandSpec, args []
 	if err := validateCommandOptions(spec, opts); err != nil {
 		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
-	if err := invoice.NormalizeOptions(&opts); err != nil {
-		return invoice.Options{}, nil, err
-	}
+	invoice.NormalizeOptions(&opts)
 
 	return opts, remainingArgs, nil
 }
