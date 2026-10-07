@@ -510,7 +510,7 @@ func warnSkippedArchiveFiles(ios *iostreams.IOStreams, customerID string, paths 
 		list += fmt.Sprintf(" and %d more", more)
 	}
 	fmt.Fprintf(ios.ErrOut, "warning: numbering ignored %d archived invoice(s) for %s that do not match numbering.pattern: %s\n", len(paths), customerID, list)
-	fmt.Fprintf(ios.ErrOut, "If numbering.pattern changed, set numbering.start (or customers.%s.numbering.start) to continue the sequence.\n", customerID)
+	fmt.Fprintf(ios.ErrOut, "If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.%s.numbering.start) to the next number.\n", customerID)
 }
 
 // warnArchivedDuplicate warns on stderr when the invoice's number is already

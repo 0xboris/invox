@@ -239,12 +239,8 @@ func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, cust
 
 		counter, err := parseInvoiceCounter(pattern, record.InvoiceNumber, customerID, issueDate, customer)
 		if err != nil {
-			// Under a pattern with {year}, {month} or {day}, an invoice from
-			// an earlier period matches only with its own issue date.
-			if record.CustomerID == customerID {
-				if _, err := parseInvoiceCounter(pattern, record.InvoiceNumber, customerID, record.IssueDate, customer); err != nil {
-					skipped = append(skipped, path)
-				}
+			if record.CustomerID == customerID && inNumberingPeriod(pattern, record.IssueDate, issueDate) {
+				skipped = append(skipped, path)
 			}
 			return nil
 		}
@@ -257,6 +253,28 @@ func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, cust
 		return 0, nil, err
 	}
 	return highest, skipped, nil
+}
+
+// inNumberingPeriod reports whether date has the same {year}, {month} and
+// {day} as issueDate, for the tokens pattern uses. Counters restart in each
+// such period, so an invoice from another period never counts. A date that
+// does not parse is treated as in the period.
+func inNumberingPeriod(pattern, date, issueDate string) bool {
+	own, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return true
+	}
+	requested, err := time.Parse("2006-01-02", issueDate)
+	if err != nil {
+		return true
+	}
+	layouts := map[string]string{"year": "2006", "month": "01", "day": "02"}
+	for _, match := range numberingTokenPattern.FindAllStringSubmatch(pattern, -1) {
+		if layout, ok := layouts[match[1]]; ok && own.Format(layout) != requested.Format(layout) {
+			return false
+		}
+	}
+	return true
 }
 
 // highestDraftCounter returns the highest counter used by unarchived invoices

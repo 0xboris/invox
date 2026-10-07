@@ -58,13 +58,31 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 			wantNumber: "CUST-001-2026-001",
 		},
 		{
-			name:    "invoice from an earlier year in an old format is skipped",
+			name:    "invoice from an earlier year in an old format is not skipped",
 			pattern: yearPattern,
 			files: map[string]string{
 				"2025.yaml": "customer_id: CUST-001\ninvoice:\n  number: CUST-001/7\n  issue_date: \"2025-05-01\"\n",
 			},
+			wantNumber: "CUST-001-2026-001",
+		},
+		{
+			name:    "invoice from the same year in an old format is skipped",
+			pattern: yearPattern,
+			files: map[string]string{
+				"2026.yaml": "customer_id: CUST-001\ninvoice:\n  number: CUST-001/7\n  issue_date: \"2026-01-15\"\n",
+			},
 			wantNumber:  "CUST-001-2026-001",
-			wantSkipped: []string{"2025.yaml"},
+			wantSkipped: []string{"2026.yaml"},
+		},
+		{
+			name:    "markdown archive in an old format is skipped",
+			pattern: counterPattern,
+			files: map[string]string{
+				"a.yaml":        "customer_id: CUST-001\ninvoice:\n  number: CUST-001-004\n  issue_date: \"2026-03-06\"\n",
+				"old-format.md": "---\ncustomer_id: CUST-001\ninvoice:\n  number: CUST-001/0009\n  issue_date: \"2026-03-06\"\n---\n# Invoice\n",
+			},
+			wantNumber:  "CUST-001-005",
+			wantSkipped: []string{"old-format.md"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

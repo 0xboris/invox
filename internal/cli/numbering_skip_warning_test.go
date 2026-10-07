@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const skippedArchiveHint = "If numbering.pattern changed, set numbering.start (or customers.CUST-001.numbering.start) to continue the sequence.\n"
+const skippedArchiveHint = "If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.CUST-001.numbering.start) to the next number.\n"
 
 func TestNewWarnsAboutArchivedInvoicesThatDoNotMatchThePattern(t *testing.T) {
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)

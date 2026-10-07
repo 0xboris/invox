@@ -22,13 +22,13 @@ cmp stderr want-other.txt
 invoice.yaml
 -- want-increment.txt --
 warning: numbering ignored 1 archived invoice(s) for CUST-001 that do not match numbering.pattern: home/.config/invox/archive/2025/old-format.yaml
-If numbering.pattern changed, set numbering.start (or customers.CUST-001.numbering.start) to continue the sequence.
+If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.CUST-001.numbering.start) to the next number.
 Incremented invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-005
 -- want-new-stdout.txt --
 CUST-001-006.yaml
 -- want-new.txt --
 warning: numbering ignored 1 archived invoice(s) for CUST-001 that do not match numbering.pattern: home/.config/invox/archive/2025/old-format.yaml
-If numbering.pattern changed, set numbering.start (or customers.CUST-001.numbering.start) to continue the sequence.
+If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.CUST-001.numbering.start) to the next number.
 Created CUST-001-006.yaml for CUST-001 (CUST-001-006)
 -- want-other-stdout.txt --
 CUST-002-001.yaml
