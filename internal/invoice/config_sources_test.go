@@ -281,3 +281,44 @@ func TestUpwardSearchComparesHomeIgnoringCaseOnMacOS(t *testing.T) {
 		t.Fatalf("projectDirs(%s) = %q, want %q", start, got, want)
 	}
 }
+
+func TestCopyLegacyFilesNeverReplacesAndIsIdempotent(t *testing.T) {
+	_, in := configDirs(t)
+	invoxDir := filepath.Join(in.XDGConfigHome, "invox")
+	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
+	writeFile(t, filepath.Join(legacyDir, "customers.yaml"), "legacy customers\n")
+	writeFile(t, filepath.Join(legacyDir, "logos", "logo.png"), "png\n")
+	h := NewHost(in)
+
+	missing, err := h.LegacyFilesToCopy()
+	if err != nil {
+		t.Fatalf("LegacyFilesToCopy returned error: %v", err)
+	}
+	if want := []string{"customers.yaml", filepath.Join("logos", "logo.png")}; !reflect.DeepEqual(missing, want) {
+		t.Fatalf("LegacyFilesToCopy() = %q, want %q (config.yaml exists in both)", missing, want)
+	}
+	copied, err := h.CopyLegacyFiles()
+	if err != nil || !reflect.DeepEqual(copied, missing) {
+		t.Fatalf("CopyLegacyFiles() = %q, %v; want %q", copied, err, missing)
+	}
+	for rel, want := range map[string]string{
+		"customers.yaml":                   "legacy customers\n",
+		filepath.Join("logos", "logo.png"): "png\n",
+		"config.yaml":                      archiveConfig(filepath.Join(filepath.Dir(in.XDGConfigHome), "invox-archive")),
+		filepath.Join("..", "invoice-tool", "customers.yaml"): "legacy customers\n",
+	} {
+		got, err := os.ReadFile(filepath.Join(invoxDir, rel))
+		if err != nil || string(got) != want {
+			t.Errorf("%s = %q, %v; want %q", rel, got, err, want)
+		}
+	}
+
+	copied, err = NewHost(in).CopyLegacyFiles()
+	if err != nil || len(copied) != 0 {
+		t.Fatalf("second CopyLegacyFiles() = %q, %v; want nothing copied", copied, err)
+	}
+	issuer, err := NewHost(in).ResolveSupportFile(Customers, t.TempDir())
+	if err != nil || issuer.Source != SourceDefault {
+		t.Fatalf("customers after the copy = %+v, %v; want it from the invox directory", issuer, err)
+	}
+}

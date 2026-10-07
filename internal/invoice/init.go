@@ -3,6 +3,7 @@ package invoice
 import (
 	"embed"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,4 +73,78 @@ func ensureStarterFile(path string, content []byte) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// LegacyFilesToCopy returns the files in the legacy config directory, relative
+// to it, that the config directory does not have yet.
+func (h Host) LegacyFilesToCopy() ([]string, error) {
+	legacyDir := h.LegacyConfigDir()
+	if legacyDir == "" {
+		return nil, nil
+	}
+	var missing []string
+	err := filepath.WalkDir(legacyDir, func(path string, entry fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && path == legacyDir {
+			return filepath.SkipDir
+		}
+		if err != nil || !entry.Type().IsRegular() {
+			return err
+		}
+		rel, err := filepath.Rel(legacyDir, path)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Lstat(filepath.Join(h.ConfigDir(), rel)); errors.Is(err, fs.ErrNotExist) {
+			missing = append(missing, rel)
+		}
+		return nil
+	})
+	return missing, err
+}
+
+// CopyLegacyFiles copies the files LegacyFilesToCopy reports into the config
+// directory and returns them. It never replaces a file, and it leaves the
+// legacy directory as it is, so running it again copies only what is still
+// missing.
+func (h Host) CopyLegacyFiles() ([]string, error) {
+	missing, err := h.LegacyFilesToCopy()
+	if err != nil {
+		return nil, err
+	}
+	copied := make([]string, 0, len(missing))
+	for _, rel := range missing {
+		err := copyNewFile(filepath.Join(h.LegacyConfigDir(), rel), filepath.Join(h.ConfigDir(), rel))
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return copied, err
+		}
+		copied = append(copied, rel)
+	}
+	return copied, nil
+}
+
+// copyNewFile copies source to a dest that must not exist yet.
+func copyNewFile(source, dest string) error {
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(content); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }

@@ -83,9 +83,10 @@ func configPathsSpec() commandSpec {
 
 func initSpec() commandSpec {
 	return commandSpec{
-		Name:    "init",
-		Summary: "Create starter support files in the global config directory.",
-		Usage:   "init",
+		Name:              "init",
+		Summary:           "Create starter support files in the global config directory.",
+		Usage:             "init [--force]",
+		SupportsForceFlag: true,
 		Examples: []string{
 			commandExample("init"),
 		},
