@@ -18,7 +18,7 @@ func run(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	}
 
 	if isHelpToken(args[0]) {
-		printRootHelp(ios.Out)
+		printRootHelp(ios.Out, userHost(e))
 		return nil
 	}
 
@@ -27,7 +27,7 @@ func run(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	}
 
 	if args[0] == "help" {
-		return runHelp(ios, args[1:])
+		return runHelp(ios, e, args[1:])
 	}
 
 	switch args[0] {
@@ -64,20 +64,21 @@ func run(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	}
 }
 
-func runHelp(ios *iostreams.IOStreams, args []string) error {
+func runHelp(ios *iostreams.IOStreams, e env.Env, args []string) error {
+	h := userHost(e)
 	if len(args) == 0 {
-		printRootHelp(ios.Out)
+		printRootHelp(ios.Out, h)
 		return nil
 	}
 
 	if args[0] == "customer" {
 		if len(args) == 1 {
-			printCustomerHelp(ios.Out)
+			printCustomerHelp(ios.Out, h)
 			return nil
 		}
 		if len(args) == 2 && (args[1] == "list" || args[1] == "config") {
 			spec, _ := lookupCommand("customer " + args[1])
-			printCommandHelp(ios.Out, spec)
+			printCommandHelp(ios.Out, h, spec)
 			return nil
 		}
 		return unknownHelpTopic(args)
@@ -105,7 +106,7 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 
 	if args[0] == "customers" {
 		if len(args) == 1 {
-			printCustomersHelp(ios.Out)
+			printCustomersHelp(ios.Out, h)
 			return nil
 		}
 		return unknownHelpTopic(args)
@@ -113,7 +114,7 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 
 	if args[0] == "issuer" {
 		if len(args) == 1 {
-			printIssuerHelp(ios.Out)
+			printIssuerHelp(ios.Out, h)
 			return nil
 		}
 		return unknownHelpTopic(args)
@@ -121,14 +122,14 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 
 	if args[0] == "defaults" || args[0] == "invoice-defaults" || args[0] == "invoice_defaults" {
 		if len(args) == 1 {
-			printDefaultsHelp(ios.Out)
+			printDefaultsHelp(ios.Out, h)
 			return nil
 		}
 		return unknownHelpTopic(args)
 	}
 
 	if len(args) == 1 && args[0] == "environment" {
-		printEnvironmentHelp(ios.Out)
+		printEnvironmentHelp(ios.Out, h)
 		return nil
 	}
 
@@ -145,12 +146,12 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 	if args[0] == "archive" {
 		if len(args) == 1 {
 			spec, _ := lookupCommand("archive")
-			printCommandHelp(ios.Out, spec)
+			printCommandHelp(ios.Out, h, spec)
 			return nil
 		}
 		if len(args) == 2 && (args[1] == "edit" || args[1] == "list") {
 			spec, _ := lookupCommand("archive " + args[1])
-			printCommandHelp(ios.Out, spec)
+			printCommandHelp(ios.Out, h, spec)
 			return nil
 		}
 		return unknownHelpTopic(args)
@@ -160,17 +161,18 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 	if !ok {
 		return unknownHelpTopic(args)
 	}
-	printCommandHelp(ios.Out, spec)
+	printCommandHelp(ios.Out, h, spec)
 	return nil
 }
 
 func runCustomer(ios *iostreams.IOStreams, e env.Env, args []string) error {
+	h := userHost(e)
 	if len(args) == 0 {
-		printCustomerHelp(ios.Out)
+		printCustomerHelp(ios.Out, h)
 		return nil
 	}
 	if len(args) == 1 && wantsHelp(args) {
-		printCustomerHelp(ios.Out)
+		printCustomerHelp(ios.Out, h)
 		return nil
 	}
 

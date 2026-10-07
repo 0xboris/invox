@@ -27,13 +27,13 @@ const (
 
 var numberingTokenPattern = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
 
-func ResolveNumberingSettings() (NumberingSettings, error) {
+func (h Host) ResolveNumberingSettings() (NumberingSettings, error) {
 	settings := NumberingSettings{
 		Pattern: defaultNumberingPattern,
 		Start:   defaultNumberingStart,
 	}
 
-	_, root, err := loadConfigRoot()
+	_, root, err := h.loadConfigRoot()
 	if err != nil || root == nil {
 		return settings, err
 	}
@@ -60,8 +60,8 @@ func ResolveNumberingSettings() (NumberingSettings, error) {
 	return settings, nil
 }
 
-func NextInvoiceNumber(customerID, issueDate string, customer map[string]any, minimumCounter int64) (string, int64, error) {
-	settings, err := ResolveNumberingSettings()
+func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[string]any, minimumCounter int64) (string, int64, error) {
+	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return "", 0, err
 	}
@@ -70,7 +70,7 @@ func NextInvoiceNumber(customerID, issueDate string, customer map[string]any, mi
 		return "", 0, err
 	}
 
-	baseCounter, err := highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
+	baseCounter, err := h.highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
 	if err != nil {
 		return "", 0, err
 	}
@@ -105,8 +105,8 @@ func effectiveNumberingStart(customerID string, customer map[string]any, globalS
 	return start, nil
 }
 
-func CounterFromInvoiceNumber(invoiceNumber, customerID, issueDate string, customer map[string]any) (int64, error) {
-	settings, err := ResolveNumberingSettings()
+func (h Host) CounterFromInvoiceNumber(invoiceNumber, customerID, issueDate string, customer map[string]any) (int64, error) {
+	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return 0, err
 	}
@@ -210,8 +210,8 @@ func validateCustomerCounterSeparator(pattern string) error {
 	return nil
 }
 
-func highestArchivedCounter(pattern, customerID, issueDate string, customer map[string]any) (int64, error) {
-	archiveDir, err := ResolveArchiveDir()
+func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer map[string]any) (int64, error) {
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return 0, err
 	}
@@ -255,8 +255,8 @@ func highestArchivedCounter(pattern, customerID, issueDate string, customer map[
 // (status draft or built) directly inside dirs, so that two drafts created
 // before either is archived do not get the same number. Files that cannot be
 // parsed, are not invoices, or do not match the numbering pattern are ignored.
-func highestDraftCounter(dirs []string, customerID, issueDate string, customer map[string]any) (int64, error) {
-	settings, err := ResolveNumberingSettings()
+func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, customer map[string]any) (int64, error) {
+	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return 0, err
 	}

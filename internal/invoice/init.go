@@ -16,8 +16,8 @@ type InitFileResult struct {
 	Created bool
 }
 
-func InitializeConfigDir() (string, []InitFileResult, error) {
-	configDir := ConfigDir()
+func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
+	configDir := h.ConfigDir()
 	if strings.TrimSpace(configDir) == "" {
 		return "", nil, errors.New("config directory is unavailable")
 	}
@@ -27,20 +27,20 @@ func InitializeConfigDir() (string, []InitFileResult, error) {
 
 	results := make([]InitFileResult, 0, 5)
 
-	created, err := ensureStarterFile(GlobalConfigPath(), []byte(defaultConfigTemplate()))
+	created, err := ensureStarterFile(h.GlobalConfigPath(), []byte(h.defaultConfigTemplate()))
 	if err != nil {
 		return "", nil, err
 	}
-	results = append(results, InitFileResult{Path: GlobalConfigPath(), Created: created})
+	results = append(results, InitFileResult{Path: h.GlobalConfigPath(), Created: created})
 
 	for _, file := range []struct {
 		path string
 		name string
 	}{
-		{path: GlobalCustomersPath(), name: "starter/customers.yaml"},
-		{path: GlobalIssuerPath(), name: "starter/issuer.yaml"},
-		{path: GlobalInvoiceDefaultsPath(), name: "starter/invoice_defaults.yaml"},
-		{path: GlobalTemplatePath(), name: "starter/template.tex"},
+		{path: h.GlobalCustomersPath(), name: "starter/customers.yaml"},
+		{path: h.GlobalIssuerPath(), name: "starter/issuer.yaml"},
+		{path: h.GlobalInvoiceDefaultsPath(), name: "starter/invoice_defaults.yaml"},
+		{path: h.GlobalTemplatePath(), name: "starter/template.tex"},
 	} {
 		content, err := starterFiles.ReadFile(file.name)
 		if err != nil {

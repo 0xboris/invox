@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -307,47 +306,36 @@ func DiscoverBaseDir(start string) string {
 	return start
 }
 
-func ConfigDir() string {
-	baseDir := configHomeBaseDir()
+func (h Host) ConfigDir() string {
+	baseDir := h.configBase
 	if baseDir == "" {
 		return ""
 	}
 	return filepath.Join(baseDir, configDirName)
 }
 
-func configHomeBaseDir() string {
-	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
-		return xdg
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
-		return ""
-	}
-	return filepath.Join(home, ".config")
-}
-
-func legacyConfigDir() string {
-	baseDir := configHomeBaseDir()
+func (h Host) legacyConfigDir() string {
+	baseDir := h.configBase
 	if baseDir == "" {
 		return ""
 	}
 	return filepath.Join(baseDir, legacyConfigDirName)
 }
 
-func configSearchDirs() []string {
+func (h Host) configSearchDirs() []string {
 	dirs := make([]string, 0, 2)
-	if configDir := ConfigDir(); configDir != "" {
+	if configDir := h.ConfigDir(); configDir != "" {
 		dirs = append(dirs, configDir)
 	}
-	if legacyDir := legacyConfigDir(); legacyDir != "" && legacyDir != ConfigDir() {
+	if legacyDir := h.legacyConfigDir(); legacyDir != "" && legacyDir != h.ConfigDir() {
 		dirs = append(dirs, legacyDir)
 	}
 	return dirs
 }
 
-func configSearchPaths(names ...string) []string {
-	paths := make([]string, 0, len(configSearchDirs())*len(names))
-	for _, dir := range configSearchDirs() {
+func (h Host) configSearchPaths(names ...string) []string {
+	paths := make([]string, 0, len(h.configSearchDirs())*len(names))
+	for _, dir := range h.configSearchDirs() {
 		for _, name := range names {
 			paths = append(paths, filepath.Join(dir, name))
 		}
@@ -355,52 +343,52 @@ func configSearchPaths(names ...string) []string {
 	return paths
 }
 
-func GlobalCustomersPath() string {
-	return filepath.Join(ConfigDir(), "customers.yaml")
+func (h Host) GlobalCustomersPath() string {
+	return filepath.Join(h.ConfigDir(), "customers.yaml")
 }
 
-func GlobalIssuerPath() string {
-	return filepath.Join(ConfigDir(), "issuer.yaml")
+func (h Host) GlobalIssuerPath() string {
+	return filepath.Join(h.ConfigDir(), "issuer.yaml")
 }
 
-func GlobalTemplatePath() string {
-	return filepath.Join(ConfigDir(), "template.tex")
+func (h Host) GlobalTemplatePath() string {
+	return filepath.Join(h.ConfigDir(), "template.tex")
 }
 
-func GlobalConfigPath() string {
-	return filepath.Join(ConfigDir(), "config.yaml")
+func (h Host) GlobalConfigPath() string {
+	return filepath.Join(h.ConfigDir(), "config.yaml")
 }
 
-func LegacyConfigPath() string {
-	return filepath.Join(legacyConfigDir(), "config.yaml")
+func (h Host) LegacyConfigPath() string {
+	return filepath.Join(h.legacyConfigDir(), "config.yaml")
 }
 
-func ResolveConfigPath() string {
-	return firstExistingPath(configSearchPaths("config.yaml")...)
+func (h Host) ResolveConfigPath() string {
+	return firstExistingPath(h.configSearchPaths("config.yaml")...)
 }
 
-func EditableConfigPath() (string, error) {
-	if path := ResolveConfigPath(); path != "" {
-		if err := ensureConfigTemplate(path); err != nil {
+func (h Host) EditableConfigPath() (string, error) {
+	if path := h.ResolveConfigPath(); path != "" {
+		if err := h.ensureConfigTemplate(path); err != nil {
 			return "", err
 		}
 		return path, nil
 	}
 
-	path := GlobalConfigPath()
+	path := h.GlobalConfigPath()
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("config directory is unavailable")
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	if err := ensureConfigTemplate(path); err != nil {
+	if err := h.ensureConfigTemplate(path); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
-func ensureConfigTemplate(path string) error {
+func (h Host) ensureConfigTemplate(path string) error {
 	info, err := os.Stat(path)
 	switch {
 	case err == nil && info.Size() > 0:
@@ -409,11 +397,11 @@ func ensureConfigTemplate(path string) error {
 		return err
 	}
 
-	return os.WriteFile(path, []byte(defaultConfigTemplate()), 0o644)
+	return os.WriteFile(path, []byte(h.defaultConfigTemplate()), 0o644)
 }
 
-func defaultConfigTemplate() string {
-	defaultArchiveDir := configTemplatePath(DefaultArchiveDir())
+func (h Host) defaultConfigTemplate() string {
+	defaultArchiveDir := h.configTemplatePath(h.DefaultArchiveDir())
 	if strings.TrimSpace(defaultArchiveDir) == "" {
 		defaultArchiveDir = "invoices"
 	}
@@ -489,65 +477,64 @@ func defaultConfigTemplate() string {
 `, defaultArchiveDir), "\n")
 }
 
-func ConfigTemplate() string {
-	return defaultConfigTemplate()
+func (h Host) ConfigTemplate() string {
+	return h.defaultConfigTemplate()
 }
 
-func configTemplatePath(path string) string {
+func (h Host) configTemplatePath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
 	}
 
-	home, err := os.UserHomeDir()
-	if err == nil && strings.TrimSpace(home) != "" {
-		if path == home {
+	if strings.TrimSpace(h.home) != "" {
+		if path == h.home {
 			path = "~"
-		} else if strings.HasPrefix(path, home+string(os.PathSeparator)) {
-			path = "~" + string(os.PathSeparator) + strings.TrimPrefix(path, home+string(os.PathSeparator))
+		} else if strings.HasPrefix(path, h.home+string(os.PathSeparator)) {
+			path = "~" + string(os.PathSeparator) + strings.TrimPrefix(path, h.home+string(os.PathSeparator))
 		}
 	}
 
 	return filepath.ToSlash(path)
 }
 
-func DefaultArchiveDir() string {
-	baseDir := archiveDataBaseDir()
+func (h Host) DefaultArchiveDir() string {
+	baseDir := h.dataBase
 	if baseDir == "" {
 		return ""
 	}
 	return filepath.Join(baseDir, configDirName, "invoices")
 }
 
-func ResolveArchiveDir() (string, error) {
-	path, err := resolveConfiguredPath("archive", "dir")
+func (h Host) ResolveArchiveDir() (string, error) {
+	path, err := h.resolveConfiguredPath("archive", "dir")
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(path) == "" {
-		return DefaultArchiveDir(), nil
+		return h.DefaultArchiveDir(), nil
 	}
 	return path, nil
 }
 
-func ResolveDefaultCustomersPath(start string) (string, error) {
-	return resolveDefaultPath(start, "customers", []string{"customers.yaml"}, []string{"customers.yaml"})
+func (h Host) ResolveDefaultCustomersPath(start string) (string, error) {
+	return h.resolveDefaultPath(start, "customers", []string{"customers.yaml"}, []string{"customers.yaml"})
 }
 
-func ResolveDefaultIssuerPath(start string) (string, error) {
-	return resolveDefaultPath(start, "issuer", []string{"issuer.yaml"}, []string{"issuer.yaml"})
+func (h Host) ResolveDefaultIssuerPath(start string) (string, error) {
+	return h.resolveDefaultPath(start, "issuer", []string{"issuer.yaml"}, []string{"issuer.yaml"})
 }
 
-func ResolveDefaultTemplatePath(start string) (string, error) {
-	return resolveDefaultPath(start, "template", []string{"invoice_template.tex", "template.tex"}, []string{"template.tex", "invoice_template.tex"})
+func (h Host) ResolveDefaultTemplatePath(start string) (string, error) {
+	return h.resolveDefaultPath(start, "template", []string{"invoice_template.tex", "template.tex"}, []string{"template.tex", "invoice_template.tex"})
 }
 
-func resolveDefaultPath(start, configKey string, localNames, globalNames []string) (string, error) {
+func (h Host) resolveDefaultPath(start, configKey string, localNames, globalNames []string) (string, error) {
 	if path := findUpward(start, localNames...); path != "" {
 		return path, nil
 	}
 
-	path, err := resolveConfiguredPath("paths", configKey)
+	path, err := h.resolveConfiguredPath("paths", configKey)
 	if err != nil {
 		return "", err
 	}
@@ -555,11 +542,11 @@ func resolveDefaultPath(start, configKey string, localNames, globalNames []strin
 		return path, nil
 	}
 
-	return firstExistingPath(configSearchPaths(globalNames...)...), nil
+	return firstExistingPath(h.configSearchPaths(globalNames...)...), nil
 }
 
-func resolveConfiguredPath(section, key string) (string, error) {
-	configPath, root, err := loadConfigRoot()
+func (h Host) resolveConfiguredPath(section, key string) (string, error) {
+	configPath, root, err := h.loadConfigRoot()
 	if err != nil || strings.TrimSpace(configPath) == "" {
 		return "", err
 	}
@@ -574,11 +561,11 @@ func resolveConfiguredPath(section, key string) (string, error) {
 		return "", nil
 	}
 
-	return normalizeConfiguredPath(configPath, rawPath)
+	return h.normalizeConfiguredPath(configPath, rawPath)
 }
 
-func resolveConfiguredString(section, key string) (string, error) {
-	configPath, root, err := loadConfigRoot()
+func (h Host) resolveConfiguredString(section, key string) (string, error) {
+	configPath, root, err := h.loadConfigRoot()
 	if err != nil || strings.TrimSpace(configPath) == "" {
 		return "", err
 	}
@@ -600,8 +587,8 @@ func resolveConfiguredString(section, key string) (string, error) {
 	return strings.TrimSpace(value), nil
 }
 
-func loadConfigRoot() (string, map[string]any, error) {
-	configPath := ResolveConfigPath()
+func (h Host) loadConfigRoot() (string, map[string]any, error) {
+	configPath := h.ResolveConfigPath()
 	if configPath == "" {
 		return "", nil, nil
 	}
@@ -892,7 +879,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}, nil
 }
 
-func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
+func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		return err
@@ -924,7 +911,7 @@ func RenderInvoice(templatePath, outputPath string, ctx *Context) error {
 	if err := os.WriteFile(outputPath, []byte(rendered), 0o644); err != nil {
 		return err
 	}
-	return copyTemplateAssets(templatePath, outputPath, rendered)
+	return h.copyTemplateAssets(templatePath, outputPath, rendered)
 }
 
 // ProcessIO holds the streams a child process such as tectonic runs with.
@@ -948,7 +935,7 @@ func BuildPDF(outputPath string, processIO ProcessIO) error {
 	return cmd.Run()
 }
 
-func BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO ProcessIO) error {
+func (h Host) BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO ProcessIO) error {
 	tempDir, err := os.MkdirTemp("", tempBuildDirPrefix)
 	if err != nil {
 		return err
@@ -959,7 +946,7 @@ func BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO Pr
 		tempDir,
 		strings.TrimSuffix(filepath.Base(outputPath), filepath.Ext(outputPath))+".tex",
 	)
-	if err := RenderInvoice(templatePath, renderPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, renderPath, ctx); err != nil {
 		return err
 	}
 	if err := BuildPDF(renderPath, processIO); err != nil {
@@ -1029,58 +1016,28 @@ func DisplayPath(path, baseDir string) string {
 	return path
 }
 
-func archiveDataBaseDir() string {
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil || strings.TrimSpace(home) == "" {
-			return ""
-		}
-		return filepath.Join(home, "Library", "Application Support")
-	case "windows":
-		if appData := strings.TrimSpace(os.Getenv("APPDATA")); appData != "" {
-			return appData
-		}
-		home, err := os.UserHomeDir()
-		if err != nil || strings.TrimSpace(home) == "" {
-			return ""
-		}
-		return filepath.Join(home, "AppData", "Roaming")
-	default:
-		if xdg := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdg != "" {
-			return xdg
-		}
-		home, err := os.UserHomeDir()
-		if err != nil || strings.TrimSpace(home) == "" {
-			return ""
-		}
-		return filepath.Join(home, ".local", "share")
-	}
-}
-
-func normalizeConfiguredPath(configPath, path string) (string, error) {
-	resolved := expandHomePath(path)
+func (h Host) normalizeConfiguredPath(configPath, path string) (string, error) {
+	resolved := h.expandHomePath(path)
 	if !filepath.IsAbs(resolved) {
 		resolved = filepath.Join(filepath.Dir(configPath), resolved)
 	}
 	return filepath.Abs(resolved)
 }
 
-func expandHomePath(path string) string {
+func (h Host) expandHomePath(path string) string {
 	if path == "~" {
-		if home, err := os.UserHomeDir(); err == nil {
-			return home
+		if h.home != "" {
+			return h.home
 		}
 		return path
 	}
 	if !strings.HasPrefix(path, "~/") {
 		return path
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || strings.TrimSpace(home) == "" {
+	if strings.TrimSpace(h.home) == "" {
 		return path
 	}
-	return filepath.Join(home, path[2:])
+	return filepath.Join(h.home, path[2:])
 }
 
 func PDFPathForOutput(outputPath string) string {
@@ -1961,7 +1918,7 @@ func asString(value any) string {
 	}
 }
 
-func copyTemplateAssets(templatePath, outputPath, rendered string) error {
+func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) error {
 	templateDir := filepath.Dir(templatePath)
 	outputDir := filepath.Dir(outputPath)
 	if templateDir == outputDir {
@@ -1969,7 +1926,7 @@ func copyTemplateAssets(templatePath, outputPath, rendered string) error {
 	}
 
 	for _, relDir := range referencedAssetDirs(rendered) {
-		sourceDir := findAssetDir(templatePath, relDir)
+		sourceDir := h.findAssetDir(templatePath, relDir)
 		if sourceDir == "" {
 			continue
 		}
@@ -1980,7 +1937,7 @@ func copyTemplateAssets(templatePath, outputPath, rendered string) error {
 	}
 
 	for _, relFile := range referencedAssetFiles(rendered) {
-		sourceFile := findAssetFile(templatePath, relFile)
+		sourceFile := h.findAssetFile(templatePath, relFile)
 		if sourceFile == "" {
 			continue
 		}
@@ -1996,8 +1953,8 @@ func copyTemplateAssets(templatePath, outputPath, rendered string) error {
 	return nil
 }
 
-func findAssetDir(templatePath, relPath string) string {
-	for _, baseDir := range assetSearchDirs(templatePath) {
+func (h Host) findAssetDir(templatePath, relPath string) string {
+	for _, baseDir := range h.assetSearchDirs(templatePath) {
 		candidate := filepath.Join(baseDir, relPath)
 		info, err := os.Stat(candidate)
 		if err == nil && info.IsDir() {
@@ -2007,8 +1964,8 @@ func findAssetDir(templatePath, relPath string) string {
 	return ""
 }
 
-func findAssetFile(templatePath, relPath string) string {
-	for _, baseDir := range assetSearchDirs(templatePath) {
+func (h Host) findAssetFile(templatePath, relPath string) string {
+	for _, baseDir := range h.assetSearchDirs(templatePath) {
 		candidate := filepath.Join(baseDir, relPath)
 		if fileExists(candidate) {
 			return candidate
@@ -2017,9 +1974,9 @@ func findAssetFile(templatePath, relPath string) string {
 	return ""
 }
 
-func assetSearchDirs(templatePath string) []string {
+func (h Host) assetSearchDirs(templatePath string) []string {
 	dirs := []string{filepath.Dir(templatePath)}
-	for _, configDir := range configSearchDirs() {
+	for _, configDir := range h.configSearchDirs() {
 		if configDir != "" && configDir != dirs[0] {
 			dirs = append(dirs, configDir)
 		}

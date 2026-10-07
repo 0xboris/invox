@@ -11,7 +11,9 @@ import (
 )
 
 func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
+	t.Parallel()
+
+	h := testHost(filepath.Join(t.TempDir(), "config-home"), filepath.Join(t.TempDir(), "home"))
 
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
@@ -31,7 +33,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	_, err = CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	_, err = h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("CreateInvoiceEmailDraft error = %v, want fs.ErrExist", err)
 	}
@@ -43,7 +45,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
 
-	if _, err := CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, true, "", ""); err != nil {
+	if _, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, true, "", ""); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft with overwrite returned error: %v", err)
 	}
 	content, err = os.ReadFile(outputPath)

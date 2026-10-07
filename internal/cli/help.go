@@ -358,7 +358,7 @@ func printInvoiceDefaultsYAMLExample(w io.Writer) {
 	fmt.Fprint(w, invoiceDefaultsYAMLExample)
 }
 
-func printRootHelp(w io.Writer) {
+func printRootHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "%s generates LaTeX and PDF invoices from YAML data.\n\n", commandName)
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s <subcommand> [options]\n", commandName)
@@ -402,10 +402,10 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -u, --issuer PATH       Path to issuer.yaml\n")
 	fmt.Fprintf(w, "  -t, --template PATH     Path to invoice_template.tex (render/build)\n\n")
 	fmt.Fprintf(w, "Defaults:\n")
-	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n", invoice.GlobalCustomersPath())
-	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", invoice.GlobalIssuerPath())
-	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", invoice.GlobalInvoiceDefaultsPath())
-	fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
+	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n", h.GlobalCustomersPath())
+	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", h.GlobalIssuerPath())
+	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", h.GlobalInvoiceDefaultsPath())
+	fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", h.GlobalTemplatePath())
 	fmt.Fprintf(w, "  new output: ./<invoice.number>.yaml\n")
 	fmt.Fprintf(w, "  render output: ./invoice.tex\n")
 	fmt.Fprintf(w, "  email draft path: temporary <input name>.eml, removed shortly after it is opened\n")
@@ -438,7 +438,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", commandExample("archive list"))
 }
 
-func printCustomerHelp(w io.Writer) {
+func printCustomerHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Customer-related commands.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s customer <subcommand> [options]\n", commandName)
@@ -451,7 +451,7 @@ func printCustomerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  -h, --help              Show this help page\n")
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n\n")
 	fmt.Fprintf(w, "Default lookup:\n")
-	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", invoice.GlobalCustomersPath())
+	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", h.GlobalCustomersPath())
 	fmt.Fprintf(w, "Documentation:\n")
 	fmt.Fprintf(w, "  Run `%s help customers` for the customers.yaml schema reference.\n\n", commandName)
 	printCustomerFieldReference(w)
@@ -464,7 +464,7 @@ func printCustomerHelp(w io.Writer) {
 	printCustomerYAMLExample(w)
 }
 
-func printCustomersHelp(w io.Writer) {
+func printCustomersHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "customers.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help customers\n\n", commandName)
@@ -481,7 +481,7 @@ func printCustomersHelp(w io.Writer) {
 	fmt.Fprintf(w, "  billing.currency defaults to EUR.\n")
 	fmt.Fprintf(w, "  numbering.code feeds {customer_code}; numbering.start overrides config.numbering.start for one customer.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", invoice.GlobalCustomersPath())
+	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", h.GlobalCustomersPath())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help customers"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
@@ -489,7 +489,7 @@ func printCustomersHelp(w io.Writer) {
 	printCustomerYAMLExample(w)
 }
 
-func printIssuerHelp(w io.Writer) {
+func printIssuerHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "issuer.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help issuer\n\n", commandName)
@@ -507,14 +507,14 @@ func printIssuerHelp(w io.Writer) {
 	fmt.Fprintf(w, "  payment.epc_qr.label defaults to Pay via EPC-QR.\n")
 	fmt.Fprintf(w, "  EPC QR generation requires a valid SEPA-scope payment.iban.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n\n", invoice.GlobalIssuerPath())
+	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n\n", h.GlobalIssuerPath())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help issuer"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -u issuer.yaml"))
 	printIssuerYAMLExample(w)
 }
 
-func printDefaultsHelp(w io.Writer) {
+func printDefaultsHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "invoice_defaults.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help defaults\n", commandName)
@@ -532,7 +532,7 @@ func printDefaultsHelp(w io.Writer) {
 	fmt.Fprintf(w, "  The final invoice used by validate/render/build/email still needs a non-empty positions list.\n")
 	fmt.Fprintf(w, "  Canonical keys are positions, invoice.period, and invoice.vat_percent.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", invoice.GlobalInvoiceDefaultsPath())
+	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", h.GlobalInvoiceDefaultsPath())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help defaults"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -s invoice_defaults.yaml"))
@@ -634,13 +634,13 @@ func printTemplatePlaceholderReference(w io.Writer) {
 	fmt.Fprintf(w, "\n")
 }
 
-func printCommandHelp(w io.Writer, spec commandSpec) {
+func printCommandHelp(w io.Writer, h invoice.Host, spec commandSpec) {
 	if spec.Name == "config" {
-		printConfigHelp(w)
+		printConfigHelp(w, h)
 		return
 	}
 	if spec.Name == "init" {
-		printInitHelp(w)
+		printInitHelp(w, h)
 		return
 	}
 
@@ -709,11 +709,11 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 	}
 	fmt.Fprintf(w, "\nDefault lookup:\n")
 	if spec.NeedsCustomers {
-		fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n", invoice.GlobalCustomersPath())
+		fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n", h.GlobalCustomersPath())
 		fmt.Fprintf(w, "  schema/docs: run `%s help customers`\n", commandName)
 	}
 	if spec.NeedsIssuer {
-		fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", invoice.GlobalIssuerPath())
+		fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n", h.GlobalIssuerPath())
 		fmt.Fprintf(w, "  schema/docs: run `%s help issuer`\n", commandName)
 	}
 	if spec.NeedsPDF {
@@ -724,14 +724,14 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		}
 	}
 	if spec.NeedsDefaults {
-		fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", invoice.GlobalInvoiceDefaultsPath())
+		fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n", h.GlobalInvoiceDefaultsPath())
 		fmt.Fprintf(w, "  schema/docs: run `%s help defaults`\n", commandName)
 	}
 	if spec.NeedsTemplate {
-		fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
+		fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", h.GlobalTemplatePath())
 	}
 	if spec.Name == "archive" || spec.Name == "archive edit" || spec.Name == "archive list" || spec.SupportsFromLastFlag {
-		fmt.Fprintf(w, "  archive.dir: config.yaml, then %s\n", invoice.DefaultArchiveDir())
+		fmt.Fprintf(w, "  archive.dir: config.yaml, then %s\n", h.DefaultArchiveDir())
 	}
 	if spec.Name == "customer config" {
 		fmt.Fprintf(w, "\n")
@@ -800,7 +800,7 @@ func defaultOutputDescription(spec commandSpec) string {
 	return spec.DefaultOutput + " in the current directory"
 }
 
-func printConfigHelp(w io.Writer) {
+func printConfigHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Open config.yaml in the default shell editor.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s config\n", commandName)
@@ -810,8 +810,8 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "  If config.yaml does not exist yet, creates it from the template below.\n")
 	fmt.Fprintf(w, "  Existing config.yaml files are left unchanged.\n\n")
 	fmt.Fprintf(w, "Config paths:\n")
-	fmt.Fprintf(w, "  preferred: %s\n", invoice.GlobalConfigPath())
-	fmt.Fprintf(w, "  legacy fallback: %s\n\n", invoice.LegacyConfigPath())
+	fmt.Fprintf(w, "  preferred: %s\n", h.GlobalConfigPath())
+	fmt.Fprintf(w, "  legacy fallback: %s\n\n", h.LegacyConfigPath())
 	fmt.Fprintf(w, "Formatting:\n")
 	fmt.Fprintf(w, "  Top-level keys must start at column 1 with no leading spaces.\n\n")
 	fmt.Fprintf(w, "Supported settings:\n")
@@ -847,15 +847,15 @@ func printConfigHelp(w io.Writer) {
 	fmt.Fprintf(w, "  1. explicit CLI flag\n")
 	fmt.Fprintf(w, "  2. upward project search\n")
 	fmt.Fprintf(w, "  3. paths.* in config.yaml\n")
-	fmt.Fprintf(w, "  4. conventional files in %s\n\n", invoice.ConfigDir())
+	fmt.Fprintf(w, "  4. conventional files in %s\n\n", h.ConfigDir())
 	fmt.Fprintf(w, "Template:\n")
-	fmt.Fprint(w, invoice.ConfigTemplate())
+	fmt.Fprint(w, h.ConfigTemplate())
 	fmt.Fprintf(w, "\nExamples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
 	fmt.Fprintf(w, "  %s\n", commandExample("help config"))
 }
 
-func printInitHelp(w io.Writer) {
+func printInitHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Create starter support files in the global config directory.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s init\n", commandName)
@@ -866,7 +866,7 @@ func printInitHelp(w io.Writer) {
 	fmt.Fprintf(w, "  invoice_defaults.yaml, and template.tex.\n")
 	fmt.Fprintf(w, "  Existing non-empty files are left unchanged.\n\n")
 	fmt.Fprintf(w, "Config directory:\n")
-	fmt.Fprintf(w, "  %s\n\n", invoice.ConfigDir())
+	fmt.Fprintf(w, "  %s\n\n", h.ConfigDir())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("init"))
 }

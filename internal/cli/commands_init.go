@@ -10,6 +10,7 @@ import (
 )
 
 func runInit(ios *iostreams.IOStreams, e env.Env, args []string) error {
+	h := userHost(e)
 	spec := initSpec()
 
 	_, _, err := parseCommand(ios, e, spec, args)
@@ -17,7 +18,7 @@ func runInit(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	configDir, results, err := invoice.InitializeConfigDir()
+	configDir, results, err := h.InitializeConfigDir()
 	if err != nil {
 		return err
 	}

@@ -33,9 +33,9 @@ func confirm(ios *iostreams.IOStreams, question string) bool {
 // archived files, asks first unless --yes was passed. errorPrefix starts
 // the messages it reports. It returns a *cmdutil.FlagError when there is no
 // terminal to ask on, and cmdutil.CancelError when the user declines.
-func archiveWithConfirmation(ios *iostreams.IOStreams, e env.Env, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
+func archiveWithConfirmation(ios *iostreams.IOStreams, e env.Env, h invoice.Host, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
 	archiveOpts := invoice.ArchiveOptions{Replace: opts.AssumeYes}
-	result, err := invoice.ArchiveInvoice(e.Now(), opts.InvoicePath, archiveOpts)
+	result, err := h.ArchiveInvoice(e.Now(), opts.InvoicePath, archiveOpts)
 	var replaceErr *invoice.ArchiveReplaceError
 	if !errors.As(err, &replaceErr) {
 		return result, err
@@ -66,7 +66,7 @@ func archiveWithConfirmation(ios *iostreams.IOStreams, e env.Env, spec commandSp
 	}
 
 	archiveOpts.Replace = true
-	return invoice.ArchiveInvoice(e.Now(), opts.InvoicePath, archiveOpts)
+	return h.ArchiveInvoice(e.Now(), opts.InvoicePath, archiveOpts)
 }
 
 // printArchiveReplacements tells the user on stderr which archived files were

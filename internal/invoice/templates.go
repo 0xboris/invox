@@ -14,8 +14,8 @@ type TemplateSummary struct {
 	Path string
 }
 
-func ListTemplates() ([]TemplateSummary, error) {
-	templateDir, err := TemplateCatalogDir()
+func (h Host) ListTemplates() ([]TemplateSummary, error) {
+	templateDir, err := h.TemplateCatalogDir()
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func ListTemplates() ([]TemplateSummary, error) {
 	return templates, nil
 }
 
-func ResolveTemplateReference(start, reference string) (string, error) {
+func (h Host) ResolveTemplateReference(start, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
 		return "", nil
@@ -64,10 +64,10 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 	}
 
 	if looksLikeTemplatePath(reference) {
-		return resolveTemplatePath(startDir, reference)
+		return h.resolveTemplatePath(startDir, reference)
 	}
 
-	templates, err := ListTemplates()
+	templates, err := h.ListTemplates()
 	if err != nil {
 		return "", err
 	}
@@ -91,8 +91,8 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 
 // TemplateCatalogDir returns the directory template list reads: the
 // directory of the configured, project or global template.
-func TemplateCatalogDir() (string, error) {
-	configuredTemplatePath, err := resolveConfiguredPath("paths", "template")
+func (h Host) TemplateCatalogDir() (string, error) {
+	configuredTemplatePath, err := h.resolveConfiguredPath("paths", "template")
 	if err != nil {
 		return "", err
 	}
@@ -100,12 +100,12 @@ func TemplateCatalogDir() (string, error) {
 		return filepath.Dir(configuredTemplatePath), nil
 	}
 
-	defaultTemplatePath := firstExistingPath(configSearchPaths("template.tex", "invoice_template.tex")...)
+	defaultTemplatePath := firstExistingPath(h.configSearchPaths("template.tex", "invoice_template.tex")...)
 	if strings.TrimSpace(defaultTemplatePath) != "" {
 		return filepath.Dir(defaultTemplatePath), nil
 	}
 
-	globalTemplatePath := GlobalTemplatePath()
+	globalTemplatePath := h.GlobalTemplatePath()
 	if strings.TrimSpace(globalTemplatePath) == "" {
 		return "", errors.New("template file not found; set paths.template in config.yaml")
 	}
@@ -113,10 +113,6 @@ func TemplateCatalogDir() (string, error) {
 }
 
 func templateBaseDir(start string) (string, error) {
-	if strings.TrimSpace(start) == "" {
-		return os.Getwd()
-	}
-
 	resolved, err := filepath.Abs(start)
 	if err != nil {
 		return "", err
@@ -145,8 +141,8 @@ func looksLikeTemplatePath(reference string) bool {
 		strings.Contains(reference, `\`)
 }
 
-func resolveTemplatePath(startDir, reference string) (string, error) {
-	resolved := expandHomePath(reference)
+func (h Host) resolveTemplatePath(startDir, reference string) (string, error) {
+	resolved := h.expandHomePath(reference)
 	if !filepath.IsAbs(resolved) {
 		resolved = filepath.Join(startDir, resolved)
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -31,6 +30,7 @@ func runTemplate(ios *iostreams.IOStreams, e env.Env, args []string) error {
 }
 
 func runTemplateList(ios *iostreams.IOStreams, e env.Env, args []string) error {
+	h := userHost(e)
 	if wantsHelp(args) {
 		printTemplateListHelp(ios.Out)
 		return nil
@@ -50,11 +50,11 @@ func runTemplateList(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
 
-	templates, err := invoice.ListTemplates()
+	templates, err := h.ListTemplates()
 	if err != nil {
 		return err
 	}
-	templateDir, err := invoice.TemplateCatalogDir()
+	templateDir, err := h.TemplateCatalogDir()
 	if err != nil {
 		return err
 	}

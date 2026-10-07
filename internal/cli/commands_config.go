@@ -12,17 +12,18 @@ import (
 )
 
 func runConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
+	h := userHost(e)
 	spec := configSpec()
 
 	if wantsHelp(args) {
-		printConfigHelp(ios.Out)
+		printConfigHelp(ios.Out, h)
 		return nil
 	}
 	if len(args) > 0 {
 		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(args, " "))
 	}
 
-	configPath, err := invoice.EditableConfigPath()
+	configPath, err := h.EditableConfigPath()
 	if err != nil {
 		return err
 	}

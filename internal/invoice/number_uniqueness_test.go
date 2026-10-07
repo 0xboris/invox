@@ -10,14 +10,16 @@ import (
 )
 
 func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	archivedPath := writeArchivedInvoiceMarkdown(t, archiveDir, "first.md", "CUST-001-001")
 
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
+	_, err := h.ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -35,13 +37,15 @@ func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
 }
 
 func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
 	secondPath := filepath.Join(archiveDir, "second.yaml")
 	writeStatusInvoice(t, secondPath, "CUST-001-002", "archived")
 
-	workingCopy, _, err := EditArchivedInvoice("first.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir())
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -49,7 +53,7 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 
-	_, err = ArchiveInvoice(time.Now(), workingCopy, ArchiveOptions{})
+	_, err = h.ArchiveInvoice(time.Now(), workingCopy, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -67,35 +71,39 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 }
 
 func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
 
-	workingCopy, _, err := EditArchivedInvoice("first.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir())
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	if err := CheckArchivedNumberUnique(workingCopy); err != nil {
+	if err := h.CheckArchivedNumberUnique(workingCopy); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(working copy) = %v, want nil", err)
 	}
-	if err := CheckArchivedNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
+	if err := h.CheckArchivedNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(archived file) = %v, want nil", err)
 	}
 }
 
 func TestArchiveInvoiceChecksSymlinkedArchiveDir(t *testing.T) {
+	t.Parallel()
+
 	realArchiveDir := t.TempDir()
 	writeStatusInvoice(t, filepath.Join(realArchiveDir, "first.yaml"), "CUST-001-001", "archived")
 	archiveDir := filepath.Join(t.TempDir(), "archive-link")
 	if err := os.Symlink(realArchiveDir, archiveDir); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
+	_, err := h.ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
