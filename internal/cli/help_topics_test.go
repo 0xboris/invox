@@ -188,6 +188,11 @@ func TestEnvKeysReadFindsEveryForm(t *testing.T) {
 			want: []string{"K", "K2"},
 		},
 		{
+			name: "unexported getenv field, as in the editor adapter",
+			src:  "type Editor struct{ getenv func(string) string }\n\nfunc (e *Editor) f() string { return e.getenv(\"VISUAL\") }\n",
+			want: []string{"VISUAL"},
+		},
+		{
 			name: "Env value with computed key",
 			src:  "type Env struct{ Getenv func(string) string }\n\nfunc f(e Env, name string) string { return e.Getenv(name) }\n",
 			want: []string{"<non-constant key name>"},
@@ -221,7 +226,8 @@ func TestEnvKeysReadFindsEveryForm(t *testing.T) {
 // envKeysRead maps each environment variable read in one package's files to
 // the positions that read it. A read is a call X.Getenv(key) or
 // X.LookupEnv(key) where X is os or a value such as an env.Env
-// (e.Getenv, f.Env.Getenv), but not another imported package such as syscall.
+// (e.Getenv, f.Env.Getenv, or an adapter's getenv field), but not another
+// imported package such as syscall.
 // A key that is neither a string literal nor a package-level string constant
 // is reported as "<non-constant key EXPR>", so it can't slip past the check.
 func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
@@ -267,7 +273,7 @@ func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
 				return true
 			}
 			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (selector.Sel.Name != "Getenv" && selector.Sel.Name != "LookupEnv") {
+			if !ok || (selector.Sel.Name != "Getenv" && selector.Sel.Name != "getenv" && selector.Sel.Name != "LookupEnv") {
 				return true
 			}
 			switch x := selector.X.(type) {
