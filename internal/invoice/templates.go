@@ -15,7 +15,7 @@ type TemplateSummary struct {
 }
 
 func ListTemplates(start string) ([]TemplateSummary, error) {
-	templateDir, err := catalogTemplateDir()
+	templateDir, err := TemplateCatalogDir()
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 		return resolveTemplatePath(startDir, reference)
 	}
 
-	templateDir, err := catalogTemplateDir()
+	templateDir, err := TemplateCatalogDir()
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +106,9 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 	}
 }
 
-func catalogTemplateDir() (string, error) {
+// TemplateCatalogDir returns the directory template list reads: the
+// directory of the configured, project or global template.
+func TemplateCatalogDir() (string, error) {
 	configuredTemplatePath, err := resolveConfiguredPath("paths", "template")
 	if err != nil {
 		return "", err

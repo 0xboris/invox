@@ -126,6 +126,16 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 		return unknownHelpTopic(args)
 	}
 
+	if len(args) == 1 && args[0] == "environment" {
+		printEnvironmentHelp(ios.Out)
+		return nil
+	}
+
+	if len(args) == 1 && args[0] == "exit-codes" {
+		printExitCodesHelp(ios.Out)
+		return nil
+	}
+
 	if args[0] == "version" && len(args) == 1 {
 		printVersionHelp(ios.Out)
 		return nil
