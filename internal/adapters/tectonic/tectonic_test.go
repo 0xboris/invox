@@ -39,6 +39,9 @@ func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 	if want := []string{"invoice.tex"}; !slices.Equal(got.Args, want) {
 		t.Fatalf("Args = %q, want %q", got.Args, want)
 	}
+	if got.Stdin != ios.In || got.Stdout != ios.ErrOut || got.Stderr != ios.ErrOut {
+		t.Fatalf("streams = (%v, %v, %v), want ios.In, ios.ErrOut, ios.ErrOut themselves", got.Stdin, got.Stdout, got.Stderr)
+	}
 	if string(input) != "answer\n" {
 		t.Fatalf("stdin = %q, want %q", input, "answer\n")
 	}

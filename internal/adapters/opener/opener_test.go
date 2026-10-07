@@ -40,6 +40,9 @@ func TestOpenRunsTheOSOpener(t *testing.T) {
 			if !slices.Equal(got.Args, tc.args) {
 				t.Fatalf("Args = %q, want %q", got.Args, tc.args)
 			}
+			if got.Stdout != ios.ErrOut || got.Stderr != ios.ErrOut {
+				t.Fatalf("Stdout, Stderr = %v, %v, want ios.ErrOut itself", got.Stdout, got.Stderr)
+			}
 			if got.Stdin != nil {
 				t.Fatalf("Stdin = %v, want none", got.Stdin)
 			}

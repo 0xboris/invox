@@ -31,7 +31,8 @@ type Runner interface {
 var ErrNotFound = exec.ErrNotFound
 
 // ExecError means the program ran and exited with a non-zero Code, or with -1
-// when a signal ended it.
+// when a signal ended it. Name is the program, for callers that name it in
+// their message, as the editor error in #41 will.
 type ExecError struct {
 	Name string
 	Code int

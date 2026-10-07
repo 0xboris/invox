@@ -33,8 +33,8 @@ exec invox send -i invoice.yaml -o draft3.eml
 cmp stdout want-send.txt
 cmp stderr want-send-stderr.txt
 
-# Without -o, the draft goes into a new temporary directory and stays there
-# for the mail app to read; the default <input>.eml is not written. macOS
+# Without -o, the draft goes into a new temporary directory, which a later run
+# removes after 24 hours; the default <input>.eml is not written. macOS
 # takes the osascript path instead (email_macos).
 [!darwin] exec invox email invoice.yaml
 [!darwin] ! stdout .

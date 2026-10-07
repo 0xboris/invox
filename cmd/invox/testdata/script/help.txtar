@@ -237,7 +237,7 @@ Defaults:
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
   new output: ./<invoice.number>.yaml
   render output: ./invoice.tex
-  email draft path: <input name>.eml in a new temporary directory, left for the mail app
+  email draft path: <input name>.eml in a new temporary directory, removed after 24 hours
   build output: input path with .pdf extension
 
 Documentation topics:
@@ -1096,7 +1096,7 @@ Required inputs:
   INVOICE.yaml, INVOICE.pdf, or -i, --input PATH  Path to the invoice YAML or built PDF file
 
 Default output:
-  <input name>.eml in a new temporary directory, left for the mail app
+  <input name>.eml in a new temporary directory, removed after 24 hours
 
 Optional flags:
   -h, --help              Show this help page
@@ -1122,7 +1122,7 @@ Behavior:
   Requires invoice.status to be built or archived and the PDF attachment to exist.
   On macOS, opens an editable compose window in Apple Mail with the PDF attached.
   If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.
-  Without -o, the draft is written to a new temporary directory and left there for the mail app.
+  Without -o, the draft is written to a new temporary directory. A later run removes it after 24 hours.
   With -o, the draft is kept. An existing -o file is not replaced unless --force is set.
   Does not send the email and does not change invoice.status.
 

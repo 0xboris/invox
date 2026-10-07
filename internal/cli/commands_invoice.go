@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
@@ -210,7 +211,8 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, opts.BaseDir), err)
 		}
 	} else {
-		draftDir, err := os.MkdirTemp("", "invox-email-*")
+		pruneEmailDrafts(os.TempDir(), time.Now().Add(-emailDraftMaxAge))
+		draftDir, err := os.MkdirTemp("", emailDraftDirPrefix+"*")
 		if err != nil {
 			return fmt.Errorf("create temporary draft directory: %w", err)
 		}
@@ -221,6 +223,7 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		}
 		// The draft stays in its temporary directory: the mail app can read it
 		// after the opener returns, so invox cannot know when to delete it.
+		// pruneEmailDrafts removes it on a run a day later.
 		if err := f.Opener.Open(ctx, draftPath); err != nil {
 			_ = os.RemoveAll(draftDir)
 			return fmt.Errorf("failed to open email draft: %w", err)
@@ -238,6 +241,33 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		fmt.Fprintln(ios.Out, invoice.DisplayPath(paths.OutputPath, opts.BaseDir))
 	}
 	return nil
+}
+
+const (
+	emailDraftDirPrefix = "invox-email-"
+	// emailDraftMaxAge is how long a temporary draft stays for the mail app
+	// before a later run of invox email removes it.
+	emailDraftMaxAge = 24 * time.Hour
+)
+
+// pruneEmailDrafts removes the temporary draft directories in dir that earlier
+// runs left behind and that were last modified before cutoff. It skips
+// anything that is not a directory, so a symlink is never followed.
+func pruneEmailDrafts(dir string, cutoff time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), emailDraftDirPrefix) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.ModTime().Before(cutoff) {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(dir, entry.Name()))
+	}
 }
 
 // writeEmailDraft writes the .eml draft to outputPath.

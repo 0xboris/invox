@@ -65,6 +65,9 @@ func TestComposePassesTheMessageAsArguments(t *testing.T) {
 	if !slices.Equal(got.Args, want) {
 		t.Fatalf("Args = %q\nwant %q", got.Args, want)
 	}
+	if got.Stdin != nil || got.Stdout != ios.ErrOut || got.Stderr != ios.ErrOut {
+		t.Fatalf("streams = (%v, %v, %v), want no stdin and ios.ErrOut itself", got.Stdin, got.Stdout, got.Stderr)
+	}
 	if stdout.String() != "" || stderr.String() != "osascript: note\n" {
 		t.Fatalf("stdout, stderr = %q, %q, want \"\", %q", stdout.String(), stderr.String(), "osascript: note\n")
 	}

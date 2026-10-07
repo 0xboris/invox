@@ -3,6 +3,9 @@ package run
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -23,6 +26,7 @@ type Stub struct {
 
 type stubCall struct {
 	name string
+	at   string
 	fn   func(Cmd) error
 	done bool
 }
@@ -36,7 +40,7 @@ func NewStub(t T) *Stub {
 		defer s.mu.Unlock()
 		for _, call := range s.calls {
 			if !call.done {
-				t.Errorf("run.Stub: %s was registered but never run", call.name)
+				t.Errorf("run.Stub: %s registered at %s was never run", call.name, call.at)
 			}
 		}
 	})
@@ -48,7 +52,30 @@ func NewStub(t T) *Stub {
 func (s *Stub) Register(name string, fn func(Cmd) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.calls = append(s.calls, &stubCall{name: name, fn: fn})
+	s.calls = append(s.calls, &stubCall{name: name, at: testCaller(), fn: fn})
+}
+
+// testCaller returns the file:line in the Test function that led to the
+// Register call, or Register's direct caller when no Test function is on the
+// stack, so a helper that registers points at the test that used it.
+func testCaller() string {
+	pcs := make([]uintptr, 32)
+	frames := runtime.CallersFrames(pcs[:runtime.Callers(3, pcs)])
+	first := ""
+	for {
+		frame, more := frames.Next()
+		at := fmt.Sprintf("%s:%d", filepath.Base(frame.File), frame.Line)
+		if first == "" {
+			first = at
+		}
+		name := frame.Function[strings.LastIndex(frame.Function, "/")+1:]
+		if strings.HasPrefix(name[strings.Index(name, ".")+1:], "Test") {
+			return at
+		}
+		if !more {
+			return first
+		}
+	}
 }
 
 func (s *Stub) Run(_ context.Context, cmd Cmd) error {

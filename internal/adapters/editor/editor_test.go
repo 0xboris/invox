@@ -99,8 +99,10 @@ func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 	ios, stdin, stdout, stderr := iostreams.Test()
 	stdin.WriteString(":wq\n")
 	stub := run.NewStub(t)
+	var got run.Cmd
 	var input []byte
 	stub.Register("/bin/sh", func(cmd run.Cmd) error {
+		got = cmd
 		input, _ = io.ReadAll(cmd.Stdin)
 		fmt.Fprintln(cmd.Stdout, "screen")
 		fmt.Fprintln(cmd.Stderr, "warning")
@@ -111,6 +113,9 @@ func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 		t.Fatalf("Edit returned error: %v", err)
 	}
 
+	if got.Stdin != ios.In || got.Stdout != ios.ErrOut || got.Stderr != ios.ErrOut {
+		t.Fatalf("streams = (%v, %v, %v), want ios.In, ios.ErrOut, ios.ErrOut themselves", got.Stdin, got.Stdout, got.Stderr)
+	}
 	if string(input) != ":wq\n" {
 		t.Fatalf("stdin = %q, want %q", input, ":wq\n")
 	}

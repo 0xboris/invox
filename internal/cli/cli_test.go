@@ -1076,7 +1076,7 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 		"--to EMAIL",
 		"--subject TEXT",
 		"--force",
-		"<input name>.eml in a new temporary directory, left for the mail app",
+		"<input name>.eml in a new temporary directory, removed after 24 hours",
 		"Accepts either the invoice YAML file or the built PDF as input.",
 		"The PDF lookup checks next to the PDF first, then archive.dir.",
 		"Requires invoice.status to be built or archived and the PDF attachment to exist.",

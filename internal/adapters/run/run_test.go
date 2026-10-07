@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 )
@@ -139,10 +140,15 @@ func (r *recordingT) Helper()                   {}
 func (r *recordingT) Cleanup(fn func())         { r.cleanups = append(r.cleanups, fn) }
 func (r *recordingT) Errorf(f string, a ...any) { r.errors = append(r.errors, fmt.Sprintf(f, a...)) }
 
+func registerOsascript(stub *Stub) {
+	stub.Register("osascript", func(Cmd) error { return nil })
+}
+
 func TestStubFailsWhenARegisteredCommandNeverRuns(t *testing.T) {
 	rt := &recordingT{}
 	stub := NewStub(rt)
-	stub.Register("osascript", func(Cmd) error { return nil })
+	_, _, line, _ := runtime.Caller(0)
+	registerOsascript(stub)
 	stub.Register("tectonic", func(Cmd) error { return nil })
 	_ = stub.Run(context.Background(), Cmd{Name: "tectonic"})
 
@@ -150,7 +156,8 @@ func TestStubFailsWhenARegisteredCommandNeverRuns(t *testing.T) {
 		fn()
 	}
 
-	if want := []string{"run.Stub: osascript was registered but never run"}; fmt.Sprint(rt.errors) != fmt.Sprint(want) {
+	want := []string{fmt.Sprintf("run.Stub: osascript registered at run_test.go:%d was never run", line+1)}
+	if fmt.Sprint(rt.errors) != fmt.Sprint(want) {
 		t.Fatalf("errors = %q, want %q", rt.errors, want)
 	}
 }
