@@ -165,35 +165,19 @@ Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
 Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-
-Usage:
-  invox archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]
-
-Examples:
-  invox archive invoice.yaml
-  invox archive invoices/2026-0021.yaml
-
-Use 'invox archive --help' for more information.
+Run 'invox archive --help' for usage.
 -- want-edit-missing.txt --
 error: missing required arguments: FILENAME
-
-Usage:
-  invox archive edit FILENAME
-
-Examples:
-  invox archive edit 2026-03-06.yaml
-  invox archive edit customer-a/2026-03-06.yaml
-
-Use 'invox archive edit --help' for more information.
+Run 'invox archive edit --help' for usage.
 -- want-duplicate.txt --
-$WORK/duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice $WORK/home/.config/invox/archive/second.yaml
-Run `invox increment -i duplicate.yaml` to give it the next free number, then archive it again.
+error: duplicate.yaml: invoice number CUST-003-001 is already used by archived invoice home/.config/invox/archive/second.yaml
+Run 'invox increment -i duplicate.yaml' to give it the next free number, then archive it again.
 -- want-not-built.txt --
-$WORK/draft.yaml: invoice.status must be `built` before archiving, got `draft`
+error: draft.yaml: invoice.status must be `built` before archiving, got `draft`
 -- want-edit-exists.txt --
-$WORK/second.yaml already exists; choose a different working directory
+error: second.yaml already exists; choose a different working directory
 -- want-not-a-dir.txt --
-$WORK/home/.config/invox/not-a-dir: archive.dir must point to a directory
+error: home/.config/invox/not-a-dir: archive.dir must point to a directory
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

@@ -7,18 +7,17 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCustomerList(ios *iostreams.IOStreams, args []string) int {
+func runCustomerList(ios *iostreams.IOStreams, args []string) error {
 	spec := customerListSpec()
 
-	opts, _, exitCode, ok := parseCommand(ios, spec, args)
-	if !ok {
-		return exitCode
+	opts, _, err := parseCommand(ios, spec, args)
+	if err != nil {
+		return err
 	}
 
 	customers, err := invoice.ListCustomers(opts.CustomersPath)
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	list := table{
@@ -29,22 +28,21 @@ func runCustomerList(ios *iostreams.IOStreams, args []string) int {
 		list.addRow(customer.ID, customer.LegalCompanyName, customer.Status)
 	}
 	list.print(ios)
-	return 0
+	return nil
 }
 
-func runCustomerConfig(ios *iostreams.IOStreams, args []string) int {
+func runCustomerConfig(ios *iostreams.IOStreams, args []string) error {
 	spec := customerConfigSpec()
 
-	opts, _, exitCode, ok := parseCommand(ios, spec, args)
-	if !ok {
-		return exitCode
+	opts, _, err := parseCommand(ios, spec, args)
+	if err != nil {
+		return err
 	}
 
 	if err := openTextFile(ios, opts.CustomersPath); err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return fmt.Errorf("failed to open %s: %w", opts.CustomersPath, err)
 	}
 
 	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
-	return 0
+	return nil
 }

@@ -47,11 +47,4 @@ exists invoice_defaults.yaml
 exists template.tex
 -- want-usage.txt --
 error: unexpected arguments: extra
-
-Usage:
-  invox init
-
-Examples:
-  invox init
-
-Use 'invox init --help' for more information.
+Run 'invox init --help' for usage.

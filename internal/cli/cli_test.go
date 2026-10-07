@@ -1063,11 +1063,8 @@ func TestRenderRequiresInputOnly(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "missing required flags: -i, --input") {
-		t.Fatalf("stderr %q does not contain missing flag message", stderr)
-	}
-	if !strings.Contains(stderr, "invox render -i INVOICE.yaml [-o OUTPUT.tex]") {
-		t.Fatalf("stderr %q does not contain usage", stderr)
+	if want := "error: missing required flags: -i, --input\nRun 'invox render --help' for usage.\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
 

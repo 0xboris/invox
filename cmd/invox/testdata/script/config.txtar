@@ -23,7 +23,8 @@ cmp stderr want-usage.txt
 env FAKE_EDITOR_FAIL=1
 exits 1 invox config
 ! stdout .
-cmp stderr want-editor-failed.txt
+scrubpaths stderr got.txt
+cmp got.txt want-editor-failed.txt
 
 -- custom.yaml --
 archive:
@@ -101,14 +102,7 @@ Opened home/.config/invox/config.yaml
 #     {issuer_name}
 -- want-usage.txt --
 error: unexpected arguments: extra
-
-Usage:
-  invox config
-
-Examples:
-  invox config
-
-Use 'invox config --help' for more information.
+Run 'invox config --help' for usage.
 -- want-editor-failed.txt --
 fake editor: forced failure
-exit status 1
+error: failed to open home/.config/invox/config.yaml: exit status 1

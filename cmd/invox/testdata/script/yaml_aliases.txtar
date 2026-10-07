@@ -33,11 +33,11 @@ g: &g [*f,*f,*f,*f,*f,*f,*f,*f,*f]
 h: &h [*g,*g,*g,*g,*g,*g,*g,*g,*g]
 i: &i [*h,*h,*h,*h,*h,*h,*h,*h,*h]
 -- want-recursive.txt --
-$WORK/recursive.yaml:2: alias *p refers to a node that contains it
+error: recursive.yaml:2: alias *p refers to a node that contains it
 -- want-laughs.txt --
-$WORK/laughs.yaml:7: aliases expand to more than 100000 nodes
+error: laughs.yaml:7: aliases expand to more than 100000 nodes
 -- want-new.txt --
-$WORK/home/.config/invox/archive/recursive.yaml:2: alias *p refers to a node that contains it
+error: home/.config/invox/archive/recursive.yaml:2: alias *p refers to a node that contains it
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

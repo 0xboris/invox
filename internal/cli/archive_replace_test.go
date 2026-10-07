@@ -107,13 +107,10 @@ func TestArchiveReplaceWithoutTerminalRequiresYes(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	for _, want := range []string{
-		"error: archiving first.yaml replaces archived invoice " + e.archivedPath + "; pass --yes to replace it",
-		"Usage:\n  invox archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]",
-	} {
-		if !strings.Contains(stderr, want) {
-			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
-		}
+	want := "error: archiving first.yaml replaces archived invoice " + e.archivedPath + "; pass --yes to replace it (no terminal to ask on)\n" +
+		"Run 'invox archive --help' for usage.\n"
+	if stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 	e.assertUnchanged(t)
 }

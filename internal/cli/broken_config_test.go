@@ -164,10 +164,10 @@ func TestBrokenConfigNeededReportsFileLineAndHint(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.HasPrefix(stderr, configPath+": yaml: line 3: ") {
-		t.Fatalf("stderr = %q, want it to start with %q", stderr, configPath+": yaml: line 3: ")
+	if !strings.HasPrefix(stderr, "error: "+configPath+": yaml: line 3: ") {
+		t.Fatalf("stderr = %q, want it to start with %q", stderr, "error: "+configPath+": yaml: line 3: ")
 	}
-	if !strings.HasSuffix(stderr, "\nRun `invox config` to open and fix the config file.\n") {
-		t.Fatalf("stderr = %q, want the `invox config` hint", stderr)
+	if !strings.HasSuffix(stderr, "\nRun 'invox config' to open and fix the config file.\n") {
+		t.Fatalf("stderr = %q, want the invox config hint", stderr)
 	}
 }

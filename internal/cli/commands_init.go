@@ -8,24 +8,22 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runInit(ios *iostreams.IOStreams, args []string) int {
+func runInit(ios *iostreams.IOStreams, args []string) error {
 	spec := initSpec()
 
-	_, _, exitCode, ok := parseCommand(ios, spec, args)
-	if !ok {
-		return exitCode
+	_, _, err := parseCommand(ios, spec, args)
+	if err != nil {
+		return err
 	}
 
 	configDir, results, err := invoice.InitializeConfigDir()
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	configDir, err = filepath.Abs(configDir)
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	fmt.Fprintf(ios.Out, "Initialized %s\n", configDir)
@@ -36,5 +34,5 @@ func runInit(ios *iostreams.IOStreams, args []string) int {
 		}
 		fmt.Fprintf(ios.Out, "%s %s\n", status, invoice.DisplayPath(result.Path, configDir))
 	}
-	return 0
+	return nil
 }

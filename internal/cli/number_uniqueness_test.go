@@ -84,7 +84,7 @@ func TestArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 	}
 	for _, want := range []string{
 		"second.yaml: invoice number CUST-001-001 is already used by archived invoice " + archivedPath + "\n",
-		"Run `invox increment -i second.yaml` to give it the next free number, then archive it again.\n",
+		"Run 'invox increment -i second.yaml' to give it the next free number, then archive it again.\n",
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
@@ -126,7 +126,7 @@ func TestBuildArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 	}
 	for _, want := range []string{
 		"is already used by archived invoice " + archivedPath,
-		"Run `invox increment -i ",
+		"Run 'invox increment -i ",
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
@@ -176,7 +176,7 @@ func TestValidateWarnsWhenNumberIsAlreadyArchived(t *testing.T) {
 		t.Fatalf("stdout = %q, want validation success", stdout)
 	}
 	want := "warning: invoice number CUST-001-001 is already used by archived invoice " + archivedPath +
-		"; run `invox increment -i " + invoicePath + "` before archiving\n"
+		"; run 'invox increment -i " + invoicePath + "' before archiving\n"
 	if stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}

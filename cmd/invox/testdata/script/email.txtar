@@ -60,7 +60,7 @@ scrubpaths stderr got.txt
 cmp got.txt want-not-built.txt
 exits 1 invox email invoice.yaml -p missing.pdf -o draft5.eml
 ! stdout .
-stderr '^read .*missing\.pdf: '
+stderr '^error: read missing\.pdf: '
 env FAKE_OPEN_FAIL=1
 exits 1 invox email invoice.yaml -o draft6.eml
 ! stdout .
@@ -70,7 +70,7 @@ cmp stderr want-open-failed.txt
 keep me
 -- invoice.pdf --
 -- want-exists.txt --
-existing.eml already exists; pass --force or choose another -o path
+error: existing.eml already exists; pass --force or choose another -o path
 -- want-force.txt --
 fake open: existing.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
@@ -85,20 +85,12 @@ fake open: draft3.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
-
-Usage:
-  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
-
-Examples:
-  invox email invoice.yaml
-  invox email invoice.pdf
-
-Use 'invox email --help' for more information.
+Run 'invox email --help' for usage.
 -- want-not-built.txt --
-$WORK/draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
+error: draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
 -- want-open-failed.txt --
 fake open: forced failure
-created draft6.eml but failed to open it: exit status 1
+error: created draft6.eml but failed to open it: exit status 1
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

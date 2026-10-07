@@ -145,11 +145,4 @@ _invox() {
 compdef _invox invox
 -- want-bash.txt --
 error: unsupported shell "bash"
-
-Usage:
-  invox completion zsh
-
-Examples:
-  invox completion zsh
-
-Use 'invox completion --help' for more information.
+Run 'invox completion --help' for usage.

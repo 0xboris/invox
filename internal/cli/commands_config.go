@@ -6,44 +6,40 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runConfig(ios *iostreams.IOStreams, args []string) int {
+func runConfig(ios *iostreams.IOStreams, args []string) error {
 	spec := configSpec()
 
 	if wantsHelp(args) {
 		printConfigHelp(ios.Out)
-		return 0
+		return nil
 	}
 	if len(args) > 0 {
-		printCommandError(ios.ErrOut, spec, fmt.Sprintf("unexpected arguments: %s", strings.Join(args, " ")))
-		return 2
+		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(args, " "))
 	}
 
 	configPath, err := invoice.EditableConfigPath()
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	if err := openTextFile(ios, configPath); err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 
 	baseDir, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 	baseDir, err = filepath.Abs(baseDir)
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return 1
+		return err
 	}
 
 	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(configPath, baseDir))
-	return 0
+	return nil
 }

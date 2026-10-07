@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -51,16 +52,17 @@ func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
 	return false
 }
 
-func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (invoice.Options, []string, int, bool) {
+// parseCommand parses args for spec into options and the remaining positional
+// arguments. When args ask for help it prints the help and returns flag.ErrHelp.
+func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (invoice.Options, []string, error) {
 	if wantsHelp(args) {
 		printCommandHelp(ios.Out, spec)
-		return invoice.Options{}, nil, 0, false
+		return invoice.Options{}, nil, flag.ErrHelp
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return invoice.Options{}, nil, 1, false
+		return invoice.Options{}, nil, err
 	}
 	opts := invoice.Options{BaseDir: cwd}
 
@@ -68,8 +70,7 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 	fs.SetOutput(io.Discard)
 	bindCommandFlags(fs, &opts, spec)
 	if err := fs.Parse(args); err != nil {
-		printCommandError(ios.ErrOut, spec, err.Error())
-		return invoice.Options{}, nil, 2, false
+		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 
 	remainingArgs := fs.Args()
@@ -78,8 +79,7 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 		remainingArgs = remainingArgs[1:]
 	}
 	if err := validatePositionalArgs(spec, remainingArgs); err != nil {
-		printCommandError(ios.ErrOut, spec, err.Error())
-		return invoice.Options{}, nil, 2, false
+		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 	if spec.InputBasedOutput && strings.TrimSpace(opts.OutputPath) == "" {
 		opts.OutputPath = replacePathExtension(opts.InvoicePath, spec.OutputExtension)
@@ -92,35 +92,33 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 	}
 
 	if err := validateRequiredInputs(spec, opts); err != nil {
-		printCommandError(ios.ErrOut, spec, err.Error())
-		return invoice.Options{}, nil, 2, false
+		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 	if err := resolveDefaultSupportPaths(spec, &opts); err != nil {
-		printLoadError(ios.ErrOut, err)
-		return invoice.Options{}, nil, 1, false
+		return invoice.Options{}, nil, err
 	}
 	if err := validateSupportPaths(spec, opts); err != nil {
-		printCommandError(ios.ErrOut, spec, err.Error())
-		return invoice.Options{}, nil, 2, false
+		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) != "" {
 		resolvedTemplatePath, err := invoice.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
+		var notFound *invoice.TemplateNotFoundError
+		if errors.As(err, &notFound) {
+			return invoice.Options{}, nil, cmdutil.FlagErrorf(spec.Name, "%s; run '%s template list' to see the templates", notFound, commandName)
+		}
 		if err != nil {
-			printCommandError(ios.ErrOut, spec, err.Error())
-			return invoice.Options{}, nil, 2, false
+			return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 		}
 		opts.TemplatePath = resolvedTemplatePath
 	}
 	if err := validateCommandOptions(spec, opts); err != nil {
-		printCommandError(ios.ErrOut, spec, err.Error())
-		return invoice.Options{}, nil, 2, false
+		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 	if err := invoice.NormalizeOptions(&opts); err != nil {
-		fmt.Fprintln(ios.ErrOut, err)
-		return invoice.Options{}, nil, 1, false
+		return invoice.Options{}, nil, err
 	}
 
-	return opts, remainingArgs, 0, true
+	return opts, remainingArgs, nil
 }
 
 // resolveDefaultSupportPaths fills in the support files the command needs and
@@ -149,15 +147,6 @@ func resolveDefaultSupportPaths(spec commandSpec, opts *invoice.Options) error {
 		*r.path = path
 	}
 	return nil
-}
-
-// printLoadError prints err and, when config.yaml is what failed, how to fix it.
-func printLoadError(w io.Writer, err error) {
-	fmt.Fprintln(w, err)
-	var configErr *invoice.ConfigError
-	if errors.As(err, &configErr) {
-		fmt.Fprintf(w, "Run `%s config` to open and fix the config file.\n", commandName)
-	}
 }
 
 func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec) {

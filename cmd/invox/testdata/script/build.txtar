@@ -37,7 +37,8 @@ mkdir empty
 env PATH=$WORK${/}empty
 exits 1 $BIN${/}invox$exe build draft.yaml
 ! stdout .
-cmp stderr want-no-tectonic.txt
+[darwin] cmp stderr want-no-tectonic-darwin.txt
+[!darwin] cmp stderr want-no-tectonic.txt
 ! exists draft.pdf
 
 -- want-build.txt --
@@ -46,21 +47,16 @@ Built invoice.pdf for CUST-001 (CUST-001-001)
 Built copy.pdf for CUST-001 (CUST-001-001)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-
-Usage:
-  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]
-
-Examples:
-  invox build invoice.yaml
-  invox build invoice.yaml --archive
-
-Use 'invox build --help' for more information.
+Run 'invox build --help' for usage.
 -- want-tectonic-failed.txt --
 fake tectonic: forced failure
-exit status 1
+error: tectonic exited with status 1
 -- want-no-tectonic.txt --
-tectonic not found in PATH
-Install it with `brew install tectonic`, then rerun this command.
+error: tectonic not found in PATH
+Install it from https://tectonic-typesetting.github.io, then rerun this command.
+-- want-no-tectonic-darwin.txt --
+error: tectonic not found in PATH
+Install it with 'brew install tectonic', then rerun this command.
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

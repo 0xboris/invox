@@ -43,11 +43,12 @@ stderr '^error: unexpected arguments: extra$'
 exits 1 invox customer list -c missing.yaml
 ! stdout .
 stderr 'missing\.yaml'
-! stderr 'Usage:'
+! stderr 'for usage'
 env FAKE_EDITOR_FAIL=1
 exits 1 invox customer config
 ! stdout .
-cmp stderr want-editor-failed.txt
+scrubpaths stderr got.txt
+cmp got.txt want-editor-failed.txt
 
 -- other.yaml --
 OTHER-1:
@@ -70,18 +71,10 @@ fake editor: customers.yaml
 Opened home/.config/invox/customers.yaml
 -- want-list-extra.txt --
 error: unexpected arguments: extra
-
-Usage:
-  invox customer list [-c CUSTOMERS.yaml]
-
-Examples:
-  invox customer list
-  invox customer list -c customers.yaml
-
-Use 'invox customer list --help' for more information.
+Run 'invox customer list --help' for usage.
 -- want-editor-failed.txt --
 fake editor: forced failure
-exit status 1
+error: failed to open home/.config/invox/customers.yaml: exit status 1
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

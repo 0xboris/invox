@@ -1,5 +1,5 @@
-# Usage errors exit 2 and print nothing on stdout. Root-level errors print the
-# root help; command-level errors print a short usage block.
+# Usage errors exit 2, print nothing on stdout, and print two lines on stderr:
+# the error and the help command to run.
 exits 2 invox
 ! stdout .
 scrubpaths stderr got.txt
@@ -8,7 +8,7 @@ cmp got.txt want-missing.txt
 exits 2 invox frobnicate
 ! stdout .
 stderr '^error: unknown subcommand "frobnicate"$'
-stderr '^Subcommands:$'
+stderr '^Run ''invox --help'' for usage\.$'
 
 exits 2 invox validate
 ! stdout .
@@ -24,121 +24,21 @@ cmp got.txt want-new-flag.txt
 exits 2 invox validate -i missing.yaml
 ! stdout .
 stderr '^error: customers file not found; pass -c/--customers'
-stderr '^Use ''invox validate --help'' for more information\.$'
+stderr '^Run ''invox validate --help'' for usage\.$'
 
-# A runtime failure exits 1 and prints no usage block.
+# A runtime failure exits 1 and does not point at the usage.
 exec invox init
 exits 1 invox validate -i missing.yaml
 ! stdout .
 stderr 'missing\.yaml'
-! stderr 'Usage:'
+! stderr 'for usage'
 
 -- want-missing.txt --
 error: missing subcommand
-
-invox generates LaTeX and PDF invoices from YAML data.
-
-Usage:
-  invox <subcommand> [options]
-  invox help [subcommand]
-
-Subcommands:
-  customer       Customer-related commands
-  config         Open config.yaml in the default shell editor
-  init           Create starter support files in the global config directory
-  template       Template-related commands
-  completion     Generate shell completion scripts
-  new            Create a new invoice YAML file with a generated number
-  increment      Increment the invoice number in an existing invoice YAML file
-  validate       Validate invoice YAML against customers and issuer data
-  render         Render a LaTeX invoice file
-  email          Create and open an email draft with the invoice PDF attached
-  build          Render and compile an invoice PDF with Tectonic
-  archive        Archive invoices and manage archived invoices
-  version        Show the invox version
-
-Required inputs by command:
-  new        CUSTOMER_ID
-  increment  -i, --input
-  validate   -i, --input
-  render     -i, --input
-  email      INVOICE.yaml, INVOICE.pdf, or -i, --input
-  build      INVOICE.yaml or -i, --input
-  archive    INVOICE.yaml or -i, --input
-
-Optional flags:
-  -h, --help              Show help
-  --version               Show the invox version
-  -c, --customers PATH    Path to customers.yaml
-  -o, --output PATH       Output file path (defaults vary by command)
-  -p, --pdf PATH          Path to the invoice PDF (email)
-  --archive               Archive after a successful PDF build (build)
-  --yes                   Replace an archived invoice without asking (archive, build --archive)
-  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)
-  -e, --edit              Open the created invoice in the default shell editor (new)
-  --to EMAIL              Recipient email override (email)
-  --subject TEXT          Email subject override, supports placeholders (email)
-  --force                 Overwrite an existing -o draft file (email)
-  -s, --source PATH       Path to invoice_defaults.yaml (new)
-  -u, --issuer PATH       Path to issuer.yaml
-  -t, --template PATH     Path to invoice_template.tex (render/build)
-
-Defaults:
-  customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
-  issuer.yaml: upward project search, then $WORK/home/.config/invox/issuer.yaml
-  invoice_defaults.yaml: upward project search, then $WORK/home/.config/invox/invoice_defaults.yaml
-  template.tex: upward project search, then $WORK/home/.config/invox/template.tex
-  new output: ./<invoice.number>.yaml
-  render output: ./invoice.tex
-  email draft path: temporary <input name>.eml, removed shortly after it is opened
-  build output: input path with .pdf extension
-
-Documentation topics:
-  invox help config       config.yaml keys, precedence, and email placeholders
-  invox help customers    customers.yaml fields, aliases, and example
-  invox help issuer       issuer.yaml fields, validation rules, and example
-  invox help defaults     invoice_defaults.yaml shape and new-command behavior
-  invox help template     template placeholders and authoring rules
-  invox help environment  environment variables, default directories, and precedence
-  invox help exit-codes   what each exit status means
-
-Examples:
-  invox customer list
-  invox config
-  invox init
-  invox template list
-  invox completion zsh
-  invox new CUST-001
-  invox new CUST-001 -e
-  invox new CUST-001 --from-last
-  invox new CUST-001 -u issuer.yaml
-  invox increment -i invoice.yaml
-  invox validate -i invoice.yaml
-  invox render -i invoice.yaml
-  invox email invoice.pdf
-  invox build invoice.yaml
-  invox archive invoice.yaml
-  invox archive edit 2026-03-06.yaml
-  invox archive list
+Run 'invox --help' for usage.
 -- want-validate.txt --
 error: missing required flags: -i, --input
-
-Usage:
-  invox validate -i INVOICE.yaml [-c CUSTOMERS.yaml] [-u ISSUER.yaml]
-
-Examples:
-  invox validate -i invoice.yaml
-  invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
-
-Use 'invox validate --help' for more information.
+Run 'invox validate --help' for usage.
 -- want-new-flag.txt --
 error: flag provided but not defined: -bogus
-
-Usage:
-  invox new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-e] [--from-last]
-
-Examples:
-  invox new CUST-001
-  invox new CUST-001 -e
-
-Use 'invox new --help' for more information.
+Run 'invox new --help' for usage.

@@ -25,10 +25,10 @@ stderr '^error: -o, --output must end with \.tex$'
 # A bare -t value is a catalog name, not a path.
 exits 2 invox render -i invoice.yaml -t other.tex
 ! stdout .
-stderr '^error: template "other.tex" not found; run `invox template list`$'
+stderr '^error: template "other.tex" not found; run ''invox template list'' to see the templates$'
 exits 2 invox render -i invoice.yaml -t nosuch
 ! stdout .
-stderr '^error: template "nosuch" not found; run `invox template list`$'
+stderr '^error: template "nosuch" not found; run ''invox template list'' to see the templates$'
 
 # Runtime error: the invoice does not validate; nothing is written.
 exits 1 invox render -i foreign.yaml -o foreign.tex
@@ -97,24 +97,10 @@ Rendered out.tex for CUST-001 (CUST-001-001)
 CUST-001-001/Appsters GmbH/252,00 \euro
 -- want-missing-input.txt --
 error: missing required flags: -i, --input
-
-Usage:
-  invox render -i INVOICE.yaml [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]
-
-Examples:
-  invox render -i invoice.yaml
-  invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
-
-Use 'invox render --help' for more information.
+Run 'invox render --help' for usage.
 -- want-foreign.txt --
-$WORK/foreign.yaml: unknown customer_id `NOPE-1`
-customer.name: missing value
-customer.email: missing value
-customer.address.street: missing value
-customer.address.postal_code: missing value
-customer.address.city: missing value
-customer.address.country: missing value
-customer.tax.vat_tax_id: missing value
+error: foreign.yaml: unknown customer_id `NOPE-1`
+Run 'invox customer list' to see the customer IDs.
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive
