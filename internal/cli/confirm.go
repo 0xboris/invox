@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,27 +13,44 @@ import (
 )
 
 // confirm asks question on stderr and reads a yes/no answer. Anything but
-// y or yes, including end of input, is a no.
-func confirm(ios *iostreams.IOStreams, question string) bool {
+// y or yes, including end of input, is a no. It returns cmdutil.CancelError
+// when ctx is cancelled before an answer arrives.
+func confirm(ctx context.Context, ios *iostreams.IOStreams, question string) (bool, error) {
 	fmt.Fprintf(ios.ErrOut, "%s [y/N] ", question)
-	answer, err := bufio.NewReader(ios.In).ReadString('\n')
-	if err != nil && answer == "" {
-		fmt.Fprintln(ios.ErrOut)
-		return false
+	type reply struct {
+		answer string
+		err    error
 	}
-	switch strings.ToLower(strings.TrimSpace(answer)) {
+	replies := make(chan reply, 1)
+	go func() {
+		answer, err := bufio.NewReader(ios.In).ReadString('\n')
+		replies <- reply{answer, err}
+	}()
+	var r reply
+	select {
+	case <-ctx.Done():
+		fmt.Fprintln(ios.ErrOut)
+		return false, cmdutil.CancelError
+	case r = <-replies:
+	}
+	if r.err != nil && r.answer == "" {
+		fmt.Fprintln(ios.ErrOut)
+		return false, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(r.answer)) {
 	case "y", "yes":
-		return true
+		return true, nil
 	default:
-		return false
+		return false, nil
 	}
 }
 
 // archiveWithConfirmation archives the invoice and, when that replaces
 // archived files, asks first unless --yes was passed. errorPrefix starts
 // the messages it reports. It returns a *cmdutil.FlagError when there is no
-// terminal to ask on, and cmdutil.CancelError when the user declines.
-func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
+// terminal to ask on, and cmdutil.CancelError when the user declines or ctx is
+// cancelled at the prompt.
+func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
 	archiveOpts := invoice.ArchiveOptions{Replace: opts.AssumeYes}
 	result, err := invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
 	var replaceErr *invoice.ArchiveReplaceError
@@ -59,7 +77,11 @@ func archiveWithConfirmation(ios *iostreams.IOStreams, spec commandSpec, opts in
 		replaced,
 		invoice.DisplayPath(replaceErr.HistoryDir, opts.BaseDir),
 	)
-	if !confirm(ios, question) {
+	confirmed, err := confirm(ctx, ios, question)
+	if err != nil {
+		return invoice.ArchiveResult{}, err
+	}
+	if !confirmed {
 		fmt.Fprintf(ios.ErrOut, "%snot archived; the archive was not changed; pass --yes to replace without asking\n", errorPrefix)
 		return invoice.ArchiveResult{}, cmdutil.CancelError
 	}

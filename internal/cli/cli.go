@@ -71,7 +71,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "build":
 		return runBuild(ctx, f, args[1:])
 	case "archive":
-		return runArchive(ios, args[1:])
+		return runArchive(ctx, ios, args[1:])
 	case "version":
 		return runVersion(ios, args[1:])
 	default:
