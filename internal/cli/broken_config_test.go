@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // brokenConfigSource is a config.yaml with a YAML syntax error on line 3.
@@ -81,17 +79,10 @@ func TestBrokenConfigInitSucceeds(t *testing.T) {
 func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 	configPath := setupBrokenConfig(t)
 
-	openedPath := ""
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	openedPath := expectEditor(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"config"})
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -101,8 +92,8 @@ func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 	if !strings.HasPrefix(stderr, "Opened ") {
 		t.Fatalf("stderr = %q, want it to start with %q", stderr, "Opened ")
 	}
-	if openedPath != configPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, configPath)
+	if *openedPath != configPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, configPath)
 	}
 }
 

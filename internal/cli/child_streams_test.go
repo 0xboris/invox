@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -74,23 +77,7 @@ func testExecutable(t *testing.T) string {
 	return self
 }
 
-func TestRunChildSendsChildStdoutToStderr(t *testing.T) {
-	t.Setenv(fakeChildEnv, "1")
-	ios, _, stdout, stderr := iostreams.Test()
-
-	if err := runChild(ios, exec.Command(testExecutable(t), "draft.eml")); err != nil {
-		t.Fatalf("runChild returned error: %v", err)
-	}
-
-	if got := stdout.String(); got != "" {
-		t.Fatalf("stdout = %q, want empty", got)
-	}
-	if got, want := stderr.String(), "fake child: draft.eml\n"; got != want {
-		t.Fatalf("stderr = %q, want %q", got, want)
-	}
-}
-
-func TestOpenTextFileSendsEditorStdoutToStderr(t *testing.T) {
+func TestEditorSendsEditorStdoutToStderr(t *testing.T) {
 	t.Setenv(fakeChildEnv, "1")
 	t.Setenv("VISUAL", testExecutable(t))
 	if runtime.GOOS != "windows" {
@@ -99,8 +86,9 @@ func TestOpenTextFileSendsEditorStdoutToStderr(t *testing.T) {
 	}
 	ios, _, stdout, stderr := iostreams.Test()
 
-	if err := defaultOpenTextFile(ios, filepath.Join(t.TempDir(), "invoice.yaml")); err != nil {
-		t.Fatalf("defaultOpenTextFile returned error: %v", err)
+	ed := editor.New(run.Exec{}, ios, runtime.GOOS, os.Getenv)
+	if err := ed.Edit(context.Background(), filepath.Join(t.TempDir(), "invoice.yaml")); err != nil {
+		t.Fatalf("Edit returned error: %v", err)
 	}
 
 	if got := stdout.String(); got != "" {

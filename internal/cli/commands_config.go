@@ -1,17 +1,18 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
 	h := userHost(e)
 	spec := configSpec()
 
@@ -28,7 +29,7 @@ func runConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	if err := openTextFile(ios, configPath); err != nil {
+	if err := f.Editor.Edit(ctx, configPath); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 

@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -32,7 +34,9 @@ func runCustomerList(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runCustomerConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runCustomerConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
 	spec := customerConfigSpec()
 
 	opts, _, err := parseCommand(ios, e, spec, args)
@@ -40,7 +44,7 @@ func runCustomerConfig(ios *iostreams.IOStreams, e env.Env, args []string) error
 		return err
 	}
 
-	if err := openTextFile(ios, opts.CustomersPath); err != nil {
+	if err := f.Editor.Edit(ctx, opts.CustomersPath); err != nil {
 		return fmt.Errorf("failed to open %s: %w", opts.CustomersPath, err)
 	}
 

@@ -15,8 +15,8 @@ import (
 
 // allowedFiles may read the process environment anywhere in the file.
 var allowedFiles = []string{
-	"internal/cli/editor.go", // owned by #38 and #41, which shrink this list
-	"internal/cli/exit.go",   // owned by #38 and #41, which shrink this list
+	"internal/adapters/run/run.go", // child processes inherit os.Environ
+	"internal/cli/exit.go",         // the tectonic install hint, owned by #41
 }
 
 // allowedFuncs lists, per package directory, the functions that may read the

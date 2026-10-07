@@ -8,15 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 
+	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
-
-// hostOS selects the platform-specific install hints.
-var hostOS = runtime.GOOS
 
 // exitCode reports err on ios.ErrOut and returns the code invox exits with.
 // It is the only place that maps errors to exit codes.
@@ -61,6 +58,7 @@ func errorHint(err error) string {
 	var unknownCustomer *invoice.UnknownCustomerError
 	var configErr *invoice.ConfigError
 	var duplicate *invoice.DuplicateInvoiceNumberError
+	var noTectonic *tectonic.NotInstalledError
 	switch {
 	case errors.As(err, &unknownCustomer):
 		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
@@ -68,15 +66,8 @@ func errorHint(err error) string {
 		return fmt.Sprintf("Run '%s config' to open and fix the config file.", commandName)
 	case errors.As(err, &duplicate):
 		return fmt.Sprintf("Run '%s increment -i %s' to give it the next free number, then archive it again.", commandName, duplicate.InvoicePath)
-	case errors.Is(err, invoice.ErrTectonicNotFound):
-		return tectonicInstallHint(hostOS)
+	case errors.As(err, &noTectonic):
+		return noTectonic.InstallHint()
 	}
 	return ""
-}
-
-func tectonicInstallHint(goos string) string {
-	if goos == "darwin" {
-		return "Install it with 'brew install tectonic', then rerun this command."
-	}
-	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."
 }

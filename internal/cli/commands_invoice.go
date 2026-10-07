@@ -1,22 +1,26 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/adapters/applemail"
+	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runNew(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
 	h := userHost(e)
 	args = reorderArgs(args, map[string]bool{
 		"-c":          true,
@@ -49,7 +53,7 @@ func runNew(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 	if opts.EditNewInvoice {
-		if err := openTextFile(ios, outputPath); err != nil {
+		if err := f.Editor.Edit(ctx, outputPath); err != nil {
 			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(outputPath, opts.BaseDir), err)
 		}
 	}
@@ -146,7 +150,9 @@ func runRender(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	return nil
 }
 
-func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
 	h := userHost(e)
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
@@ -195,19 +201,26 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	if preferNativeMailCompose && !explicitOutputPath {
-		if err := openNativeEmailDraft(ios, emailMessage); err != nil {
+	if f.Mailer != nil && !explicitOutputPath {
+		if err := f.Mailer.Compose(ctx, applemail.Message{
+			To:         emailMessage.Recipient,
+			Subject:    emailMessage.Subject,
+			Body:       emailMessage.Body,
+			Attachment: emailMessage.AttachmentPath,
+			Sender:     emailMessage.SenderAddress,
+		}); err != nil {
 			return fmt.Errorf("failed to open editable email draft: %w", err)
 		}
 	} else if explicitOutputPath {
 		if err := writeEmailDraft(h, e.Now(), opts, paths, paths.OutputPath, opts.OverwriteOutput); err != nil {
 			return err
 		}
-		if err := openDocument(ios, paths.OutputPath); err != nil {
+		if err := f.Opener.Open(ctx, paths.OutputPath); err != nil {
 			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, opts.BaseDir), err)
 		}
 	} else {
-		draftDir, err := os.MkdirTemp("", "invox-email-*")
+		pruneEmailDrafts(os.TempDir(), e.Now().Add(-emailDraftMaxAge))
+		draftDir, err := os.MkdirTemp("", emailDraftDirPrefix+"*")
 		if err != nil {
 			return fmt.Errorf("create temporary draft directory: %w", err)
 		}
@@ -216,12 +229,12 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			_ = os.RemoveAll(draftDir)
 			return err
 		}
-		if err := openDocument(ios, draftPath); err != nil {
+		// The draft stays in its temporary directory: the mail app can read it
+		// after the opener returns, so invox cannot know when to delete it.
+		// pruneEmailDrafts removes it on a run a day later.
+		if err := f.Opener.Open(ctx, draftPath); err != nil {
 			_ = os.RemoveAll(draftDir)
 			return fmt.Errorf("failed to open email draft: %w", err)
-		}
-		if err := cleanupOpenedDocument(draftPath, draftDir); err != nil {
-			return fmt.Errorf("opened %s but failed to schedule cleanup: %w", draftPath, err)
 		}
 	}
 
@@ -236,6 +249,33 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		fmt.Fprintln(ios.Out, invoice.DisplayPath(paths.OutputPath, opts.BaseDir))
 	}
 	return nil
+}
+
+const (
+	emailDraftDirPrefix = "invox-email-"
+	// emailDraftMaxAge is how long a temporary draft stays for the mail app
+	// before a later run of invox email removes it.
+	emailDraftMaxAge = 24 * time.Hour
+)
+
+// pruneEmailDrafts removes the temporary draft directories in dir that earlier
+// runs left behind and that were last modified before cutoff. It skips
+// anything that is not a directory, so a symlink is never followed.
+func pruneEmailDrafts(dir string, cutoff time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), emailDraftDirPrefix) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !info.ModTime().Before(cutoff) {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(dir, entry.Name()))
+	}
 }
 
 // writeEmailDraft writes the .eml draft to outputPath.
@@ -257,7 +297,9 @@ func writeEmailDraft(h invoice.Host, now time.Time, opts invoice.Options, paths 
 	return err
 }
 
-func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
+func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
 	h := userHost(e)
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
@@ -281,15 +323,15 @@ func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	ctx, err := invoice.LoadContext(opts.CustomersPath, opts.IssuerPath, opts.InvoicePath)
+	inv, err := invoice.LoadContext(opts.CustomersPath, opts.IssuerPath, opts.InvoicePath)
 	if err != nil {
 		return err
 	}
 
-	if err := h.BuildInvoicePDF(opts.TemplatePath, opts.OutputPath, ctx, invoice.ProcessIO{Stdin: ios.In, Stdout: ios.ErrOut, Stderr: ios.ErrOut}); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return &cmdutil.ExecError{Program: "tectonic", Code: exitErr.ExitCode(), Err: err}
+	if err := h.BuildInvoicePDF(ctx, f.Compiler.Build, opts.TemplatePath, opts.OutputPath, inv); err != nil {
+		var execErr *run.ExecError
+		if errors.As(err, &execErr) {
+			return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
 		}
 		return err
 	}
@@ -325,8 +367,8 @@ func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			ios.ErrOut,
 			"Built %s for %s (%s)\nArchived %s -> %s\n",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
-			ctx.CustomerID,
-			ctx.InvoiceNumber,
+			inv.CustomerID,
+			inv.InvoiceNumber,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 			invoice.DisplayPath(result.Path, opts.BaseDir),
 		)
@@ -338,8 +380,8 @@ func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		ios.ErrOut,
 		"Built %s for %s (%s)\n",
 		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
-		ctx.CustomerID,
-		ctx.InvoiceNumber,
+		inv.CustomerID,
+		inv.InvoiceNumber,
 	)
 	fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.OutputPath, opts.BaseDir))
 	return nil

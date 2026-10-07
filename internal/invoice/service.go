@@ -1,12 +1,11 @@
 package invoice
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -903,28 +902,9 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 	return h.copyTemplateAssets(templatePath, outputPath, rendered)
 }
 
-// ProcessIO holds the streams a child process such as tectonic runs with.
-type ProcessIO struct {
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-}
-
-func BuildPDF(outputPath string, processIO ProcessIO) error {
-	tectonicPath, err := exec.LookPath("tectonic")
-	if err != nil {
-		return ErrTectonicNotFound
-	}
-
-	cmd := exec.Command(tectonicPath, filepath.Base(outputPath))
-	cmd.Dir = filepath.Dir(outputPath)
-	cmd.Stdout = processIO.Stdout
-	cmd.Stderr = processIO.Stderr
-	cmd.Stdin = processIO.Stdin
-	return cmd.Run()
-}
-
-func (h Host) BuildInvoicePDF(templatePath, outputPath string, ctx *Context, processIO ProcessIO) error {
+// BuildInvoicePDF renders the invoice into a temporary directory, runs
+// compile on the .tex file there, and copies the PDF to outputPath.
+func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Context, texPath string) error, templatePath, outputPath string, inv *Context) error {
 	tempDir, err := os.MkdirTemp("", tempBuildDirPrefix)
 	if err != nil {
 		return err
@@ -935,10 +915,10 @@ func (h Host) BuildInvoicePDF(templatePath, outputPath string, ctx *Context, pro
 		tempDir,
 		strings.TrimSuffix(filepath.Base(outputPath), filepath.Ext(outputPath))+".tex",
 	)
-	if err := h.RenderInvoice(templatePath, renderPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, renderPath, inv); err != nil {
 		return err
 	}
-	if err := BuildPDF(renderPath, processIO); err != nil {
+	if err := compile(ctx, renderPath); err != nil {
 		return err
 	}
 	return copyFile(PDFPathForOutput(renderPath), outputPath)
