@@ -112,8 +112,8 @@ func TestEmailKeepsExplicitOutputFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if !strings.Contains(stderr, "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example") {
-		t.Fatalf("stderr %q does not contain email summary", stderr)
+	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 	if stdout != outputPath+"\n" {
 		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
