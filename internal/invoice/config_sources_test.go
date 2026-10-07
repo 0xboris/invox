@@ -347,6 +347,12 @@ func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 	_, in := configDirs(t)
 	realHome := filepath.Join(t.TempDir(), "real-home")
 	writeFile(t, filepath.Join(realHome, ".git", "HEAD"), "ref: refs/heads/main\n")
+	// The working directory comes back with symlinks resolved, and the temp
+	// directory is itself behind one on macOS (/var) and Windows (8.3 names).
+	realHome, err := filepath.EvalSymlinks(realHome)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stray := filepath.Join(realHome, "customers.yaml")
 	writeFile(t, stray, "stray\n")
 	start := filepath.Join(realHome, "invoices", "2026")
