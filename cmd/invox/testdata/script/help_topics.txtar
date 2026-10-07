@@ -101,6 +101,8 @@ Exit codes:
   2    Usage error: unknown command, topic or flag, or a missing or extra
        argument. Also used when a confirmation was declined, or was needed
        without a terminal to ask on and without --yes. The step that needed
-       confirmation was not done.
-  130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not
-       return it itself yet.
+       confirmation was not done. Ctrl-C at a confirmation prompt also
+       exits 2.
+  130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped
+       and its temporary files are removed.
+  143  Stopped by SIGTERM, with the same cleanup as 130.

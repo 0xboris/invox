@@ -2,13 +2,36 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"syscall"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
-	return exitCode(f.IOStreams, dispatch(context.Background(), f, args))
+	ctx, stop := signalContext(context.Background())
+	defer stop()
+	return mainContext(ctx, args, f)
+}
+
+// mainContext runs the command under ctx. When a signal cancelled ctx, the
+// command's error becomes the signal's, except that Ctrl-C at a prompt stays
+// a quiet cancel.
+//
+// A terminal Ctrl-C also reaches the child program, so the command can fail
+// before ctx is cancelled. That ordering is not expected in practice: the
+// signal goroutine needs a few scheduler hand-offs, while the command first
+// waits for the child to exit and be reaped. If it ever happened, invox would
+// exit 1 and print the child's error instead of exiting 130.
+func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
+	err := dispatch(ctx, f, args)
+	var sigErr *SignalError
+	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
+		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
+		err = sigErr
+	}
+	return exitCode(f.IOStreams, err)
 }
 
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
@@ -56,7 +79,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "build":
 		return runBuild(ctx, f, args[1:])
 	case "archive":
-		return runArchive(f, args[1:])
+		return runArchive(ctx, f, args[1:])
 	case "version":
 		return runVersion(ios, args[1:])
 	default:
