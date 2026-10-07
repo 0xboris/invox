@@ -35,6 +35,9 @@ func TestFormatUnitPriceShowsNeededDecimals(t *testing.T) {
 }
 
 func TestRenderInvoiceShowsSubCentUnitPrice(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -55,7 +58,7 @@ func TestRenderInvoiceShowsSubCentUnitPrice(t *testing.T) {
 		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 	rendered, err := os.ReadFile(outputPath)

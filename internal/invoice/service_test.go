@@ -4,7 +4,6 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -206,6 +205,9 @@ func TestLoadContextRejectsMissingInvoiceNumber(t *testing.T) {
 }
 
 func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(
 		customersPath,
@@ -217,7 +219,7 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -243,6 +245,9 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 }
 
 func TestRenderInvoiceRendersSplitCityAndPostalCodePlaceholders(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(
 		customersPath,
@@ -262,7 +267,7 @@ Customer: @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -282,6 +287,9 @@ Customer: @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@
 }
 
 func TestRenderInvoiceRendersVATSummaryRowsAndPerLineVATRows(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -308,7 +316,7 @@ Totals:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -330,6 +338,9 @@ Totals:
 }
 
 func TestRenderInvoiceRendersCustomLineItemBlockWithoutDescriptionColumn(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -357,7 +368,7 @@ Rows:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -384,6 +395,9 @@ Support & 10,00 \euro & 10\% & 10,00 \euro\\
 }
 
 func TestRenderInvoiceCustomLineItemBlockDoesNotLeaveBlankLineBeforeFollowingContent(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -402,7 +416,7 @@ After
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -420,6 +434,9 @@ After
 }
 
 func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -432,7 +449,7 @@ func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -450,6 +467,9 @@ func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *
 }
 
 func TestRenderInvoiceUsesCustomVATLabelInSummaryRows(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -475,7 +495,7 @@ Label: @@VAT_LABEL@@
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -495,6 +515,9 @@ Label: @@VAT_LABEL@@
 }
 
 func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -513,7 +536,7 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -577,6 +600,9 @@ func TestCompactEPCAccountIdentifierRemovesUnicodeWhitespace(t *testing.T) {
 }
 
 func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -604,7 +630,7 @@ func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testi
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -620,6 +646,9 @@ func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testi
 }
 
 func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -638,7 +667,7 @@ func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -664,6 +693,9 @@ func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 }
 
 func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -676,7 +708,7 @@ func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -704,6 +736,9 @@ func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 }
 
 func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -730,7 +765,7 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -750,6 +785,9 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 }
 
 func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -772,7 +810,7 @@ func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -792,6 +830,9 @@ func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing
 }
 
 func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -813,7 +854,7 @@ func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for Gibraltar EPC QR code: %v", err)
 	}
 
@@ -833,6 +874,9 @@ func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 }
 
 func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -860,7 +904,7 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -882,6 +926,9 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 }
 
 func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -903,7 +950,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -921,6 +968,9 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 }
 
 func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(customersPath)
 	if err != nil {
@@ -942,7 +992,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for non-EUR EPC QR code: %v", err)
 	}
 
@@ -960,6 +1010,9 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 }
 
 func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -981,12 +1034,15 @@ func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error without EPC placeholder: %v", err)
 	}
 }
 
 func TestRenderInvoiceLeavesEPCQRAvailabilityAndLabelInactiveWithoutQRCodePlaceholder(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -1014,7 +1070,7 @@ After
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error when only the EPC QR label is active: %v", err)
 	}
 
@@ -1038,6 +1094,9 @@ After
 }
 
 func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -1059,7 +1118,7 @@ func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for invalid eligible EPC QR data")
 	}
@@ -1069,6 +1128,9 @@ func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 }
 
 func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(issuerPath)
 	if err != nil {
@@ -1090,7 +1152,7 @@ func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for non-SEPA eligible EPC QR data")
 	}
@@ -1171,6 +1233,9 @@ func TestSEPASchemeIBANCountryCodesHaveIBANLengthDefinitions(t *testing.T) {
 }
 
 func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(customersPath)
 	if err != nil {
@@ -1196,7 +1261,7 @@ func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for non-EUR starter template: %v", err)
 	}
 
@@ -1219,6 +1284,9 @@ func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 }
 
 func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -1244,7 +1312,7 @@ func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for settled starter template: %v", err)
 	}
 
@@ -1267,6 +1335,9 @@ func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
 }
 
 func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -1285,7 +1356,7 @@ Total: & @@TOTAL@@\\
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -1303,6 +1374,9 @@ Total: & @@TOTAL@@\\
 }
 
 func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -1315,7 +1389,7 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy VAT placeholders")
 	}
@@ -1330,6 +1404,9 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 }
 
 func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -1342,7 +1419,7 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy city/postal placeholders")
 	}
@@ -1357,6 +1434,9 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 }
 
 func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -1369,7 +1449,7 @@ func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for unmatched line-item block placeholder")
 	}
@@ -1380,6 +1460,9 @@ func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
 }
 
 func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
@@ -1392,7 +1475,7 @@ func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = RenderInvoice(templatePath, outputPath, ctx)
+	err = h.RenderInvoice(templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for line-item placeholder outside custom block")
 	}
@@ -1403,6 +1486,9 @@ func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T
 }
 
 func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(
 		customersPath,
@@ -1415,7 +1501,7 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "invoice.tex")
-	if err := RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -1430,7 +1516,9 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 }
 
 func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config-home"))
+	t.Parallel()
+
+	h := testHost(filepath.Join(t.TempDir(), "config-home"), filepath.Join(t.TempDir(), "home"))
 
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
@@ -1448,7 +1536,7 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1486,6 +1574,9 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 }
 
 func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -1502,7 +1593,7 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1512,7 +1603,9 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 }
 
 func TestCreateInvoiceEmailDraftUsesConfiguredBodyTemplate(t *testing.T) {
-	writeConfigFile(t, strings.TrimSpace(`
+	t.Parallel()
+
+	h := writeConfigFile(t, strings.TrimSpace(`
 email:
   body: |
     {email_greeting}
@@ -1541,7 +1634,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	if _, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
+	if _, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -1568,7 +1661,9 @@ email:
 }
 
 func TestCreateInvoiceEmailDraftUsesConfiguredSubjectTemplateWithAllPlaceholders(t *testing.T) {
-	writeConfigFile(t, strings.TrimSpace(`
+	t.Parallel()
+
+	h := writeConfigFile(t, strings.TrimSpace(`
 email:
   subject: "{customer_name} | {email_greeting} | {contact_person} | {customer_id} | {invoice_number} | {issue_date} | {due_date} | {total_amount} | {outstanding_amount} | {payment_terms_text} | {issuer_name}"
 `)+"\n")
@@ -1589,7 +1684,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1610,6 +1705,9 @@ email:
 }
 
 func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
 	if err != nil {
@@ -1626,7 +1724,8 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(
+	draft, err := h.CreateInvoiceEmailDraft(
+		time.Now(),
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -1646,13 +1745,17 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 }
 
 func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
 	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	_, err := CreateInvoiceEmailDraft(
+	_, err := h.CreateInvoiceEmailDraft(
+		time.Now(),
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -1671,6 +1774,9 @@ func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T
 }
 
 func TestResolveEmailDraftPaths(t *testing.T) {
+	t.Parallel()
+
+	h := isolatedHost(t)
 	rootDir := t.TempDir()
 	yamlInput := filepath.Join(rootDir, "BL00210001.yaml")
 	pdfInput := filepath.Join(rootDir, "BL00210001.pdf")
@@ -1720,7 +1826,7 @@ func TestResolveEmailDraftPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			paths, err := ResolveEmailDraftPaths(tt.inputPath, tt.pdfPath, tt.outputPath)
+			paths, err := h.ResolveEmailDraftPaths(tt.inputPath, tt.pdfPath, tt.outputPath)
 			if tt.wantErrSubstr != "" {
 				if err == nil {
 					t.Fatal("ResolveEmailDraftPaths returned nil error")
@@ -1747,8 +1853,10 @@ func TestResolveEmailDraftPaths(t *testing.T) {
 }
 
 func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	archivedInvoicePath := filepath.Join(archiveDir, "customer-a", "BL00210001.yaml")
 	if err := os.MkdirAll(filepath.Dir(archivedInvoicePath), 0o755); err != nil {
@@ -1759,7 +1867,7 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 	}
 
 	pdfPath := filepath.Join(t.TempDir(), "BL00210001.pdf")
-	paths, err := ResolveEmailDraftPaths(pdfPath, "", "")
+	paths, err := h.ResolveEmailDraftPaths(pdfPath, "", "")
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -1775,8 +1883,10 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 }
 
 func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	for _, path := range []string{
 		filepath.Join(archiveDir, "customer-a", "BL00210001.yaml"),
@@ -1790,7 +1900,7 @@ func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
 		}
 	}
 
-	_, err := ResolveEmailDraftPaths(filepath.Join(t.TempDir(), "BL00210001.pdf"), "", "")
+	_, err := h.ResolveEmailDraftPaths(filepath.Join(t.TempDir(), "BL00210001.pdf"), "", "")
 	if err == nil {
 		t.Fatal("ResolveEmailDraftPaths returned nil error for ambiguous archive matches")
 	}
@@ -1800,6 +1910,8 @@ func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
 }
 
 func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	templateDir := filepath.Join(t.TempDir(), "template")
@@ -1815,7 +1927,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 		t.Fatalf("MkdirAll(outputDir) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
 	if err := os.WriteFile(filepath.Join(configDir, "logo.png"), []byte("logo"), 0o644); err != nil {
 		t.Fatalf("WriteFile(global logo) returned error: %v", err)
@@ -1828,7 +1940,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 	outputPath := filepath.Join(outputDir, "invoice.tex")
 	rendered := "\\setmainfont{Ubuntu}[Path=fonts/,UprightFont=Ubuntu-Regular.ttf]\n\\includegraphics{logo.png}\n"
 
-	if err := copyTemplateAssets(templatePath, outputPath, rendered); err != nil {
+	if err := h.copyTemplateAssets(templatePath, outputPath, rendered); err != nil {
 		t.Fatalf("copyTemplateAssets returned error: %v", err)
 	}
 
@@ -1868,7 +1980,9 @@ func TestLoadContextRejectsOverpaidInvoice(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
+func TestResolveDefaultPathsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
+	t.Parallel()
+
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -1912,17 +2026,10 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, h, workDir)
 
-	if opts.BaseDir != workDir {
-		t.Fatalf("BaseDir = %q, want %q", opts.BaseDir, workDir)
-	}
 	if opts.CustomersPath != filepath.Join(workDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want local project path", opts.CustomersPath)
 	}
@@ -1937,11 +2044,13 @@ paths:
 	}
 }
 
-func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
-	isolateUserDirs(t)
+func TestResolveDefaultPathsFallbackToGlobalConfigFiles(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	workDir := filepath.Join(t.TempDir(), "work")
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
@@ -1955,17 +2064,11 @@ func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
 			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(defaultConfigTemplate()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.defaultConfigTemplate()), 0o644); err != nil {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
-
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, h, workDir)
 
 	if opts.CustomersPath != filepath.Join(configDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want global config path", opts.CustomersPath)
@@ -1981,7 +2084,9 @@ func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsUseConfiguredPathsBeforeGlobalDefaults(t *testing.T) {
+func TestResolveDefaultPathsUseConfiguredPathsBeforeGlobalDefaults(t *testing.T) {
+	t.Parallel()
+
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -2017,13 +2122,9 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, h, workDir)
 
 	if opts.CustomersPath != filepath.Join(customDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want configured path", opts.CustomersPath)
@@ -2040,6 +2141,8 @@ paths:
 }
 
 func TestListTemplatesUsesDefaultTemplateDirectoryOnly(t *testing.T) {
+	t.Parallel()
+
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -2072,9 +2175,9 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	templates, err := ListTemplates(workDir)
+	templates, err := h.ListTemplates()
 	if err != nil {
 		t.Fatalf("ListTemplates returned error: %v", err)
 	}
@@ -2102,6 +2205,8 @@ paths:
 }
 
 func TestResolveTemplateReferenceFindsNamedConfigTemplate(t *testing.T) {
+	t.Parallel()
+
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -2132,9 +2237,9 @@ paths:
 		t.Fatalf("WriteFile(custom.tex) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	resolvedPath, err := ResolveTemplateReference(workDir, "multi_vat.tex")
+	resolvedPath, err := h.ResolveTemplateReference(workDir, "multi_vat.tex")
 	if err != nil {
 		t.Fatalf("ResolveTemplateReference returned error: %v", err)
 	}
@@ -2144,6 +2249,8 @@ paths:
 }
 
 func TestResolveTemplateReferenceDoesNotSearchOutsideDefaultTemplateDirectory(t *testing.T) {
+	t.Parallel()
+
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -2172,9 +2279,9 @@ paths:
 		t.Fatalf("WriteFile(outside.tex) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	_, err := ResolveTemplateReference(workDir, "outside.tex")
+	_, err := h.ResolveTemplateReference(workDir, "outside.tex")
 	if err == nil {
 		t.Fatal("ResolveTemplateReference returned nil error for template outside default template directory")
 	}
@@ -2183,7 +2290,9 @@ paths:
 	}
 }
 
-func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
+func TestResolveDefaultPathsFallbackToLegacyConfigFiles(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	legacyDir := filepath.Join(configHome, "invoice-tool")
 	workDir := filepath.Join(t.TempDir(), "work")
@@ -2201,13 +2310,9 @@ func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 		}
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, h, workDir)
 
 	if opts.CustomersPath != filepath.Join(legacyDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want legacy config path", opts.CustomersPath)
@@ -2224,23 +2329,24 @@ func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 }
 
 func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
-	isolateUserDirs(t)
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	homeDir := filepath.Join(t.TempDir(), "home")
+	h := testHost(configHome, homeDir)
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
 	if err := os.MkdirAll(homeDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(homeDir) returned error: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(defaultConfigTemplate()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.defaultConfigTemplate()), 0o644); err != nil {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	expected := setPlatformHome(t, homeDir)
+	expected := filepath.Join(homeDir, ".local", "share", "invox", "invoices")
 
-	got, err := ResolveArchiveDir()
+	got, err := h.ResolveArchiveDir()
 	if err != nil {
 		t.Fatalf("ResolveArchiveDir returned error: %v", err)
 	}
@@ -2250,6 +2356,8 @@ func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
 }
 
 func TestResolveArchiveDirUsesConfigOverride(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	homeDir := filepath.Join(t.TempDir(), "home")
@@ -2263,10 +2371,9 @@ func TestResolveArchiveDirUsesConfigOverride(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	setPlatformHome(t, homeDir)
+	h := testHost(configHome, homeDir)
 
-	got, err := ResolveArchiveDir()
+	got, err := h.ResolveArchiveDir()
 	if err != nil {
 		t.Fatalf("ResolveArchiveDir returned error: %v", err)
 	}
@@ -2278,6 +2385,8 @@ func TestResolveArchiveDirUsesConfigOverride(t *testing.T) {
 }
 
 func TestResolveArchiveDirUsesRelativeConfigPath(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
@@ -2287,9 +2396,9 @@ func TestResolveArchiveDirUsesRelativeConfigPath(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	got, err := ResolveArchiveDir()
+	got, err := h.ResolveArchiveDir()
 	if err != nil {
 		t.Fatalf("ResolveArchiveDir returned error: %v", err)
 	}
@@ -2301,6 +2410,8 @@ func TestResolveArchiveDirUsesRelativeConfigPath(t *testing.T) {
 }
 
 func TestResolveArchiveDirUsesLegacyConfigOverride(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	legacyDir := filepath.Join(configHome, "invoice-tool")
 	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
@@ -2310,9 +2421,9 @@ func TestResolveArchiveDirUsesLegacyConfigOverride(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	got, err := ResolveArchiveDir()
+	got, err := h.ResolveArchiveDir()
 	if err != nil {
 		t.Fatalf("ResolveArchiveDir returned error: %v", err)
 	}
@@ -2324,16 +2435,18 @@ func TestResolveArchiveDirUsesLegacyConfigOverride(t *testing.T) {
 }
 
 func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	homeDir := filepath.Join(t.TempDir(), "home")
 	if err := os.MkdirAll(homeDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(homeDir) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	archiveDir := setPlatformHome(t, homeDir)
+	h := testHost(configHome, homeDir)
+	archiveDir := filepath.Join(homeDir, ".local", "share", "invox", "invoices")
 
-	path, err := EditableConfigPath()
+	path, err := h.EditableConfigPath()
 	if err != nil {
 		t.Fatalf("EditableConfigPath returned error: %v", err)
 	}
@@ -2375,7 +2488,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		"#   pattern: '{customer_code}-{counter:03}'",
 		"#   start: 1",
 		"# archive:",
-		"#   dir: '" + configTemplatePath(archiveDir) + "'",
+		"#   dir: '" + h.configTemplatePath(archiveDir) + "'",
 		"# email:",
 		"#   subject: 'Invoice {invoice_number}'",
 		"#   body: |",
@@ -2388,13 +2501,15 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 }
 
 func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
+	t.Parallel()
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
 
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
 	want := "archive:\n  dir: ~/Documents/Invox/Invoices\n"
 	path := filepath.Join(configDir, "config.yaml")
@@ -2402,7 +2517,7 @@ func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	gotPath, err := EditableConfigPath()
+	gotPath, err := h.EditableConfigPath()
 	if err != nil {
 		t.Fatalf("EditableConfigPath returned error: %v", err)
 	}
@@ -2420,9 +2535,11 @@ func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
 }
 
 func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) {
-	writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
+	t.Parallel()
 
-	_, err := ResolveDefaultCustomersPath(t.TempDir())
+	h := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
+
+	_, err := h.ResolveDefaultCustomersPath(t.TempDir())
 	if err == nil {
 		t.Fatalf("ResolveDefaultCustomersPath returned nil error for indented top-level config")
 	}
@@ -2432,21 +2549,19 @@ func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) 
 }
 
 func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-001")
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
-	invoiceNumber, _, err := CreateNewInvoice(
+	invoiceNumber, _, err := h.CreateNewInvoice(
+		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2494,13 +2609,10 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 }
 
 func TestCreateNewInvoicePrefillsVATFromCustomerDefaultWhenMissing(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	h := isolatedHost(t)
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
@@ -2524,7 +2636,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2539,13 +2651,10 @@ positions:
 }
 
 func TestCreateNewInvoicePreservesSourceVATWhenCustomerHasDefault(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	h := isolatedHost(t)
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
@@ -2558,7 +2667,7 @@ CUST-001:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2577,20 +2686,18 @@ CUST-001:
 }
 
 func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := CreateNewInvoice(
+	invoiceNumber, _, err := h.CreateNewInvoice(
+		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2607,9 +2714,11 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 }
 
 func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T) {
+	t.Parallel()
+
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	archivePath := filepath.Join(archiveDir, "2026-03-05.md")
 	if err := os.WriteFile(archivePath, []byte(strings.Join([]string{
@@ -2626,7 +2735,9 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(
+	_, _, err := h.CreateNewInvoice(
+		time.Now(),
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2649,18 +2760,17 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 }
 
 func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	h := isolatedHost(t)
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeLegacyDraftFixtures(t)
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
-	_, _, err := CreateNewInvoice(
+	_, _, err := h.CreateNewInvoice(
+		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2683,20 +2793,18 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 }
 
 func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixturesWithCustomerStart(t, "7")
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := CreateNewInvoice(
+	invoiceNumber, _, err := h.CreateNewInvoice(
+		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2713,17 +2821,13 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 }
 
 func TestCreateNewInvoiceFromLastArchivedInvoice(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	t.Parallel()
+
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	olderArchivePath := filepath.Join(archiveDir, "2026-03-01.yaml")
 	if err := os.WriteFile(olderArchivePath, []byte(strings.TrimSpace(`
@@ -2766,7 +2870,9 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := CreateNewInvoice(
+	invoiceNumber, _, err := h.CreateNewInvoice(
+		now,
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2816,12 +2922,16 @@ positions:
 }
 
 func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T) {
+	t.Parallel()
+
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(
+	_, _, err := h.CreateNewInvoice(
+		time.Now(),
+		t.TempDir(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2838,9 +2948,11 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 }
 
 func TestCreateNewInvoiceFromLastRejectsLegacyArchivedInvoiceKeys(t *testing.T) {
+	t.Parallel()
+
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	archivePath := filepath.Join(archiveDir, "2026-03-08.yaml")
 	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
@@ -2863,7 +2975,7 @@ line_items:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
+	_, _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
 	}
@@ -2879,8 +2991,10 @@ line_items:
 }
 
 func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	archivedMarkdownPath := filepath.Join(archiveDir, "customer-a", "2026-03-06.md")
 	if err := os.MkdirAll(filepath.Dir(archivedMarkdownPath), 0o755); err != nil {
@@ -2911,7 +3025,7 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 	}
 
 	workDir := t.TempDir()
-	outputPath, archivePath, err := EditArchivedInvoice("customer-a/2026-03-06.md", workDir)
+	outputPath, archivePath, err := h.EditArchivedInvoice("customer-a/2026-03-06.md", workDir)
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -2944,7 +3058,7 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	result, err := ArchiveInvoice(outputPath, ArchiveOptions{Replace: true})
+	result, err := h.ArchiveInvoice(time.Now(), outputPath, ArchiveOptions{Replace: true})
 	if err != nil {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
@@ -2988,8 +3102,10 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 }
 
 func TestEditArchivedInvoiceRejectsLegacyKeys(t *testing.T) {
+	t.Parallel()
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	archivePath := filepath.Join(archiveDir, "2026-03-06.yaml")
 	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
@@ -3011,7 +3127,7 @@ line_items:
 		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
 	}
 
-	_, _, err := EditArchivedInvoice("2026-03-06.yaml", t.TempDir())
+	_, _, err := h.EditArchivedInvoice("2026-03-06.yaml", t.TempDir())
 	if err == nil {
 		t.Fatal("EditArchivedInvoice returned nil error for legacy keys")
 	}
@@ -3027,13 +3143,15 @@ line_items:
 }
 
 func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
+	t.Parallel()
+
 	customersPath, _, _ := writeDraftFixtures(t)
 	invoicePath := writeMinimalInvoice(t, "CUST-001-009")
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-011")
 
-	customerID, oldNumber, newNumber, err := IncrementInvoiceNumber(
+	customerID, oldNumber, newNumber, err := h.IncrementInvoiceNumber(
 		invoicePath,
 		customersPath,
 	)
@@ -3060,9 +3178,11 @@ func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
 }
 
 func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{year}-{counter:04}'\n  start: 5\n")
+	t.Parallel()
 
-	settings, err := ResolveNumberingSettings()
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{year}-{counter:04}'\n  start: 5\n")
+
+	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		t.Fatalf("ResolveNumberingSettings returned error: %v", err)
 	}
@@ -3076,7 +3196,6 @@ func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
 
 func writeContextFixtures(t *testing.T) (string, string, string, string, string, string) {
 	t.Helper()
-	isolateUserDirs(t)
 
 	dir := t.TempDir()
 	customersPath := filepath.Join(dir, "customers.yaml")
@@ -3181,7 +3300,6 @@ func writeDraftFixtures(t *testing.T) (string, string, string) {
 
 func writeDraftFixturesWithCustomerStart(t *testing.T, customerStart string) (string, string, string) {
 	t.Helper()
-	isolateUserDirs(t)
 
 	dir := t.TempDir()
 	customersPath := filepath.Join(dir, "customers.yaml")
@@ -3293,7 +3411,7 @@ func writeInvoiceWithoutNumber(t *testing.T, sourcePath string) string {
 	return invoicePath
 }
 
-func writeConfigFile(t *testing.T, source string) string {
+func writeConfigFile(t *testing.T, source string) Host {
 	t.Helper()
 
 	configHome := filepath.Join(t.TempDir(), "config-home")
@@ -3301,13 +3419,13 @@ func writeConfigFile(t *testing.T, source string) string {
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
 	path := filepath.Join(configDir, "config.yaml")
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
-	return path
+	return h
 }
 
 func writeArchivedInvoiceMarkdown(t *testing.T, dir, name, invoiceNumber string) string {
@@ -3342,24 +3460,24 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-// setPlatformHome points the home and platform data directories at homeDir
-// and returns the default archive directory invox derives from them on the
-// current OS.
-func setPlatformHome(t *testing.T, homeDir string) string {
+// resolveDefaultOptions resolves the four support files from start the way
+// the CLI does before flags override them.
+func resolveDefaultOptions(t *testing.T, h Host, start string) Options {
 	t.Helper()
-
-	t.Setenv("HOME", homeDir)
-	t.Setenv("USERPROFILE", homeDir)
-
-	switch runtime.GOOS {
-	case "darwin":
-		return filepath.Join(homeDir, "Library", "Application Support", "invox", "invoices")
-	case "windows":
-		appData := filepath.Join(homeDir, "AppData", "Roaming")
-		t.Setenv("APPDATA", appData)
-		return filepath.Join(appData, "invox", "invoices")
-	default:
-		t.Setenv("XDG_DATA_HOME", "")
-		return filepath.Join(homeDir, ".local", "share", "invox", "invoices")
+	var opts Options
+	var err error
+	for _, resolve := range []struct {
+		path *string
+		fn   func(string) (string, error)
+	}{
+		{&opts.CustomersPath, h.ResolveDefaultCustomersPath},
+		{&opts.IssuerPath, h.ResolveDefaultIssuerPath},
+		{&opts.DefaultsPath, h.ResolveDefaultInvoiceDefaultsPath},
+		{&opts.TemplatePath, h.ResolveDefaultTemplatePath},
+	} {
+		if *resolve.path, err = resolve.fn(start); err != nil {
+			t.Fatalf("resolve default path returned error: %v", err)
+		}
 	}
+	return opts
 }

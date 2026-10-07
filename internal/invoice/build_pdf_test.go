@@ -31,7 +31,7 @@ func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 		return os.WriteFile(strings.TrimSuffix(path, ".tex")+".pdf", []byte("%PDF-1.4 compiled\n"), 0o644)
 	}
 
-	if err := BuildInvoicePDF(context.Background(), compile, templatePath, outputPath, inv); err != nil {
+	if err := isolatedHost(t).BuildInvoicePDF(context.Background(), compile, templatePath, outputPath, inv); err != nil {
 		t.Fatalf("BuildInvoicePDF returned error: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestBuildInvoicePDFReturnsTheCompileError(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "invoice.pdf")
 	compileErr := errors.New("tectonic exploded")
 
-	err = BuildInvoicePDF(context.Background(), func(context.Context, string) error { return compileErr }, templatePath, outputPath, inv)
+	err = isolatedHost(t).BuildInvoicePDF(context.Background(), func(context.Context, string) error { return compileErr }, templatePath, outputPath, inv)
 
 	if !errors.Is(err, compileErr) {
 		t.Fatalf("BuildInvoicePDF error = %v, want %v", err, compileErr)

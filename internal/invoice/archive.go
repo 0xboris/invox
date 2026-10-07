@@ -29,8 +29,8 @@ type archivedInvoiceRecord struct {
 	InvoiceNumber string
 }
 
-func ListArchivedInvoices() ([]ArchivedInvoiceSummary, error) {
-	records, err := collectArchivedInvoiceRecords()
+func (h Host) ListArchivedInvoices() ([]ArchivedInvoiceSummary, error) {
+	records, err := h.collectArchivedInvoiceRecords()
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,8 @@ func ListArchivedInvoices() ([]ArchivedInvoiceSummary, error) {
 	return summaries, nil
 }
 
-func latestArchivedInvoicePath(customerID string) (string, bool, error) {
-	records, err := collectArchivedInvoiceRecords()
+func (h Host) latestArchivedInvoicePath(customerID string) (string, bool, error) {
+	records, err := h.collectArchivedInvoiceRecords()
 	if err != nil {
 		return "", false, err
 	}
@@ -70,8 +70,8 @@ func latestArchivedInvoicePath(customerID string) (string, bool, error) {
 	return latest.Path, true, nil
 }
 
-func collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
-	archiveDir, err := ResolveArchiveDir()
+func (h Host) collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return nil, err
 	}
@@ -233,8 +233,8 @@ func parseArchivedIssueDate(value string) (time.Time, bool) {
 	return parsed, true
 }
 
-func resolveArchiveInputPath(name string) (string, string, error) {
-	archiveDir, err := ResolveArchiveDir()
+func (h Host) resolveArchiveInputPath(name string) (string, string, error) {
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return "", "", err
 	}
@@ -311,7 +311,7 @@ func (e *DuplicateInvoiceNumberError) Error() string {
 // invoice at invoicePath uses a number that an archived invoice already has.
 // The archived file the invoice was opened from (`archive edit`) does not
 // count as a duplicate.
-func CheckArchivedNumberUnique(invoicePath string) error {
+func (h Host) CheckArchivedNumberUnique(invoicePath string) error {
 	document, err := loadYAMLDocument(invoicePath)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func CheckArchivedNumberUnique(invoicePath string) error {
 	if invoiceNode == nil || invoiceNode.Kind != yaml.MappingNode {
 		return nil
 	}
-	archiveDir, err := ResolveArchiveDir()
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return err
 	}
@@ -332,10 +332,10 @@ func CheckArchivedNumberUnique(invoicePath string) error {
 		return nil
 	}
 	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
-	return checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root)
+	return h.checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root)
 }
 
-func checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, root *yaml.Node) error {
+func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, root *yaml.Node) error {
 	if invoiceNumber == "" {
 		return nil
 	}
@@ -362,7 +362,7 @@ func checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, ro
 		excluded[path] = true
 	}
 
-	records, err := collectArchivedInvoiceRecords()
+	records, err := h.collectArchivedInvoiceRecords()
 	if err != nil {
 		return err
 	}

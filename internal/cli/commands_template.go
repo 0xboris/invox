@@ -4,15 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runTemplate(ios *iostreams.IOStreams, args []string) error {
+func runTemplate(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	if len(args) == 0 {
 		printTemplateHelp(ios.Out)
 		return nil
@@ -24,13 +23,15 @@ func runTemplate(ios *iostreams.IOStreams, args []string) error {
 
 	switch args[0] {
 	case "list":
-		return runTemplateList(ios, args[1:])
+		return runTemplateList(f, args[1:])
 	default:
 		return cmdutil.FlagErrorf("template", "unknown template subcommand %q", args[0])
 	}
 }
 
-func runTemplateList(ios *iostreams.IOStreams, args []string) error {
+func runTemplateList(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	if wantsHelp(args) {
 		printTemplateListHelp(ios.Out)
 		return nil
@@ -50,16 +51,11 @@ func runTemplateList(ios *iostreams.IOStreams, args []string) error {
 		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
 
-	cwd, err := os.Getwd()
+	templates, err := h.ListTemplates()
 	if err != nil {
 		return err
 	}
-
-	templates, err := invoice.ListTemplates(cwd)
-	if err != nil {
-		return err
-	}
-	templateDir, err := invoice.TemplateCatalogDir()
+	templateDir, err := h.TemplateCatalogDir()
 	if err != nil {
 		return err
 	}

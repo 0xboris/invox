@@ -155,6 +155,8 @@ func TestHelpEnvironmentDocumentsEveryVariableRead(t *testing.T) {
 }
 
 func TestEnvKeysReadFindsEveryForm(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		src  string
@@ -181,6 +183,21 @@ func TestEnvKeysReadFindsEveryForm(t *testing.T) {
 			want: []string{"<non-constant key name>"},
 		},
 		{
+			name: "Env value and field",
+			src:  "type Env struct{ Getenv func(string) string }\n\nfunc f(e Env, g struct{ Env Env }) { e.Getenv(\"K\"); g.Env.Getenv(\"K2\") }\n",
+			want: []string{"K", "K2"},
+		},
+		{
+			name: "unexported getenv field, as in the editor adapter",
+			src:  "type Editor struct{ getenv func(string) string }\n\nfunc (e *Editor) f() string { return e.getenv(\"VISUAL\") }\n",
+			want: []string{"VISUAL"},
+		},
+		{
+			name: "Env value with computed key",
+			src:  "type Env struct{ Getenv func(string) string }\n\nfunc f(e Env, name string) string { return e.Getenv(name) }\n",
+			want: []string{"<non-constant key name>"},
+		},
+		{
 			name: "other packages and setters",
 			src:  "import (\n\t\"os\"\n\t\"syscall\"\n)\n\nfunc f() { os.Setenv(\"S\", \"1\"); syscall.Getenv(\"Y\"); _ = os.Environ() }\n",
 			want: nil,
@@ -188,6 +205,7 @@ func TestEnvKeysReadFindsEveryForm(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, "probe.go", "package probe\n\n"+tc.src, 0)
 			if err != nil {
@@ -205,10 +223,13 @@ func TestEnvKeysReadFindsEveryForm(t *testing.T) {
 	}
 }
 
-// envKeysRead maps each environment variable read with os.Getenv or
-// os.LookupEnv in one package's files to the positions that read it. A key
-// that is neither a string literal nor a package-level string constant is
-// reported as "<non-constant key EXPR>", so it can't slip past the check.
+// envKeysRead maps each environment variable read in one package's files to
+// the positions that read it. A read is a call X.Getenv(key) or
+// X.LookupEnv(key) where X is os or a value such as an env.Env
+// (e.Getenv, f.Env.Getenv, or an adapter's getenv field), but not another
+// imported package such as syscall.
+// A key that is neither a string literal nor a package-level string constant
+// is reported as "<non-constant key EXPR>", so it can't slip past the check.
 func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
 	constants := map[string]string{}
 	for _, file := range files {
@@ -233,16 +254,17 @@ func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
 
 	keys := map[string][]string{}
 	for _, file := range files {
-		osNames := map[string]bool{}
+		otherPackages := map[string]bool{}
 		for _, spec := range file.Imports {
-			if path, err := strconv.Unquote(spec.Path.Value); err != nil || path != "os" {
+			path, err := strconv.Unquote(spec.Path.Value)
+			if err != nil || path == "os" {
 				continue
 			}
-			name := "os"
+			name := importName(path)
 			if spec.Name != nil {
 				name = spec.Name.Name
 			}
-			osNames[name] = true
+			otherPackages[name] = true
 		}
 
 		ast.Inspect(file, func(node ast.Node) bool {
@@ -251,10 +273,16 @@ func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
 				return true
 			}
 			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (selector.Sel.Name != "Getenv" && selector.Sel.Name != "LookupEnv") {
+			if !ok || (selector.Sel.Name != "Getenv" && selector.Sel.Name != "getenv" && selector.Sel.Name != "LookupEnv") {
 				return true
 			}
-			if pkg, ok := selector.X.(*ast.Ident); !ok || !osNames[pkg.Name] {
+			switch x := selector.X.(type) {
+			case *ast.Ident:
+				if otherPackages[x.Name] {
+					return true
+				}
+			case *ast.SelectorExpr:
+			default:
 				return true
 			}
 
@@ -272,6 +300,16 @@ func envKeysRead(fset *token.FileSet, files []*ast.File) map[string][]string {
 		})
 	}
 	return keys
+}
+
+// importName is the name a package is referred to by when its import has no
+// alias: the last path element, without a gopkg.in style ".vN" suffix.
+func importName(path string) string {
+	name := path[strings.LastIndex(path, "/")+1:]
+	if dot := strings.Index(name, ".v"); dot > 0 {
+		name = name[:dot]
+	}
+	return name
 }
 
 func stringLiteral(expr ast.Expr) (string, bool) {

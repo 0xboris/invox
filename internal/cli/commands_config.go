@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,17 +12,19 @@ import (
 
 func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	spec := configSpec()
 
 	if wantsHelp(args) {
-		printConfigHelp(ios.Out)
+		printConfigHelp(ios.Out, h)
 		return nil
 	}
 	if len(args) > 0 {
 		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(args, " "))
 	}
 
-	configPath, err := invoice.EditableConfigPath()
+	configPath, err := h.EditableConfigPath()
 	if err != nil {
 		return err
 	}
@@ -32,7 +33,7 @@ func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 
-	baseDir, err := os.Getwd()
+	baseDir, err := e.Getwd()
 	if err != nil {
 		return err
 	}

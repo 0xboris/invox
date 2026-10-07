@@ -65,7 +65,7 @@ func TestBuildInvoiceEmailDraftBodyRoundTripsUTF8(t *testing.T) {
 		SenderName:     "Jürgen",
 		SenderAddress:  "hello@example.com",
 		AttachmentPath: "invoice.pdf",
-	}, []byte("%PDF-1.4\nfake"))
+	}, []byte("%PDF-1.4\nfake"), draftTime, draftBoundary)
 	if err != nil {
 		t.Fatalf("buildInvoiceEmailDraft returned error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestBuildInvoiceEmailDraftAttachmentFilenameRoundTrips(t *testing.T) {
 				Body:           "Hello\n",
 				SenderAddress:  "hello@example.com",
 				AttachmentPath: filepath.Join(t.TempDir(), tt.filename),
-			}, []byte("%PDF-1.4\nfake"))
+			}, []byte("%PDF-1.4\nfake"), draftTime, draftBoundary)
 			if err != nil {
 				t.Fatalf("buildInvoiceEmailDraft returned error: %v", err)
 			}

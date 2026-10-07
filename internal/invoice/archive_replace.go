@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // archiveHistoryDirName is the directory below archive.dir that keeps the
@@ -97,12 +98,12 @@ func existingArchivePaths(paths ...string) ([]string, error) {
 // backupArchivedFiles copies each archived file to
 // <archive.dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its
 // directory below archive.dir.
-func backupArchivedFiles(archiveDir string, paths []string) ([]ArchiveBackup, error) {
+func backupArchivedFiles(archiveDir string, paths []string, now time.Time) ([]ArchiveBackup, error) {
 	absArchiveDir, err := filepath.Abs(archiveDir)
 	if err != nil {
 		return nil, err
 	}
-	stamp := currentDate().UTC().Format(archiveBackupTimeFormat)
+	stamp := now.UTC().Format(archiveBackupTimeFormat)
 
 	backups := make([]ArchiveBackup, 0, len(paths))
 	for _, path := range paths {

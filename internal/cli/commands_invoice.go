@@ -19,6 +19,8 @@ import (
 
 func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-c":          true,
 		"--customers": true,
@@ -35,13 +37,13 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := newSpec()
 
-	opts, extraArgs, err := parseCommand(ios, spec, args)
+	opts, extraArgs, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
 	customerID := strings.TrimSpace(extraArgs[0])
-	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
+	invoiceNumber, outputPath, err := h.CreateNewInvoice(e.Now(), opts.BaseDir, opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; choose a different -o/--output path", exists)
@@ -66,15 +68,17 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runIncrement(ios *iostreams.IOStreams, args []string) error {
+func runIncrement(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := incrementSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
-	customerID, oldNumber, newNumber, err := invoice.IncrementInvoiceNumber(opts.InvoicePath, opts.CustomersPath)
+	customerID, oldNumber, newNumber, err := h.IncrementInvoiceNumber(opts.InvoicePath, opts.CustomersPath)
 	if err != nil {
 		return err
 	}
@@ -91,10 +95,12 @@ func runIncrement(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runValidate(ios *iostreams.IOStreams, args []string) error {
+func runValidate(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := validateSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -104,7 +110,7 @@ func runValidate(ios *iostreams.IOStreams, args []string) error {
 		return err
 	}
 
-	warnArchivedDuplicate(ios, opts.InvoicePath, opts.BaseDir)
+	warnArchivedDuplicate(ios, h, opts.InvoicePath, opts.BaseDir)
 
 	fmt.Fprintf(
 		ios.ErrOut,
@@ -117,10 +123,12 @@ func runValidate(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runRender(ios *iostreams.IOStreams, args []string) error {
+func runRender(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := renderSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -129,7 +137,7 @@ func runRender(ios *iostreams.IOStreams, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := invoice.RenderInvoice(opts.TemplatePath, opts.OutputPath, ctx); err != nil {
+	if err := h.RenderInvoice(opts.TemplatePath, opts.OutputPath, ctx); err != nil {
 		return err
 	}
 
@@ -146,6 +154,8 @@ func runRender(ios *iostreams.IOStreams, args []string) error {
 
 func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -171,17 +181,17 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := emailSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
-	paths, err := invoice.ResolveEmailDraftPaths(opts.InvoicePath, opts.PDFPath, opts.OutputPath)
+	paths, err := h.ResolveEmailDraftPaths(opts.InvoicePath, opts.PDFPath, opts.OutputPath)
 	if err != nil {
 		return err
 	}
 
-	emailMessage, err := invoice.PrepareInvoiceEmail(
+	emailMessage, err := h.PrepareInvoiceEmail(
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
@@ -204,20 +214,20 @@ func runEmail(ctx context.Context, f *cmdutil.Factory, args []string) error {
 			return fmt.Errorf("failed to open editable email draft: %w", err)
 		}
 	} else if explicitOutputPath {
-		if err := writeEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); err != nil {
+		if err := writeEmailDraft(h, e.Now(), opts, paths, paths.OutputPath, opts.OverwriteOutput); err != nil {
 			return err
 		}
 		if err := f.Opener.Open(ctx, paths.OutputPath); err != nil {
 			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, opts.BaseDir), err)
 		}
 	} else {
-		pruneEmailDrafts(os.TempDir(), time.Now().Add(-emailDraftMaxAge))
+		pruneEmailDrafts(os.TempDir(), e.Now().Add(-emailDraftMaxAge))
 		draftDir, err := os.MkdirTemp("", emailDraftDirPrefix+"*")
 		if err != nil {
 			return fmt.Errorf("create temporary draft directory: %w", err)
 		}
 		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
-		if err := writeEmailDraft(opts, paths, draftPath, false); err != nil {
+		if err := writeEmailDraft(h, e.Now(), opts, paths, draftPath, false); err != nil {
 			_ = os.RemoveAll(draftDir)
 			return err
 		}
@@ -271,8 +281,9 @@ func pruneEmailDrafts(dir string, cutoff time.Time) {
 }
 
 // writeEmailDraft writes the .eml draft to outputPath.
-func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) error {
-	_, err := invoice.CreateInvoiceEmailDraft(
+func writeEmailDraft(h invoice.Host, now time.Time, opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) error {
+	_, err := h.CreateInvoiceEmailDraft(
+		now,
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
@@ -290,6 +301,8 @@ func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, output
 
 func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -307,7 +320,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 
 	spec := buildSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -317,7 +330,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	if err := invoice.BuildInvoicePDF(ctx, f.Compiler.Build, opts.TemplatePath, opts.OutputPath, inv); err != nil {
+	if err := h.BuildInvoicePDF(ctx, f.Compiler.Build, opts.TemplatePath, opts.OutputPath, inv); err != nil {
 		var execErr *run.ExecError
 		if errors.As(err, &execErr) {
 			return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
@@ -337,7 +350,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, err := archiveWithConfirmation(ios, spec, opts, errorPrefix)
+		result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, errorPrefix)
 		// These already start with errorPrefix, and wrapping a FlagError would
 		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
@@ -376,13 +389,16 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runArchive(ios *iostreams.IOStreams, args []string) error {
+func runArchive(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	if len(args) > 0 {
 		switch args[0] {
 		case "edit":
-			return runArchiveEdit(ios, args[1:])
+			return runArchiveEdit(f, args[1:])
 		case "list":
-			return runArchiveList(ios, args[1:])
+			return runArchiveList(f, args[1:])
 		}
 	}
 
@@ -394,12 +410,12 @@ func runArchive(ios *iostreams.IOStreams, args []string) error {
 
 	spec := archiveSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
-	result, err := archiveWithConfirmation(ios, spec, opts, "")
+	result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, "")
 	if err != nil {
 		return err
 	}
@@ -415,15 +431,17 @@ func runArchive(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runArchiveEdit(ios *iostreams.IOStreams, args []string) error {
+func runArchiveEdit(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := archiveEditSpec()
 
-	opts, extraArgs, err := parseCommand(ios, spec, args)
+	opts, extraArgs, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
-	outputPath, archivePath, err := invoice.EditArchivedInvoice(strings.TrimSpace(extraArgs[0]), opts.BaseDir)
+	outputPath, archivePath, err := h.EditArchivedInvoice(strings.TrimSpace(extraArgs[0]), opts.BaseDir)
 	if err != nil {
 		return err
 	}
@@ -438,19 +456,21 @@ func runArchiveEdit(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runArchiveList(ios *iostreams.IOStreams, args []string) error {
+func runArchiveList(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
+	h := f.Host()
 	spec := archiveListSpec()
 
-	_, _, err := parseCommand(ios, spec, args)
+	_, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
 
-	archivedInvoices, err := invoice.ListArchivedInvoices()
+	archivedInvoices, err := h.ListArchivedInvoices()
 	if err != nil {
 		return err
 	}
-	archiveDir, err := invoice.ResolveArchiveDir()
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return err
 	}
@@ -471,8 +491,8 @@ func runArchiveList(ios *iostreams.IOStreams, args []string) error {
 
 // warnArchivedDuplicate warns on stderr when the invoice's number is already
 // used by an archived invoice. It never fails validation.
-func warnArchivedDuplicate(ios *iostreams.IOStreams, invoicePath, baseDir string) {
-	err := invoice.CheckArchivedNumberUnique(invoicePath)
+func warnArchivedDuplicate(ios *iostreams.IOStreams, h invoice.Host, invoicePath, baseDir string) {
+	err := h.CheckArchivedNumberUnique(invoicePath)
 	if err == nil {
 		return
 	}
