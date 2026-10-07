@@ -106,7 +106,7 @@ func runValidate(ios *iostreams.IOStreams, args []string) error {
 		ctx.InvoiceNumber,
 		ctx.CustomerID,
 		len(ctx.LineItems),
-		invoice.FormatCurrency(ctx.TotalCents, ctx.Currency),
+		formatMoney(ctx.TotalCents, ctx.Currency),
 	)
 	return nil
 }

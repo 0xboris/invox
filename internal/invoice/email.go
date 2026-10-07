@@ -396,7 +396,7 @@ func emailTemplateReplacer(ctx *Context) *strings.Replacer {
 }
 
 func emailMoney(cents int64, currency string) string {
-	return formatMoneyCents(cents) + " " + currency
+	return FormatMoneyCents(cents) + " " + currency
 }
 
 // formatMIMEParameter keeps the plain quoted form for printable ASCII values

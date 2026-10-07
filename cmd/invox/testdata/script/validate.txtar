@@ -67,7 +67,7 @@ error: invoice.paid_amount: must not be negative
 -- want-archived-warning.txt --
 warning: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/earlier.yaml; run 'invox increment -i invoice.yaml' before archiving
 -- want-ok.txt --
-Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 \euro
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-missing-input.txt --
 error: missing required flags: -i, --input
 Run 'invox validate --help' for usage.
