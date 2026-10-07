@@ -109,5 +109,6 @@ Exit codes:
        confirmation or the editor was not done. Ctrl-C at a confirmation
        prompt also exits 2.
   130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped
-       and its temporary files are removed.
+       and its temporary files are removed. While an editor runs, Ctrl-C
+       goes to the editor alone and invox keeps waiting for it.
   143  Stopped by SIGTERM, with the same cleanup as 130.

@@ -100,6 +100,7 @@ func printExitCodesHelp(w io.Writer) {
 	fmt.Fprintf(w, "       confirmation or the editor was not done. Ctrl-C at a confirmation\n")
 	fmt.Fprintf(w, "       prompt also exits 2.\n")
 	fmt.Fprintf(w, "  130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped\n")
-	fmt.Fprintf(w, "       and its temporary files are removed.\n")
+	fmt.Fprintf(w, "       and its temporary files are removed. While an editor runs, Ctrl-C\n")
+	fmt.Fprintf(w, "       goes to the editor alone and invox keeps waiting for it.\n")
 	fmt.Fprintf(w, "  143  Stopped by SIGTERM, with the same cleanup as 130.\n")
 }

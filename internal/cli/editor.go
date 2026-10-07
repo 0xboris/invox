@@ -17,7 +17,9 @@ func openInEditor(ctx context.Context, f *cmdutil.Factory, command, path, nextSt
 	if reason := whyNoPrompt(f.IOStreams); reason != "" {
 		return cmdutil.FlagErrorf(command, "cannot open an editor: %s; %s", reason, nextStep)
 	}
+	release := holdInterrupt(ctx)
 	err := f.Editor.Edit(ctx, path)
+	release()
 	var execErr *run.ExecError
 	if errors.As(err, &execErr) {
 		return &cmdutil.ExecError{Program: fmt.Sprintf("editor %q", execErr.Name), Code: execErr.Code, Err: err}
