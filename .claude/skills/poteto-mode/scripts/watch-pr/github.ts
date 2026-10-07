@@ -370,7 +370,9 @@ const DECIDING_REVIEW_STATES = new Set([
 ]);
 // REST has no reviewDecision, and REVIEW_REQUIRED would need branch-protection
 // reads. Policy gates only on CHANGES_REQUESTED, and mergeStateStatus BLOCKED
-// already covers a missing required review.
+// already covers a missing required review. Every reviewer's latest deciding
+// review counts, bots and users without write access included, so this can
+// gate more strictly than GraphQL's reviewDecision.
 export function deriveReviewDecision(
   reviews: readonly unknown[]
 ): T.ReviewDecision {
@@ -443,6 +445,7 @@ const MAX_PAGES = 50;
 // Bounds the REST calls per poll. Policy reads only the head's rollup and
 // whether any earlier commit passed, so older commits add nothing.
 const MAX_PREVIOUS_COMMITS = 10;
+const MAX_PREVIOUS_COMMITS_WITH_CI = 3;
 type PageItems = (page: unknown, path: string) => readonly unknown[];
 const arrayItems: PageItems = (page, path) => list(page, path);
 const itemsAt =
@@ -464,14 +467,35 @@ const repoPath = (repository: T.Repository): string =>
   `repos/${repository.owner}/${repository.repo}`;
 const pullPath = (context: T.PrContext): string =>
   `${repoPath(context)}/pulls/${context.number}`;
+const commitPath = (repository: T.Repository, sha: string): string =>
+  `${repoPath(repository)}/commits/${sha}`;
 function cursorPage(after: string | null): number {
   if (after === null) return 1;
   if (!/^[1-9][0-9]*$/.test(after)) missing("check rollup cursor", after);
   return Number(after);
 }
 
+interface PrHead {
+  readonly sha: string;
+  readonly base: string;
+}
+
+// One reader serves every poll, so these maps carry reads across polls. All
+// but #settled are keyed by pullPath.
 export class GhGitHubReader implements T.GitHubReader {
   readonly #run: CommandRunner;
+  readonly #heads = new Map<string, PrHead>();
+  readonly #headChecks = new Map<
+    string,
+    { readonly sha: string; readonly checks: readonly T.Check[] }
+  >();
+  readonly #commitLists = new Map<
+    string,
+    PrHead & { readonly shas: readonly string[] }
+  >();
+  // Keyed by commitPath. Nothing new gets pushed to a non-head commit, so a
+  // settled rollup stays settled unless someone reruns that commit's jobs.
+  readonly #settled = new Map<string, T.RollupState>();
   constructor(run: CommandRunner = spawnCommand) {
     this.#run = run;
   }
@@ -509,19 +533,55 @@ export class GhGitHubReader implements T.GitHubReader {
     }
   }
   async #headSha(context: T.PrContext): Promise<string> {
+    const known = this.#heads.get(pullPath(context));
+    if (known !== undefined) return known.sha;
     return string(
       at(await this.#json(pullPath(context)), ["head", "sha"]),
       "pull request.head.sha"
     );
   }
-  async #commitChecks(
-    repository: T.Repository,
-    sha: string
-  ): Promise<readonly T.Check[]> {
-    const commit = `${repoPath(repository)}/commits/${sha}`;
-    const runs = await this.#all(`${commit}/check-runs`, checkRunItems);
-    const statuses = await this.#all(`${commit}/status`, statusItems);
-    return [...runs.map(parseCheckRun), ...statuses.map(parseCommitStatus)];
+  async #checkRuns(commit: string): Promise<readonly T.Check[]> {
+    return (await this.#all(`${commit}/check-runs`, checkRunItems)).map(
+      parseCheckRun
+    );
+  }
+  async #statuses(commit: string): Promise<readonly T.Check[]> {
+    return (await this.#all(`${commit}/status`, statusItems)).map(
+      parseCommitStatus
+    );
+  }
+  async #commitChecks(commit: string): Promise<readonly T.Check[]> {
+    return [
+      ...(await this.#checkRuns(commit)),
+      ...(await this.#statuses(commit)),
+    ];
+  }
+  // Commits pushed together get CI only on the tip, so an earlier commit
+  // without check runs skips its status read. One with only legacy statuses
+  // reads as no CI.
+  async #previousState(commit: string): Promise<T.RollupState> {
+    const runs = await this.#checkRuns(commit);
+    return runs.length === 0
+      ? null
+      : deriveRollupState([...runs, ...(await this.#statuses(commit))]);
+  }
+  async #commitShas(context: T.PrContext): Promise<readonly string[]> {
+    const key = pullPath(context);
+    const known = this.#heads.get(key);
+    const cached = this.#commitLists.get(key);
+    if (
+      known !== undefined &&
+      cached?.sha === known.sha &&
+      cached.base === known.base
+    )
+      return cached.shas;
+    const shas = (await this.#all(`${key}/commits`)).map((item, index) =>
+      string(record(item, `commits[${index}]`).sha, `commits[${index}].sha`)
+    );
+    const tip = shas.at(-1);
+    if (known !== undefined && tip !== undefined)
+      this.#commitLists.set(key, { sha: tip, base: known.base, shas });
+    return shas;
   }
   async originRepo(): Promise<T.Repository | null> {
     const result = await this.#run(["git", "remote", "get-url", "origin"]);
@@ -567,7 +627,18 @@ export class GhGitHubReader implements T.GitHubReader {
   async pullRequest(context: T.PrContext): Promise<T.PullRequestFacts> {
     const pull = await this.#json(pullPath(context));
     const reviews = await this.#all(`${pullPath(context)}/reviews`);
-    return parsePullRequestRest(pull, deriveReviewDecision(reviews), context);
+    const facts = parsePullRequestRest(
+      pull,
+      deriveReviewDecision(reviews),
+      context
+    );
+    if (facts.headRefOid === null) this.#heads.delete(pullPath(context));
+    else
+      this.#heads.set(pullPath(context), {
+        sha: facts.headRefOid,
+        base: facts.baseRefName,
+      });
+    return facts;
   }
   async openPullRequests(
     repository: T.Repository
@@ -589,9 +660,11 @@ export class GhGitHubReader implements T.GitHubReader {
     });
   }
   async checksFastPath(context: T.PrContext): Promise<T.ChecksFastPath> {
+    this.#headChecks.delete(pullPath(context));
     try {
       const sha = await this.#headSha(context);
-      const checks = await this.#commitChecks(context, sha);
+      const checks = await this.#commitChecks(commitPath(context, sha));
+      this.#headChecks.set(pullPath(context), { sha, checks });
       return { kind: "checks", checks };
     } catch (error) {
       if (
@@ -611,8 +684,7 @@ export class GhGitHubReader implements T.GitHubReader {
     after: string | null
   ): Promise<T.RollupPage> {
     const page = cursorPage(after);
-    const sha = await this.#headSha(context);
-    const commit = `${repoPath(context)}/commits/${sha}`;
+    const commit = commitPath(context, await this.#headSha(context));
     const runs = await this.#page(`${commit}/check-runs`, page, checkRunItems);
     const statuses =
       page === 1 ? await this.#all(`${commit}/status`, statusItems) : [];
@@ -632,17 +704,38 @@ export class GhGitHubReader implements T.GitHubReader {
   async commitRollups(
     context: T.PrContext
   ): Promise<readonly T.CommitRollup[]> {
-    const commits = await this.#all(`${pullPath(context)}/commits`);
-    const rollups: T.CommitRollup[] = [];
-    for (let index = commits.length - 1; index >= 0; index--) {
-      const oid = string(
-        record(commits[index], `commits[${index}]`).sha,
-        `commits[${index}].sha`
-      );
-      const state = deriveRollupState(await this.#commitChecks(context, oid));
+    const shas = await this.#commitShas(context);
+    const head = shas.at(-1);
+    if (head === undefined) return [];
+    // The fast path read the head's checks earlier in this poll; consume them
+    // so a later poll cannot reuse them.
+    const fast = this.#headChecks.get(pullPath(context));
+    this.#headChecks.delete(pullPath(context));
+    const rollups: T.CommitRollup[] = [
+      {
+        oid: head,
+        state: deriveRollupState(
+          fast?.sha === head
+            ? fast.checks
+            : await this.#commitChecks(commitPath(context, head))
+        ),
+      },
+    ];
+    let withCi = 0;
+    for (
+      let index = shas.length - 2;
+      index >= 0 && rollups.length <= MAX_PREVIOUS_COMMITS;
+      index--
+    ) {
+      const oid = shas[index];
+      const commit = commitPath(context, oid);
+      const state = this.#settled.has(commit)
+        ? (this.#settled.get(commit) ?? null)
+        : await this.#previousState(commit);
+      if (state !== "PENDING") this.#settled.set(commit, state);
       rollups.push({ oid, state });
-      if (rollups.length > MAX_PREVIOUS_COMMITS) break;
-      if (rollups.length > 1 && state === "SUCCESS") break;
+      if (state === "SUCCESS") break;
+      if (state !== null && ++withCi === MAX_PREVIOUS_COMMITS_WITH_CI) break;
     }
     return rollups;
   }

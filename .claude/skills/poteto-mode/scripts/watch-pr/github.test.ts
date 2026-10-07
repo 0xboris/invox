@@ -20,6 +20,7 @@ import {
   passingCheck,
   pendingCheck,
 } from "./fakes.test-helper.ts";
+import { readSnapshot } from "./policy.ts";
 import type { QueryFailure } from "./types.ts";
 import { parsePrNumber } from "./types.ts";
 
@@ -580,6 +581,27 @@ describe("GhGitHubReader over gh api REST", () => {
     ]);
   });
 
+  it("reads every page of reviews before deciding", async () => {
+    const approvals = Array.from({ length: 100 }, (_, index) =>
+      restReview(`reviewer-${index}`, "APPROVED", index + 1)
+    );
+    const gh = fakeGh({
+      [`${api}/pulls/42`]: restPull(),
+      [`${api}/pulls/42/reviews?per_page=100&page=1`]: approvals,
+      [`${api}/pulls/42/reviews?per_page=100&page=2`]: [
+        restReview("reviewer-0", "CHANGES_REQUESTED", 101),
+      ],
+    });
+    expect((await gh.reader.pullRequest(context)).reviewDecision).toBe(
+      "CHANGES_REQUESTED"
+    );
+    expect(gh.calls).toEqual([
+      `${api}/pulls/42`,
+      `${api}/pulls/42/reviews?per_page=100&page=1`,
+      `${api}/pulls/42/reviews?per_page=100&page=2`,
+    ]);
+  });
+
   it("walks pages by number until a short page", async () => {
     const page = (start: number, count: number) =>
       Array.from({ length: count }, (_, index) => ({
@@ -807,6 +829,24 @@ describe("GhGitHubReader over gh api REST", () => {
     ]);
   });
 
+  it("walks past a passing head to an earlier passing commit", async () => {
+    const gh = fakeGh({
+      [`${api}/pulls/42/commits?per_page=100&page=1`]: [{ sha: "c1" }, { sha: "c2" }],
+      [`${api}/commits/c2/check-runs?per_page=100&page=1`]: checkRuns([
+        restCheckRun("build", "completed", "success"),
+      ]),
+      [`${api}/commits/c2/status?per_page=100&page=1`]: combinedStatus("pending", []),
+      [`${api}/commits/c1/check-runs?per_page=100&page=1`]: checkRuns([
+        restCheckRun("build", "completed", "success"),
+      ]),
+      [`${api}/commits/c1/status?per_page=100&page=1`]: combinedStatus("pending", []),
+    });
+    expect(await gh.reader.commitRollups(context)).toEqual([
+      { oid: "c2", state: "SUCCESS" },
+      { oid: "c1", state: "SUCCESS" },
+    ]);
+  });
+
   it("reads at most ten commits before the head", async () => {
     const shas = Array.from({ length: 15 }, (_, index) => `c${index + 1}`);
     const gh = fakeGh((call) =>
@@ -819,6 +859,99 @@ describe("GhGitHubReader over gh api REST", () => {
     expect(
       (await gh.reader.commitRollups(context)).map((rollup) => rollup.oid)
     ).toEqual(["c15", "c14", "c13", "c12", "c11", "c10", "c9", "c8", "c7", "c6", "c5"]);
+  });
+
+  it("stops after three earlier commits that ran CI without passing", async () => {
+    const gh = fakeGh((call) =>
+      call.endsWith("/pulls/42/commits?per_page=100&page=1")
+        ? ["c1", "c2", "c3", "c4", "c5"].map((sha) => ({ sha }))
+        : call.includes("/check-runs?")
+          ? checkRuns([restCheckRun("build", "completed", "failure")])
+          : combinedStatus("pending", [])
+    );
+    expect(
+      (await gh.reader.commitRollups(context)).map((rollup) => rollup.oid)
+    ).toEqual(["c5", "c4", "c3", "c2"]);
+  });
+
+  it("reads history once across polls and only the head after that", async () => {
+    const commits = ["c1", "c2", "c3", "c4"];
+    const routes: Record<string, unknown> = {
+      [`${api}/pulls/42`]: restPull({ head: { ref: "feature", sha: "c4" } }),
+      [`${api}/pulls/42/reviews?per_page=100&page=1`]: [],
+      [`${api}/pulls/42/ccr/review_threads`]: [],
+      [`${api}/pulls/42/comments?per_page=100&page=1`]: [],
+      [`${api}/pulls/42/commits?per_page=100&page=1`]: commits.map((sha) => ({ sha })),
+      [`${api}/commits/c4/check-runs?per_page=100&page=1`]: checkRuns([
+        restCheckRun("build", "in_progress", null),
+      ]),
+      [`${api}/commits/c4/status?per_page=100&page=1`]: combinedStatus("pending", []),
+      [`${api}/commits/c3/check-runs?per_page=100&page=1`]: checkRuns([]),
+      [`${api}/commits/c2/check-runs?per_page=100&page=1`]: checkRuns([]),
+      [`${api}/commits/c1/check-runs?per_page=100&page=1`]: checkRuns([
+        restCheckRun("build", "completed", "success"),
+      ]),
+      [`${api}/commits/c1/status?per_page=100&page=1`]: combinedStatus("pending", []),
+    };
+    const gh = fakeGh(routes);
+    const poll = async () => {
+      const start = gh.calls.length;
+      const snapshot = await readSnapshot({
+        reader: gh.reader,
+        context,
+        pendingHistory: "include",
+        allowDraft: false,
+      });
+      return {
+        paths: gh.calls.slice(start).map((call) => call.slice(`${api}/`.length)),
+        ci:
+          snapshot.kind === "open"
+            ? [snapshot.ci.kind, snapshot.ci.hadPreviousPassingCi]
+            : snapshot.kind,
+      };
+    };
+    const headPaths = (sha: string) => [
+      "pulls/42",
+      "pulls/42/reviews?per_page=100&page=1",
+      "pulls/42/ccr/review_threads",
+      "pulls/42/comments?per_page=100&page=1",
+      `commits/${sha}/check-runs?per_page=100&page=1`,
+      `commits/${sha}/status?per_page=100&page=1`,
+    ];
+    const first = await poll();
+    expect(first).toEqual({
+      paths: [
+        ...headPaths("c4"),
+        "pulls/42/commits?per_page=100&page=1",
+        "commits/c3/check-runs?per_page=100&page=1",
+        "commits/c2/check-runs?per_page=100&page=1",
+        "commits/c1/check-runs?per_page=100&page=1",
+        "commits/c1/status?per_page=100&page=1",
+      ],
+      ci: ["ci-pending", true],
+    });
+    expect(first.paths.length).toBe(11);
+    const second = await poll();
+    expect(second).toEqual({ paths: headPaths("c4"), ci: ["ci-pending", true] });
+    expect(second.paths.length).toBe(6);
+
+    routes[`${api}/pulls/42`] = restPull({ head: { ref: "feature", sha: "c5" } });
+    routes[`${api}/pulls/42/commits?per_page=100&page=1`] = [...commits, "c5"].map(
+      (sha) => ({ sha })
+    );
+    routes[`${api}/commits/c5/check-runs?per_page=100&page=1`] = checkRuns([
+      restCheckRun("build", "in_progress", null),
+    ]);
+    routes[`${api}/commits/c5/status?per_page=100&page=1`] = combinedStatus("pending", []);
+    expect(await poll()).toEqual({
+      paths: [
+        ...headPaths("c5"),
+        "pulls/42/commits?per_page=100&page=1",
+        "commits/c4/check-runs?per_page=100&page=1",
+        "commits/c4/status?per_page=100&page=1",
+      ],
+      ci: ["ci-pending", true],
+    });
   });
 
   it("finds the current PR by number or by the current branch", async () => {
