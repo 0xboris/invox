@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 const (
@@ -133,7 +136,14 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	if findMappingValue(root, "positions") == nil {
 		setMappingSequence(root, "positions", []*yaml.Node{})
 	}
-	if err := writeYAMLDocument(outputPath, document); err != nil {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return "", "", err
+	}
+	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return "", "", &OutputExistsError{Path: outputPath}
+		}
 		return "", "", err
 	}
 
@@ -259,7 +269,14 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	setMappingString(invoiceNode, "status", "editing")
 	setArchiveMetadata(root, archiveTargetPath, archiveReplacePath)
 
-	if err := writeYAMLDocument(outputPath, document); err != nil {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return "", "", err
+	}
+	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
+		}
 		return "", "", err
 	}
 	return outputPath, archivePath, nil
@@ -376,7 +393,16 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 
 	setMappingString(invoiceNode, "status", "archived")
 	clearArchiveMetadata(root)
-	if err := writeYAMLDocument(archivePath, document); err != nil {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return ArchiveResult{}, err
+	}
+	if editingArchive {
+		err = fsutil.WriteFile(archivePath, data, fsutil.Private)
+	} else if err = fsutil.WriteNewFile(archivePath, data, fsutil.Private); errors.Is(err, fs.ErrExist) {
+		return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
+	}
+	if err != nil {
 		return ArchiveResult{}, err
 	}
 	if replacePath != "" {
@@ -507,18 +533,27 @@ func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) e
 	return errors.New(strings.Join(validationErrors, "\n"))
 }
 
+// writeYAMLDocument replaces path with document, keeping the file's mode.
 func writeYAMLDocument(path string, document *yaml.Node) error {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFile(path, data, fsutil.Public)
+}
+
+func encodeYAMLDocument(document *yaml.Node) ([]byte, error) {
 	clearYAMLMergeTags(document)
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(document); err != nil {
-		return err
+		return nil, err
 	}
 	if err := encoder.Close(); err != nil {
-		return err
+		return nil, err
 	}
-	return writeFileAtomic(path, buffer.Bytes(), 0o644)
+	return buffer.Bytes(), nil
 }
 
 func writeInvoiceStringField(path, key, value string) error {
