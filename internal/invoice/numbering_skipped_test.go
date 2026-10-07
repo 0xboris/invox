@@ -75,6 +75,26 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 			wantSkipped: []string{"2026.yaml"},
 		},
 		{
+			name:    "old format without a usable issue date is skipped",
+			pattern: yearPattern,
+			files: map[string]string{
+				"no-date.yaml":  "customer_id: CUST-001\ninvoice:\n  number: CUST-001/7\n",
+				"bad-date.yaml": "customer_id: CUST-001\ninvoice:\n  number: CUST-001/8\n  issue_date: soon\n",
+			},
+			wantNumber:  "CUST-001-2026-001",
+			wantSkipped: []string{"bad-date.yaml", "no-date.yaml"},
+		},
+		{
+			name:    "month pattern skips the same month of an earlier year only",
+			pattern: "{customer_id}-{month}-{counter:03}",
+			files: map[string]string{
+				"march-2025.yaml":    "customer_id: CUST-001\ninvoice:\n  number: CUST-001/7\n  issue_date: \"2025-03-20\"\n",
+				"february-2026.yaml": "customer_id: CUST-001\ninvoice:\n  number: CUST-001/8\n  issue_date: \"2026-02-10\"\n",
+			},
+			wantNumber:  "CUST-001-03-001",
+			wantSkipped: []string{"march-2025.yaml"},
+		},
+		{
 			name:    "markdown archive in an old format is skipped",
 			pattern: counterPattern,
 			files: map[string]string{
