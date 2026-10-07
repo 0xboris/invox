@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -9,7 +10,20 @@ import (
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
-	return exitCode(f.IOStreams, dispatch(context.Background(), f, args))
+	ctx, stop := signalContext(context.Background())
+	defer stop()
+	return mainContext(ctx, args, f)
+}
+
+// mainContext runs the command under ctx. When a signal cancelled ctx, the
+// command's error becomes the signal's, unless the user was at a prompt.
+func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
+	err := dispatch(ctx, f, args)
+	var sigErr *SignalError
+	if err != nil && !errors.Is(err, cmdutil.CancelError) && errors.As(context.Cause(ctx), &sigErr) {
+		err = sigErr
+	}
+	return exitCode(f.IOStreams, err)
 }
 
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
