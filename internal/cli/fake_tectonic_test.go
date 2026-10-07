@@ -26,6 +26,9 @@ func TestMain(m *testing.M) {
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
 		os.Exit(runFakeTectonic(mode, os.Args[1:]))
 	}
+	if os.Getenv(fakeShellEnv) != "" {
+		os.Exit(runFakeShell(os.Args[1:]))
+	}
 	if os.Getenv(fakeChildEnv) != "" {
 		os.Exit(runFakeChild(os.Args[1:]))
 	}
