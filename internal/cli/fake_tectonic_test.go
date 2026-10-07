@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -34,6 +36,9 @@ const (
 	fakeTectonicExit2    = "exit-2"
 	fakeTectonicChatter  = "chatter"
 	fakeTectonicSleep    = "sleep"
+	// fakeTectonicSleepIgnoreTerm sleeps like fakeTectonicSleep but ignores
+	// SIGTERM, so invox keeps waiting for it after the first signal.
+	fakeTectonicSleepIgnoreTerm = "sleep-ignore-sigterm"
 )
 
 func TestMain(m *testing.M) {
@@ -62,7 +67,10 @@ func TestMain(m *testing.M) {
 // fakeTectonicPidfileEnv and sleeps for a minute.
 func runFakeTectonic(mode string, args []string) int {
 	switch mode {
-	case fakeTectonicSleep:
+	case fakeTectonicSleep, fakeTectonicSleepIgnoreTerm:
+		if mode == fakeTectonicSleepIgnoreTerm {
+			signal.Ignore(syscall.SIGTERM)
+		}
 		pidfile := os.Getenv(fakeTectonicPidfileEnv)
 		if err := os.WriteFile(pidfile+".tmp", []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)

@@ -74,6 +74,66 @@ func TestBuildExitsWithSignalCodeOnRealSignal(t *testing.T) {
 	}
 }
 
+func TestSecondSignalEndsInvoxAtOnce(t *testing.T) {
+	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	installFakeTectonic(t, fakeTectonicSleepIgnoreTerm)
+	pidfile := filepath.Join(t.TempDir(), "tectonic.pid")
+	t.Setenv(fakeTectonicPidfileEnv, pidfile)
+	isolateTempDir(t)
+	isolateUserDirs(t)
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(self, "build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath)
+	cmd.Env = append(os.Environ(), runMainEnv+"=1")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	var waitErr error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		waitErr = cmd.Wait()
+	}()
+	pid := waitForPid(t, pidfile, done)
+	// The tectonic ignores SIGTERM and outlives invox here; kill it.
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+
+	// After the first SIGINT invox waits waitDelay (3s) for the tectonic. A
+	// SIGINT that arrives after invox stopped listening must end it at once.
+	// Repeat the signal, because one sent before then is absorbed.
+	start := time.Now()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.After(30 * time.Second)
+	for waiting := true; waiting; {
+		if err := cmd.Process.Signal(syscall.SIGINT); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Fatal(err)
+		}
+		select {
+		case <-done:
+			waiting = false
+		case <-ticker.C:
+		case <-deadline:
+			t.Fatal("invox did not exit within 30s of the signals")
+		}
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(waitErr, &exitErr) {
+		t.Fatalf("invox exited with %v, want it ended by SIGINT", waitErr)
+	}
+	status := exitErr.Sys().(syscall.WaitStatus)
+	if !status.Signaled() || status.Signal() != syscall.SIGINT {
+		t.Fatalf("invox exited with %v, want it ended by SIGINT", waitErr)
+	}
+	if elapsed := time.Since(start); elapsed >= 2*time.Second {
+		t.Fatalf("invox exited %s after the first signal, want well under the 3s wait for tectonic", elapsed)
+	}
+}
+
 func createFile(t *testing.T, path string) *os.File {
 	t.Helper()
 
