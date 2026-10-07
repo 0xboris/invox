@@ -15,7 +15,9 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
+	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -48,7 +50,10 @@ func TestMain(m *testing.M) {
 	// The external programs invox launches are faked the same way, so the
 	// suite needs no shell scripts and runs on Windows.
 	testscript.Main(m, map[string]func(){
-		"invox":       func() { os.Exit(cli.Main(os.Args[1:], iostreams.System())) },
+		"invox": func() {
+			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, runtime.GOOS, os.Getenv)
+			os.Exit(cli.Main(os.Args[1:], f))
+		},
 		"tectonic":    func() { os.Exit(fakeTectonic(os.Args[1:])) },
 		"fake-editor": func() { os.Exit(fakeEditor(os.Args[1:])) },
 		"open":        func() { os.Exit(fakeOpen(os.Args[1:])) },

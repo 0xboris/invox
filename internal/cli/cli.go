@@ -1,17 +1,19 @@
 package cli
 
 import (
+	"context"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func Main(args []string, ios *iostreams.IOStreams) int {
-	return exitCode(ios, run(ios, args))
+func Main(args []string, f *cmdutil.Factory) int {
+	return exitCode(f.IOStreams, dispatch(context.Background(), f, args))
 }
 
-func run(ios *iostreams.IOStreams, args []string) error {
+func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	if len(args) == 0 {
 		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
@@ -31,9 +33,9 @@ func run(ios *iostreams.IOStreams, args []string) error {
 
 	switch args[0] {
 	case "customer":
-		return runCustomer(ios, args[1:])
+		return runCustomer(ctx, f, args[1:])
 	case "config":
-		return runConfig(ios, args[1:])
+		return runConfig(ctx, f, args[1:])
 	case "init":
 		return runInit(ios, args[1:])
 	case "template":
@@ -41,7 +43,7 @@ func run(ios *iostreams.IOStreams, args []string) error {
 	case "completion":
 		return runCompletion(ios, args[1:])
 	case "new":
-		return runNew(ios, args[1:])
+		return runNew(ctx, f, args[1:])
 	case "increment":
 		return runIncrement(ios, args[1:])
 	case "validate":
@@ -49,11 +51,11 @@ func run(ios *iostreams.IOStreams, args []string) error {
 	case "render":
 		return runRender(ios, args[1:])
 	case "email":
-		return runEmail(ios, args[1:])
+		return runEmail(ctx, f, args[1:])
 	case "send":
-		return runEmail(ios, args[1:])
+		return runEmail(ctx, f, args[1:])
 	case "build":
-		return runBuild(ios, args[1:])
+		return runBuild(ctx, f, args[1:])
 	case "archive":
 		return runArchive(ios, args[1:])
 	case "version":
@@ -163,7 +165,8 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runCustomer(ios *iostreams.IOStreams, args []string) error {
+func runCustomer(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	if len(args) == 0 {
 		printCustomerHelp(ios.Out)
 		return nil
@@ -177,7 +180,7 @@ func runCustomer(ios *iostreams.IOStreams, args []string) error {
 	case "list":
 		return runCustomerList(ios, args[1:])
 	case "config":
-		return runCustomerConfig(ios, args[1:])
+		return runCustomerConfig(ctx, f, args[1:])
 	default:
 		return cmdutil.FlagErrorf("customer", "unknown customer subcommand %q", args[0])
 	}

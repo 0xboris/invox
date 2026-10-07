@@ -5,10 +5,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/adapters/applemail"
+	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -78,24 +82,17 @@ func TestConfigOpensConfigFile(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
-	openedPath := ""
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	openedPath := expectEditor(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"config"})
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 
 	wantPath := filepath.Join(configHome, "invox", "config.yaml")
-	if openedPath != wantPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, wantPath)
+	if *openedPath != wantPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, wantPath)
 	}
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Fatalf("config file was not created: %v", err)
@@ -127,22 +124,15 @@ func TestConfigOpensConfigFile(t *testing.T) {
 func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
 	configPath := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\n")
 
-	openedPath := ""
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	openedPath := expectEditor(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"config"})
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if openedPath != configPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, configPath)
+	if *openedPath != configPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, configPath)
 	}
 	if want := "Opened " + configPath + "\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -418,17 +408,10 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	openedPath := ""
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	openedPath := expectEditor(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"customer",
 		"config",
 		"-c", customersPath,
@@ -436,8 +419,8 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if openedPath != customersPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, customersPath)
+	if *openedPath != customersPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, customersPath)
 	}
 	if want := "Opened " + customersPath + "\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -488,19 +471,6 @@ func TestCustomerConfigReportsIndentedTopLevelConfig(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "top-level keys must not be indented") {
 		t.Fatalf("stderr %q does not contain indentation error", stderr)
-	}
-}
-
-func TestResolveShellEditorPrefersVisualThenEditor(t *testing.T) {
-	t.Setenv("VISUAL", "hx")
-	t.Setenv("EDITOR", "vim")
-	if got := resolveShellEditor(); got != "hx" {
-		t.Fatalf("resolveShellEditor() = %q, want %q", got, "hx")
-	}
-
-	t.Setenv("VISUAL", "")
-	if got := resolveShellEditor(); got != "vim" {
-		t.Fatalf("resolveShellEditor() = %q, want %q", got, "vim")
 	}
 }
 
@@ -812,17 +782,10 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
 	chdirForTest(t, workDir)
 
-	openedPath := ""
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	openedPath := expectEditor(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",
 		"CUST-001",
 		"-e",
@@ -835,8 +798,8 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 	}
 
 	wantPath := filepath.Join(workDir, "CUST-001-002.yaml")
-	if openedPath != wantPath {
-		t.Fatalf("openedPath = %q, want %q", openedPath, wantPath)
+	if *openedPath != wantPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, wantPath)
 	}
 	if want := "Created CUST-001-002.yaml for CUST-001 (CUST-001-002)\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -855,15 +818,10 @@ func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
 	chdirForTest(t, workDir)
 
-	oldOpenTextFile := openTextFile
-	openTextFile = func(_ *iostreams.IOStreams, path string) error {
-		return errors.New("editor unavailable")
-	}
-	t.Cleanup(func() {
-		openTextFile = oldOpenTextFile
-	})
+	f, stub := testFactory(t)
+	expectEditor(stub, errors.New("editor unavailable"))
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",
 		"CUST-001",
 		"--edit",
@@ -1153,26 +1111,10 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	openedPath := ""
-	openedSource := ""
-	oldOpenDocument := openDocument
-	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		openedSource = string(source)
-		return nil
-	}
-	preferNativeMailCompose = false
-	t.Cleanup(func() {
-		openDocument = oldOpenDocument
-		preferNativeMailCompose = oldPreferNativeMailCompose
-	})
+	f, stub := testFactory(t)
+	openedPath := expectOpener(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email",
 		customInvoicePath,
 		"-c", customersPath,
@@ -1183,11 +1125,11 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
-		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
+	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
-	if _, err := os.Stat(openedPath); err != nil {
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
@@ -1196,7 +1138,11 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
+	openedSource, err := os.ReadFile(*openedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(openedPath) returned error: %v", err)
+	}
+	if !strings.Contains(string(openedSource), `filename="BL00210001.pdf"`) {
 		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
 	}
 	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
@@ -1225,26 +1171,10 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	openedPath := ""
-	openedSource := ""
-	oldOpenDocument := openDocument
-	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		openedSource = string(source)
-		return nil
-	}
-	preferNativeMailCompose = false
-	t.Cleanup(func() {
-		openDocument = oldOpenDocument
-		preferNativeMailCompose = oldPreferNativeMailCompose
-	})
+	f, stub := testFactory(t)
+	openedPath := expectOpener(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email",
 		pdfPath,
 		"-c", customersPath,
@@ -1255,11 +1185,11 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
-		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
+	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
-	if _, err := os.Stat(openedPath); err != nil {
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
@@ -1268,7 +1198,11 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(openedSource, `filename="BL00210001.pdf"`) {
+	openedSource, err := os.ReadFile(*openedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(openedPath) returned error: %v", err)
+	}
+	if !strings.Contains(string(openedSource), `filename="BL00210001.pdf"`) {
 		t.Fatalf("draft email does not contain attached PDF filename:\n%s", openedSource)
 	}
 	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
@@ -1301,20 +1235,10 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	openedPath := ""
-	oldOpenDocument := openDocument
-	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return nil
-	}
-	preferNativeMailCompose = false
-	t.Cleanup(func() {
-		openDocument = oldOpenDocument
-		preferNativeMailCompose = oldPreferNativeMailCompose
-	})
+	f, stub := testFactory(t)
+	openedPath := expectOpener(stub, nil)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email",
 		pdfPath,
 		"-c", customersPath,
@@ -1325,11 +1249,11 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(inputDir, "BL00210001.eml")
-	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
-		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
+	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
+		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
-	if _, err := os.Stat(openedPath); err != nil {
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
@@ -1382,27 +1306,16 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	oldPreferNativeMailCompose := preferNativeMailCompose
-	oldOpenNativeEmailDraft := openNativeEmailDraft
-	oldOpenDocument := openDocument
-	preferNativeMailCompose = true
-
-	var opened invoice.EmailMessage
-	openNativeEmailDraft = func(_ *iostreams.IOStreams, message invoice.EmailMessage) error {
-		opened = message
+	f, stub := testFactory(t)
+	f.Mailer = applemail.New(stub, f.IOStreams)
+	var opened applemail.Message
+	stub.Register("osascript", func(cmd run.Cmd) error {
+		message := cmd.Args[slices.Index(cmd.Args, "--")+1:]
+		opened = applemail.Message{To: message[0], Subject: message[1], Body: message[2], Attachment: message[3], Sender: message[4]}
 		return nil
-	}
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
-		return nil
-	}
-	t.Cleanup(func() {
-		preferNativeMailCompose = oldPreferNativeMailCompose
-		openNativeEmailDraft = oldOpenNativeEmailDraft
-		openDocument = oldOpenDocument
 	})
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email",
 		customInvoicePath,
 		"-c", customersPath,
@@ -1411,14 +1324,14 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if opened.Recipient != "office@appsters.example" {
-		t.Fatalf("Recipient = %q, want %q", opened.Recipient, "office@appsters.example")
+	if opened.To != "office@appsters.example" {
+		t.Fatalf("To = %q, want %q", opened.To, "office@appsters.example")
 	}
 	if opened.Subject != "Invoice CUST-001-001" {
 		t.Fatalf("Subject = %q, want %q", opened.Subject, "Invoice CUST-001-001")
 	}
-	if opened.AttachmentPath != pdfPath {
-		t.Fatalf("AttachmentPath = %q, want %q", opened.AttachmentPath, pdfPath)
+	if opened.Attachment != pdfPath {
+		t.Fatalf("Attachment = %q, want %q", opened.Attachment, pdfPath)
 	}
 	if !strings.Contains(opened.Body, "Please find attached invoice CUST-001-001.") {
 		t.Fatalf("Body %q does not contain the default invoice text", opened.Body)
@@ -2381,6 +2294,6 @@ func captureRunStreams(t *testing.T, ios *iostreams.IOStreams, args []string) (i
 	t.Helper()
 
 	isolateUserDirs(t)
-	exitCode := Main(args, ios)
+	exitCode := Main(args, cmdutil.NewFactory(ios, run.Exec{}, runtime.GOOS, os.Getenv))
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }

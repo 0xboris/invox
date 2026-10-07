@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // writeBuiltEmailFixture writes a built invoice YAML and its PDF into a fresh directory and
@@ -33,36 +31,16 @@ func writeBuiltEmailFixture(t *testing.T) (string, string, string) {
 	return customersPath, issuerPath, builtInvoicePath
 }
 
-// stubEmailOpeners replaces the document opener for the test and returns a
-// pointer to the paths it was called with.
-func stubEmailOpeners(t *testing.T) *[]string {
-	t.Helper()
-
-	var opened []string
-	oldOpenDocument := openDocument
-	oldPreferNativeMailCompose := preferNativeMailCompose
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		opened = append(opened, path)
-		return nil
-	}
-	preferNativeMailCompose = false
-	t.Cleanup(func() {
-		openDocument = oldOpenDocument
-		preferNativeMailCompose = oldPreferNativeMailCompose
-	})
-	return &opened
-}
-
 func TestEmailRefusesExistingOutputWithoutForce(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	opened := stubEmailOpeners(t)
+	f, _ := testFactory(t)
 
 	outputPath := filepath.Join(t.TempDir(), "keep.eml")
 	if err := os.WriteFile(outputPath, []byte("keep\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email", invoicePath,
 		"-o", outputPath,
 		"-c", customersPath,
@@ -84,17 +62,15 @@ func TestEmailRefusesExistingOutputWithoutForce(t *testing.T) {
 	if string(content) != "keep\n" {
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
-	if len(*opened) != 0 {
-		t.Fatalf("opened = %q, want no call", *opened)
-	}
 }
 
 func TestEmailKeepsExplicitOutputFile(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	opened := stubEmailOpeners(t)
+	f, stub := testFactory(t)
+	opened := expectOpener(stub, nil)
 
 	outputPath := filepath.Join(t.TempDir(), "drafts", "BL00210001.eml")
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email", invoicePath,
 		"-o", outputPath,
 		"-c", customersPath,
@@ -109,8 +85,8 @@ func TestEmailKeepsExplicitOutputFile(t *testing.T) {
 	if stdout != outputPath+"\n" {
 		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
-	if len(*opened) != 1 || (*opened)[0] != outputPath {
-		t.Fatalf("opened = %q, want [%q]", *opened, outputPath)
+	if *opened != outputPath {
+		t.Fatalf("opened = %q, want %q", *opened, outputPath)
 	}
 	content, err := os.ReadFile(outputPath)
 	if err != nil {
@@ -123,14 +99,15 @@ func TestEmailKeepsExplicitOutputFile(t *testing.T) {
 
 func TestEmailForceOverwritesExistingOutputFile(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	stubEmailOpeners(t)
+	f, stub := testFactory(t)
+	expectOpener(stub, nil)
 
 	outputPath := filepath.Join(t.TempDir(), "draft.eml")
 	if err := os.WriteFile(outputPath, []byte("old draft\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email", invoicePath,
 		"--force",
 		"-o", outputPath,
@@ -157,14 +134,15 @@ func TestEmailForceOverwritesExistingOutputFile(t *testing.T) {
 
 func TestEmailImplicitDraftLeavesSiblingEMLUntouched(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	opened := stubEmailOpeners(t)
+	f, stub := testFactory(t)
+	opened := expectOpener(stub, nil)
 
 	siblingPath := filepath.Join(filepath.Dir(invoicePath), "BL00210001.eml")
 	if err := os.WriteFile(siblingPath, []byte("keep\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(siblingPath) returned error: %v", err)
 	}
 
-	exitCode, _, stderr := captureRun(t, []string{
+	exitCode, _, stderr := captureRunFactory(t, f, []string{
 		"email", invoicePath,
 		"-c", customersPath,
 		"-u", issuerPath,
@@ -172,13 +150,10 @@ func TestEmailImplicitDraftLeavesSiblingEMLUntouched(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if len(*opened) != 1 {
-		t.Fatalf("opened = %q, want one call", *opened)
-	}
-	draftDir := filepath.Dir((*opened)[0])
+	draftDir := filepath.Dir(*opened)
 	t.Cleanup(func() { os.RemoveAll(draftDir) })
 	if draftDir == filepath.Dir(invoicePath) {
-		t.Fatalf("opened %q, want the draft in a temporary directory", (*opened)[0])
+		t.Fatalf("opened %q, want the draft in a temporary directory", *opened)
 	}
 	content, err := os.ReadFile(siblingPath)
 	if err != nil {
@@ -191,15 +166,10 @@ func TestEmailImplicitDraftLeavesSiblingEMLUntouched(t *testing.T) {
 
 func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	stubEmailOpeners(t)
+	f, stub := testFactory(t)
+	openedPath := expectOpener(stub, errors.New("no mail app"))
 
-	openedPath := ""
-	openDocument = func(_ *iostreams.IOStreams, path string) error {
-		openedPath = path
-		return errors.New("no mail app")
-	}
-
-	exitCode, stdout, stderr := captureRun(t, []string{
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"email", invoicePath,
 		"-c", customersPath,
 		"-u", issuerPath,
@@ -213,7 +183,7 @@ func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
 	if want := "error: failed to open email draft: no mail app\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if _, err := os.Stat(filepath.Dir(openedPath)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Dir(*openedPath)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(draft directory) error = %v, want not exists", err)
 	}
 }

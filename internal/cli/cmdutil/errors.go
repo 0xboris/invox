@@ -1,5 +1,6 @@
-// Package cmdutil holds the error types commands return so that cli.Main can
-// decide, in one place, what to print and which exit code to use.
+// Package cmdutil holds what every command shares: the Factory, and the error
+// types commands return so that cli.Main can decide, in one place, what to
+// print and which exit code to use.
 package cmdutil
 
 import (
