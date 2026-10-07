@@ -2559,7 +2559,7 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-001")
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
-	invoiceNumber, _, err := h.CreateNewInvoice(
+	created, err := h.CreateNewInvoice(
 		now,
 		t.TempDir(),
 		defaultsPath,
@@ -2572,8 +2572,8 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
-	if invoiceNumber != "CUST-001-002" {
-		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-002")
+	if created.Number != "CUST-001-002" {
+		t.Fatalf("invoiceNumber = %q, want %q", created.Number, "CUST-001-002")
 	}
 
 	source, err := os.ReadFile(outputPath)
@@ -2636,7 +2636,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2667,7 +2667,7 @@ CUST-001:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, err := h.CreateNewInvoice(now, t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2695,7 +2695,7 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := h.CreateNewInvoice(
+	created, err := h.CreateNewInvoice(
 		now,
 		t.TempDir(),
 		defaultsPath,
@@ -2708,8 +2708,8 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
-	if invoiceNumber != "CUST-001-007" {
-		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-007")
+	if created.Number != "CUST-001-007" {
+		t.Fatalf("invoiceNumber = %q, want %q", created.Number, "CUST-001-007")
 	}
 }
 
@@ -2735,7 +2735,7 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(
+	_, err := h.CreateNewInvoice(
 		time.Now(),
 		t.TempDir(),
 		defaultsPath,
@@ -2768,7 +2768,7 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 	customersPath, issuerPath, defaultsPath := writeLegacyDraftFixtures(t)
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
-	_, _, err := h.CreateNewInvoice(
+	_, err := h.CreateNewInvoice(
 		now,
 		t.TempDir(),
 		defaultsPath,
@@ -2802,7 +2802,7 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := h.CreateNewInvoice(
+	created, err := h.CreateNewInvoice(
 		now,
 		t.TempDir(),
 		defaultsPath,
@@ -2815,8 +2815,8 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
-	if invoiceNumber != "CUST-001-007" {
-		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-007")
+	if created.Number != "CUST-001-007" {
+		t.Fatalf("invoiceNumber = %q, want %q", created.Number, "CUST-001-007")
 	}
 }
 
@@ -2870,7 +2870,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	invoiceNumber, _, err := h.CreateNewInvoice(
+	created, err := h.CreateNewInvoice(
 		now,
 		t.TempDir(),
 		defaultsPath,
@@ -2883,8 +2883,8 @@ positions:
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
-	if invoiceNumber != "CUST-001-003" {
-		t.Fatalf("invoiceNumber = %q, want %q", invoiceNumber, "CUST-001-003")
+	if created.Number != "CUST-001-003" {
+		t.Fatalf("invoiceNumber = %q, want %q", created.Number, "CUST-001-003")
 	}
 
 	source, err := os.ReadFile(outputPath)
@@ -2929,7 +2929,7 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(
+	_, err := h.CreateNewInvoice(
 		time.Now(),
 		t.TempDir(),
 		defaultsPath,
@@ -2975,7 +2975,7 @@ line_items:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
+	_, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
 	}
@@ -3151,21 +3151,21 @@ func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-011")
 
-	customerID, oldNumber, newNumber, err := h.IncrementInvoiceNumber(
+	incremented, err := h.IncrementInvoiceNumber(
 		invoicePath,
 		customersPath,
 	)
 	if err != nil {
 		t.Fatalf("IncrementInvoiceNumber returned error: %v", err)
 	}
-	if customerID != "CUST-001" {
-		t.Fatalf("customerID = %q, want %q", customerID, "CUST-001")
+	if incremented.CustomerID != "CUST-001" {
+		t.Fatalf("customerID = %q, want %q", incremented.CustomerID, "CUST-001")
 	}
-	if oldNumber != "CUST-001-009" {
-		t.Fatalf("oldNumber = %q, want %q", oldNumber, "CUST-001-009")
+	if incremented.OldNumber != "CUST-001-009" {
+		t.Fatalf("oldNumber = %q, want %q", incremented.OldNumber, "CUST-001-009")
 	}
-	if newNumber != "CUST-001-012" {
-		t.Fatalf("newNumber = %q, want %q", newNumber, "CUST-001-012")
+	if incremented.NewNumber != "CUST-001-012" {
+		t.Fatalf("newNumber = %q, want %q", incremented.NewNumber, "CUST-001-012")
 	}
 
 	source, err := os.ReadFile(invoicePath)
