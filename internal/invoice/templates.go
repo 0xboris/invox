@@ -33,13 +33,9 @@ func (h Host) ListTemplates() ([]TemplateSummary, error) {
 		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".tex" {
 			continue
 		}
-		path, err := filepath.Abs(filepath.Join(templateDir, entry.Name()))
-		if err != nil {
-			return nil, err
-		}
 		templates = append(templates, TemplateSummary{
 			Name: entry.Name(),
-			Path: path,
+			Path: filepath.Join(templateDir, entry.Name()),
 		})
 	}
 
@@ -115,10 +111,7 @@ func (h Host) TemplateCatalogDir() (string, error) {
 }
 
 func templateBaseDir(start string) (string, error) {
-	resolved, err := filepath.Abs(start)
-	if err != nil {
-		return "", err
-	}
+	resolved := filepath.Clean(start)
 	info, err := os.Stat(resolved)
 	switch {
 	case err == nil && info.IsDir():
@@ -148,5 +141,5 @@ func (h Host) resolveTemplatePath(startDir, reference string) (string, error) {
 	if !filepath.IsAbs(resolved) {
 		resolved = filepath.Join(startDir, resolved)
 	}
-	return filepath.Abs(resolved)
+	return filepath.Clean(resolved), nil
 }

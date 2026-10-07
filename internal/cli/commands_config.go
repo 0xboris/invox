@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -37,10 +36,6 @@ func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 
 	baseDir, err := e.Getwd()
-	if err != nil {
-		return err
-	}
-	baseDir, err = filepath.Abs(baseDir)
 	if err != nil {
 		return err
 	}

@@ -265,11 +265,7 @@ func resolveArchiveTargetPath(archiveDir, relativePath string) (string, error) {
 }
 
 func resolveArchivePath(archiveDir, name string) (string, string, error) {
-	archiveDir, err := filepath.Abs(archiveDir)
-	if err != nil {
-		return "", "", err
-	}
-
+	archiveDir = filepath.Clean(archiveDir)
 	cleanName := filepath.Clean(strings.TrimSpace(name))
 	if cleanName == "" || cleanName == "." {
 		return "", "", fmt.Errorf("archive filename must not be empty")
@@ -278,10 +274,7 @@ func resolveArchivePath(archiveDir, name string) (string, string, error) {
 		return "", "", fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
 	}
 
-	targetPath, err := filepath.Abs(filepath.Join(archiveDir, cleanName))
-	if err != nil {
-		return "", "", err
-	}
+	targetPath := filepath.Join(archiveDir, cleanName)
 	relativePath, err := filepath.Rel(archiveDir, targetPath)
 	if err != nil {
 		return "", "", err
@@ -341,9 +334,7 @@ func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir s
 	}
 
 	excluded := make(map[string]bool)
-	if sourcePath, err := filepath.Abs(invoicePath); err == nil {
-		excluded[sourcePath] = true
-	}
+	excluded[filepath.Clean(invoicePath)] = true
 	// Only a working copy from `archive edit` (archive_path set) may reuse the
 	// number of the archived file it replaces, matching ArchiveInvoice.
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
@@ -370,10 +361,7 @@ func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir s
 		if record.InvoiceNumber != invoiceNumber {
 			continue
 		}
-		recordPath, err := filepath.Abs(record.Path)
-		if err != nil {
-			return err
-		}
+		recordPath := filepath.Clean(record.Path)
 		if excluded[recordPath] {
 			continue
 		}

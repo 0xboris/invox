@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
@@ -23,11 +22,6 @@ func runInit(f *cmdutil.Factory, args []string) error {
 	}
 
 	configDir, results, err := h.InitializeConfigDir()
-	if err != nil {
-		return err
-	}
-
-	configDir, err = filepath.Abs(configDir)
 	if err != nil {
 		return err
 	}
