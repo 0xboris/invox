@@ -247,40 +247,6 @@ var (
 
 const defaultEPCQRLabel = "Pay via EPC-QR"
 
-func DefaultOptions() (Options, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return Options{}, err
-	}
-	baseDir, err := filepath.Abs(cwd)
-	if err != nil {
-		return Options{}, err
-	}
-	customersPath, err := ResolveDefaultCustomersPath(cwd)
-	if err != nil {
-		return Options{}, err
-	}
-	issuerPath, err := ResolveDefaultIssuerPath(cwd)
-	if err != nil {
-		return Options{}, err
-	}
-	defaultsPath, err := ResolveDefaultInvoiceDefaultsPath(cwd)
-	if err != nil {
-		return Options{}, err
-	}
-	templatePath, err := ResolveDefaultTemplatePath(cwd)
-	if err != nil {
-		return Options{}, err
-	}
-	return Options{
-		BaseDir:       baseDir,
-		CustomersPath: customersPath,
-		IssuerPath:    issuerPath,
-		DefaultsPath:  defaultsPath,
-		TemplatePath:  templatePath,
-	}, nil
-}
-
 func NormalizeOptions(opts *Options) error {
 	var err error
 	opts.BaseDir, err = filepath.Abs(opts.BaseDir)

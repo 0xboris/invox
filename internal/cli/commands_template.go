@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -50,12 +49,7 @@ func runTemplateList(ios *iostreams.IOStreams, args []string) error {
 		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	templates, err := invoice.ListTemplates(cwd)
+	templates, err := invoice.ListTemplates()
 	if err != nil {
 		return err
 	}

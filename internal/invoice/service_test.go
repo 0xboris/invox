@@ -1868,7 +1868,7 @@ func TestLoadContextRejectsOverpaidInvoice(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
+func TestResolveDefaultPathsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -1913,16 +1913,9 @@ paths:
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, workDir)
 
-	if opts.BaseDir != workDir {
-		t.Fatalf("BaseDir = %q, want %q", opts.BaseDir, workDir)
-	}
 	if opts.CustomersPath != filepath.Join(workDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want local project path", opts.CustomersPath)
 	}
@@ -1937,7 +1930,7 @@ paths:
 	}
 }
 
-func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
+func TestResolveDefaultPathsFallbackToGlobalConfigFiles(t *testing.T) {
 	isolateUserDirs(t)
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -1960,12 +1953,8 @@ func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, workDir)
 
 	if opts.CustomersPath != filepath.Join(configDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want global config path", opts.CustomersPath)
@@ -1981,7 +1970,7 @@ func TestDefaultOptionsFallbackToGlobalConfigFiles(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsUseConfiguredPathsBeforeGlobalDefaults(t *testing.T) {
+func TestResolveDefaultPathsUseConfiguredPathsBeforeGlobalDefaults(t *testing.T) {
 	rootDir := t.TempDir()
 	configHome := filepath.Join(rootDir, "config-home")
 	configDir := filepath.Join(configHome, "invox")
@@ -2018,12 +2007,8 @@ paths:
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, workDir)
 
 	if opts.CustomersPath != filepath.Join(customDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want configured path", opts.CustomersPath)
@@ -2074,7 +2059,7 @@ paths:
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
-	templates, err := ListTemplates(workDir)
+	templates, err := ListTemplates()
 	if err != nil {
 		t.Fatalf("ListTemplates returned error: %v", err)
 	}
@@ -2183,7 +2168,7 @@ paths:
 	}
 }
 
-func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
+func TestResolveDefaultPathsFallbackToLegacyConfigFiles(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	legacyDir := filepath.Join(configHome, "invoice-tool")
 	workDir := filepath.Join(t.TempDir(), "work")
@@ -2202,12 +2187,8 @@ func TestDefaultOptionsFallbackToLegacyConfigFiles(t *testing.T) {
 	}
 
 	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
 
-	opts, err := DefaultOptions()
-	if err != nil {
-		t.Fatalf("DefaultOptions returned error: %v", err)
-	}
+	opts := resolveDefaultOptions(t, workDir)
 
 	if opts.CustomersPath != filepath.Join(legacyDir, "customers.yaml") {
 		t.Fatalf("CustomersPath = %q, want legacy config path", opts.CustomersPath)
@@ -3362,4 +3343,26 @@ func setPlatformHome(t *testing.T, homeDir string) string {
 		t.Setenv("XDG_DATA_HOME", "")
 		return filepath.Join(homeDir, ".local", "share", "invox", "invoices")
 	}
+}
+
+// resolveDefaultOptions resolves the four support files from start the way
+// the CLI does before flags override them.
+func resolveDefaultOptions(t *testing.T, start string) Options {
+	t.Helper()
+	var opts Options
+	var err error
+	for _, resolve := range []struct {
+		path *string
+		fn   func(string) (string, error)
+	}{
+		{&opts.CustomersPath, ResolveDefaultCustomersPath},
+		{&opts.IssuerPath, ResolveDefaultIssuerPath},
+		{&opts.DefaultsPath, ResolveDefaultInvoiceDefaultsPath},
+		{&opts.TemplatePath, ResolveDefaultTemplatePath},
+	} {
+		if *resolve.path, err = resolve.fn(start); err != nil {
+			t.Fatalf("resolve default path returned error: %v", err)
+		}
+	}
+	return opts
 }

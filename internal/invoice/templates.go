@@ -14,7 +14,7 @@ type TemplateSummary struct {
 	Path string
 }
 
-func ListTemplates(start string) ([]TemplateSummary, error) {
+func ListTemplates() ([]TemplateSummary, error) {
 	templateDir, err := TemplateCatalogDir()
 	if err != nil {
 		return nil, err
@@ -52,19 +52,6 @@ func ListTemplates(start string) ([]TemplateSummary, error) {
 	return templates, nil
 }
 
-func TemplateNames(start string) ([]string, error) {
-	templates, err := ListTemplates(start)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(templates))
-	for _, template := range templates {
-		names = append(names, template.Name)
-	}
-	return names, nil
-}
-
 func ResolveTemplateReference(start, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
@@ -80,11 +67,7 @@ func ResolveTemplateReference(start, reference string) (string, error) {
 		return resolveTemplatePath(startDir, reference)
 	}
 
-	templateDir, err := TemplateCatalogDir()
-	if err != nil {
-		return "", err
-	}
-	templates, err := ListTemplates(templateDir)
+	templates, err := ListTemplates()
 	if err != nil {
 		return "", err
 	}
