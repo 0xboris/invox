@@ -405,6 +405,10 @@ func GlobalConfigPath() string {
 	return filepath.Join(ConfigDir(), "config.yaml")
 }
 
+func LegacyConfigPath() string {
+	return filepath.Join(legacyConfigDir(), "config.yaml")
+}
+
 func ResolveConfigPath() string {
 	return firstExistingPath(configSearchPaths("config.yaml")...)
 }

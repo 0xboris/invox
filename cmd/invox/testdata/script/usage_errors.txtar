@@ -94,11 +94,13 @@ Defaults:
   build output: input path with .pdf extension
 
 Documentation topics:
-  invox help config      config.yaml keys, precedence, and email placeholders
-  invox help customers   customers.yaml fields, aliases, and example
-  invox help issuer      issuer.yaml fields, validation rules, and example
-  invox help defaults    invoice_defaults.yaml shape and new-command behavior
-  invox help template    template placeholders and authoring rules
+  invox help config       config.yaml keys, precedence, and email placeholders
+  invox help customers    customers.yaml fields, aliases, and example
+  invox help issuer       issuer.yaml fields, validation rules, and example
+  invox help defaults     invoice_defaults.yaml shape and new-command behavior
+  invox help template     template placeholders and authoring rules
+  invox help environment  environment variables, default directories, and precedence
+  invox help exit-codes   what each exit status means
 
 Examples:
   invox customer list

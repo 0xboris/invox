@@ -1,0 +1,106 @@
+# help environment and help exit-codes print on stdout with exit 0, need no
+# config, and still work when config.yaml does not parse.
+
+exec invox help environment
+scrubpaths stdout got.txt
+cmp got.txt want-environment.txt
+! stderr .
+
+exec invox help exit-codes
+cmp stdout want-exit-codes.txt
+! stderr .
+
+# Extra words after a topic are an unknown topic.
+exits 2 invox help exit-codes extra
+! stdout .
+stderr '^error: unknown help topic "exit-codes extra"$'
+exits 2 invox help environment extra
+! stdout .
+stderr '^error: unknown help topic "environment extra"$'
+
+# A broken config.yaml changes nothing.
+mkdir home/.config/invox
+cp broken.yaml home/.config/invox/config.yaml
+exec invox help environment
+scrubpaths stdout got.txt
+cmp got.txt want-environment.txt
+! stderr .
+exec invox help exit-codes
+cmp stdout want-exit-codes.txt
+! stderr .
+
+-- broken.yaml --
+archive:
+  dir: [unclosed
+-- want-environment.txt --
+Environment variables and default directories.
+
+Usage:
+  invox help environment
+
+Environment variables:
+  XDG_CONFIG_HOME
+      Base directory for the config directory, on every OS.
+      Default: $HOME/.config.
+  XDG_DATA_HOME
+      Base directory for the default archive directory on Linux and other Unix systems.
+      Default: $HOME/.local/share. Not used on macOS or Windows.
+  APPDATA
+      Base directory for the default archive directory on Windows.
+      Default: %USERPROFILE%\AppData\Roaming. Not used elsewhere.
+  VISUAL
+      Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.
+  EDITOR
+      Editor used when VISUAL is unset. Without either: vi, or notepad on Windows.
+  SHELL
+      Shell that runs the editor command on macOS, Linux and other Unix systems.
+      Default: /bin/sh. On Windows the editor runs through cmd /c.
+  INVOX_FORCE_TTY
+      Testing aid: any non-empty value makes invox treat stdout as a terminal.
+
+Config directory (config.yaml and the global support files):
+  all OSes:  $XDG_CONFIG_HOME/invox, else $HOME/.config/invox
+  legacy:    $XDG_CONFIG_HOME/invoice-tool, else $HOME/.config/invoice-tool,
+             read when a file is missing from the invox directory
+  here:      $WORK/home/.config/invox
+  $HOME is %USERPROFILE% on Windows.
+
+Default archive directory (when config.yaml sets no archive.dir):
+  Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices
+  macOS:     $HOME/Library/Application Support/invox/invoices
+  Windows:   %APPDATA%\invox\invoices, else %USERPROFILE%\AppData\Roaming\invox\invoices
+  here:      $DATA_HOME/invox/invoices
+
+Precedence:
+  An explicit flag wins, then config.yaml, then the defaults above. Environment
+  variables only move the default directories; no variable overrides a flag or
+  a config.yaml setting.
+
+Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, template):
+  1. explicit flag (-c, -u, -s, -t)
+  2. upward search from the current directory to the filesystem root
+  3. paths.* in config.yaml, relative to config.yaml
+  4. the file in the config directory, then in the legacy directory
+
+Archive directory resolution:
+  1. archive.dir in config.yaml, relative to config.yaml
+  2. the default archive directory above
+
+See also:
+  invox help config
+-- want-exit-codes.txt --
+Exit codes.
+
+Usage:
+  invox help exit-codes
+
+Exit codes:
+  0    Success.
+  1    The command failed: invalid invoice data, a missing or broken file,
+       a failed build or a failed external program.
+  2    Usage error: unknown command, topic or flag, or a missing or extra
+       argument. Also used when a confirmation was declined, or was needed
+       without a terminal to ask on and without --yes. The step that needed
+       confirmation was not done.
+  130  Reserved for an interrupted command (Ctrl-C). Planned: invox does not
+       return it itself yet.

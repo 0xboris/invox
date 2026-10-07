@@ -120,7 +120,7 @@ Support files resolve in this order:
 | `invox archive list` | List archived invoices |
 | `invox version` | Show the installed invox version |
 
-Run `invox -h` for the top-level command summary. The built-in help also includes focused references for the supported file formats and template system:
+Run `invox -h` for the top-level command summary. The built-in help also includes focused references for the supported file formats and template system, the environment variables and default directories, and the exit codes:
 
 ```sh
 invox help config
@@ -128,6 +128,8 @@ invox help customers
 invox help issuer
 invox help defaults
 invox help template
+invox help environment
+invox help exit-codes
 ```
 
 ## Notes
