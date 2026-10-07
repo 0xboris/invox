@@ -1821,26 +1821,6 @@ func prependPath(path string, paths []string) []string {
 	return append([]string{path}, paths...)
 }
 
-func findUpward(start string, names ...string) string {
-	dir, err := filepath.Abs(start)
-	if err != nil {
-		dir = start
-	}
-	for {
-		for _, name := range names {
-			candidate := filepath.Join(dir, name)
-			if fileExists(candidate) {
-				return candidate
-			}
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
-
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()

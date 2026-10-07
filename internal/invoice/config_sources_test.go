@@ -224,3 +224,60 @@ func TestPathsReportsEachSource(t *testing.T) {
 		t.Fatalf("Paths() with a broken config error = %v, want the unknown key", err)
 	}
 }
+
+func TestUpwardSearchIsBounded(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		start string
+		want  string
+	}{
+		{name: "stops below home", files: []string{"home/customers.yaml"}, start: "home/a/b", want: ""},
+		{name: "walks the directories below home", files: []string{"home/customers.yaml", "home/a/customers.yaml"}, start: "home/a/b", want: "home/a/customers.yaml"},
+		{name: "searches home when it is the start", files: []string{"home/customers.yaml"}, start: "home", want: "home/customers.yaml"},
+		{name: "stops at a .git directory", files: []string{"home/p/customers.yaml", "home/p/proj/.git/HEAD"}, start: "home/p/proj/a", want: ""},
+		{name: "stops at a .git file", files: []string{"home/p/customers.yaml", "home/p/proj/.git"}, start: "home/p/proj/a", want: ""},
+		{name: "includes the marker directory", files: []string{"home/p/proj/customers.yaml", "home/p/proj/.git/HEAD"}, start: "home/p/proj/a", want: "home/p/proj/customers.yaml"},
+		{name: "stops at invoice_defaults.yaml", files: []string{"home/p/customers.yaml", "home/p/proj/invoice_defaults.yaml"}, start: "home/p/proj/a", want: ""},
+		{name: "stops at invox.yaml", files: []string{"home/p/customers.yaml", "home/p/proj/invox.yaml"}, start: "home/p/proj", want: ""},
+		{name: "outside home only the start dir", files: []string{"out/customers.yaml"}, start: "out/sub", want: ""},
+		{name: "outside home the start dir itself", files: []string{"out/customers.yaml"}, start: "out", want: "out/customers.yaml"},
+		{name: "outside home up to a marker", files: []string{"out/customers.yaml", "out/.git/HEAD"}, start: "out/sub", want: "out/customers.yaml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, file := range tt.files {
+				writeFile(t, filepath.Join(root, filepath.FromSlash(file)), "{}\n")
+			}
+			start := filepath.Join(root, filepath.FromSlash(tt.start))
+			if err := os.MkdirAll(start, 0o755); err != nil {
+				t.Fatalf("MkdirAll returned error: %v", err)
+			}
+			h := testHost(filepath.Join(root, "config-home"), filepath.Join(root, "home"))
+
+			got, err := h.ResolveSupportFile(Customers, start)
+			if err != nil {
+				t.Fatalf("ResolveSupportFile returned error: %v", err)
+			}
+			want := Resolved{}
+			if tt.want != "" {
+				want = Resolved{Path: filepath.Join(root, filepath.FromSlash(tt.want)), Source: SourceProject}
+			}
+			if got != want {
+				t.Fatalf("ResolveSupportFile(Customers, %s) = %+v, want %+v", tt.start, got, want)
+			}
+		})
+	}
+}
+
+func TestUpwardSearchComparesHomeIgnoringCaseOnMacOS(t *testing.T) {
+	root := t.TempDir()
+	start := filepath.Join(root, "home", "a", "b")
+	h := NewHost(HostInputs{GOOS: "darwin", Home: filepath.Join(root, "HOME"), XDGConfigHome: filepath.Join(root, "config-home")})
+
+	want := []string{start, filepath.Dir(start)}
+	if got := h.projectDirs(start); !reflect.DeepEqual(got, want) {
+		t.Fatalf("projectDirs(%s) = %q, want %q", start, got, want)
+	}
+}
