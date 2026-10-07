@@ -1,7 +1,7 @@
 # template list prints NAME<TAB>PATH for each .tex file in the template
 # catalog (the directory of the configured or global template).
 exec invox template list
-scrubpaths stdout got.tsv
+scrubpaths -tsv stdout got.tsv
 cmp got.tsv want-list.tsv
 ! stderr .
 

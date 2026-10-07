@@ -943,6 +943,7 @@ Optional flags:
 Output:
   Default: NAME<TAB>ABSOLUTE_PATH
   --names: TEMPLATE_NAME per line
+  On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
 
 Lookup:
   The directory is derived from the resolved default template path.
@@ -1237,6 +1238,7 @@ Default lookup:
 
 Output:
   One archived invoice per line as FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS
+  On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
 
 Examples:
   invox archive list

@@ -8,6 +8,12 @@ exec invox customer list -c other.yaml
 cmp stdout want-list-other.tsv
 ! stderr .
 
+# Piped output escapes backslash, tab and newline inside a field, so each
+# customer stays on one line, and drops terminal escape sequences.
+exec invox customer list -c escapes.yaml
+cmp stdout want-list-escapes.tsv
+! stderr .
+
 # customer config opens customers.yaml in $VISUAL.
 exec invox customer config
 scrubpaths stdout got.txt
@@ -47,6 +53,12 @@ cmp stderr want-editor-failed.txt
 OTHER-1:
   name: Other Ltd
   status: active
+-- escapes.yaml --
+ESC-1:
+  name: "Tab\there\nnext \e[31mred\e[0m C:\\dir"
+  status: active
+-- want-list-escapes.tsv --
+ESC-1	Tab\there\nnext red C:\\dir	active
 -- want-list.tsv --
 CUST-001	Appsters GmbH	active
 CUST-002	Second Customer OG	inactive
