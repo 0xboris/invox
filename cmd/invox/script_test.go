@@ -15,7 +15,9 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
+	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -48,7 +50,10 @@ func TestMain(m *testing.M) {
 	// The external programs invox launches are faked the same way, so the
 	// suite needs no shell scripts and runs on Windows.
 	testscript.Main(m, map[string]func(){
-		"invox":       func() { os.Exit(cli.Main(os.Args[1:], iostreams.System())) },
+		"invox": func() {
+			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, runtime.GOOS, os.Getenv)
+			os.Exit(cli.Main(os.Args[1:], f))
+		},
 		"tectonic":    func() { os.Exit(fakeTectonic(os.Args[1:])) },
 		"fake-editor": func() { os.Exit(fakeEditor(os.Args[1:])) },
 		"open":        func() { os.Exit(fakeOpen(os.Args[1:])) },
@@ -81,11 +86,6 @@ func TestScript(t *testing.T) {
 // setupSandbox points every directory invox reads from the environment into
 // $WORK/home and leaves only the fake programs on PATH, so a script never
 // sees the developer's config, archive or real tools.
-//
-// Known gap: on Unix, `invox email` schedules the draft cleanup by running
-// /bin/sh by absolute path, which PATH cannot intercept. It is harmless here
-// because sleep and rm are not on PATH, and it goes away once the external
-// program adapters land (#38).
 //
 //	config dir:  $WORK/home/.config/invox (XDG_CONFIG_HOME, on every OS)
 //	archive dir: OS-specific under $WORK/home; scripts that print archive
@@ -303,21 +303,16 @@ func runPassthrough(name string, args ...string) int {
 	return 0
 }
 
-// fakeCmd handles the three ways invox uses cmd.exe on Windows:
+// fakeCmd handles the two ways invox uses cmd.exe on Windows:
 //
-//	cmd /c start "" FILE                  open a document
-//	cmd /c "start \"\" /b cmd /c ..."      delete the email draft later
-//	cmd /c EDITOR FILE                    run the editor
+//	cmd /c start "" FILE    open a document
+//	cmd /c EDITOR FILE      run the editor
 func fakeCmd(args []string) int {
 	if len(args) < 2 || !strings.EqualFold(args[0], "/c") {
 		fmt.Fprintf(os.Stderr, "fake cmd: unexpected arguments %q\n", args)
 		return 2
 	}
-	switch {
-	case strings.HasPrefix(args[1], "start "):
-		// The delayed cleanup of the email draft: nothing to do.
-		return 0
-	case args[1] == "start":
+	if args[1] == "start" {
 		rest := args[2:]
 		if len(rest) > 0 && rest[0] == "" {
 			rest = rest[1:]

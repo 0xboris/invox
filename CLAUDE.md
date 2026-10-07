@@ -18,11 +18,15 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
 
 ## Layout
 
-- `cmd/invox/main.go`: shim, `os.Exit(cli.Main(os.Args[1:], iostreams.System()))`.
+- `cmd/invox/main.go`: shim. It builds the `cmdutil.Factory` from `iostreams.System()` and
+  `run.Exec{}`, then exits with `cli.Main(os.Args[1:], f)`.
 - `internal/iostreams`: stdin, stdout and stderr plus TTY detection. Only `iostreams.System()`
   touches the process streams; everything else writes to the `IOStreams` it is given.
 - `internal/cli`: argument parsing (`command_specs.go`, `parsing.go`), commands
-  (`commands_*.go`), hand-written help (`help.go`), editor/opener/mail launchers (`editor.go`).
+  (`commands_*.go`), hand-written help (`help.go`). `cmdutil.Factory` hands commands the
+  streams and the external-program adapters.
+- `internal/adapters`: `run` is the only package that calls `os/exec`. `tectonic`, `editor`,
+  `opener` and `applemail` each wrap one program on top of a `run.Runner`.
 - `internal/invoice`: domain logic (loading and validation, money and VAT, numbering,
   rendering, EPC QR, email drafts, archive). `service.go` is large and being split up.
 - `internal/invoice/starter`: files embedded for `invox init`.
@@ -60,7 +64,10 @@ Settled decisions (#9):
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
-  (`openTextFile`, `openDocument`, `currentDate`, ...) must be restored with `t.Cleanup`.
+  (`currentDate`, ...) must be restored with `t.Cleanup`.
+- Tests that reach the editor, the opener or Apple Mail use `testFactory(t)` and
+  `captureRunFactory`. Its `run.Stub` panics on any program the test did not register with
+  `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs.
 - The e2e suite (`cmd/invox/script_test.go`, scripts in `cmd/invox/testdata/script/*.txtar`)
   pins every command's stdout, stderr and exit code with testscript. Run it with
   `go test ./cmd/invox -run TestScript` (one script: `-run TestScript/archive`). After an

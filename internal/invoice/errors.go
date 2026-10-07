@@ -1,9 +1,6 @@
 package invoice
 
-import (
-	"errors"
-	"fmt"
-)
+import "fmt"
 
 // UnknownCustomerError reports a customer_id that customers.yaml does not
 // define. Path is the file the error is about: the invoice that names the
@@ -34,6 +31,3 @@ type TemplateNotFoundError struct {
 func (e *TemplateNotFoundError) Error() string {
 	return fmt.Sprintf("template %q not found", e.Name)
 }
-
-// ErrTectonicNotFound means the tectonic program is not on PATH.
-var ErrTectonicNotFound = errors.New("tectonic not found in PATH")

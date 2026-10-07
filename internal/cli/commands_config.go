@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,10 +9,10 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runConfig(ios *iostreams.IOStreams, args []string) error {
+func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	spec := configSpec()
 
 	if wantsHelp(args) {
@@ -27,7 +28,7 @@ func runConfig(ios *iostreams.IOStreams, args []string) error {
 		return err
 	}
 
-	if err := openTextFile(ios, configPath); err != nil {
+	if err := f.Editor.Edit(ctx, configPath); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 

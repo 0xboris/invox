@@ -9,22 +9,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestEmailReportsPDFWithoutInvoiceAsRuntimeError(t *testing.T) {
 	isolateUserDirs(t)
 	customersPath, issuerPath, _ := writeBuiltEmailFixture(t)
-	stubEmailOpeners(t)
+	f, _ := testFactory(t)
 	dir := t.TempDir()
 	chdirForTest(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "orphan.pdf"), []byte("%PDF-1.4\nfake"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"email", "orphan.pdf", "-c", customersPath, "-u", issuerPath})
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"email", "orphan.pdf", "-c", customersPath, "-u", issuerPath})
 
 	if exitCode != 1 {
 		t.Errorf("exit code = %d, want 1", exitCode)
@@ -113,25 +113,12 @@ func TestRuntimeErrorShowsPathsRelativeToWorkingDir(t *testing.T) {
 	}
 }
 
-func TestTectonicInstallHintDependsOnOS(t *testing.T) {
-	tests := map[string]string{
-		"darwin":  "Install it with 'brew install tectonic', then rerun this command.",
-		"linux":   "Install it from https://tectonic-typesetting.github.io, then rerun this command.",
-		"windows": "Install it from https://tectonic-typesetting.github.io, then rerun this command.",
-	}
-	for goos, want := range tests {
-		if got := tectonicInstallHint(goos); got != want {
-			t.Errorf("tectonicInstallHint(%q) = %q, want %q", goos, got, want)
-		}
-	}
-}
-
 func TestMissingTectonicPrintsInstallHint(t *testing.T) {
 	ios, _, _, stderr := iostreams.Test()
 
-	exitCode(ios, fmt.Errorf("build: %w", invoice.ErrTectonicNotFound))
+	exitCode(ios, fmt.Errorf("build: %w", &tectonic.NotInstalledError{GOOS: "darwin"}))
 
-	if want := "error: build: tectonic not found in PATH\n" + tectonicInstallHint(hostOS) + "\n"; stderr.String() != want {
+	if want := "error: build: tectonic not found in PATH\nInstall it with 'brew install tectonic', then rerun this command.\n"; stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)
 	}
 }

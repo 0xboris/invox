@@ -2,11 +2,15 @@ package main
 
 import (
 	"os"
+	"runtime"
 
+	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func main() {
-	os.Exit(cli.Main(os.Args[1:], iostreams.System()))
+	f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, runtime.GOOS, os.Getenv)
+	os.Exit(cli.Main(os.Args[1:], f))
 }
