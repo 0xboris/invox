@@ -4,14 +4,15 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func Main(args []string, ios *iostreams.IOStreams) int {
-	return exitCode(ios, run(ios, args))
+func Main(args []string, ios *iostreams.IOStreams, e env.Env) int {
+	return exitCode(ios, run(ios, e, args))
 }
 
-func run(ios *iostreams.IOStreams, args []string) error {
+func run(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	if len(args) == 0 {
 		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
@@ -31,31 +32,31 @@ func run(ios *iostreams.IOStreams, args []string) error {
 
 	switch args[0] {
 	case "customer":
-		return runCustomer(ios, args[1:])
+		return runCustomer(ios, e, args[1:])
 	case "config":
-		return runConfig(ios, args[1:])
+		return runConfig(ios, e, args[1:])
 	case "init":
-		return runInit(ios, args[1:])
+		return runInit(ios, e, args[1:])
 	case "template":
-		return runTemplate(ios, args[1:])
+		return runTemplate(ios, e, args[1:])
 	case "completion":
 		return runCompletion(ios, args[1:])
 	case "new":
-		return runNew(ios, args[1:])
+		return runNew(ios, e, args[1:])
 	case "increment":
-		return runIncrement(ios, args[1:])
+		return runIncrement(ios, e, args[1:])
 	case "validate":
-		return runValidate(ios, args[1:])
+		return runValidate(ios, e, args[1:])
 	case "render":
-		return runRender(ios, args[1:])
+		return runRender(ios, e, args[1:])
 	case "email":
-		return runEmail(ios, args[1:])
+		return runEmail(ios, e, args[1:])
 	case "send":
-		return runEmail(ios, args[1:])
+		return runEmail(ios, e, args[1:])
 	case "build":
-		return runBuild(ios, args[1:])
+		return runBuild(ios, e, args[1:])
 	case "archive":
-		return runArchive(ios, args[1:])
+		return runArchive(ios, e, args[1:])
 	case "version":
 		return runVersion(ios, args[1:])
 	default:
@@ -163,7 +164,7 @@ func runHelp(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runCustomer(ios *iostreams.IOStreams, args []string) error {
+func runCustomer(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	if len(args) == 0 {
 		printCustomerHelp(ios.Out)
 		return nil
@@ -175,9 +176,9 @@ func runCustomer(ios *iostreams.IOStreams, args []string) error {
 
 	switch args[0] {
 	case "list":
-		return runCustomerList(ios, args[1:])
+		return runCustomerList(ios, e, args[1:])
 	case "config":
-		return runCustomerConfig(ios, args[1:])
+		return runCustomerConfig(ios, e, args[1:])
 	default:
 		return cmdutil.FlagErrorf("customer", "unknown customer subcommand %q", args[0])
 	}

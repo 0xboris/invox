@@ -3,14 +3,15 @@ package cli
 import (
 	"fmt"
 
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCustomerList(ios *iostreams.IOStreams, args []string) error {
+func runCustomerList(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := customerListSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -31,10 +32,10 @@ func runCustomerList(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runCustomerConfig(ios *iostreams.IOStreams, args []string) error {
+func runCustomerConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := customerConfigSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}

@@ -2,16 +2,16 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runConfig(ios *iostreams.IOStreams, args []string) error {
+func runConfig(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := configSpec()
 
 	if wantsHelp(args) {
@@ -31,7 +31,7 @@ func runConfig(ios *iostreams.IOStreams, args []string) error {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 
-	baseDir, err := os.Getwd()
+	baseDir, err := e.Getwd()
 	if err != nil {
 		return err
 	}

@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runNew(ios *iostreams.IOStreams, args []string) error {
+func runNew(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	args = reorderArgs(args, map[string]bool{
 		"-c":          true,
 		"--customers": true,
@@ -31,7 +32,7 @@ func runNew(ios *iostreams.IOStreams, args []string) error {
 
 	spec := newSpec()
 
-	opts, extraArgs, err := parseCommand(ios, spec, args)
+	opts, extraArgs, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -62,10 +63,10 @@ func runNew(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runIncrement(ios *iostreams.IOStreams, args []string) error {
+func runIncrement(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := incrementSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -87,10 +88,10 @@ func runIncrement(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runValidate(ios *iostreams.IOStreams, args []string) error {
+func runValidate(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := validateSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -113,10 +114,10 @@ func runValidate(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runRender(ios *iostreams.IOStreams, args []string) error {
+func runRender(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := renderSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func runRender(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runEmail(ios *iostreams.IOStreams, args []string) error {
+func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -166,7 +167,7 @@ func runEmail(ios *iostreams.IOStreams, args []string) error {
 
 	spec := emailSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -249,7 +250,7 @@ func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, output
 	return err
 }
 
-func runBuild(ios *iostreams.IOStreams, args []string) error {
+func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	args = reorderArgs(args, map[string]bool{
 		"-i":          true,
 		"--input":     true,
@@ -267,7 +268,7 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 
 	spec := buildSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -336,13 +337,13 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runArchive(ios *iostreams.IOStreams, args []string) error {
+func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "edit":
-			return runArchiveEdit(ios, args[1:])
+			return runArchiveEdit(ios, e, args[1:])
 		case "list":
-			return runArchiveList(ios, args[1:])
+			return runArchiveList(ios, e, args[1:])
 		}
 	}
 
@@ -354,7 +355,7 @@ func runArchive(ios *iostreams.IOStreams, args []string) error {
 
 	spec := archiveSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -375,10 +376,10 @@ func runArchive(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runArchiveEdit(ios *iostreams.IOStreams, args []string) error {
+func runArchiveEdit(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := archiveEditSpec()
 
-	opts, extraArgs, err := parseCommand(ios, spec, args)
+	opts, extraArgs, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}
@@ -398,10 +399,10 @@ func runArchiveEdit(ios *iostreams.IOStreams, args []string) error {
 	return nil
 }
 
-func runArchiveList(ios *iostreams.IOStreams, args []string) error {
+func runArchiveList(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	spec := archiveListSpec()
 
-	_, _, err := parseCommand(ios, spec, args)
+	_, _, err := parseCommand(ios, e, spec, args)
 	if err != nil {
 		return err
 	}

@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -54,13 +54,13 @@ func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
 
 // parseCommand parses args for spec into options and the remaining positional
 // arguments. When args ask for help it prints the help and returns flag.ErrHelp.
-func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (invoice.Options, []string, error) {
+func parseCommand(ios *iostreams.IOStreams, e env.Env, spec commandSpec, args []string) (invoice.Options, []string, error) {
 	if wantsHelp(args) {
 		printCommandHelp(ios.Out, spec)
 		return invoice.Options{}, nil, flag.ErrHelp
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := e.Getwd()
 	if err != nil {
 		return invoice.Options{}, nil, err
 	}

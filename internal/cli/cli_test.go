@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -2414,6 +2415,6 @@ func captureRunStreams(t *testing.T, ios *iostreams.IOStreams, args []string) (i
 	t.Helper()
 
 	isolateUserDirs(t)
-	exitCode := Main(args, ios)
+	exitCode := Main(args, ios, env.System())
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }
