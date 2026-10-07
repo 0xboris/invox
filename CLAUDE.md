@@ -104,8 +104,12 @@ To update to a newer pstack commit:
 Every task in this repo runs in poteto-mode. Before any work, read
 `.claude/skills/poteto-mode/SKILL.md` in full (it can't be invoked as a skill by the model),
 then follow it: match a playbook, and read each `principle-*` leaf you apply. Subagents use
-`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which the
-session-start hook installs as `~/.agents/pstack-models.md`.
+`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which is
+the source of truth. The session-start hook copies it over `~/.agents/pstack-models.md` at
+every cloud session start, so anything `/setup-pstack` writes there is lost in the next session.
+To change models, run `/setup-pstack`, then copy `~/.agents/pstack-models.md` back into
+`.claude/pstack-models.md` and commit it in its own PR. Or edit the repo file directly. Locally,
+copy it to `~/.agents/` once, as the hook does in the cloud.
 
 This file and the harness instructions take precedence over every vendored skill, playbook
 and agent. When they conflict, follow this file and say which rule you overrode:
@@ -128,11 +132,16 @@ and agent. When they conflict, follow this file and say which rule you overrode:
   matching role in `.claude/pstack-models.md`. "A different model family" means a different
   Claude model.
 - `~/` and `/tmp` don't persist across cloud sessions. Keep notes, plans and decision logs in
-  the PR or the repo.
-- Don't post to chat, tickets or other external services unless asked. poteto-mode's "just do
-  it" covers local, reversible work only.
-- The Shipping and Autopilot playbooks run as written, except that their merge and auto-merge
-  steps wait for the maintainer's go-ahead for that specific PR (first rule). Merges are squash
-  merges with `sha=<verified head>`.
+  the PR description or the repo.
+- Agents may post review findings and verification verdicts on PRs in this repo. This covers
+  PR review comments, a review summary, and the Shipping playbook's per-PR PASS / PASS+NOTES /
+  FAIL verdict. They end with the harness's Claude Code footer.
+- Everything else external still needs the maintainer to ask: other comments or issues, chat,
+  and any other service. poteto-mode's "just do it" covers local, reversible work only.
+- The Shipping and Autopilot playbooks run as written, with these overrides. Their merge and
+  auto-merge steps wait for the maintainer's go-ahead for that specific PR (first rule), and
+  merges are squash merges with `sha=<verified head>`. Local subagents replace their Cursor
+  cloud agents. Autopilot-stack's stacked delivery isn't used here, because PRs aren't stacked
+  (second rule).
 - Run the `poteto-mode/scripts/` tools (`watch-pr`, `check-plan.mjs`, `orch`) with `bun` from
   that directory. This repo doesn't use Graphite, so `orch frontier set` takes `--source rest`.
