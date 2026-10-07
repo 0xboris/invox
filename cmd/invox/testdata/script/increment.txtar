@@ -1,7 +1,7 @@
 # increment bumps the counter in invoice.number in place.
 exec invox increment -i invoice.yaml
-cmp stdout want-increment.txt
-! stderr .
+cmp stdout want-increment-stdout.txt
+cmp stderr want-increment.txt
 grep '^  number: CUST-001-002$' invoice.yaml
 
 # Usage errors.
@@ -129,3 +129,5 @@ positions:
     description: QA
     unit_price: 10
     quantity: 1
+-- want-increment-stdout.txt --
+invoice.yaml

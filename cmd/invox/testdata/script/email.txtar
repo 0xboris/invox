@@ -72,21 +72,25 @@ keep me
 -- want-exists.txt --
 error: existing.eml already exists; pass --force or choose another -o path
 -- want-force.txt --
-Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+existing.eml
 -- want-force-stderr.txt --
 fake open: existing.eml
--- want-email.txt --
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-email.txt --
+draft.eml
 -- want-email-stderr.txt --
 fake open: draft.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-email-to.txt --
-Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
+draft2.eml
 -- want-email-to-stderr.txt --
 fake open: draft2.eml
+Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
 -- want-send.txt --
-Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+draft3.eml
 -- want-send-stderr.txt --
 fake open: draft3.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
 Run 'invox email --help' for usage.

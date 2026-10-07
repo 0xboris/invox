@@ -1,18 +1,18 @@
 # render fills the LaTeX template from the invoice and writes the .tex file.
 exec invox render -i invoice.yaml
-cmp stdout want-render.txt
-! stderr .
+cmp stdout want-render-stdout.txt
+cmp stderr want-render.txt
 cmp invoice.tex want-invoice.tex
 
 exec invox render -i invoice.yaml -o out.tex -t ./other.tex
-cmp stdout want-render-o.txt
-! stderr .
+cmp stdout want-render-o-stdout.txt
+cmp stderr want-render-o.txt
 cmp out.tex want-other.tex
 
 # A value that looks like a placeholder is rendered literally.
 exec invox render -i atat.yaml -o atat.tex
-stdout '^Rendered atat\.tex for CUST-001 \(CUST-001-001\)$'
-! stderr .
+cmp stdout want-atat-stdout.txt
+stderr '^Rendered atat\.tex for CUST-001 \(CUST-001-001\)$'
 cmp atat.tex want-atat.tex
 
 # Usage errors.
@@ -195,3 +195,9 @@ positions:
     description: QA
     unit_price: 10
     quantity: 1
+-- want-render-stdout.txt --
+invoice.tex
+-- want-render-o-stdout.txt --
+out.tex
+-- want-atat-stdout.txt --
+atat.tex

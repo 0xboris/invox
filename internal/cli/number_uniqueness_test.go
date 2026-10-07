@@ -15,12 +15,13 @@ func TestNewTwiceWithoutArchivingAllocatesDifferentNumbers(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	for _, tc := range []struct {
-		output string
-		want   string
+		output     string
+		wantStdout string
+		wantStderr string
 	}{
-		{output: "a.yaml", want: "Created a.yaml for CUST-001 (CUST-001-001)\n"},
-		{output: "b.yaml", want: "Created b.yaml for CUST-001 (CUST-001-002)\n"},
-		{output: "", want: "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)\n"},
+		{output: "a.yaml", wantStdout: "a.yaml\n", wantStderr: "Created a.yaml for CUST-001 (CUST-001-001)\n"},
+		{output: "b.yaml", wantStdout: "b.yaml\n", wantStderr: "Created b.yaml for CUST-001 (CUST-001-002)\n"},
+		{output: "", wantStdout: "CUST-001-003.yaml\n", wantStderr: "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)\n"},
 	} {
 		args := []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath}
 		if tc.output != "" {
@@ -30,11 +31,11 @@ func TestNewTwiceWithoutArchivingAllocatesDifferentNumbers(t *testing.T) {
 		if exitCode != 0 {
 			t.Fatalf("new -o %q: exitCode = %d, want 0, stderr=%q", tc.output, exitCode, stderr)
 		}
-		if stderr != "" {
-			t.Fatalf("new -o %q: stderr = %q, want empty", tc.output, stderr)
+		if stderr != tc.wantStderr {
+			t.Fatalf("new -o %q: stderr = %q, want %q", tc.output, stderr, tc.wantStderr)
 		}
-		if stdout != tc.want {
-			t.Fatalf("new -o %q: stdout = %q, want %q", tc.output, stdout, tc.want)
+		if stdout != tc.wantStdout {
+			t.Fatalf("new -o %q: stdout = %q, want %q", tc.output, stdout, tc.wantStdout)
 		}
 	}
 }
@@ -57,11 +58,11 @@ func TestNewSkipsNumbersOfDraftsInOutputDirectory(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if !strings.Contains(stderr, "(CUST-001-005)") {
+		t.Fatalf("stderr = %q, want number CUST-001-005", stderr)
 	}
-	if !strings.Contains(stdout, "(CUST-001-005)") {
-		t.Fatalf("stdout = %q, want number CUST-001-005", stdout)
+	if want := filepath.Join(outputDir, "next.yaml") + "\n"; stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 }
 
@@ -157,7 +158,10 @@ func TestArchiveEditThenRearchiveKeepsSameNumber(t *testing.T) {
 	if !strings.HasPrefix(stderr, "Replaced archived invoice "+archivedPath+"; previous version kept at ") {
 		t.Fatalf("archive: stderr = %q, want replacement notice", stderr)
 	}
-	if want := "Archived first.yaml -> " + archivedPath + "\n"; stdout != want {
+	if want := "\nArchived first.yaml -> " + archivedPath + "\n"; !strings.HasSuffix(stderr, want) {
+		t.Fatalf("archive: stderr = %q, want it to end with %q", stderr, want)
+	}
+	if want := archivedPath + "\n"; stdout != want {
 		t.Fatalf("archive: stdout = %q, want %q", stdout, want)
 	}
 }
@@ -172,11 +176,12 @@ func TestValidateWarnsWhenNumberIsAlreadyArchived(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if !strings.HasPrefix(stdout, "Validation OK: CUST-001-001 for CUST-001") {
-		t.Fatalf("stdout = %q, want validation success", stdout)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	want := "warning: invoice number CUST-001-001 is already used by archived invoice " + archivedPath +
-		"; run 'invox increment -i " + invoicePath + "' before archiving\n"
+		"; run 'invox increment -i " + invoicePath + "' before archiving\n" +
+		"Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"
 	if stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
@@ -188,12 +193,15 @@ func TestValidateDoesNotWarnForUniqueNumber(t *testing.T) {
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeNumberedInvoice(t, archiveDir, "other.yaml", "CUST-001-002", "archived")
 
-	exitCode, _, stderr := captureRun(t, []string{"validate", "-i", invoicePath, "-c", customersPath, "-u", issuerPath})
+	exitCode, stdout, stderr := captureRun(t, []string{"validate", "-i", invoicePath, "-c", customersPath, "-u", issuerPath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if want := "Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
 
@@ -264,10 +272,10 @@ func TestNewIgnoresUnrelatedAndOversizedYAMLInWorkingDirectory(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
+	if want := "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
-	if want := "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)\n"; stdout != want {
+	if want := "CUST-001-001.yaml\n"; stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 }
@@ -297,7 +305,10 @@ func TestArchiveEditMarkdownThenRearchiveReplacesOriginal(t *testing.T) {
 		t.Fatalf("archive: stderr = %q, want replacement notice", stderr)
 	}
 	yamlPath := filepath.Join(archiveDir, "first.yaml")
-	if want := "Archived first.yaml -> " + yamlPath + "\n"; stdout != want {
+	if want := "\nArchived first.yaml -> " + yamlPath + "\n"; !strings.HasSuffix(stderr, want) {
+		t.Fatalf("archive: stderr = %q, want it to end with %q", stderr, want)
+	}
+	if want := yamlPath + "\n"; stdout != want {
 		t.Fatalf("archive: stdout = %q, want %q", stdout, want)
 	}
 	if _, err := os.Stat(markdownPath); !os.IsNotExist(err) {

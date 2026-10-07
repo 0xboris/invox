@@ -52,12 +52,13 @@ func runNew(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Created %s for %s (%s)\n",
 		invoice.DisplayPath(outputPath, opts.BaseDir),
 		customerID,
 		invoiceNumber,
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(outputPath, opts.BaseDir))
 	return nil
 }
 
@@ -75,13 +76,14 @@ func runIncrement(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Incremented %s for %s: %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 		customerID,
 		oldNumber,
 		newNumber,
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.InvoicePath, opts.BaseDir))
 	return nil
 }
 
@@ -101,7 +103,7 @@ func runValidate(ios *iostreams.IOStreams, args []string) error {
 	warnArchivedDuplicate(ios, opts.InvoicePath, opts.BaseDir)
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Validation OK: %s for %s, %d line item(s), total %s\n",
 		ctx.InvoiceNumber,
 		ctx.CustomerID,
@@ -128,12 +130,13 @@ func runRender(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Rendered %s for %s (%s)\n",
 		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		ctx.CustomerID,
 		ctx.InvoiceNumber,
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.OutputPath, opts.BaseDir))
 	return nil
 }
 
@@ -216,12 +219,15 @@ func runEmail(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Opened email draft for %s (%s) to %s\n",
 		emailMessage.CustomerID,
 		emailMessage.InvoiceNumber,
 		emailMessage.Recipient,
 	)
+	if explicitOutputPath {
+		fmt.Fprintln(ios.Out, invoice.DisplayPath(paths.OutputPath, opts.BaseDir))
+	}
 	return nil
 }
 
@@ -307,7 +313,7 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 		}
 		printArchiveReplacements(ios, result, opts.BaseDir)
 		fmt.Fprintf(
-			ios.Out,
+			ios.ErrOut,
 			"Built %s for %s (%s)\nArchived %s -> %s\n",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 			ctx.CustomerID,
@@ -315,16 +321,18 @@ func runBuild(ios *iostreams.IOStreams, args []string) error {
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 			invoice.DisplayPath(result.Path, opts.BaseDir),
 		)
+		fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.OutputPath, opts.BaseDir))
 		return nil
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Built %s for %s (%s)\n",
 		invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		ctx.CustomerID,
 		ctx.InvoiceNumber,
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.OutputPath, opts.BaseDir))
 	return nil
 }
 
@@ -358,11 +366,12 @@ func runArchive(ios *iostreams.IOStreams, args []string) error {
 
 	printArchiveReplacements(ios, result, opts.BaseDir)
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Archived %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 		invoice.DisplayPath(result.Path, opts.BaseDir),
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(result.Path, opts.BaseDir))
 	return nil
 }
 
@@ -380,11 +389,12 @@ func runArchiveEdit(ios *iostreams.IOStreams, args []string) error {
 	}
 
 	fmt.Fprintf(
-		ios.Out,
+		ios.ErrOut,
 		"Editing %s -> %s\n",
 		invoice.DisplayPath(archivePath, opts.BaseDir),
 		invoice.DisplayPath(outputPath, opts.BaseDir),
 	)
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(outputPath, opts.BaseDir))
 	return nil
 }
 

@@ -12,16 +12,18 @@ exec invox archive list
 # build --archive builds and archives in one go.
 exec invox build invoice.yaml --archive
 scrubpaths stdout got.txt
+cmp got.txt want-build-archive-stdout.txt
+scrubpaths stderr got.txt
 cmp got.txt want-build-archive.txt
-! stderr .
 ! exists invoice.yaml
 grep '^  status: archived$' home/.config/invox/archive/invoice.yaml
 
 # archive on its own.
 exec invox archive second.yaml
 scrubpaths stdout got.txt
+cmp got.txt want-archive-stdout.txt
+scrubpaths stderr got.txt
 cmp got.txt want-archive.txt
-! stderr .
 ! exists second.yaml
 
 # archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS,
@@ -36,8 +38,9 @@ cmp stdout want-list.tsv
 # replacing needs --yes: without it, archive exits 2 and changes nothing.
 exec invox archive edit invoice.yaml
 scrubpaths stdout got.txt
+cmp got.txt want-edit-stdout.txt
+scrubpaths stderr got.txt
 cmp got.txt want-edit.txt
-! stderr .
 grep '^  status: editing$' invoice.yaml
 cp home/.config/invox/archive/invoice.yaml archived-before.yaml
 exits 2 invox archive -i invoice.yaml
@@ -52,6 +55,7 @@ exists invoice.yaml
 exec invox archive -i invoice.yaml --yes
 scrubpaths stdout got.txt
 cmp got.txt want-rearchive.txt
+stderr '^Archived invoice\.yaml -> .*archive[/\\]invoice\.yaml$'
 stderr '^Replaced archived invoice .*archive[/\\]invoice\.yaml; previous version kept at .*archive[/\\]\.history[/\\]invoice\.\d{8}T\d{6}Z\.yaml$'
 ! exists invoice.yaml
 exists home/.config/invox/archive/.history
@@ -62,8 +66,8 @@ cmp stdout want-list.tsv
 # new --from-last starts from the newest archived invoice of the customer and
 # continues its numbering.
 exec invox new CUST-001 --from-last
-cmp stdout want-from-last.txt
-! stderr .
+cmp stdout want-from-last-stdout.txt
+cmp stderr want-from-last.txt
 grep '^  status: draft$' CUST-001-010.yaml
 grep '^  - name: Development$' CUST-001-010.yaml
 
@@ -160,7 +164,7 @@ second.yaml	CUST-003	2026-03-07	archived
 -- want-edit.txt --
 Editing home/.config/invox/archive/invoice.yaml -> invoice.yaml
 -- want-rearchive.txt --
-Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
+home/.config/invox/archive/invoice.yaml
 -- want-from-last.txt --
 Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
@@ -291,3 +295,11 @@ positions:
     description: QA
     unit_price: 10
     quantity: 1
+-- want-build-archive-stdout.txt --
+invoice.pdf
+-- want-archive-stdout.txt --
+home/.config/invox/archive/second.yaml
+-- want-edit-stdout.txt --
+invoice.yaml
+-- want-from-last-stdout.txt --
+CUST-001-010.yaml

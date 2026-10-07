@@ -2,9 +2,9 @@
 
 # init, customer list with an explicit -c, help and usage errors still work.
 exec invox init
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-init.txt
-! stderr .
 cmp home/.config/invox/config.yaml broken.yaml
 exec invox customer list -c customers.yaml
 cmp stdout want-customers.tsv

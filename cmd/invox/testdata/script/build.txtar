@@ -2,15 +2,15 @@
 # writes an empty PDF), copies the PDF next to the invoice and marks the
 # invoice built.
 exec invox build invoice.yaml
-cmp stdout want-build.txt
-! stderr .
+cmp stdout want-build-stdout.txt
+cmp stderr want-build.txt
 exists invoice.pdf
 grep '^  status: built$' invoice.yaml
 
 # -i and -o work too.
 exec invox build -i invoice.yaml -o copy.pdf
-cmp stdout want-build-o.txt
-! stderr .
+cmp stdout want-build-o-stdout.txt
+cmp stderr want-build-o.txt
 exists copy.pdf
 
 # Usage errors.
@@ -170,3 +170,7 @@ positions:
     description: QA
     unit_price: 10
     quantity: 1
+-- want-build-stdout.txt --
+invoice.pdf
+-- want-build-o-stdout.txt --
+copy.pdf

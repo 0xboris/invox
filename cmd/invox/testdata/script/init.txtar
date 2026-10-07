@@ -1,8 +1,8 @@
 # init writes the starter files into the config directory and reports each.
 exec invox init
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-init.txt
-! stderr .
 exists home/.config/invox/config.yaml
 exists home/.config/invox/customers.yaml
 exists home/.config/invox/issuer.yaml
@@ -12,9 +12,9 @@ grep 'fontspec' home/.config/invox/template.tex
 
 # Running it again leaves the existing files alone.
 exec invox init
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-init-again.txt
-! stderr .
 
 # Usage error: init takes no arguments.
 exits 2 invox init extra

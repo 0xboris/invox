@@ -40,6 +40,6 @@ func runConfig(ios *iostreams.IOStreams, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(configPath, baseDir))
+	fmt.Fprintf(ios.ErrOut, "Opened %s\n", invoice.DisplayPath(configPath, baseDir))
 	return nil
 }

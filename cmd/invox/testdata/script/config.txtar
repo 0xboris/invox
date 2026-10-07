@@ -1,16 +1,17 @@
 # config creates config.yaml from its template if needed and opens it in
 # $VISUAL (the fake editor prints the file name it was given).
 exec invox config
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-opened.txt
-cmp stderr want-opened-stderr.txt
 scrubpaths home/.config/invox/config.yaml got.yaml
 cmp got.yaml want-config.yaml
 
 # An existing config.yaml is opened unchanged.
 cp custom.yaml home/.config/invox/config.yaml
 exec invox config
-scrubpaths stdout got.txt
+! stdout .
+scrubpaths stderr got.txt
 cmp got.txt want-opened.txt
 cmp home/.config/invox/config.yaml custom.yaml
 
@@ -30,9 +31,8 @@ cmp got.txt want-editor-failed.txt
 archive:
   dir: archive
 -- want-opened.txt --
-Opened home/.config/invox/config.yaml
--- want-opened-stderr.txt --
 fake editor: config.yaml
+Opened home/.config/invox/config.yaml
 -- want-config.yaml --
 # Invox user configuration.
 #

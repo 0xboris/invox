@@ -156,13 +156,13 @@ func TestArchiveReplaceOnTerminalConfirmed(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if want := "Archived first.yaml -> " + e.archivedPath + "\n"; stdout != want {
+	if want := e.archivedPath + "\n"; stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 	backupPath := e.assertReplaced(t)
 	prompt := "Replace archived invoice " + e.archivedPath + "? The previous version is kept in " +
 		filepath.Join(e.archiveDir, ".history") + ". [y/N] "
-	if want := prompt + e.replacedNotice(backupPath); stderr != want {
+	if want := prompt + e.replacedNotice(backupPath) + "Archived first.yaml -> " + e.archivedPath + "\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
@@ -176,11 +176,11 @@ func TestArchiveReplaceWithYesKeepsBackup(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if want := "Archived first.yaml -> " + e.archivedPath + "\n"; stdout != want {
+	if want := e.archivedPath + "\n"; stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 	backupPath := e.assertReplaced(t)
-	if want := e.replacedNotice(backupPath); stderr != want {
+	if want := e.replacedNotice(backupPath) + "Archived first.yaml -> " + e.archivedPath + "\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 
@@ -237,11 +237,11 @@ func TestBuildKeepsArchivedStatus(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
 	pdfPath := strings.TrimSuffix(invoicePath, ".yaml") + ".pdf"
-	if want := "Built " + pdfPath + " for CUST-001 (CUST-001-001)\n"; stdout != want {
+	if want := "Built " + pdfPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if want := pdfPath + "\n"; stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 	if got := readFileForTest(t, invoicePath); got != original {
@@ -287,14 +287,15 @@ func TestBuildArchiveReplacingArchivedInvoiceNeedsYes(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("--yes: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	if want := "Built first.pdf for CUST-001 (CUST-001-001)\nArchived first.yaml -> " + archivedPath + "\n"; stdout != want {
+	if want := "first.pdf\n"; stdout != want {
 		t.Fatalf("--yes: stdout = %q, want %q", stdout, want)
 	}
 	backups, err := filepath.Glob(filepath.Join(archiveDir, ".history", "first.*.yaml"))
 	if err != nil || len(backups) != 1 {
 		t.Fatalf("backups = %q (err %v), want exactly one", backups, err)
 	}
-	if want := "Replaced archived invoice " + archivedPath + "; previous version kept at " + backups[0] + "\n"; stderr != want {
+	if want := "Replaced archived invoice " + archivedPath + "; previous version kept at " + backups[0] + "\n" +
+		"Built first.pdf for CUST-001 (CUST-001-001)\nArchived first.yaml -> " + archivedPath + "\n"; stderr != want {
 		t.Fatalf("--yes: stderr = %q, want %q", stderr, want)
 	}
 	if got := readFileForTest(t, backups[0]); got != original {

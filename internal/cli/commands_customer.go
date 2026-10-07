@@ -43,6 +43,6 @@ func runCustomerConfig(ios *iostreams.IOStreams, args []string) error {
 		return fmt.Errorf("failed to open %s: %w", opts.CustomersPath, err)
 	}
 
-	fmt.Fprintf(ios.Out, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
+	fmt.Fprintf(ios.ErrOut, "Opened %s\n", invoice.DisplayPath(opts.CustomersPath, opts.BaseDir))
 	return nil
 }
