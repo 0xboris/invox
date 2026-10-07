@@ -42,4 +42,11 @@ func isolateUserDirs(t *testing.T) {
 		}
 		t.Setenv(key, filepath.Join(root, strings.ToLower(key)))
 	}
+	if value := os.Getenv("INVOX_CONFIG_DIR"); value != "" && value == processInvoxConfigDir {
+		t.Setenv("INVOX_CONFIG_DIR", "")
+	}
 }
+
+// processInvoxConfigDir is INVOX_CONFIG_DIR as the test process started, so
+// isolateUserDirs can clear a developer's own setting.
+var processInvoxConfigDir = os.Getenv("INVOX_CONFIG_DIR")

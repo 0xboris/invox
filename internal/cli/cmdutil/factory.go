@@ -1,6 +1,8 @@
 package cmdutil
 
 import (
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
@@ -8,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -23,6 +26,9 @@ type Factory struct {
 	Opener    *opener.Opener
 	// Mailer is nil where Apple Mail is not available.
 	Mailer *applemail.Composer
+	// ConfigFile is the --config value as typed, "" when not given. Main
+	// sets it before anything calls Host.
+	ConfigFile string
 
 	host func() invoice.Host
 }
@@ -33,11 +39,11 @@ func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory
 	f := &Factory{
 		IOStreams: ios,
 		Env:       e,
-		host:      sync.OnceValue(func() invoice.Host { return newHost(e) }),
 		Compiler:  tectonic.New(runner, ios, e.GOOS),
 		Editor:    editor.New(runner, ios, e.GOOS, e.Getenv),
 		Opener:    opener.New(runner, ios, e.GOOS),
 	}
+	f.host = sync.OnceValue(func() invoice.Host { return newHost(e, f.ConfigFile) })
 	if e.GOOS == "darwin" {
 		f.Mailer = applemail.New(runner, ios)
 	}
@@ -50,16 +56,49 @@ func (f *Factory) Host() invoice.Host {
 	return f.host()
 }
 
-func newHost(e env.Env) invoice.Host {
+// Config returns the config file, read on the first call.
+func (f *Factory) Config() (*config.Config, error) {
+	return f.Host().Config()
+}
+
+// newHost resolves the user directories. Relative directory values are
+// ignored, as the XDG spec asks, so every directory the Host holds is
+// absolute. configFile and INVOX_CONFIG_DIR are made absolute against the
+// working directory.
+func newHost(e env.Env, configFile string) invoice.Host {
 	home, err := e.HomeDir()
 	if err != nil {
 		home = ""
 	}
+	cwd, err := e.Getwd()
+	if err != nil {
+		cwd = ""
+	}
 	return invoice.NewHost(invoice.HostInputs{
 		GOOS:          e.GOOS,
-		Home:          home,
-		XDGConfigHome: e.Getenv("XDG_CONFIG_HOME"),
-		XDGDataHome:   e.Getenv("XDG_DATA_HOME"),
-		AppData:       e.Getenv("APPDATA"),
+		Home:          absOnly(home),
+		XDGConfigHome: absOnly(e.Getenv("XDG_CONFIG_HOME")),
+		XDGDataHome:   absOnly(e.Getenv("XDG_DATA_HOME")),
+		AppData:       absOnly(e.Getenv("APPDATA")),
+		ConfigDir:     absAgainst(cwd, e.Getenv("INVOX_CONFIG_DIR")),
+		ConfigFile:    absAgainst(cwd, configFile),
 	})
+}
+
+func absOnly(path string) string {
+	path = strings.TrimSpace(path)
+	if !filepath.IsAbs(path) {
+		return ""
+	}
+	return filepath.Clean(path)
+}
+
+func absAgainst(cwd, path string) string {
+	if path == "" {
+		return ""
+	}
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	return filepath.Join(cwd, path)
 }

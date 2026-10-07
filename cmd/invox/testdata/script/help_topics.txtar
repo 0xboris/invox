@@ -39,15 +39,22 @@ Usage:
   invox help environment
 
 Environment variables:
+  INVOX_CONFIG_DIR
+      Config directory to use in place of the default one, on every OS. invox
+      reads config.yaml and the global support files there, `init` writes there,
+      and the legacy directory is not read. It must exist. --config still wins
+      for config.yaml.
   XDG_CONFIG_HOME
       Base directory for the config directory, on every OS.
-      Default: $HOME/.config.
+      Default: $HOME/.config. A relative value is ignored.
   XDG_DATA_HOME
-      Base directory for the default archive directory on Linux and other Unix systems.
-      Default: $HOME/.local/share. Not used on macOS or Windows.
+      Base directory for the default archive directory on Linux, macOS and other
+      Unix systems. Default: $HOME/.local/share, or $HOME/Library/Application
+      Support on macOS. Not used on Windows. A relative value is ignored.
   APPDATA
       Base directory for the default archive directory on Windows.
       Default: %USERPROFILE%\AppData\Roaming. Not used elsewhere.
+      A relative value is ignored.
   VISUAL
       Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.
   EDITOR
@@ -59,17 +66,31 @@ Environment variables:
       Testing aid: any non-empty value makes invox treat stdout as a terminal.
 
 Config directory (config.yaml and the global support files):
-  all OSes:  $XDG_CONFIG_HOME/invox, else $HOME/.config/invox
-  legacy:    $XDG_CONFIG_HOME/invoice-tool, else $HOME/.config/invoice-tool,
-             read when a file is missing from the invox directory
+  Linux:     $XDG_CONFIG_HOME/invox, else $HOME/.config/invox
+  macOS:     $XDG_CONFIG_HOME/invox, else $HOME/.config/invox
+  Windows:   %XDG_CONFIG_HOME%\invox, else %USERPROFILE%\.config\invox
+  INVOX_CONFIG_DIR replaces it on every OS.
   here:      $WORK/home/.config/invox
-  $HOME is %USERPROFILE% on Windows.
+
+Legacy config directory (deprecated):
+  invoice-tool next to the invox directory, such as $HOME/.config/invoice-tool.
+  A file missing from the invox directory is still read from here, and invox
+  prints a warning. `invox init` copies the files into the invox directory.
+  Not read when INVOX_CONFIG_DIR is set.
 
 Default archive directory (when config.yaml sets no archive.dir):
   Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices
-  macOS:     $HOME/Library/Application Support/invox/invoices
+  macOS:     $XDG_DATA_HOME/invox/invoices, else $HOME/Library/Application Support/invox/invoices
   Windows:   %APPDATA%\invox\invoices, else %USERPROFILE%\AppData\Roaming\invox\invoices
   here:      $DATA_HOME/invox/invoices
+
+Config file:
+  1. --config PATH
+  2. config.yaml in INVOX_CONFIG_DIR
+  3. config.yaml in the config directory
+  4. config.yaml in the legacy directory
+  A --config file that is missing or broken is an error. invox never falls
+  back to another config file.
 
 Precedence:
   An explicit flag wins, then config.yaml, then the defaults above. Environment
@@ -78,13 +99,22 @@ Precedence:
 
 Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, template):
   1. explicit flag (-c, -u, -s, -t)
-  2. upward search from the current directory to the filesystem root
+  2. upward search from the current directory
   3. paths.* in config.yaml, relative to config.yaml
   4. the file in the config directory, then in the legacy directory
+
+Upward search:
+  It always searches the current directory. It goes up to the nearest directory
+  that holds .git, invox.yaml or invoice_defaults.yaml, and stops below your
+  home directory, which it searches only when invox runs there. Outside your
+  home directory, without such a marker above, it searches only the current
+  directory.
 
 Archive directory resolution:
   1. archive.dir in config.yaml, relative to config.yaml
   2. the default archive directory above
+
+Run `invox config paths` to see what each lookup finds.
 
 See also:
   invox help config

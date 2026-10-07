@@ -389,6 +389,7 @@ func printRootHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Optional flags:\n")
 	fmt.Fprintf(w, "  -h, --help              Show help\n")
 	fmt.Fprintf(w, "  --version               Show the %s version\n", commandName)
+	fmt.Fprintf(w, "  --config PATH           Read this config file instead of config.yaml (any command)\n")
 	fmt.Fprintf(w, "  -c, --customers PATH    Path to customers.yaml\n")
 	fmt.Fprintf(w, "  -o, --output PATH       Output file path (defaults vary by command)\n")
 	fmt.Fprintf(w, "  -p, --pdf PATH          Path to the invoice PDF (email)\n")
@@ -640,6 +641,10 @@ func printCommandHelp(w io.Writer, h invoice.Host, spec commandSpec) {
 		printConfigHelp(w, h)
 		return
 	}
+	if spec.Name == "config paths" {
+		printConfigPathsHelp(w)
+		return
+	}
 	if spec.Name == "init" {
 		printInitHelp(w, h)
 		return
@@ -805,9 +810,11 @@ func printConfigHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Open config.yaml in the default shell editor.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s config\n", commandName)
+	fmt.Fprintf(w, "  %s config paths\n", commandName)
 	fmt.Fprintf(w, "  %s help config\n\n", commandName)
 	fmt.Fprintf(w, "Behavior:\n")
-	fmt.Fprintf(w, "  Opens the resolved config.yaml in the default shell editor.\n")
+	fmt.Fprintf(w, "  Opens the resolved config.yaml in the default shell editor, or the file\n")
+	fmt.Fprintf(w, "  given with --config.\n")
 	fmt.Fprintf(w, "  If config.yaml does not exist yet, creates it from the template below.\n")
 	fmt.Fprintf(w, "  Existing config.yaml files are left unchanged.\n\n")
 	fmt.Fprintf(w, "Config paths:\n")
@@ -816,7 +823,9 @@ func printConfigHelp(w io.Writer, h invoice.Host) {
 	if dir := h.LegacyConfigDir(); dir != "" {
 		legacy = filepath.Join(dir, "config.yaml")
 	}
-	fmt.Fprintf(w, "  legacy fallback: %s\n\n", legacy)
+	fmt.Fprintf(w, "  legacy fallback: %s\n", legacy)
+	fmt.Fprintf(w, "  --config PATH and INVOX_CONFIG_DIR change them; see `%s help environment`.\n", commandName)
+	fmt.Fprintf(w, "  `%s config paths` shows the config file and the support files in use.\n\n", commandName)
 	fmt.Fprintf(w, "Formatting:\n")
 	fmt.Fprintf(w, "  Top-level keys must start at column 1 with no leading spaces.\n\n")
 	fmt.Fprintf(w, "Supported settings:\n")
@@ -858,6 +867,29 @@ func printConfigHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "\nExamples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("config"))
 	fmt.Fprintf(w, "  %s\n", commandExample("help config"))
+}
+
+func printConfigPathsHelp(w io.Writer) {
+	fmt.Fprintf(w, "Show where each config and support file is read from.\n\n")
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s config paths\n", commandName)
+	fmt.Fprintf(w, "  %s help config paths\n\n", commandName)
+	fmt.Fprintf(w, "Output:\n")
+	fmt.Fprintf(w, "  One row per path with the columns NAME, PATH and SOURCE, in this order:\n")
+	fmt.Fprintf(w, "  config-dir, config, customers, issuer, defaults, template, archive.\n")
+	fmt.Fprintf(w, "  The support files are looked up from the current directory, as a command\n")
+	fmt.Fprintf(w, "  run here would. PATH is empty when nothing is found. On a terminal the\n")
+	fmt.Fprintf(w, "  rows are aligned under a header; piped, they are tab-separated.\n\n")
+	fmt.Fprintf(w, "Sources:\n")
+	fmt.Fprintf(w, "  flag     the --config option\n")
+	fmt.Fprintf(w, "  env      INVOX_CONFIG_DIR\n")
+	fmt.Fprintf(w, "  default  the default config or archive directory\n")
+	fmt.Fprintf(w, "  legacy   the deprecated invoice-tool directory\n")
+	fmt.Fprintf(w, "  project  the upward search from the current directory\n")
+	fmt.Fprintf(w, "  config   a paths.* or archive.dir setting in config.yaml\n")
+	fmt.Fprintf(w, "  none     not found\n\n")
+	fmt.Fprintf(w, "Examples:\n")
+	fmt.Fprintf(w, "  %s\n", commandExample("config paths"))
 }
 
 func printInitHelp(w io.Writer, h invoice.Host) {

@@ -70,6 +70,17 @@ func configSpec() commandSpec {
 	}
 }
 
+func configPathsSpec() commandSpec {
+	return commandSpec{
+		Name:    "config paths",
+		Summary: "Show where each config and support file is read from.",
+		Usage:   "config paths",
+		Examples: []string{
+			commandExample("config paths"),
+		},
+	}
+}
+
 func initSpec() commandSpec {
 	return commandSpec{
 		Name:    "init",
@@ -268,6 +279,8 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return customerConfigSpec(), true
 	case "config":
 		return configSpec(), true
+	case "config paths":
+		return configPathsSpec(), true
 	case "init":
 		return initSpec(), true
 	case "template list":

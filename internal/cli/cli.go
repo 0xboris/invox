@@ -2,13 +2,44 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
-	return exitCode(f.IOStreams, dispatch(context.Background(), f, args))
+	configFile, rest, err := splitGlobalFlags(args)
+	if err == nil {
+		f.ConfigFile = configFile
+		err = dispatch(context.Background(), f, rest)
+		warnLegacyFiles(f)
+	}
+	return exitCode(f.IOStreams, err)
+}
+
+// warnLegacyFiles prints one line when the command read files from the
+// deprecated config directory.
+func warnLegacyFiles(f *cmdutil.Factory) {
+	h := f.Host()
+	used := h.LegacyFilesUsed()
+	if len(used) == 0 {
+		return
+	}
+	legacyDir := h.LegacyConfigDir()
+	names := make([]string, len(used))
+	for i, path := range used {
+		names[i] = path
+		if rel, err := filepath.Rel(legacyDir, path); err == nil {
+			names[i] = rel
+		}
+	}
+	list, pronoun := names[0], "it"
+	if len(names) > 1 {
+		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
+	}
+	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, h.ConfigDir())
 }
 
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {

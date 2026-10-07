@@ -216,6 +216,7 @@ Required inputs by command:
 Optional flags:
   -h, --help              Show help
   --version               Show the invox version
+  --config PATH           Read this config file instead of config.yaml (any command)
   -c, --customers PATH    Path to customers.yaml
   -o, --output PATH       Output file path (defaults vary by command)
   -p, --pdf PATH          Path to the invoice PDF (email)
@@ -613,16 +614,20 @@ Open config.yaml in the default shell editor.
 
 Usage:
   invox config
+  invox config paths
   invox help config
 
 Behavior:
-  Opens the resolved config.yaml in the default shell editor.
+  Opens the resolved config.yaml in the default shell editor, or the file
+  given with --config.
   If config.yaml does not exist yet, creates it from the template below.
   Existing config.yaml files are left unchanged.
 
 Config paths:
   preferred: $WORK/home/.config/invox/config.yaml
   legacy fallback: $WORK/home/.config/invoice-tool/config.yaml
+  --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
+  `invox config paths` shows the config file and the support files in use.
 
 Formatting:
   Top-level keys must start at column 1 with no leading spaces.
