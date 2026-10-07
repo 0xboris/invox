@@ -18,9 +18,12 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
 
 ## Layout
 
-- `cmd/invox/main.go`: shim, `os.Exit(cli.Main(os.Args[1:], iostreams.System()))`.
+- `cmd/invox/main.go`: shim, `os.Exit(cli.Main(os.Args[1:], iostreams.System(), env.System()))`.
 - `internal/iostreams`: stdin, stdout and stderr plus TTY detection. Only `iostreams.System()`
   touches the process streams; everything else writes to the `IOStreams` it is given.
+- `internal/env`: `env.Env` holds `GOOS`, `Getenv`, `HomeDir`, `Getwd` and `Now`. `env.System()`
+  reads them from the process; everything else uses the `Env` it is given. `ambient_test.go`
+  fails on any other read, apart from a short allowlist (`iostreams.System`, `editor.go`, `exit.go`).
 - `internal/cli`: argument parsing (`command_specs.go`, `parsing.go`), commands
   (`commands_*.go`), hand-written help (`help.go`), editor/opener/mail launchers (`editor.go`).
 - `internal/invoice`: domain logic (loading and validation, money and VAT, numbering,
@@ -55,12 +58,13 @@ Settled decisions (#9):
 - CLI tests: `captureRun(t, args)` returns `(exitCode, stdout, stderr)`; assert all three. It runs
   `Main` with `iostreams.Test()` buffers; `captureRunStreams` takes streams you set up (stdin input,
   TTY flags). Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
-- Never depend on the developer's real config: point `XDG_CONFIG_HOME` (and for paths derived
-  from home, `setPlatformHome(t, dir)` in `internal/invoice`) at `t.TempDir()`.
+- Never depend on the developer's real config: in CLI tests point `XDG_CONFIG_HOME` at
+  `t.TempDir()`; in `internal/invoice` build an `invoice.Host` with
+  `invoice.NewHost(invoice.HostInputs{...})` whose directories are under `t.TempDir()`.
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
-  (`openTextFile`, `openDocument`, `currentDate`, ...) must be restored with `t.Cleanup`.
+  (`openTextFile`, `openDocument`, ...) must be restored with `t.Cleanup`.
 - The e2e suite (`cmd/invox/script_test.go`, scripts in `cmd/invox/testdata/script/*.txtar`)
   pins every command's stdout, stderr and exit code with testscript. Run it with
   `go test ./cmd/invox -run TestScript` (one script: `-run TestScript/archive`). After an
