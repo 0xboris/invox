@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -56,7 +57,7 @@ func printError(w io.Writer, message string) {
 // errorHint returns the next step that fixes err, or "" when there is none.
 func errorHint(err error) string {
 	var unknownCustomer *invoice.UnknownCustomerError
-	var configErr *invoice.ConfigError
+	var configErr *config.Error
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	var noTectonic *tectonic.NotInstalledError
 	switch {

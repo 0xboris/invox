@@ -23,10 +23,6 @@ func (h Host) GlobalInvoiceDefaultsPath() string {
 	return filepath.Join(h.ConfigDir(), "invoice_defaults.yaml")
 }
 
-func (h Host) ResolveDefaultInvoiceDefaultsPath(start string) (string, error) {
-	return h.resolveDefaultPath(start, "defaults", []string{"invoice_defaults.yaml"}, []string{"invoice_defaults.yaml"})
-}
-
 func LoadCustomer(customersPath, customerID string) (map[string]any, error) {
 	customersValue, err := loadYAML(customersPath)
 	if err != nil {

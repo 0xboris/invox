@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/0xboris/invox/internal/invoice"
 )
@@ -811,7 +812,11 @@ func printConfigHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  Existing config.yaml files are left unchanged.\n\n")
 	fmt.Fprintf(w, "Config paths:\n")
 	fmt.Fprintf(w, "  preferred: %s\n", h.GlobalConfigPath())
-	fmt.Fprintf(w, "  legacy fallback: %s\n\n", h.LegacyConfigPath())
+	legacy := "none"
+	if dir := h.LegacyConfigDir(); dir != "" {
+		legacy = filepath.Join(dir, "config.yaml")
+	}
+	fmt.Fprintf(w, "  legacy fallback: %s\n\n", legacy)
 	fmt.Fprintf(w, "Formatting:\n")
 	fmt.Fprintf(w, "  Top-level keys must start at column 1 with no leading spaces.\n\n")
 	fmt.Fprintf(w, "Supported settings:\n")

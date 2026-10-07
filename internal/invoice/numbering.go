@@ -33,29 +33,19 @@ func (h Host) ResolveNumberingSettings() (NumberingSettings, error) {
 		Start:   defaultNumberingStart,
 	}
 
-	_, root, err := h.loadConfigRoot()
-	if err != nil || root == nil {
-		return settings, err
+	cfg, err := h.Config()
+	if err != nil {
+		return NumberingSettings{}, err
 	}
-
-	numbering, ok := root["numbering"].(map[string]any)
-	if !ok {
-		return settings, nil
+	if cfg.Numbering.Pattern != "" {
+		settings.Pattern = string(cfg.Numbering.Pattern)
 	}
-
-	if pattern := strings.TrimSpace(asString(numbering["pattern"])); pattern != "" {
-		settings.Pattern = pattern
-	}
-	if rawStart := strings.TrimSpace(asString(numbering["start"])); rawStart != "" {
-		start, err := strconv.ParseInt(rawStart, 10, 64)
-		if err != nil {
-			return NumberingSettings{}, fmt.Errorf("config.yaml: numbering.start: expected a positive integer, got %q", rawStart)
-		}
-		settings.Start = start
+	if cfg.Numbering.Start != nil {
+		settings.Start = int64(*cfg.Numbering.Start)
 	}
 
 	if err := validateNumberingSettings(settings); err != nil {
-		return NumberingSettings{}, fmt.Errorf("config.yaml: %w", err)
+		return NumberingSettings{}, fmt.Errorf("%s: %w", cfg.File, err)
 	}
 	return settings, nil
 }
