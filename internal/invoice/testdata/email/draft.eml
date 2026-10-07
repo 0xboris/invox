@@ -1,12 +1,12 @@
 From: =?utf-8?q?J=C3=BCrgen_Beispiel?= <hello@example.com>
 To: <office@example.com>
 Subject: =?utf-8?q?Rechnung_2026-0001_f=C3=BCr_M=C3=A4rz?=
-Date: DATE
+Date: Fri, 06 Mar 2026 09:30:00 +0100
 MIME-Version: 1.0
 X-Unsent: 1
-Content-Type: multipart/mixed; boundary="invox-boundary-BOUNDARY"
+Content-Type: multipart/mixed; boundary="invox-boundary-1772785800000000000"
 
---invox-boundary-BOUNDARY
+--invox-boundary-1772785800000000000
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset="utf-8"
 
@@ -17,11 +17,11 @@ anbei die Rechnung.
 Gr=C3=BC=C3=9Fe,
 J=C3=BCrgen
 
---invox-boundary-BOUNDARY
+--invox-boundary-1772785800000000000
 Content-Disposition: attachment; filename="2026-0001.pdf"
 Content-Transfer-Encoding: base64
 Content-Type: application/pdf; name="2026-0001.pdf"
 
 JVBERi0xLjQKZmFrZSBwZGYgYnl0ZXMK
 
---invox-boundary-BOUNDARY--
+--invox-boundary-1772785800000000000--

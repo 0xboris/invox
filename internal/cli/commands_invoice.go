@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
@@ -38,7 +39,7 @@ func runNew(ios *iostreams.IOStreams, e env.Env, args []string) error {
 	}
 
 	customerID := strings.TrimSpace(extraArgs[0])
-	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
+	invoiceNumber, outputPath, err := invoice.CreateNewInvoice(e.Now(), opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; choose a different -o/--output path", exists)
@@ -194,7 +195,7 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			return fmt.Errorf("failed to open editable email draft: %w", err)
 		}
 	} else if explicitOutputPath {
-		if err := writeEmailDraft(opts, paths, paths.OutputPath, opts.OverwriteOutput); err != nil {
+		if err := writeEmailDraft(e.Now(), opts, paths, paths.OutputPath, opts.OverwriteOutput); err != nil {
 			return err
 		}
 		if err := openDocument(ios, paths.OutputPath); err != nil {
@@ -206,7 +207,7 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			return fmt.Errorf("create temporary draft directory: %w", err)
 		}
 		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
-		if err := writeEmailDraft(opts, paths, draftPath, false); err != nil {
+		if err := writeEmailDraft(e.Now(), opts, paths, draftPath, false); err != nil {
 			_ = os.RemoveAll(draftDir)
 			return err
 		}
@@ -233,8 +234,9 @@ func runEmail(ios *iostreams.IOStreams, e env.Env, args []string) error {
 }
 
 // writeEmailDraft writes the .eml draft to outputPath.
-func writeEmailDraft(opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) error {
+func writeEmailDraft(now time.Time, opts invoice.Options, paths invoice.EmailDraftPaths, outputPath string, overwrite bool) error {
 	_, err := invoice.CreateInvoiceEmailDraft(
+		now,
 		opts.CustomersPath,
 		opts.IssuerPath,
 		paths.InvoicePath,
@@ -298,7 +300,7 @@ func runBuild(ios *iostreams.IOStreams, e env.Env, args []string) error {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, err := archiveWithConfirmation(ios, spec, opts, errorPrefix)
+		result, err := archiveWithConfirmation(ios, e, spec, opts, errorPrefix)
 		// These already start with errorPrefix, and wrapping a FlagError would
 		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
@@ -360,7 +362,7 @@ func runArchive(ios *iostreams.IOStreams, e env.Env, args []string) error {
 		return err
 	}
 
-	result, err := archiveWithConfirmation(ios, spec, opts, "")
+	result, err := archiveWithConfirmation(ios, e, spec, opts, "")
 	if err != nil {
 		return err
 	}

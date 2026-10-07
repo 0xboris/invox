@@ -13,10 +13,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-var currentDate = func() time.Time {
-	return time.Now()
-}
-
 const (
 	internalMetadataKey       = "_invox"
 	internalArchivePathKey    = "archive_path"
@@ -72,7 +68,7 @@ func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
 	return payment, nil
 }
 
-func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
+func CreateNewInvoice(now time.Time, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
 	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
 		return "", "", &OutputExistsError{Path: outputPath}
 	}
@@ -91,7 +87,7 @@ func CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, custo
 		return "", "", err
 	}
 
-	now := currentDate().In(time.Local)
+	now = now.In(time.Local)
 	issueDate := now.Format("2006-01-02")
 	draftDirs, err := draftSearchDirs(outputPath)
 	if err != nil {
@@ -288,7 +284,7 @@ func EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
 // an *ArchiveReplaceError, after all other checks passed and before anything
 // is written, unless opts.Replace is set. With opts.Replace the replaced
 // files are first copied to the archive's history directory.
-func ArchiveInvoice(invoicePath string, opts ArchiveOptions) (ArchiveResult, error) {
+func ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOptions) (ArchiveResult, error) {
 	document, err := loadYAMLDocument(invoicePath)
 	if err != nil {
 		return ArchiveResult{}, err
@@ -387,7 +383,7 @@ func ArchiveInvoice(invoicePath string, opts ArchiveOptions) (ArchiveResult, err
 			HistoryDir:  filepath.Join(archiveDir, archiveHistoryDirName),
 		}
 	}
-	backups, err := backupArchivedFiles(archiveDir, replaced)
+	backups, err := backupArchivedFiles(archiveDir, replaced, now)
 	if err != nil {
 		return ArchiveResult{}, err
 	}

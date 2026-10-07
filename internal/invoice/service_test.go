@@ -1448,7 +1448,7 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1502,7 +1502,7 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1541,7 +1541,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	if _, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
+	if _, err := CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -1589,7 +1589,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -1627,6 +1627,7 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
 	draft, err := CreateInvoiceEmailDraft(
+		time.Now(),
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -1653,6 +1654,7 @@ func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T
 	}
 
 	_, err := CreateInvoiceEmailDraft(
+		time.Now(),
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -2413,13 +2415,7 @@ func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) 
 }
 
 func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
@@ -2428,6 +2424,7 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
 	invoiceNumber, _, err := CreateNewInvoice(
+		now,
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2475,13 +2472,7 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 }
 
 func TestCreateNewInvoicePrefillsVATFromCustomerDefaultWhenMissing(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
@@ -2505,7 +2496,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := CreateNewInvoice(now, defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2520,13 +2511,7 @@ positions:
 }
 
 func TestCreateNewInvoicePreservesSourceVATWhenCustomerHasDefault(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
@@ -2539,7 +2524,7 @@ CUST-001:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
+	_, _, err := CreateNewInvoice(now, defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", false)
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -2558,13 +2543,7 @@ CUST-001:
 }
 
 func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
@@ -2572,6 +2551,7 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := CreateNewInvoice(
+		now,
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2608,6 +2588,7 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	_, _, err := CreateNewInvoice(
+		time.Now(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2630,18 +2611,13 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 }
 
 func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeLegacyDraftFixtures(t)
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
 	_, _, err := CreateNewInvoice(
+		now,
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2664,13 +2640,7 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 }
 
 func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixturesWithCustomerStart(t, "7")
 	archiveDir := t.TempDir()
@@ -2678,6 +2648,7 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := CreateNewInvoice(
+		now,
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2694,13 +2665,7 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 }
 
 func TestCreateNewInvoiceFromLastArchivedInvoice(t *testing.T) {
-	oldCurrentDate := currentDate
-	currentDate = func() time.Time {
-		return time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
-	}
-	t.Cleanup(func() {
-		currentDate = oldCurrentDate
-	})
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
@@ -2748,6 +2713,7 @@ positions:
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	invoiceNumber, _, err := CreateNewInvoice(
+		now,
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2803,6 +2769,7 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	_, _, err := CreateNewInvoice(
+		time.Now(),
 		defaultsPath,
 		outputPath,
 		customersPath,
@@ -2844,7 +2811,7 @@ line_items:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	_, _, err := CreateNewInvoice(defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
+	_, _, err := CreateNewInvoice(time.Now(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true)
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
 	}
@@ -2925,7 +2892,7 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	result, err := ArchiveInvoice(outputPath, ArchiveOptions{Replace: true})
+	result, err := ArchiveInvoice(time.Now(), outputPath, ArchiveOptions{Replace: true})
 	if err != nil {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}

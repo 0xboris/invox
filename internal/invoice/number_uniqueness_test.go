@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
@@ -16,7 +17,7 @@ func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := ArchiveInvoice(invoicePath, ArchiveOptions{})
+	_, err := ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -48,7 +49,7 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 
-	_, err = ArchiveInvoice(workingCopy, ArchiveOptions{})
+	_, err = ArchiveInvoice(time.Now(), workingCopy, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -94,7 +95,7 @@ func TestArchiveInvoiceChecksSymlinkedArchiveDir(t *testing.T) {
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := ArchiveInvoice(invoicePath, ArchiveOptions{})
+	_, err := ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
 	var duplicate *DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)

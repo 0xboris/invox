@@ -186,7 +186,7 @@ func archivedInvoicePathForPDF(pdfPath string) (string, error) {
 
 // CreateInvoiceEmailDraft writes the draft to outputPath. Unless overwrite is set, an
 // existing outputPath is left untouched and the returned error matches fs.ErrExist.
-func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
+func CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
 	if !overwrite {
 		if _, err := os.Lstat(outputPath); err == nil {
 			return EmailDraftResult{}, &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
@@ -205,7 +205,7 @@ func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, ou
 		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
 
-	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes)
+	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -268,7 +268,7 @@ func PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipi
 	}, nil
 }
 
-func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte, error) {
+func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte, now time.Time, boundary string) ([]byte, error) {
 	fromAddress := mail.Address{
 		Name:    emailMessage.SenderName,
 		Address: emailMessage.SenderAddress,
@@ -278,12 +278,11 @@ func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte,
 	}
 
 	var buffer bytes.Buffer
-	boundary := fmt.Sprintf("invox-boundary-%d", time.Now().UnixNano())
 
 	fmt.Fprintf(&buffer, "From: %s\r\n", fromAddress.String())
 	fmt.Fprintf(&buffer, "To: %s\r\n", toAddress.String())
 	fmt.Fprintf(&buffer, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", emailMessage.Subject))
-	fmt.Fprintf(&buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintf(&buffer, "Date: %s\r\n", now.Format(time.RFC1123Z))
 	fmt.Fprintf(&buffer, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&buffer, "X-Unsent: 1\r\n")
 	fmt.Fprintf(&buffer, "Content-Type: multipart/mixed; boundary=%q\r\n", boundary)
