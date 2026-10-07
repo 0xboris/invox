@@ -132,6 +132,21 @@ invox help environment
 invox help exit-codes
 ```
 
+## Output
+
+stdout carries only data, so scripts can capture it:
+
+- `new`, `increment`, `render`, `build` (also with `--archive`), `archive` and `archive edit` print the path they created or changed, one line, relative to the current directory when it is inside it. `email` prints the `.eml` path only when it writes one with `-o`.
+- `validate`, `init`, `config` and `customer config` print nothing on stdout.
+- List commands print their rows, and help, `completion` and `version` print what they always did.
+
+Everything else goes to stderr: status lines such as `Built invoice.pdf for CUST-001 (CUST-001-001)`, hints, prompts, warnings, errors, and the output of the programs invox runs (`tectonic`, the editor, the opener).
+
+```sh
+pdf=$(invox build -i invoice.yaml)
+invox email "$pdf" -o draft.eml
+```
+
 ## Notes
 
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
