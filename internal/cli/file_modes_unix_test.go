@@ -164,6 +164,50 @@ func TestRenderWritesPublicTex(t *testing.T) {
 	assertFileMode(t, filepath.Dir(outputPath), 0o755&^umask)
 }
 
+func TestRenderCopiesNestedAssetDirsWithSourceMode(t *testing.T) {
+	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	templateDir := filepath.Dir(templatePath)
+	fontsDir := filepath.Join(templateDir, "assets", "fonts")
+	if err := os.MkdirAll(fontsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(templateDir, "fonts", "Ubuntu-Regular.ttf"), filepath.Join(fontsDir, "Ubuntu-Regular.ttf")); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{filepath.Dir(fontsDir), fontsDir} {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template = []byte(strings.Replace(string(template), "Path=fonts/", "Path=assets/fonts/", 1))
+	if err := os.WriteFile(templatePath, template, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := t.TempDir()
+	outputPath := filepath.Join(outputDir, "invoice.tex")
+	umask := processUmask(t)
+
+	exitCode, stdout, stderr := captureRun(t, []string{
+		"render", "-i", invoicePath, "-o", outputPath, "-c", customersPath, "-u", issuerPath, "-t", templatePath,
+	})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if want := "Rendered " + outputPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != outputPath+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
+	}
+	assertFileMode(t, filepath.Join(outputDir, "assets"), 0o700&^umask)
+	assertFileMode(t, filepath.Join(outputDir, "assets", "fonts"), 0o700&^umask)
+	assertFileMode(t, filepath.Join(outputDir, "assets", "fonts", "Ubuntu-Regular.ttf"), 0o644&^umask)
+}
+
 func TestEmailWritesPublicDraft(t *testing.T) {
 	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
 	f, stub := testFactory(t)

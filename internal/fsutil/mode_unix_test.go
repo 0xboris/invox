@@ -82,7 +82,7 @@ func TestNewFileModes(t *testing.T) {
 	}
 }
 
-func TestMkdirAllGivesParentsPublicMode(t *testing.T) {
+func TestMkdirAllParentModes(t *testing.T) {
 	tests := []struct {
 		name          string
 		umask         fs.FileMode
@@ -93,7 +93,8 @@ func TestMkdirAllGivesParentsPublicMode(t *testing.T) {
 		{name: "private", umask: 0o077, perm: Private, leaf: 0o700, parents: 0o700},
 		{name: "public", umask: 0o022, perm: Public, leaf: 0o755, parents: 0o755},
 		{name: "public", umask: 0o027, perm: Public, leaf: 0o750, parents: 0o750},
-		{name: "custom", umask: 0o022, perm: Perm{Dir: 0o711}, leaf: 0o711, parents: 0o755},
+		{name: "custom 0711", umask: 0o022, perm: Perm{Dir: 0o711}, leaf: 0o711, parents: 0o711},
+		{name: "custom 0700", umask: 0o022, perm: Perm{Dir: 0o700}, leaf: 0o700, parents: 0o700},
 	}
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("%s umask %#o", tc.name, tc.umask), func(t *testing.T) {

@@ -124,10 +124,15 @@ func WriteNewFile(path string, data []byte, perm Perm) error {
 	return syncDir(dir)
 }
 
-// MkdirAll creates dir with mode perm.Dir and any missing parents with
-// Public's. Directories that already exist keep their mode.
+// MkdirAll creates dir and any missing parents with mode perm.Dir, except
+// that Private gives the parents Public's mode. Directories that already
+// exist keep their mode.
 func MkdirAll(dir string, perm Perm) error {
-	return mkdirAll(dir, perm.dirMode(), Public.dirMode())
+	parents := perm.dirMode()
+	if perm.exact {
+		parents = Public.dirMode()
+	}
+	return mkdirAll(dir, perm.dirMode(), parents)
 }
 
 // mkdirAll creates dir with mode leaf and any missing parents with mode
