@@ -142,6 +142,8 @@ stdout carries only data, so scripts can capture it:
 
 Everything else goes to stderr: status lines such as `Built invoice.pdf for CUST-001 (CUST-001-001)`, hints, prompts, warnings, errors, and the output of the programs invox runs (`tectonic`, the editor, the opener).
 
+A terminal editor, opened by `config`, `customer config` and `new -e`, draws on stderr too, so leave stderr on the terminal (no `2>`) when an editor will open.
+
 ```sh
 pdf=$(invox build -i invoice.yaml)
 invox email "$pdf" -o draft.eml
