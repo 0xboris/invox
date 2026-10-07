@@ -81,7 +81,9 @@ prompt.
 Local edits, all so pstack's GitHub calls work in Claude Code cloud sessions (REST only):
 
 - `poteto-mode/scripts/watch-pr/github.ts` reads PRs, checks, reviews and threads through
-  `gh api` REST and the `/ccr/review_threads` route; `github.test.ts` covers it.
+  `gh api` REST and the `/ccr/review_threads` route; `github.test.ts` covers it. The check
+  source labels `gh-pr-checks` and `graphql-rollup` in `types.ts` are kept unchanged on purpose:
+  they are part of the verdict JSON, and renaming them would edit more upstream files.
 - `poteto-mode/scripts/orch/`: `frontier set --source rest` reads the open-PR list through
   `gh api`, with tests in `orch.test.ts`.
 - `poteto-mode/scripts/worktree-audit.sh` lists PRs through `gh api`, paged by hand.
@@ -138,10 +140,10 @@ and agent. When they conflict, follow this file and say which rule you overrode:
   FAIL verdict. They end with the harness's Claude Code footer.
 - Everything else external still needs the maintainer to ask: other comments or issues, chat,
   and any other service. poteto-mode's "just do it" covers local, reversible work only.
-- The Shipping and Autopilot playbooks run as written, with these overrides. Their merge and
-  auto-merge steps wait for the maintainer's go-ahead for that specific PR (first rule), and
-  merges are squash merges with `sha=<verified head>`. Local subagents replace their Cursor
-  cloud agents. Autopilot-stack's stacked delivery isn't used here, because PRs aren't stacked
-  (second rule).
+- The Shipping and Autopilot playbooks run under the rules above. Their overrides:
+  - Merge and auto-merge wait for the maintainer's go-ahead for that specific PR, and merges
+    are squash merges with `sha=<verified head>`.
+  - Local subagents replace their Cursor cloud agents.
+  - Autopilot-stack's stacked delivery isn't used here, because PRs aren't stacked.
 - Run the `poteto-mode/scripts/` tools (`watch-pr`, `check-plan.mjs`, `orch`) with `bun` from
   that directory. This repo doesn't use Graphite, so `orch frontier set` takes `--source rest`.
