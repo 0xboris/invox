@@ -196,8 +196,9 @@ func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 // windowsPathToken matches a sandbox path up to the next whitespace.
 var windowsPathToken = regexp.MustCompile(`(\$WORK|\$DATA_HOME|\bhome)\\\S*`)
 
-// fakeTectonic writes an empty PDF next to its single .tex argument, or fails
-// when FAKE_TECTONIC_FAIL is set.
+// fakeTectonic prints a progress line to stdout, as tectonic does, and writes
+// an empty PDF next to its single .tex argument, or fails when
+// FAKE_TECTONIC_FAIL is set.
 func fakeTectonic(args []string) int {
 	if os.Getenv(fakeTectonicFailEnv) != "" {
 		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
@@ -207,6 +208,7 @@ func fakeTectonic(args []string) int {
 		fmt.Fprintf(os.Stderr, "fake tectonic: want one input file, got %q\n", args)
 		return 2
 	}
+	fmt.Printf("fake tectonic: compiling %s\n", filepath.Base(args[0]))
 	pdfPath := strings.TrimSuffix(args[0], filepath.Ext(args[0])) + ".pdf"
 	if err := os.WriteFile(pdfPath, nil, 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)

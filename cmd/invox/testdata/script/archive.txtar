@@ -153,6 +153,7 @@ invoice:
 ---
 # Archived invoice
 -- want-build-archive.txt --
+fake tectonic: compiling invoice.tex
 Built invoice.pdf for CUST-001 (CUST-001-001)
 Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
 -- want-archive.txt --
