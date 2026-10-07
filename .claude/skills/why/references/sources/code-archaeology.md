@@ -48,6 +48,9 @@ gh api repos/{owner}/{repo}/pulls/<number>
 gh api 'repos/{owner}/{repo}/issues/<number>/comments?per_page=100'
 gh api 'repos/{owner}/{repo}/pulls/<number>/reviews?per_page=100'
 gh api 'repos/{owner}/{repo}/pulls/<number>/files?per_page=100'
+# REST has no closingIssuesReferences. Read "Fixes #N" or "Closes #N" in the PR body,
+# then confirm on the issue: its timeline has a cross-referenced event whose source is the PR.
+gh api 'repos/{owner}/{repo}/issues/<issue>/timeline?per_page=100'
 
 # The reviews and comments are where the real signal is
 ```

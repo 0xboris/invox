@@ -53,6 +53,9 @@ Pull PR bodies and discussion via `gh api` REST for any substantive commits (clo
 gh api repos/{owner}/{repo}/pulls/<number>
 gh api 'repos/{owner}/{repo}/issues/<number>/comments?per_page=100'
 gh api 'repos/{owner}/{repo}/pulls/<number>/reviews?per_page=100'
+# REST has no closingIssuesReferences. Read "Fixes #N" or "Closes #N" in the PR body,
+# then confirm on the issue: its timeline has a cross-referenced event whose source is the PR.
+gh api 'repos/{owner}/{repo}/issues/<issue>/timeline?per_page=100'
 ```
 
 Capture this as seed context (file paths, symbols, commits, PR numbers, linked ticket IDs). Pass it to the investigators.

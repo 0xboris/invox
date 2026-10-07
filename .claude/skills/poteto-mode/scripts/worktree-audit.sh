@@ -17,21 +17,33 @@ main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
 # origin/main drives the merge check. Best-effort; stale is fine for a first pass.
 git fetch origin main --quiet 2>/dev/null || echo "warn: could not fetch origin/main; merged column may be stale" >&2
 
-# PR state by branch, fetched once. Empty if gh is unavailable. REST paged by
-# hand: Claude Code cloud sessions refuse GraphQL (`gh pr list`) and the
-# numeric-ID next links that `gh api --paginate` follows.
+# PR state by branch, fetched once. REST paged by hand: Claude Code cloud
+# sessions refuse GraphQL (`gh pr list`) and the numeric-ID next links that
+# `gh api --paginate` follows. The pulls endpoint can't filter by author, so
+# filter here, newest-updated first so the page cap drops only stale PRs.
 prs=$(mktemp)
-me=$(gh api user --jq .login 2>/dev/null)
-page=1
-while [ "$page" -le 10 ]; do
-	batch=$(gh api "repos/{owner}/{repo}/pulls?state=all&per_page=100&page=$page" 2>/dev/null) || break
-	printf '%s\n' "$batch"
-	[ "$(printf '%s' "$batch" | jq length)" -lt 100 ] && break
-	page=$((page + 1))
-done | jq -s --arg me "$me" '[.[][] | select($me == "" or .user.login == $me)
-	| {number, headRefName: .head.ref,
-		state: (if .merged_at then "MERGED" else (.state | ascii_upcase) end)}]' \
-	> "$prs" 2>/dev/null || echo "[]" > "$prs"
+echo "[]" > "$prs"
+if me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ]; then
+	page=1
+	while :; do
+		if [ "$page" -gt 10 ]; then
+			echo "warn: over 1000 PRs; PRs older than the newest 1000 are not checked" >&2
+			break
+		fi
+		batch=$(gh api "repos/{owner}/{repo}/pulls?state=all&sort=updated&direction=desc&per_page=100&page=$page" 2>/dev/null) || {
+			echo "warn: could not list PRs (page $page); PR column may be incomplete" >&2
+			break
+		}
+		printf '%s\n' "$batch"
+		[ "$(printf '%s' "$batch" | jq length)" -lt 100 ] && break
+		page=$((page + 1))
+	done | jq -s --arg me "$me" '[.[][] | select(.user.login == $me)
+		| {number, headRefName: .head.ref,
+			state: (if .merged_at then "MERGED" else (.state | ascii_upcase) end)}]' \
+		> "$prs" 2>/dev/null || echo "[]" > "$prs"
+else
+	echo "warn: could not resolve the GitHub user (gh api user); PR column left empty" >&2
+fi
 
 # Chat transcript dirs for a path, per harness: Cursor, Claude Code, Pi.
 # Codex and OpenCode don't group sessions by project, so they aren't searched.
