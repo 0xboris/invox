@@ -8,7 +8,8 @@ import (
 )
 
 // environmentVariable is one entry of `invox help environment`. Every key the
-// code reads with os.Getenv or os.LookupEnv must have one; a test checks it.
+// code reads with os.Getenv, os.LookupEnv or env.Env's Getenv must have one; a
+// test checks it.
 type environmentVariable struct {
 	name        string
 	description []string
@@ -42,7 +43,7 @@ var environmentVariables = []environmentVariable{
 	}},
 }
 
-func printEnvironmentHelp(w io.Writer) {
+func printEnvironmentHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Environment variables and default directories.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help environment\n\n", commandName)
@@ -57,13 +58,13 @@ func printEnvironmentHelp(w io.Writer) {
 	fmt.Fprintf(w, "  all OSes:  $XDG_CONFIG_HOME/invox, else $HOME/.config/invox\n")
 	fmt.Fprintf(w, "  legacy:    $XDG_CONFIG_HOME/invoice-tool, else $HOME/.config/invoice-tool,\n")
 	fmt.Fprintf(w, "             read when a file is missing from the invox directory\n")
-	fmt.Fprintf(w, "  here:      %s\n", invoice.ConfigDir())
+	fmt.Fprintf(w, "  here:      %s\n", h.ConfigDir())
 	fmt.Fprintf(w, "  $HOME is %%USERPROFILE%% on Windows.\n\n")
 	fmt.Fprintf(w, "Default archive directory (when config.yaml sets no archive.dir):\n")
 	fmt.Fprintf(w, "  Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices\n")
 	fmt.Fprintf(w, "  macOS:     $HOME/Library/Application Support/invox/invoices\n")
 	fmt.Fprintf(w, "  Windows:   %%APPDATA%%\\invox\\invoices, else %%USERPROFILE%%\\AppData\\Roaming\\invox\\invoices\n")
-	fmt.Fprintf(w, "  here:      %s\n\n", invoice.DefaultArchiveDir())
+	fmt.Fprintf(w, "  here:      %s\n\n", h.DefaultArchiveDir())
 	fmt.Fprintf(w, "Precedence:\n")
 	fmt.Fprintf(w, "  An explicit flag wins, then config.yaml, then the defaults above. Environment\n")
 	fmt.Fprintf(w, "  variables only move the default directories; no variable overrides a flag or\n")

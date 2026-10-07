@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -22,8 +24,19 @@ func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
 
 	ios, _, _, _ := iostreams.Test()
 	stub := run.NewStub(t)
-	env := map[string]string{"SHELL": testShell}
-	return cmdutil.NewFactory(ios, stub, testGOOS, func(key string) string { return env[key] }), stub
+	e := env.System()
+	e.GOOS = testGOOS
+	e.Getenv = func(key string) string {
+		switch key {
+		case "SHELL":
+			return testShell
+		case "XDG_CONFIG_HOME", "XDG_DATA_HOME", "APPDATA":
+			// isolateUserDirs points these at a temporary directory.
+			return os.Getenv(key)
+		}
+		return ""
+	}
+	return cmdutil.NewFactory(ios, stub, e), stub
 }
 
 func expectEditor(stub *run.Stub, err error) *string {

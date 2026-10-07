@@ -18,10 +18,14 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
 
 ## Layout
 
-- `cmd/invox/main.go`: shim. It builds the `cmdutil.Factory` from `iostreams.System()` and
-  `run.Exec{}`, then exits with `cli.Main(os.Args[1:], f)`.
+- `cmd/invox/main.go`: shim. It builds the `cmdutil.Factory` from `iostreams.System()`,
+  `run.Exec{}` and `env.System()`, then exits with `cli.Main(os.Args[1:], f)`.
 - `internal/iostreams`: stdin, stdout and stderr plus TTY detection. Only `iostreams.System()`
   touches the process streams; everything else writes to the `IOStreams` it is given.
+- `internal/env`: `env.Env` holds `GOOS`, `Getenv`, `HomeDir`, `Getwd` and `Now`. `env.System()`
+  reads them from the process; everything else uses the `Env` it is given. `ambient_test.go`
+  fails on any other read, apart from a short allowlist (`iostreams.newSystem`, `exit.go`, and
+  `adapters/run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
 - `internal/cli`: argument parsing (`command_specs.go`, `parsing.go`), commands
   (`commands_*.go`), hand-written help (`help.go`). `cmdutil.Factory` hands commands the
   streams and the external-program adapters.
@@ -59,12 +63,13 @@ Settled decisions (#9):
 - CLI tests: `captureRun(t, args)` returns `(exitCode, stdout, stderr)`; assert all three. It runs
   `Main` with `iostreams.Test()` buffers; `captureRunStreams` takes streams you set up (stdin input,
   TTY flags). Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
-- Never depend on the developer's real config: point `XDG_CONFIG_HOME` (and for paths derived
-  from home, `setPlatformHome(t, dir)` in `internal/invoice`) at `t.TempDir()`.
+- Never depend on the developer's real config: in CLI tests point `XDG_CONFIG_HOME` at
+  `t.TempDir()`; in `internal/invoice` build an `invoice.Host` with
+  `invoice.NewHost(invoice.HostInputs{...})` whose directories are under `t.TempDir()`.
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
-  (`currentDate`, ...) must be restored with `t.Cleanup`.
+  must be restored with `t.Cleanup`.
 - Tests that reach the editor, the opener or Apple Mail use `testFactory(t)` and
   `captureRunFactory`. Its `run.Stub` panics on any program the test did not register with
   `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs.

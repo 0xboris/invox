@@ -58,7 +58,7 @@ type EmailDraftPaths struct {
 	OutputPath  string
 }
 
-func ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (EmailDraftPaths, error) {
+func (h Host) ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (EmailDraftPaths, error) {
 	inputPath = strings.TrimSpace(inputPath)
 	if inputPath == "" {
 		return EmailDraftPaths{}, fmt.Errorf("input path is required")
@@ -71,7 +71,7 @@ func ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (EmailDraftPa
 
 	switch strings.ToLower(filepath.Ext(inputPath)) {
 	case ".pdf":
-		resolvedInvoicePath, err := resolveInvoicePathForPDF(inputPath)
+		resolvedInvoicePath, err := h.resolveInvoicePathForPDF(inputPath)
 		if err != nil {
 			return EmailDraftPaths{}, err
 		}
@@ -95,13 +95,13 @@ func ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (EmailDraftPa
 	return paths, nil
 }
 
-func resolveInvoicePathForPDF(pdfPath string) (string, error) {
+func (h Host) resolveInvoicePathForPDF(pdfPath string) (string, error) {
 	siblingCandidates := invoiceYAMLCandidatesForPDF(pdfPath)
 	if path := firstExistingPath(siblingCandidates...); path != "" {
 		return path, nil
 	}
 
-	archivePath, err := archivedInvoicePathForPDF(pdfPath)
+	archivePath, err := h.archivedInvoicePathForPDF(pdfPath)
 	if err != nil {
 		return "", err
 	}
@@ -117,8 +117,8 @@ func invoiceYAMLCandidatesForPDF(pdfPath string) []string {
 	return []string{basePath + ".yaml", basePath + ".yml"}
 }
 
-func archivedInvoicePathForPDF(pdfPath string) (string, error) {
-	archiveDir, err := ResolveArchiveDir()
+func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
+	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return "", err
 	}
@@ -186,7 +186,7 @@ func archivedInvoicePathForPDF(pdfPath string) (string, error) {
 
 // CreateInvoiceEmailDraft writes the draft to outputPath. Unless overwrite is set, an
 // existing outputPath is left untouched and the returned error matches fs.ErrExist.
-func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
+func (h Host) CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
 	if !overwrite {
 		if _, err := os.Lstat(outputPath); err == nil {
 			return EmailDraftResult{}, &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
@@ -195,7 +195,7 @@ func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, ou
 		}
 	}
 
-	emailMessage, err := PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride)
+	emailMessage, err := h.PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride)
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -205,7 +205,7 @@ func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, ou
 		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
 
-	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes)
+	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -222,7 +222,7 @@ func CreateInvoiceEmailDraft(customersPath, issuerPath, invoicePath, pdfPath, ou
 	}, nil
 }
 
-func PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride string) (EmailMessage, error) {
+func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride string) (EmailMessage, error) {
 	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return EmailMessage{}, err
@@ -247,11 +247,11 @@ func PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipi
 		return EmailMessage{}, fmt.Errorf("%s: recipient email is unavailable", invoicePath)
 	}
 
-	subject, err := invoiceEmailSubject(ctx, invoicePath, subjectOverride)
+	subject, err := h.invoiceEmailSubject(ctx, invoicePath, subjectOverride)
 	if err != nil {
 		return EmailMessage{}, err
 	}
-	body, err := invoiceEmailBodyText(ctx)
+	body, err := h.invoiceEmailBodyText(ctx)
 	if err != nil {
 		return EmailMessage{}, err
 	}
@@ -268,7 +268,7 @@ func PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipi
 	}, nil
 }
 
-func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte, error) {
+func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte, now time.Time, boundary string) ([]byte, error) {
 	fromAddress := mail.Address{
 		Name:    emailMessage.SenderName,
 		Address: emailMessage.SenderAddress,
@@ -278,12 +278,11 @@ func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte,
 	}
 
 	var buffer bytes.Buffer
-	boundary := fmt.Sprintf("invox-boundary-%d", time.Now().UnixNano())
 
 	fmt.Fprintf(&buffer, "From: %s\r\n", fromAddress.String())
 	fmt.Fprintf(&buffer, "To: %s\r\n", toAddress.String())
 	fmt.Fprintf(&buffer, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", emailMessage.Subject))
-	fmt.Fprintf(&buffer, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintf(&buffer, "Date: %s\r\n", now.Format(time.RFC1123Z))
 	fmt.Fprintf(&buffer, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&buffer, "X-Unsent: 1\r\n")
 	fmt.Fprintf(&buffer, "Content-Type: multipart/mixed; boundary=%q\r\n", boundary)
@@ -328,10 +327,10 @@ func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte) ([]byte,
 	return buffer.Bytes(), nil
 }
 
-func invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (string, error) {
+func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (string, error) {
 	template := strings.TrimSpace(subjectOverride)
 	if template == "" {
-		configured, err := resolveConfiguredString("email", "subject")
+		configured, err := h.resolveConfiguredString("email", "subject")
 		if err != nil {
 			return "", err
 		}
@@ -351,16 +350,16 @@ func invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (str
 	return subject, nil
 }
 
-func invoiceEmailBody(ctx *Context) (string, error) {
-	body, err := invoiceEmailBodyText(ctx)
+func (h Host) invoiceEmailBody(ctx *Context) (string, error) {
+	body, err := h.invoiceEmailBodyText(ctx)
 	if err != nil {
 		return "", err
 	}
 	return strings.ReplaceAll(body, "\n", "\r\n"), nil
 }
 
-func invoiceEmailBodyText(ctx *Context) (string, error) {
-	template, err := resolveConfiguredString("email", "body")
+func (h Host) invoiceEmailBodyText(ctx *Context) (string, error) {
+	template, err := h.resolveConfiguredString("email", "body")
 	if err != nil {
 		return "", err
 	}

@@ -5,13 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func reorderArgs(args []string, flagSpecs map[string]bool) []string {
@@ -54,13 +52,16 @@ func hasInlineFlagValue(arg string, flagSpecs map[string]bool) bool {
 
 // parseCommand parses args for spec into options and the remaining positional
 // arguments. When args ask for help it prints the help and returns flag.ErrHelp.
-func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (invoice.Options, []string, error) {
+func parseCommand(f *cmdutil.Factory, spec commandSpec, args []string) (invoice.Options, []string, error) {
+	ios := f.IOStreams
+	e := f.Env
+	h := f.Host()
 	if wantsHelp(args) {
-		printCommandHelp(ios.Out, spec)
+		printCommandHelp(ios.Out, h, spec)
 		return invoice.Options{}, nil, flag.ErrHelp
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := e.Getwd()
 	if err != nil {
 		return invoice.Options{}, nil, err
 	}
@@ -94,14 +95,14 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 	if err := validateRequiredInputs(spec, opts); err != nil {
 		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
-	if err := resolveDefaultSupportPaths(spec, &opts); err != nil {
+	if err := resolveDefaultSupportPaths(h, spec, &opts); err != nil {
 		return invoice.Options{}, nil, err
 	}
-	if err := validateSupportPaths(spec, opts); err != nil {
+	if err := validateSupportPaths(h, spec, opts); err != nil {
 		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) != "" {
-		resolvedTemplatePath, err := invoice.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
+		resolvedTemplatePath, err := h.ResolveTemplateReference(opts.BaseDir, opts.TemplatePath)
 		var notFound *invoice.TemplateNotFoundError
 		if errors.As(err, &notFound) {
 			return invoice.Options{}, nil, cmdutil.FlagErrorf(spec.Name, "%s; run '%s template list' to see the templates", notFound, commandName)
@@ -114,9 +115,7 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 	if err := validateCommandOptions(spec, opts); err != nil {
 		return invoice.Options{}, nil, &cmdutil.FlagError{Command: spec.Name, Err: err}
 	}
-	if err := invoice.NormalizeOptions(&opts); err != nil {
-		return invoice.Options{}, nil, err
-	}
+	invoice.NormalizeOptions(&opts)
 
 	return opts, remainingArgs, nil
 }
@@ -125,16 +124,16 @@ func parseCommand(ios *iostreams.IOStreams, spec commandSpec, args []string) (in
 // no flag provided. It is the only step of argument parsing that reads
 // config.yaml, so usage errors, and commands whose support files all came from
 // flags, do not depend on a readable config.
-func resolveDefaultSupportPaths(spec commandSpec, opts *invoice.Options) error {
+func resolveDefaultSupportPaths(h invoice.Host, spec commandSpec, opts *invoice.Options) error {
 	resolvers := []struct {
 		needed  bool
 		path    *string
 		resolve func(string) (string, error)
 	}{
-		{spec.NeedsCustomers, &opts.CustomersPath, invoice.ResolveDefaultCustomersPath},
-		{spec.NeedsIssuer, &opts.IssuerPath, invoice.ResolveDefaultIssuerPath},
-		{spec.NeedsDefaults, &opts.DefaultsPath, invoice.ResolveDefaultInvoiceDefaultsPath},
-		{spec.NeedsTemplate, &opts.TemplatePath, invoice.ResolveDefaultTemplatePath},
+		{spec.NeedsCustomers, &opts.CustomersPath, h.ResolveDefaultCustomersPath},
+		{spec.NeedsIssuer, &opts.IssuerPath, h.ResolveDefaultIssuerPath},
+		{spec.NeedsDefaults, &opts.DefaultsPath, h.ResolveDefaultInvoiceDefaultsPath},
+		{spec.NeedsTemplate, &opts.TemplatePath, h.ResolveDefaultTemplatePath},
 	}
 	for _, r := range resolvers {
 		if !r.needed || strings.TrimSpace(*r.path) != "" {
@@ -227,18 +226,18 @@ func validatePositionalArgs(spec commandSpec, args []string) error {
 	return nil
 }
 
-func validateSupportPaths(spec commandSpec, opts invoice.Options) error {
+func validateSupportPaths(h invoice.Host, spec commandSpec, opts invoice.Options) error {
 	if spec.NeedsCustomers && strings.TrimSpace(opts.CustomersPath) == "" {
-		return fmt.Errorf("customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at %s", invoice.GlobalCustomersPath())
+		return fmt.Errorf("customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at %s", h.GlobalCustomersPath())
 	}
 	if spec.NeedsIssuer && strings.TrimSpace(opts.IssuerPath) == "" {
-		return fmt.Errorf("issuer file not found; pass -u/--issuer, set paths.issuer in config.yaml, or place issuer.yaml at %s", invoice.GlobalIssuerPath())
+		return fmt.Errorf("issuer file not found; pass -u/--issuer, set paths.issuer in config.yaml, or place issuer.yaml at %s", h.GlobalIssuerPath())
 	}
 	if spec.NeedsDefaults && !opts.FromLastInvoice && strings.TrimSpace(opts.DefaultsPath) == "" {
-		return fmt.Errorf("defaults file not found; pass -s/--source, set paths.defaults in config.yaml, or place invoice_defaults.yaml at %s", invoice.GlobalInvoiceDefaultsPath())
+		return fmt.Errorf("defaults file not found; pass -s/--source, set paths.defaults in config.yaml, or place invoice_defaults.yaml at %s", h.GlobalInvoiceDefaultsPath())
 	}
 	if spec.NeedsTemplate && strings.TrimSpace(opts.TemplatePath) == "" {
-		return fmt.Errorf("template file not found; pass -t/--template, set paths.template in config.yaml, or place template.tex at %s", invoice.GlobalTemplatePath())
+		return fmt.Errorf("template file not found; pass -t/--template, set paths.template in config.yaml, or place template.tex at %s", h.GlobalTemplatePath())
 	}
 	return nil
 }

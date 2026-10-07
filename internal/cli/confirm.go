@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
@@ -50,9 +51,9 @@ func confirm(ctx context.Context, ios *iostreams.IOStreams, question string) (bo
 // the messages it reports. It returns a *cmdutil.FlagError when there is no
 // terminal to ask on, and cmdutil.CancelError when the user declines or ctx is
 // cancelled at the prompt.
-func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
+func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, h invoice.Host, now func() time.Time, spec commandSpec, opts invoice.Options, errorPrefix string) (invoice.ArchiveResult, error) {
 	archiveOpts := invoice.ArchiveOptions{Replace: opts.AssumeYes}
-	result, err := invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
+	result, err := h.ArchiveInvoice(now(), opts.InvoicePath, archiveOpts)
 	var replaceErr *invoice.ArchiveReplaceError
 	if !errors.As(err, &replaceErr) {
 		return result, err
@@ -87,7 +88,7 @@ func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, spec
 	}
 
 	archiveOpts.Replace = true
-	return invoice.ArchiveInvoice(opts.InvoicePath, archiveOpts)
+	return h.ArchiveInvoice(now(), opts.InvoicePath, archiveOpts)
 }
 
 // printArchiveReplacements tells the user on stderr which archived files were

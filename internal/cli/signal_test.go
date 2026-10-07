@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -96,7 +96,7 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			tempDir := isolateTempDir(t)
 			isolateUserDirs(t)
 			ios, _, stdout, stderr := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, runtime.GOOS, os.Getenv)
+			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
 			ctx, cancel := context.WithCancelCause(context.Background())
 			t.Cleanup(func() { cancel(nil) })
 

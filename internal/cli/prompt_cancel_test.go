@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/env"
 )
 
 func TestSignalAtReplacePrompt(t *testing.T) {
@@ -31,7 +30,7 @@ func TestSignalAtReplacePrompt(t *testing.T) {
 			stdin, unanswered := io.Pipe()
 			t.Cleanup(func() { unanswered.Close() })
 			ios.In = stdin
-			f := cmdutil.NewFactory(ios, run.Exec{}, runtime.GOOS, os.Getenv)
+			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
 			ctx, cancel := context.WithCancelCause(context.Background())
 			cancel(&SignalError{Signal: tc.signal})
 

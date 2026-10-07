@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"syscall"
 	"time"
 )
@@ -68,12 +67,14 @@ func (Exec) Run(ctx context.Context, c Cmd) error {
 	cmd.Stdout = c.Stdout
 	cmd.Stderr = c.Stderr
 	// SIGTERM, not SIGINT: programs such as editors and pagers ignore SIGINT or
-	// treat it as "abort the current action". Windows can only kill.
+	// treat it as "abort the current action". Windows can't send SIGTERM, so
+	// there it kills.
 	cmd.Cancel = func() error {
-		if runtime.GOOS == "windows" {
+		err := cmd.Process.Signal(syscall.SIGTERM)
+		if err != nil && !errors.Is(err, os.ErrProcessDone) {
 			return cmd.Process.Kill()
 		}
-		return cmd.Process.Signal(syscall.SIGTERM)
+		return err
 	}
 	cmd.WaitDelay = waitDelay
 

@@ -6,13 +6,13 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCustomerList(ios *iostreams.IOStreams, args []string) error {
+func runCustomerList(f *cmdutil.Factory, args []string) error {
+	ios := f.IOStreams
 	spec := customerListSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func runCustomerConfig(ctx context.Context, f *cmdutil.Factory, args []string) e
 	ios := f.IOStreams
 	spec := customerConfigSpec()
 
-	opts, _, err := parseCommand(ios, spec, args)
+	opts, _, err := parseCommand(f, spec, args)
 	if err != nil {
 		return err
 	}

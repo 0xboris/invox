@@ -1,46 +1,20 @@
 package invoice
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func chdirForTest(t *testing.T, dir string) {
-	t.Helper()
-	t.Chdir(dir)
+// testHost returns a Linux Host whose config directory is under configHome
+// and whose archive directory is under home/.local/share.
+func testHost(configHome, home string) Host {
+	return NewHost(HostInputs{GOOS: "linux", Home: home, XDGConfigHome: configHome})
 }
 
-// userDirEnvKeys are the variables invox derives the config directory and the
-// default archive directory from on Linux, macOS and Windows.
-var userDirEnvKeys = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "APPDATA", "HOME", "USERPROFILE"}
-
-// processUserDirEnv holds the values the test process started with, so
-// isolateUserDirs can tell which variables a test has set itself.
-var processUserDirEnv = func() map[string]string {
-	values := make(map[string]string, len(userDirEnvKeys))
-	for _, key := range userDirEnvKeys {
-		values[key] = os.Getenv(key)
-	}
-	return values
-}()
-
-// isolateUserDirs points every config- and data-directory variable the test
-// has not set itself at a temporary directory, so domain code never reads the
-// developer's real config or archive. Tests that need specific locations set
-// them afterwards with t.Setenv or setPlatformHome.
-func isolateUserDirs(t *testing.T) {
+// isolatedHost returns a Host whose user directories are all under a fresh
+// temporary directory, so a test never reads the developer's config or archive.
+func isolatedHost(t *testing.T) Host {
 	t.Helper()
-
-	var root string
-	for _, key := range userDirEnvKeys {
-		if os.Getenv(key) != processUserDirEnv[key] {
-			continue
-		}
-		if root == "" {
-			root = t.TempDir()
-		}
-		t.Setenv(key, filepath.Join(root, strings.ToLower(key)))
-	}
+	root := t.TempDir()
+	return testHost(filepath.Join(root, "config-home"), filepath.Join(root, "home"))
 }
