@@ -30,13 +30,13 @@ var environmentVariables = []environmentVariable{
 	}},
 	{"VISUAL", []string{
 		"Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.",
+		"The value is split into words like a shell would and run directly, with the",
+		"file as the last argument. A value with shell syntax ($, |, ; and the like)",
+		"runs through sh -c. On Windows it is always split and run directly.",
 	}},
 	{"EDITOR", []string{
-		"Editor used when VISUAL is unset. Without either: vi, or notepad on Windows.",
-	}},
-	{"SHELL", []string{
-		"Shell that runs the editor command on macOS, Linux and other Unix systems.",
-		"Default: /bin/sh. On Windows the editor runs through cmd /c.",
+		"Editor used when VISUAL is unset, read the same way. Without either: vi, or",
+		"notepad on Windows.",
 	}},
 	{"INVOX_FORCE_TTY", []string{
 		"Testing aid: any non-empty value makes invox treat stdout as a terminal.",

@@ -3,6 +3,8 @@ package editor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/0xboris/invox/internal/adapters/run"
@@ -19,32 +21,50 @@ type Editor struct {
 }
 
 // New returns an Editor that runs programs with runner on the OS goos and
-// reads VISUAL, EDITOR and SHELL with getenv.
+// reads VISUAL and EDITOR with getenv.
 func New(runner run.Runner, ios *iostreams.IOStreams, goos string, getenv func(string) string) *Editor {
 	return &Editor{runner: runner, ios: ios, goos: goos, getenv: getenv}
 }
 
-// Edit opens path in the editor and waits for it to exit.
+// Edit opens path in the editor and waits for it to exit. When the editor
+// exits non-zero it returns a *run.ExecError whose Name is the editor setting,
+// such as "code -w".
 func (e *Editor) Edit(ctx context.Context, path string) error {
 	editor := e.command()
-	cmd := run.Cmd{
-		Env:    []string{"INVOX_EDITOR=" + editor},
-		Stdin:  e.ios.In,
-		Stdout: e.ios.ErrOut,
-		Stderr: e.ios.ErrOut,
+	cmd, err := e.invocation(editor, path)
+	if err != nil {
+		return err
 	}
-	if e.goos == "windows" {
-		cmd.Name = "cmd"
-		cmd.Args = []string{"/c", editor, path}
-		return e.runner.Run(ctx, cmd)
-	}
+	cmd.Stdin = e.ios.In
+	cmd.Stdout = e.ios.ErrOut
+	cmd.Stderr = e.ios.ErrOut
 
-	cmd.Name = strings.TrimSpace(e.getenv("SHELL"))
-	if cmd.Name == "" {
-		cmd.Name = "/bin/sh"
+	err = e.runner.Run(ctx, cmd)
+	var execErr *run.ExecError
+	if errors.As(err, &execErr) {
+		return &run.ExecError{Name: editor, Code: execErr.Code, Err: execErr.Err}
 	}
-	cmd.Args = []string{"-lc", `eval "$INVOX_EDITOR" '"$1"'`, "invox", path}
-	return e.runner.Run(ctx, cmd)
+	return err
+}
+
+// invocation returns the program and arguments that open path with editor.
+// On Unix a setting with shell syntax runs through sh -c, never as a login
+// shell, so no profile prints into the terminal; "$@" passes path as an
+// argument rather than as shell text. Windows has no sh, so the setting is
+// always split and run directly.
+func (e *Editor) invocation(editor, path string) (run.Cmd, error) {
+	posix := e.goos != "windows"
+	if posix && needsShell(editor) {
+		return run.Cmd{Name: "/bin/sh", Args: []string{"-c", editor + ` "$@"`, "sh", path}}, nil
+	}
+	words, err := splitWords(editor, posix)
+	if err != nil {
+		return run.Cmd{}, fmt.Errorf("cannot parse editor %q: %w", editor, err)
+	}
+	if len(words) == 0 || words[0] == "" {
+		return run.Cmd{}, fmt.Errorf("cannot parse editor %q: no program to run", editor)
+	}
+	return run.Cmd{Name: words[0], Args: append(words[1:], path)}, nil
 }
 
 func (e *Editor) command() string {

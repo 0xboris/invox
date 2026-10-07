@@ -11,11 +11,11 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// The test Factory's adapters run as on Linux, where the editor runs through
-// $SHELL and documents open with xdg-open.
+// The test Factory's adapters run as on Linux with VISUAL and EDITOR unset,
+// where the editor is vi and documents open with xdg-open.
 const (
 	testGOOS   = "linux"
-	testShell  = "/bin/sh"
+	testEditor = "vi"
 	testOpener = "xdg-open"
 )
 
@@ -28,8 +28,6 @@ func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
 	e.GOOS = testGOOS
 	e.Getenv = func(key string) string {
 		switch key {
-		case "SHELL":
-			return testShell
 		case "XDG_CONFIG_HOME", "XDG_DATA_HOME", "APPDATA":
 			// isolateUserDirs points these at a temporary directory.
 			return os.Getenv(key)
@@ -41,7 +39,7 @@ func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
 
 func expectEditor(stub *run.Stub, err error) *string {
 	opened := new(string)
-	stub.Register(testShell, func(cmd run.Cmd) error {
+	stub.Register(testEditor, func(cmd run.Cmd) error {
 		*opened = cmd.Args[len(cmd.Args)-1]
 		return err
 	})
