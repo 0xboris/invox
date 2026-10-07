@@ -365,7 +365,7 @@ func printRootHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  %s help [subcommand]\n\n", commandName)
 	fmt.Fprintf(w, "Subcommands:\n")
 	fmt.Fprintf(w, "  customer       Customer-related commands\n")
-	fmt.Fprintf(w, "  config         Open config.yaml in the default shell editor\n")
+	fmt.Fprintf(w, "  config         Open config.yaml in your editor\n")
 	fmt.Fprintf(w, "  init           Create starter support files in the global config directory\n")
 	fmt.Fprintf(w, "  template       Template-related commands\n")
 	fmt.Fprintf(w, "  completion     Generate shell completion scripts\n")
@@ -395,7 +395,7 @@ func printRootHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  --archive               Archive after a successful PDF build (build)\n")
 	fmt.Fprintf(w, "  --yes                   Replace an archived invoice without asking (archive, build --archive)\n")
 	fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)\n")
-	fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor (new)\n")
+	fmt.Fprintf(w, "  -e, --edit              Open the created invoice in your editor (new)\n")
 	fmt.Fprintf(w, "  --to EMAIL              Recipient email override (email)\n")
 	fmt.Fprintf(w, "  --subject TEXT          Email subject override, supports placeholders (email)\n")
 	fmt.Fprintf(w, "  --force                 Overwrite an existing -o draft file (email)\n")
@@ -446,7 +446,7 @@ func printCustomerHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  %s help customer [subcommand]\n\n", commandName)
 	fmt.Fprintf(w, "Subcommands:\n")
 	fmt.Fprintf(w, "  list          List all customers\n")
-	fmt.Fprintf(w, "  config        Open customers.yaml in the default shell editor\n")
+	fmt.Fprintf(w, "  config        Open customers.yaml in your editor\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "Optional flags:\n")
 	fmt.Fprintf(w, "  -h, --help              Show this help page\n")
@@ -688,7 +688,7 @@ func printCommandHelp(w io.Writer, h invoice.Host, spec commandSpec) {
 		fmt.Fprintf(w, "  --from-last             Use the latest archived invoice for CUSTOMER_ID as the source document\n")
 	}
 	if spec.SupportsEditFlag {
-		fmt.Fprintf(w, "  -e, --edit              Open the created invoice in the default shell editor\n")
+		fmt.Fprintf(w, "  -e, --edit              Open the created invoice in your editor\n")
 	}
 	if spec.SupportsEmailToFlag {
 		fmt.Fprintf(w, "  --to EMAIL              Recipient email override\n")
@@ -802,12 +802,12 @@ func defaultOutputDescription(spec commandSpec) string {
 }
 
 func printConfigHelp(w io.Writer, h invoice.Host) {
-	fmt.Fprintf(w, "Open config.yaml in the default shell editor.\n\n")
+	fmt.Fprintf(w, "Open config.yaml in your editor.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s config\n", commandName)
 	fmt.Fprintf(w, "  %s help config\n\n", commandName)
 	fmt.Fprintf(w, "Behavior:\n")
-	fmt.Fprintf(w, "  Opens the resolved config.yaml in the default shell editor.\n")
+	fmt.Fprintf(w, "  Opens the resolved config.yaml in your editor.\n")
 	fmt.Fprintf(w, "  If config.yaml does not exist yet, creates it from the template below.\n")
 	fmt.Fprintf(w, "  Existing config.yaml files are left unchanged.\n\n")
 	fmt.Fprintf(w, "Config paths:\n")

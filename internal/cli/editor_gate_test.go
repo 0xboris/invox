@@ -13,12 +13,13 @@ import (
 // editorCase is one command that opens an editor. setup creates the files it
 // needs with dir as the working directory and returns its arguments and the
 // file it opens. gate is its error message when no editor may open, with %s
-// for the reason.
+// for the reason. failed starts its error message when the editor fails.
 type editorCase struct {
-	name  string
-	setup func(t *testing.T, dir string) (args []string, path string)
-	gate  string
-	usage string
+	name   string
+	setup  func(t *testing.T, dir string) (args []string, path string)
+	gate   string
+	usage  string
+	failed string
 }
 
 var editorCases = []editorCase{
@@ -30,8 +31,9 @@ var editorCases = []editorCase{
 			return []string{"new", "CUST-001", "-e", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath},
 				filepath.Join(dir, "CUST-001-002.yaml")
 		},
-		gate:  "created CUST-001-002.yaml but cannot open an editor: %s; edit it and run 'invox validate -i CUST-001-002.yaml'",
-		usage: "Run 'invox new --help' for usage.",
+		gate:   "created CUST-001-002.yaml but cannot open an editor: %s; edit it and run 'invox validate -i CUST-001-002.yaml'",
+		usage:  "Run 'invox new --help' for usage.",
+		failed: "created CUST-001-002.yaml but failed to open it",
 	},
 	{
 		name: "config",
@@ -39,8 +41,9 @@ var editorCases = []editorCase{
 			t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config-home"))
 			return []string{"config"}, filepath.Join(dir, "config-home", "invox", "config.yaml")
 		},
-		gate:  "cannot open an editor: %s; edit " + filepath.Join("config-home", "invox", "config.yaml") + " directly",
-		usage: "Run 'invox config --help' for usage.",
+		gate:   "cannot open an editor: %s; edit " + filepath.Join("config-home", "invox", "config.yaml") + " directly",
+		usage:  "Run 'invox config --help' for usage.",
+		failed: "failed to open " + filepath.Join("config-home", "invox", "config.yaml"),
 	},
 	{
 		name: "customer config",
@@ -51,8 +54,9 @@ var editorCases = []editorCase{
 			}
 			return []string{"customer", "config", "-c", "customers.yaml"}, path
 		},
-		gate:  "cannot open an editor: %s; edit customers.yaml directly",
-		usage: "Run 'invox customer config --help' for usage.",
+		gate:   "cannot open an editor: %s; edit customers.yaml directly",
+		usage:  "Run 'invox customer config --help' for usage.",
+		failed: "failed to open customers.yaml",
 	},
 }
 
@@ -152,18 +156,22 @@ func TestEditorRunsTheEditorSettingOnATerminal(t *testing.T) {
 }
 
 func TestEditorFailureNamesTheEditor(t *testing.T) {
-	dir := t.TempDir()
-	chdirForTest(t, dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config-home"))
-	f, stub := testFactoryEnv(t, map[string]string{"EDITOR": "code -w"})
-	f.IOStreams.SetStdinTTY(true)
-	f.IOStreams.SetStderrTTY(true)
-	stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
+	for _, c := range editorCases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			chdirForTest(t, dir)
+			args, _ := c.setup(t, dir)
+			f, stub := testFactoryEnv(t, map[string]string{"EDITOR": "code -w"})
+			f.IOStreams.SetStdinTTY(true)
+			f.IOStreams.SetStderrTTY(true)
+			stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
 
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
+			exitCode, stdout, stderr := captureRunFactory(t, f, args)
 
-	want := "error: failed to open " + filepath.Join("config-home", "invox", "config.yaml") + ": editor \"code -w\" exited with status 3\n"
-	if exitCode != 1 || stdout != "" || stderr != want {
-		t.Fatalf("got (%d, %q, %q), want (1, \"\", %q)", exitCode, stdout, stderr, want)
+			want := "error: " + c.failed + ": editor \"code -w\" exited with status 3\n"
+			if exitCode != 1 || stdout != "" || stderr != want {
+				t.Fatalf("got (%d, %q, %q), want (1, \"\", %q)", exitCode, stdout, stderr, want)
+			}
+		})
 	}
 }

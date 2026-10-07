@@ -40,7 +40,7 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 	for _, want := range []string{
 		"invox customer <subcommand> [options]",
 		"list          List all customers",
-		"config        Open customers.yaml in the default shell editor",
+		"config        Open customers.yaml in your editor",
 		"-c, --customers PATH",
 		"Customer fields:",
 		"<customer>.tax.default_vat_rate",
@@ -151,7 +151,7 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"Open config.yaml in the default shell editor.",
+		"Open config.yaml in your editor.",
 		"invox help config",
 		"Formatting:",
 		"Top-level keys must start at column 1 with no leading spaces.",
@@ -439,7 +439,7 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"Open customers.yaml in the default shell editor.",
+		"Open customers.yaml in your editor.",
 		"invox customer config [-c CUSTOMERS.yaml]",
 		"-c, --customers PATH",
 		"<customer>.name",

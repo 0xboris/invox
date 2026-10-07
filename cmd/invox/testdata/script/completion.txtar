@@ -52,7 +52,7 @@ _invox() {
   if (( CURRENT == 2 )); then
     _values 'subcommand' \
       'customer[Customer-related commands]' \
-      'config[Open config.yaml in the default shell editor]' \
+      'config[Open config.yaml in your editor]' \
       'init[Create starter support files in the global config directory]' \
       'template[List available templates]' \
       'completion[Generate shell completion scripts]' \

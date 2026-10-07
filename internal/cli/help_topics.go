@@ -32,7 +32,8 @@ var environmentVariables = []environmentVariable{
 		"Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.",
 		"The value is split into words like a shell would and run directly, with the",
 		"file as the last argument. A value with shell syntax ($, |, ; and the like)",
-		"runs through sh -c. On Windows it is always split and run directly.",
+		"runs through sh -c, where an unquoted # starts a comment that drops the file.",
+		"On Windows it is always split and run directly.",
 	}},
 	{"EDITOR", []string{
 		"Editor used when VISUAL is unset, read the same way. Without either: vi, or",

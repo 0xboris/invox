@@ -107,7 +107,7 @@ func TestArchiveReplaceWithoutTerminalRequiresYes(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	want := "error: archiving first.yaml replaces archived invoice " + e.archivedPath + "; pass --yes to replace it (no terminal to ask on)\n" +
+	want := "error: archiving first.yaml replaces archived invoice " + e.archivedPath + "; pass --yes to replace it (stdin is not a terminal)\n" +
 		"Run 'invox archive --help' for usage.\n"
 	if stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)

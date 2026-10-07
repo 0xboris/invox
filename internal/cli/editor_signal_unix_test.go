@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -89,6 +90,24 @@ func TestCtrlCCancelsAgainAfterTheEditorExits(t *testing.T) {
 
 	release := holdInterrupt(ctx)
 	release()
+	signalUntilDone(t, ctx, syscall.SIGINT)
+
+	var sigErr *SignalError
+	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Signal != syscall.SIGINT {
+		t.Fatalf("cancel cause = %v, want SIGINT", context.Cause(ctx))
+	}
+}
+
+func TestCtrlCCancelsAgainAfterOpenInEditorReturns(t *testing.T) {
+	guardSignals(t)
+	f, stub := testFactory(t)
+	expectEditor(f, stub, nil)
+	ctx, stop := signalContext(context.Background())
+	defer stop()
+
+	if err := openInEditor(ctx, f, "config", filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
+		t.Fatalf("openInEditor returned error: %v", err)
+	}
 	signalUntilDone(t, ctx, syscall.SIGINT)
 
 	var sigErr *SignalError

@@ -67,10 +67,11 @@ func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, h in
 	if !ios.CanPrompt() {
 		return invoice.ArchiveResult{}, cmdutil.FlagErrorf(
 			spec.Name,
-			"%sarchiving %s replaces archived invoice %s; pass --yes to replace it (no terminal to ask on)",
+			"%sarchiving %s replaces archived invoice %s; pass --yes to replace it (%s)",
 			errorPrefix,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 			replaced,
+			whyNoPrompt(ios),
 		)
 	}
 	question := fmt.Sprintf(

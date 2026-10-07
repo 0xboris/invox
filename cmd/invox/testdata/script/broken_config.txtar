@@ -10,7 +10,7 @@ exec invox customer list -c customers.yaml
 cmp stdout want-customers.tsv
 ! stderr .
 exec invox help config
-stdout '^Open config\.yaml in the default shell editor\.$'
+stdout '^Open config\.yaml in your editor\.$'
 ! stderr .
 exits 2 invox new --bogus
 ! stdout .

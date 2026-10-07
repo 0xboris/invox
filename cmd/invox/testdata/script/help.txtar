@@ -191,7 +191,7 @@ Usage:
 
 Subcommands:
   customer       Customer-related commands
-  config         Open config.yaml in the default shell editor
+  config         Open config.yaml in your editor
   init           Create starter support files in the global config directory
   template       Template-related commands
   completion     Generate shell completion scripts
@@ -223,7 +223,7 @@ Optional flags:
   --archive               Archive after a successful PDF build (build)
   --yes                   Replace an archived invoice without asking (archive, build --archive)
   --from-last             Use the latest archived invoice for CUSTOMER_ID (new)
-  -e, --edit              Open the created invoice in the default shell editor (new)
+  -e, --edit              Open the created invoice in your editor (new)
   --to EMAIL              Recipient email override (email)
   --subject TEXT          Email subject override, supports placeholders (email)
   --force                 Overwrite an existing -o draft file (email)
@@ -610,14 +610,14 @@ Examples:
   invox render -i invoice.yaml -t multi_vat.tex
   invox build invoice.yaml -t multi_vat.tex
 -- want-config.txt --
-Open config.yaml in the default shell editor.
+Open config.yaml in your editor.
 
 Usage:
   invox config
   invox help config
 
 Behavior:
-  Opens the resolved config.yaml in the default shell editor.
+  Opens the resolved config.yaml in your editor.
   If config.yaml does not exist yet, creates it from the template below.
   Existing config.yaml files are left unchanged.
 
@@ -748,7 +748,7 @@ Usage:
 
 Subcommands:
   list          List all customers
-  config        Open customers.yaml in the default shell editor
+  config        Open customers.yaml in your editor
 
 Optional flags:
   -h, --help              Show this help page
@@ -840,7 +840,7 @@ Examples:
   invox customer list
   invox customer list -c customers.yaml
 -- want-customer-config.txt --
-Open customers.yaml in the default shell editor.
+Open customers.yaml in your editor.
 
 Usage:
   invox customer config [-c CUSTOMERS.yaml]
@@ -999,7 +999,7 @@ Optional flags:
   -s, --source PATH       Path to invoice_defaults.yaml
   -o, --output PATH       Output file path (must end with .yaml)
   --from-last             Use the latest archived invoice for CUSTOMER_ID as the source document
-  -e, --edit              Open the created invoice in the default shell editor
+  -e, --edit              Open the created invoice in your editor
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
