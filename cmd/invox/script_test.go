@@ -82,11 +82,6 @@ func TestScript(t *testing.T) {
 // $WORK/home and leaves only the fake programs on PATH, so a script never
 // sees the developer's config, archive or real tools.
 //
-// Known gap: on Unix, `invox email` schedules the draft cleanup by running
-// /bin/sh by absolute path, which PATH cannot intercept. It is harmless here
-// because sleep and rm are not on PATH, and it goes away once the external
-// program adapters land (#38).
-//
 //	config dir:  $WORK/home/.config/invox (XDG_CONFIG_HOME, on every OS)
 //	archive dir: OS-specific under $WORK/home; scripts that print archive
 //	             paths set archive.dir in config.yaml instead
@@ -303,21 +298,16 @@ func runPassthrough(name string, args ...string) int {
 	return 0
 }
 
-// fakeCmd handles the three ways invox uses cmd.exe on Windows:
+// fakeCmd handles the two ways invox uses cmd.exe on Windows:
 //
-//	cmd /c start "" FILE                  open a document
-//	cmd /c "start \"\" /b cmd /c ..."      delete the email draft later
-//	cmd /c EDITOR FILE                    run the editor
+//	cmd /c start "" FILE    open a document
+//	cmd /c EDITOR FILE      run the editor
 func fakeCmd(args []string) int {
 	if len(args) < 2 || !strings.EqualFold(args[0], "/c") {
 		fmt.Fprintf(os.Stderr, "fake cmd: unexpected arguments %q\n", args)
 		return 2
 	}
-	switch {
-	case strings.HasPrefix(args[1], "start "):
-		// The delayed cleanup of the email draft: nothing to do.
-		return 0
-	case args[1] == "start":
+	if args[1] == "start" {
 		rest := args[2:]
 		if len(rest) > 0 && rest[0] == "" {
 			rest = rest[1:]

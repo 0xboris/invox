@@ -5,11 +5,6 @@
 # draft and opens that with open/xdg-open/`cmd /c start`. These scripts always
 # pass -o so every OS takes the same path; email_macos covers the osascript
 # path. The fake opener prints the file it was asked to open.
-#
-# Known gap: on Unix the cleanup of a temporary draft (no -o) runs the real
-# /bin/sh by absolute path, which the sandbox cannot fake (sleep and rm are not
-# on PATH, so it does nothing); the external program adapters (#38) will close
-# it.
 exec invox email invoice.yaml -o draft.eml
 cmp stdout want-email.txt
 cmp stderr want-email-stderr.txt
@@ -37,6 +32,14 @@ cmp stderr want-email-to-stderr.txt
 exec invox send -i invoice.yaml -o draft3.eml
 cmp stdout want-send.txt
 cmp stderr want-send-stderr.txt
+
+# Without -o, the draft goes into a new temporary directory and stays there
+# for the mail app to read; the default <input>.eml is not written. macOS
+# takes the osascript path instead (email_macos).
+[!darwin] exec invox email invoice.yaml
+[!darwin] ! stdout .
+[!darwin] cmp stderr want-email-temp-stderr.txt
+! exists invoice.eml
 
 # Usage errors.
 exits 2 invox email
@@ -86,6 +89,9 @@ draft2.eml
 -- want-email-to-stderr.txt --
 fake open: draft2.eml
 Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
+-- want-email-temp-stderr.txt --
+fake open: invoice.eml
+Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-send.txt --
 draft3.eml
 -- want-send-stderr.txt --

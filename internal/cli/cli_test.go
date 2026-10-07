@@ -1118,7 +1118,7 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 		"--to EMAIL",
 		"--subject TEXT",
 		"--force",
-		"a temporary <input name>.eml, removed shortly after it is opened",
+		"<input name>.eml in a new temporary directory, left for the mail app",
 		"Accepts either the invoice YAML file or the built PDF as input.",
 		"The PDF lookup checks next to the PDF first, then archive.dir.",
 		"Requires invoice.status to be built or archived and the PDF attachment to exist.",
@@ -1155,9 +1155,7 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 
 	openedPath := ""
 	openedSource := ""
-	cleanupPath := ""
 	oldOpenDocument := openDocument
-	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
@@ -1168,17 +1166,9 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(file, dir string) error {
-		if filepath.Dir(file) != dir {
-			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
-		}
-		cleanupPath = dir
-		return os.RemoveAll(dir)
-	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
-		cleanupOpenedDocument = oldCleanupOpenedDocument
 		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
@@ -1196,8 +1186,9 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != filepath.Dir(openedPath) {
-		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
+	if _, err := os.Stat(openedPath); err != nil {
+		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -1236,9 +1227,7 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 
 	openedPath := ""
 	openedSource := ""
-	cleanupPath := ""
 	oldOpenDocument := openDocument
-	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
@@ -1249,17 +1238,9 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 		openedSource = string(source)
 		return nil
 	}
-	cleanupOpenedDocument = func(file, dir string) error {
-		if filepath.Dir(file) != dir {
-			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
-		}
-		cleanupPath = dir
-		return os.RemoveAll(dir)
-	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
-		cleanupOpenedDocument = oldCleanupOpenedDocument
 		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
@@ -1277,8 +1258,9 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != filepath.Dir(openedPath) {
-		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
+	if _, err := os.Stat(openedPath); err != nil {
+		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -1320,25 +1302,15 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	}
 
 	openedPath := ""
-	cleanupPath := ""
 	oldOpenDocument := openDocument
-	oldCleanupOpenedDocument := cleanupOpenedDocument
 	oldPreferNativeMailCompose := preferNativeMailCompose
 	openDocument = func(_ *iostreams.IOStreams, path string) error {
 		openedPath = path
 		return nil
 	}
-	cleanupOpenedDocument = func(file, dir string) error {
-		if filepath.Dir(file) != dir {
-			t.Fatalf("cleanupOpenedDocument(%q, %q): file is not in dir", file, dir)
-		}
-		cleanupPath = dir
-		return os.RemoveAll(dir)
-	}
 	preferNativeMailCompose = false
 	t.Cleanup(func() {
 		openDocument = oldOpenDocument
-		cleanupOpenedDocument = oldCleanupOpenedDocument
 		preferNativeMailCompose = oldPreferNativeMailCompose
 	})
 
@@ -1356,8 +1328,9 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	if filepath.Base(openedPath) != "BL00210001.eml" || filepath.Dir(openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", openedPath)
 	}
-	if cleanupPath != filepath.Dir(openedPath) {
-		t.Fatalf("cleanupPath = %q, want the draft directory %q", cleanupPath, filepath.Dir(openedPath))
+	t.Cleanup(func() { os.RemoveAll(filepath.Dir(openedPath)) })
+	if _, err := os.Stat(openedPath); err != nil {
+		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
 	if want := "Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
@@ -1412,7 +1385,6 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	oldPreferNativeMailCompose := preferNativeMailCompose
 	oldOpenNativeEmailDraft := openNativeEmailDraft
 	oldOpenDocument := openDocument
-	oldCleanupOpenedDocument := cleanupOpenedDocument
 	preferNativeMailCompose = true
 
 	var opened invoice.EmailMessage
@@ -1424,15 +1396,10 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 		t.Fatalf("openDocument(%q) should not be called when native compose is enabled", path)
 		return nil
 	}
-	cleanupOpenedDocument = func(file, dir string) error {
-		t.Fatalf("cleanupOpenedDocument(%q, %q) should not be called when native compose is enabled", file, dir)
-		return nil
-	}
 	t.Cleanup(func() {
 		preferNativeMailCompose = oldPreferNativeMailCompose
 		openNativeEmailDraft = oldOpenNativeEmailDraft
 		openDocument = oldOpenDocument
-		cleanupOpenedDocument = oldCleanupOpenedDocument
 	})
 
 	exitCode, stdout, stderr := captureRun(t, []string{

@@ -408,7 +408,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintf(w, "  template.tex: upward project search, then %s\n", invoice.GlobalTemplatePath())
 	fmt.Fprintf(w, "  new output: ./<invoice.number>.yaml\n")
 	fmt.Fprintf(w, "  render output: ./invoice.tex\n")
-	fmt.Fprintf(w, "  email draft path: temporary <input name>.eml, removed shortly after it is opened\n")
+	fmt.Fprintf(w, "  email draft path: <input name>.eml in a new temporary directory, left for the mail app\n")
 	fmt.Fprintf(w, "  build output: input path with .pdf extension\n\n")
 	fmt.Fprintf(w, "Documentation topics:\n")
 	fmt.Fprintf(w, "  %s help config       config.yaml keys, precedence, and email placeholders\n", commandName)
@@ -770,7 +770,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 		fmt.Fprintf(w, "  Requires invoice.status to be built or archived and the PDF attachment to exist.\n")
 		fmt.Fprintf(w, "  On macOS, opens an editable compose window in Apple Mail with the PDF attached.\n")
 		fmt.Fprintf(w, "  If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.\n")
-		fmt.Fprintf(w, "  Without -o, the draft is written to a temporary directory that is removed shortly after it is opened.\n")
+		fmt.Fprintf(w, "  Without -o, the draft is written to a new temporary directory and left there for the mail app.\n")
 		fmt.Fprintf(w, "  With -o, the draft is kept. An existing -o file is not replaced unless --force is set.\n")
 		fmt.Fprintf(w, "  Does not send the email and does not change invoice.status.\n")
 	}
@@ -786,7 +786,7 @@ func printCommandHelp(w io.Writer, spec commandSpec) {
 
 func defaultOutputDescription(spec commandSpec) string {
 	if spec.Name == "email" {
-		return "a temporary <input name>.eml, removed shortly after it is opened"
+		return "<input name>.eml in a new temporary directory, left for the mail app"
 	}
 	if spec.DynamicDefaultOutput {
 		return "<invoice.number>" + spec.OutputExtension + " in the current directory"

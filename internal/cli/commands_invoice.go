@@ -209,12 +209,11 @@ func runEmail(ios *iostreams.IOStreams, args []string) error {
 			_ = os.RemoveAll(draftDir)
 			return err
 		}
+		// The draft stays in its temporary directory: the mail app can read it
+		// after the opener returns, so invox cannot know when to delete it.
 		if err := openDocument(ios, draftPath); err != nil {
 			_ = os.RemoveAll(draftDir)
 			return fmt.Errorf("failed to open email draft: %w", err)
-		}
-		if err := cleanupOpenedDocument(draftPath, draftDir); err != nil {
-			return fmt.Errorf("opened %s but failed to schedule cleanup: %w", draftPath, err)
 		}
 	}
 
