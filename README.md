@@ -1,185 +1,246 @@
 # invox
 
-`invox` is a Go CLI for YAML- and LaTeX-driven invoice workflows. It creates invoice drafts, validates them against customer and issuer data, renders LaTeX, builds PDFs with Tectonic, drafts invoice emails, and archives finished invoices for reuse.
+invox turns invoice data in YAML into LaTeX and PDF invoices.
 
-## What It Covers
+You keep your company, your customers and each invoice in plain YAML files. invox numbers new invoices, validates them, renders them into a LaTeX template, builds the PDF with [Tectonic](https://tectonic-typesetting.github.io), drafts the email to the customer and moves the finished invoice into an archive.
 
-- Bootstraps a working invoice setup with starter files
-- Generates invoice numbers from customer-aware numbering rules and archive history
-- Validates invoice YAML before render, build, or email
-- Renders `.tex` invoices from plain LaTeX templates with `@@PLACEHOLDER@@` tokens
-- Builds PDFs with `tectonic`
-- Drafts invoice emails from either invoice YAML or an already-built PDF
-- Archives invoices and supports reopening archived invoices for editing
+- Invoice numbers follow a pattern per customer, such as `CUST-001-007`, and never repeat a number already in the archive.
+- Each line item can override the invoice's VAT rate, and the totals show one VAT line per rate.
+- The starter template prints an EPC QR code, a SEPA transfer the customer can scan, on EUR invoices with an IBAN in the SEPA area.
+- On macOS, `invox email` opens an Apple Mail draft with the PDF attached. Elsewhere it writes an `.eml` draft and opens it.
+- stdout carries only data and `--json` prints JSON, so scripts can drive every command.
 
-## Requirements
+## Install
 
-- Go `1.24+`
-- `tectonic` in `PATH` for `invox build`
-- A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer edit`, and `invox new -e`
-
-Install `tectonic` on macOS with:
-
-```sh
-brew install tectonic
-```
-
-## Installation
-
-Install the latest version:
+Install with Go 1.24 or later:
 
 ```sh
 go install github.com/0xboris/invox/cmd/invox@latest
 ```
 
-Or install from this checkout:
+Homebrew and prebuilt binaries arrive with the first tagged release. These are the intended methods:
+
+- Homebrew on macOS or Linux: `brew install 0xboris/tap/invox`.
+- Release archives for Linux, macOS and Windows on amd64 and arm64, from the [releases page](https://github.com/0xboris/invox/releases). Each archive holds the binary, the man pages and completion scripts for bash, zsh, fish and PowerShell.
+
+To build from a checkout, run `make build` (the binary is `./bin/invox`) or `make install`.
+
+### Install Tectonic
+
+`invox build` needs `tectonic` in your `PATH`. The other commands work without it. These commands come from the [Tectonic installation guide](https://tectonic-typesetting.github.io/book/latest/installation/), which lists more options.
+
+On macOS:
 
 ```sh
-go install ./cmd/invox
+brew install tectonic
 ```
 
-Or build a local binary:
+On Linux or macOS, the download script puts `tectonic` in the current directory. Move it into a directory in your `PATH` afterwards.
 
 ```sh
-go build -o ./bin/invox ./cmd/invox
-./bin/invox -h
+curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net |sh
 ```
 
-## Quick Start
+On Arch Linux:
 
-Initialize the global config directory and starter files:
+```sh
+sudo pacman -S tectonic
+```
+
+With conda, on any OS:
+
+```sh
+conda install -c conda-forge tectonic
+```
+
+On Windows, run the download script in PowerShell. It unpacks `tectonic.exe` in the current directory. Move it into a directory in your `PATH` afterwards.
+
+```powershell
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://drop-ps1.fullyjustified.net'))
+```
+
+Tectonic downloads the LaTeX packages it needs on the first build, so the first `invox build` needs network access.
+
+## Quick start
+
+Create the config directory with starter files:
 
 ```sh
 invox init
 ```
 
-Edit the generated files:
+Put your company and payment details into `issuer.yaml`, in the config directory that `invox init` printed. Then add your customers. This command opens `customers.yaml` in your editor (`VISUAL`, then `EDITOR`):
 
 ```sh
-invox config
 invox customer edit
 ```
 
-Create, validate, build, email, and archive an invoice:
+To change the numbering pattern, the archive directory or the email templates, run `invox config edit`, which opens `config.yaml`.
+
+Create an invoice for a customer, check it and build the PDF:
 
 ```sh
-invox new CUST-001 -o invoice.yaml -e
-invox validate invoice.yaml
-invox render invoice.yaml -o invoice.tex
-invox build invoice.yaml
-invox email invoice.pdf
-invox archive add invoice.yaml
+invox new CUST-001 -e
+invox validate CUST-001-001.yaml
+invox build CUST-001-001.yaml
 ```
 
-Common shortcuts:
+`new` writes `CUST-001-001.yaml` with the next free number and, with `-e`, opens it in your editor. `build` writes `CUST-001-001.pdf` next to it and sets the invoice status to `built`.
+
+Draft the email, then archive the invoice:
+
+```sh
+invox email CUST-001-001.pdf
+invox archive add CUST-001-001.yaml
+```
+
+Next month, start from the customer's last archived invoice. invox gives the copy the next number and fresh dates:
 
 ```sh
 invox new CUST-001 --from-last
-invox build invoice.yaml --archive
-invox archive edit 2026-03-06.yaml
+```
+
+To fix an archived invoice, copy it out, edit it and archive it again. invox asks before it replaces the archived file and keeps the old version in `.history/` inside the archive directory.
+
+```sh
 invox archive list
+invox archive edit CUST-001-001.yaml
+invox build CUST-001-001.yaml --archive
 ```
 
-## Default Files
+## Files
 
-`invox init` creates these starter files in `$XDG_CONFIG_HOME/invox` or `~/.config/invox`:
+`invox init` writes these files to `$XDG_CONFIG_HOME/invox`, or `~/.config/invox` when `XDG_CONFIG_HOME` is unset. `INVOX_CONFIG_DIR` replaces that directory.
 
-| File | Purpose |
+| File | Holds | Reference |
+| --- | --- | --- |
+| `config.yaml` | Path overrides, the numbering pattern, the archive directory and the email templates | `invox help config` |
+| `customers.yaml` | One entry per customer: address, email, currency and numbering | `invox help customers` |
+| `issuer.yaml` | Your company and payment details | `invox help issuer` |
+| `invoice_defaults.yaml` | The document `invox new` copies into each new invoice | `invox help defaults` |
+| `template.tex` | The LaTeX template with `@@PLACEHOLDER@@` tokens | `invox help template` |
+
+An invoice file has the shape of `invoice_defaults.yaml`. `invox help defaults` describes it, and `invox validate` reports each wrong field with its file and line.
+
+invox looks for `customers.yaml`, `issuer.yaml`, `invoice_defaults.yaml` and the template in this order:
+
+1. The flag on the command line (`-c`, `-u`, `--defaults`, `-t`).
+2. The current directory and its parents, up to the nearest directory with `.git`, `invox.yaml` or `invoice_defaults.yaml`.
+3. `paths.*` in `config.yaml`.
+4. The config directory.
+
+So a project directory with its own `customers.yaml` overrides the global one. `invox config paths` prints the file each lookup finds. Archived invoices go to `archive.dir` from `config.yaml`, or by default to `~/.local/share/invox/invoices` on Linux, `~/Library/Application Support/invox/invoices` on macOS and `%APPDATA%\invox\invoices` on Windows. `invox help environment` lists the variables that move these directories.
+
+## Documentation
+
+`invox help` lists the commands and help topics. `invox help <command>` shows a command's flags and examples.
+
+The same pages are in the repository:
+
+- [`docs/cli/`](docs/cli/invox.md) has one Markdown page per command and help topic.
+- [`share/man/man1/`](share/man/man1/) has the man pages. Read one with `man ./share/man/man1/invox-build.1`.
+
+Both are generated from the command tree, so they match the binary.
+
+The help topics are `config`, `customers`, `issuer`, `defaults`, `template`, `environment` and `exit-codes`. `invox help environment` lists the environment variables, the default directories on each OS and the order in which flags, `config.yaml` and defaults apply. `invox help exit-codes` lists the exit statuses.
+
+Older command forms still work and print a deprecation warning on stderr. Use the new forms:
+
+| Deprecated | Use |
 | --- | --- |
-| `config.yaml` | Global path overrides, numbering, archive settings, and email templates |
-| `customers.yaml` | Customer records, billing defaults, and per-customer numbering |
-| `issuer.yaml` | Your company and payment details |
-| `invoice_defaults.yaml` | Source document used by `invox new` |
-| `template.tex` | Default LaTeX invoice template |
+| `invox archive FILE` | `invox archive add FILE` |
+| `invox customer config` | `invox customer edit` |
+| `invox new -s FILE`, `--source FILE` | `invox new --defaults FILE` |
+| `invox send` | `invox email` |
+| Single-dash long flags such as `-input` | `--input` |
 
-Support files resolve in this order:
+## Use invox in scripts
 
-1. Explicit CLI flags
-2. Upward search from the current project directory
-3. `paths.*` overrides in `config.yaml`
-4. Conventional files in the global config directory
+stdout carries only data. Status lines, hints, warnings, prompts and errors go to stderr, along with the output of `tectonic` and the editor.
 
-## Command Overview
-
-| Command | Purpose |
-| --- | --- |
-| `invox init` | Create starter support files in the global config directory |
-| `invox config` | Open `config.yaml` in the default shell editor |
-| `invox customer list` | List customers from `customers.yaml` |
-| `invox customer edit` | Open `customers.yaml` in the default shell editor |
-| `invox template list` | List available LaTeX templates |
-| `invox completion zsh` | Generate Zsh completion output |
-| `invox new CUSTOMER_ID` | Create a new invoice with a generated number |
-| `invox increment invoice.yaml` | Increment an existing invoice number in place |
-| `invox validate invoice.yaml` | Validate invoice data against customer and issuer files |
-| `invox render invoice.yaml` | Render a LaTeX invoice file |
-| `invox build invoice.yaml` | Render and compile a PDF with `tectonic` |
-| `invox email invoice.yaml` | Draft an email with the invoice PDF attached |
-| `invox archive add invoice.yaml` | Move a built or edited invoice into the archive (`--yes` to replace an archived invoice without asking) |
-| `invox archive edit FILENAME` | Copy an archived invoice into the current directory as an editable working copy |
-| `invox archive list` | List archived invoices |
-| `invox version` | Show the installed invox version |
-
-Run `invox -h` for the top-level command summary. The built-in help also includes focused references for the supported file formats and template system, the environment variables and default directories, and the exit codes:
+- `new`, `increment`, `render`, `build`, `archive add` and `archive edit` print the path they wrote, one line, relative to the current directory when it is inside it. `email -o FILE` prints the draft path.
+- `validate`, `init`, `config edit` and `customer edit` print nothing on stdout.
+- `customer list`, `archive list` and `template list` print one tab-separated row per record. On a terminal they print a header and aligned columns instead.
 
 ```sh
-invox help config
-invox help customers
-invox help issuer
-invox help defaults
-invox help template
-invox help environment
-invox help exit-codes
-```
-
-## Output
-
-stdout carries only data, so scripts can capture it:
-
-- `new`, `increment`, `render`, `build` (also with `--archive`), `archive add` and `archive edit` print the path they created or changed, one line, relative to the current directory when it is inside it. `email` prints the `.eml` path only when it writes one with `-o`.
-- `validate`, `init`, `config` and `customer edit` print nothing on stdout.
-- List commands print their rows, and help, `completion` and `version` print what they always did.
-
-Everything else goes to stderr: status lines such as `Built invoice.pdf for CUST-001 (CUST-001-001)`, hints, prompts, warnings, errors, and the output of the programs invox runs (`tectonic`, the editor, the opener).
-
-A terminal editor, opened by `config`, `customer edit` and `new -e`, draws on stderr too, so leave stderr on the terminal (no `2>`) when an editor will open.
-
-```sh
-pdf=$(invox build -i invoice.yaml)
+pdf=$(invox build CUST-001-001.yaml)
 invox email "$pdf" -o draft.eml
 ```
 
-## Notes
+`--json <fields>` prints one JSON document on stdout. The list commands, `validate`, `new`, `increment`, `render`, `build`, `archive add` and `archive edit` take it, and each command's help lists its fields under "JSON fields".
 
-- `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
-- Invoice numbers are unique. `invox new` picks the next counter after the highest one in `archive.dir` and in invoice YAML files with `status: draft` or `status: built` in the current directory and the output directory, so drafts created one after another get different numbers. Drafts elsewhere are not seen, so `invox archive add` also refuses an invoice whose number is already archived under a different file, and `invox validate` warns about it; run `invox increment FILE` to move it to the next free number. Re-archiving an invoice opened with `invox archive edit` keeps working.
-- Re-archiving a working copy from `invox archive edit` replaces the archived invoice. On a terminal `invox archive add` asks first (the prompt is on stderr); without one it needs `--yes`, and otherwise exits with status 2 and changes nothing. Declining also exits 2. `--yes` only answers the question; every other check still applies. The previous version is kept as `archive.dir/.history/<path>.<UTC timestamp>.<ext>` (for example `.history/customer-a/2026-03-06.20261005T123045Z.yaml`), and the replacement is reported on stderr. `invox archive list`, numbering and the duplicate-number check ignore `.history`, and `invox archive edit` refuses paths inside it. `invox build --archive` behaves the same way and takes `--yes` too.
-- `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`. An invoice with `status: archived` keeps that status, so rebuilding the PDF of an archived invoice does not take it out of the archive; change one with `invox archive edit`.
-- `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
-- On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft and opens it. Without `-o`, the draft goes to a new temporary directory, and a later `invox email` removes it after 24 hours. A draft written with `-o` is kept, and an existing `-o` file is only overwritten with `--force`.
-- The starter template already includes VAT summary support and EPC QR placeholders for eligible EUR invoices with a SEPA-scope IBAN.
-- The starter template uses `fontspec` and `\tracinglostchars=3`, so accented names and addresses (for example `Č`, `Ł`, `ő`, `ß`, `§`) appear correctly in the PDF and a character the font cannot show fails the build instead of disappearing. `invox init` does not overwrite an existing `template.tex`; if yours was created by an older version, replace the `\usepackage[T1]{fontenc}` and `\usepackage[utf8]{inputenc}` lines with `\usepackage{fontspec}` and `\tracinglostchars=3`.
-- When rendering outside the template directory, `invox` copies referenced assets such as `fonts/` and `logo.png` next to the generated TeX so `tectonic` can build successfully.
-- `invox` prefers the `invox` config directory but still falls back to the legacy `invoice-tool` directory when it already exists.
+```sh
+invox validate CUST-001-001.yaml --json valid,total,currency
+invox archive list --json file,customerId,number
+```
+
+These flags make runs safe to automate:
+
+- `-n, --dry-run` runs the same checks as a real run, prints what it would do on stderr and writes nothing. `new`, `increment`, `render`, `build`, `email`, `archive add` and `archive edit` take it.
+- `--force` lets `new`, `archive edit` and `email -o` overwrite an existing output file. On `new` and `archive edit` it never replaces a file inside the archive.
+- `--yes` lets `archive add` and `build --archive` replace an archived invoice without asking.
+- `--no-input`, or a non-empty `INVOX_PROMPT_DISABLED`, stops invox from prompting or opening an editor. A step that needs one fails with exit status 2.
+
+Exit status 0 means success and 1 means the command failed. Exit status 2 is a usage error, a declined confirmation, or a confirmation or editor that was needed without a terminal. Exit statuses 130 and 143 mean Ctrl-C or SIGTERM stopped invox. See `invox help exit-codes`.
+
+## Shell completion
+
+`invox completion` prints a completion script for bash, zsh, fish or PowerShell. It completes commands, flags, customer IDs, template names and archived invoices. To load it in the current bash or zsh shell:
+
+```sh
+source <(invox completion bash)
+source <(invox completion zsh)
+```
+
+For fish:
+
+```sh
+invox completion fish > ~/.config/fish/completions/invox.fish
+```
+
+For PowerShell:
+
+```powershell
+invox completion powershell | Out-String | Invoke-Expression
+```
+
+`invox completion --help` shows how to install each script permanently.
+
+## Troubleshooting
+
+`error: tectonic not found in PATH` means `invox build` can't find Tectonic. [Install Tectonic](#install-tectonic) and check that `tectonic --version` runs in the same shell.
+
+`error: .../config.yaml:68: unknown key "patern" in numbering` means `config.yaml` has a typo or a value of the wrong type. invox reads `config.yaml` strictly and names the file and line. Run `invox config edit` to fix it. Invoice files, `customers.yaml`, `issuer.yaml` and `invoice_defaults.yaml` are strict in the same way.
+
+If the PDF shows wrong or missing characters, check the font setup in your template. The starter template loads `fontspec` and sets `\tracinglostchars=3`, so a character the font can't show fails the build with an error instead of disappearing. `invox init` never overwrites an existing `template.tex`. If yours comes from an older version, replace its `\usepackage[T1]{fontenc}` and `\usepackage[utf8]{inputenc}` lines with `\usepackage{fontspec}` and `\tracinglostchars=3`. When you render outside the template's directory, invox copies the files the template references, such as `fonts/` or `logo.png`, next to the generated `.tex` file.
+
+If an editor command exits 2 with a hint, stdin or stderr is not a terminal, or `--no-input` is set. Run the command in a terminal and keep stderr on it, without `2>`.
 
 ## Development
 
-The `Makefile` only covers development tasks; use `invox` directly for invoices.
+You need Go 1.24 or later. The Makefile wraps the checks that CI runs:
 
 ```sh
-make build    # always runs go build (never stale)
-make test     # go test -race ./...
-make vet
-make lint
-make fmt      # gofmt -w .
-make tidy     # go mod tidy -diff
-make install
-make clean
-make help
+make build             # build ./bin/invox
+make test              # go test -race ./...
+make lint              # golangci-lint at the version CI uses
+make vulncheck         # govulncheck ./...
+make docs              # regenerate docs/cli and share/man/man1
+make release-snapshot  # build every release archive into ./dist (needs GoReleaser v2)
+make help              # list every target
 ```
+
+`make fmt`, `make vet` and `make tidy` run gofmt, `go vet` and `go mod tidy -diff`. CI fails when `docs/cli` or `share/man/man1` don't match the command tree, so run `make docs` after you change any help text. The end-to-end tests in `cmd/invox/testdata/script/` pin the stdout, stderr and exit code of every command. After an intended output change, run `go test ./cmd/invox -run TestScript -update` and review the diff.
+
+[`CLAUDE.md`](CLAUDE.md) describes the package layout and the test conventions. [`docs/design/`](docs/design/) holds design notes for shipped features.
+
+On Windows, enable symlinks before you clone (`git config --global core.symlinks true`, which also needs Developer Mode or an administrator shell). Without them, `.claude/skills/quality-cli` checks out as a plain text file instead of a link to `.agents/skills/quality-cli`. The Go build and tests don't use it.
+
+## Contributing
+
+Bug reports and pull requests are welcome on [GitHub](https://github.com/0xboris/invox/issues). Keep each pull request to one issue and reference it with `Fixes #N`. A bug fix comes with a regression test that fails without the fix. stdout, stderr, exit codes, flag names and file formats are a contract, so change them only when the issue asks for it, and update the tests that pin them. [`CHANGELOG.md`](CHANGELOG.md) lists the user-visible changes.
 
 ## License
 
 invox is released under the [MIT License](LICENSE).
-
-Last reviewed: 2026-03-30
