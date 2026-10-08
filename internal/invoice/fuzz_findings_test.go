@@ -106,23 +106,6 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 	}
 }
 
-func TestIsValidIBANRejectsOutOfRangeCheckDigits(t *testing.T) {
-	// Each of these passes the mod-97 check, but ISO 13616 check digits run
-	// from 02 to 98.
-	for _, iban := range []string{
-		"DE00370400440000000060",
-		"DE01370400440000000042",
-		"DE99370400440000000024",
-	} {
-		if isValidIBAN(iban) {
-			t.Errorf("isValidIBAN(%q) = true, want false", iban)
-		}
-	}
-	if !isValidIBAN("DE89370400440532013000") {
-		t.Error(`isValidIBAN("DE89370400440532013000") = false, want true`)
-	}
-}
-
 func TestParseInvoiceCounterReturnsErrorForInvalidUTF8Pattern(t *testing.T) {
 	// regexp.MustCompile panicked on this pattern.
 	_, err := parseInvoiceCounter("\xff{customer_id}-{counter}", "\xffCUST-001-1", "CUST-001", "2026-03-06", Customer{})

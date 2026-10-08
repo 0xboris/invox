@@ -1,65 +1,53 @@
-package invoice
+// Package latex turns invoice values into LaTeX: escaping, money and table
+// rows, line item blocks, template checks and the EPC QR code. It reads and
+// writes no files.
+package latex
 
 import (
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
-func FormatCurrency(cents int64, currency string) string {
-	return withCurrency(FormatMoneyCents(cents), currency)
+// Item is one line item as the template shows it. Its fields match
+// invoice.LineItem, so the invoice converts with a plain type conversion.
+type Item struct {
+	Name           string
+	Description    string
+	UnitPrice      *big.Rat
+	Quantity       *big.Rat
+	VATRatePercent *big.Rat
+	LineTotalCents int64
 }
 
-// Unit prices are shown with as many decimals as they need, at least
-// minUnitPriceDecimals and at most maxUnitPriceDecimals (rounded half up beyond
-// that), so that unit price × quantity matches the line total.
-const (
-	minUnitPriceDecimals = 2
-	maxUnitPriceDecimals = 4
-)
+// VATRow is the VAT owed at one rate. Its fields match invoice.VATBreakdown.
+type VATRow struct {
+	RatePercent    *big.Rat
+	NetCents       int64
+	VATAmountCents int64
+}
+
+// FormatCurrency formats cents as 1.234,56 followed by \euro for EUR, or by
+// the escaped currency code.
+func FormatCurrency(cents int64, currency string) string {
+	return withCurrency(money.FormatCents(cents), currency)
+}
 
 func formatUnitPrice(value *big.Rat, currency string) string {
-	decimals := unitPriceDecimals(value)
-	if decimals == minUnitPriceDecimals {
-		return FormatCurrency(quantizeMoney(value), currency)
-	}
-	scale := int64(1)
-	for range decimals {
-		scale *= 10
-	}
-	units := roundHalfUpToInt(new(big.Rat).Mul(value, new(big.Rat).SetInt64(scale)))
-	sign := ""
-	if units < 0 {
-		sign = "-"
-		units = -units
-	}
-	formatted := fmt.Sprintf("%s%s,%0*d", sign, groupThousands(units/scale), decimals, units%scale)
-	return withCurrency(formatted, currency)
-}
-
-func unitPriceDecimals(value *big.Rat) int {
-	if value == nil {
-		return minUnitPriceDecimals
-	}
-	scaled := new(big.Rat).Set(value)
-	scaled.Mul(scaled, big.NewRat(100, 1))
-	for decimals := minUnitPriceDecimals; decimals < maxUnitPriceDecimals; decimals++ {
-		if scaled.IsInt() {
-			return decimals
-		}
-		scaled.Mul(scaled, big.NewRat(10, 1))
-	}
-	return maxUnitPriceDecimals
+	return withCurrency(money.FormatUnitPrice(value), currency)
 }
 
 func withCurrency(formatted, currency string) string {
 	if currency == "EUR" {
 		return formatted + " \\euro"
 	}
-	return formatted + " " + latexEscape(currency)
+	return formatted + " " + Escape(currency)
 }
 
-func renderQRCodePayload(payload []byte) string {
+// QRCode returns the TeX that draws payload with the qrcode package.
+func QRCode(payload []byte) string {
 	var rendered strings.Builder
 	rendered.WriteString("{%\n")
 	for value := 0x80; value <= 0xFF; value++ {
@@ -116,23 +104,25 @@ func qrcodePayloadTeXSource(payload []byte) string {
 	return source.String()
 }
 
-func renderLineItems(items []LineItem, currency string) string {
-	return renderLineItemRows(items, currency, false)
+// LineItemRows renders the items as table rows without a VAT column.
+func LineItemRows(items []Item, currency string) string {
+	return lineItemRows(items, currency, false)
 }
 
-func renderLineItemsWithVAT(items []LineItem, currency string) string {
-	return renderLineItemRows(items, currency, true)
+// LineItemRowsWithVAT renders the items as table rows with a VAT column.
+func LineItemRowsWithVAT(items []Item, currency string) string {
+	return lineItemRows(items, currency, true)
 }
 
-func renderLineItemRows(items []LineItem, currency string, includeVAT bool) string {
+func lineItemRows(items []Item, currency string, includeVAT bool) string {
 	rows := make([]string, 0, len(items)*2)
 	lastIndex := len(items) - 1
 	for index, item := range items {
 		parts := []string{
-			latexEscape(item.Name),
-			latexEscape(item.Description),
+			Escape(item.Name),
+			Escape(item.Description),
 			formatUnitPrice(item.UnitPrice, currency),
-			latexEscape(formatQuantity(item.Quantity)),
+			Escape(money.FormatQuantity(item.Quantity)),
 		}
 		if includeVAT {
 			parts = append(parts, formatVATRate(item.VATRatePercent))
@@ -152,9 +142,10 @@ func lineItemRule(index, lastIndex int) string {
 	return fmt.Sprintf(`\specialrule{%s}{0pt}{0pt}`, ruleWidth)
 }
 
-func renderVATSummaryRows(label string, breakdowns []VATBreakdown, currency string) string {
+// VATSummaryRows renders one "label (rate): amount" row per VAT rate.
+func VATSummaryRows(label string, breakdowns []VATRow, currency string) string {
 	rows := make([]string, 0, len(breakdowns))
-	escapedLabel := latexEscape(label)
+	escapedLabel := Escape(label)
 	for _, breakdown := range breakdowns {
 		rows = append(rows, fmt.Sprintf(
 			"%s (%s): & %s\\\\",
@@ -167,10 +158,11 @@ func renderVATSummaryRows(label string, breakdowns []VATBreakdown, currency stri
 }
 
 func formatVATRate(value *big.Rat) string {
-	return latexEscape(formatQuantity(value)) + `\%`
+	return Escape(money.FormatQuantity(value)) + `\%`
 }
 
-func latexEscape(text string) string {
+// Escape makes text safe to place in a LaTeX document.
+func Escape(text string) string {
 	replacer := strings.NewReplacer(
 		`\`, `\textbackslash{}`,
 		`&`, `\&`,

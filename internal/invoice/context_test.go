@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 func TestLoadContextWithCurrentInvoice(t *testing.T) {
@@ -97,10 +99,10 @@ func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
 	if got := len(ctx.VATBreakdowns); got != 2 {
 		t.Fatalf("len(VATBreakdowns) = %d, want 2", got)
 	}
-	if got := formatQuantity(ctx.LineItems[0].VATRatePercent); got != "20" {
+	if got := money.FormatQuantity(ctx.LineItems[0].VATRatePercent); got != "20" {
 		t.Fatalf("LineItems[0].VATRatePercent = %q, want %q", got, "20")
 	}
-	if got := formatQuantity(ctx.LineItems[1].VATRatePercent); got != "10" {
+	if got := money.FormatQuantity(ctx.LineItems[1].VATRatePercent); got != "10" {
 		t.Fatalf("LineItems[1].VATRatePercent = %q, want %q", got, "10")
 	}
 	if ctx.SubtotalCents != 21000 {
@@ -112,13 +114,13 @@ func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
 	if ctx.TotalCents != 25100 {
 		t.Fatalf("TotalCents = %d, want %d", ctx.TotalCents, 25100)
 	}
-	if got := formatQuantity(ctx.VATBreakdowns[0].RatePercent); got != "10" {
+	if got := money.FormatQuantity(ctx.VATBreakdowns[0].RatePercent); got != "10" {
 		t.Fatalf("VATBreakdowns[0].RatePercent = %q, want %q", got, "10")
 	}
 	if ctx.VATBreakdowns[0].NetCents != 1000 || ctx.VATBreakdowns[0].VATAmountCents != 100 {
 		t.Fatalf("VATBreakdowns[0] = %+v, want net=1000 vat=100", ctx.VATBreakdowns[0])
 	}
-	if got := formatQuantity(ctx.VATBreakdowns[1].RatePercent); got != "20" {
+	if got := money.FormatQuantity(ctx.VATBreakdowns[1].RatePercent); got != "20" {
 		t.Fatalf("VATBreakdowns[1].RatePercent = %q, want %q", got, "20")
 	}
 	if ctx.VATBreakdowns[1].NetCents != 20000 || ctx.VATBreakdowns[1].VATAmountCents != 4000 {
@@ -165,7 +167,7 @@ CUST-001:
 	if got := len(ctx.VATBreakdowns); got != 1 {
 		t.Fatalf("len(VATBreakdowns) = %d, want 1", got)
 	}
-	if got := formatQuantity(ctx.LineItems[0].VATRatePercent); got != "13" {
+	if got := money.FormatQuantity(ctx.LineItems[0].VATRatePercent); got != "13" {
 		t.Fatalf("LineItems[0].VATRatePercent = %q, want %q", got, "13")
 	}
 	if ctx.VATAmountCents != 2730 {

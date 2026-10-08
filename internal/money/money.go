@@ -1,4 +1,6 @@
-package invoice
+// Package money parses decimal amounts and does the cent arithmetic and
+// formatting for invoices: half-up rounding and the 1.234,56 form.
+package money
 
 import (
 	"fmt"
@@ -7,35 +9,29 @@ import (
 	"strings"
 )
 
-// maxMoneyCents bounds every amount invox computes: 10^13 in the invoice
+// MaxCents bounds every amount invox computes: 10^13 in the invoice
 // currency, held as int64 cents. The bound leaves enough headroom that a sum
 // of two bounded amounts cannot overflow int64.
-const maxMoneyCents int64 = 1_000_000_000_000_000
+const MaxCents int64 = 1_000_000_000_000_000
 
-// errAmountTooLarge reports an amount above maxMoneyCents. subject names the
-// amount, such as "invoice.paid_amount:" or "invoice total".
-func errAmountTooLarge(subject string) error {
-	return fmt.Errorf("%s exceeds the maximum amount of `%s`", subject, FormatMoneyCents(maxMoneyCents))
-}
-
-// moneyCents rounds value to cents like quantizeMoney, and reports false when
-// the result lies outside ±maxMoneyCents instead of wrapping around.
-func moneyCents(value *big.Rat) (int64, bool) {
+// Cents rounds value to cents like quantize, and reports false when
+// the result lies outside ±MaxCents instead of wrapping around.
+func Cents(value *big.Rat) (int64, bool) {
 	if value == nil {
 		return 0, true
 	}
 	cents := roundHalfUp(new(big.Rat).Mul(value, big.NewRat(100, 1)))
-	if cents.CmpAbs(big.NewInt(maxMoneyCents)) > 0 {
+	if cents.CmpAbs(big.NewInt(MaxCents)) > 0 {
 		return 0, false
 	}
 	return cents.Int64(), true
 }
 
-// addMoneyCents adds two amounts that are each within ±maxMoneyCents, so the
+// AddCents adds two amounts that are each within ±MaxCents, so the
 // int64 sum cannot overflow, and reports false when the sum leaves that range.
-func addMoneyCents(left, right int64) (int64, bool) {
+func AddCents(left, right int64) (int64, bool) {
 	sum := left + right
-	if sum > maxMoneyCents || sum < -maxMoneyCents {
+	if sum > MaxCents || sum < -MaxCents {
 		return 0, false
 	}
 	return sum, true
@@ -45,7 +41,9 @@ func addMoneyCents(left, right int64) (int64, bool) {
 // minus sign, digits, and an optional fraction. Leading zeros are decimal.
 var decimalPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 
-func parseDecimal(text string) (*big.Rat, bool) {
+// ParseDecimal reads text in the decimalPattern grammar, ignoring surrounding
+// space, and reports false for anything else.
+func ParseDecimal(text string) (*big.Rat, bool) {
 	text = strings.TrimSpace(text)
 	if !decimalPattern.MatchString(text) {
 		return nil, false
@@ -57,7 +55,8 @@ func parseDecimal(text string) (*big.Rat, bool) {
 	return nil, false
 }
 
-func percentOfMoney(cents int64, percent *big.Rat) *big.Rat {
+// PercentOf returns percent per cent of cents in currency units, unrounded.
+func PercentOf(cents int64, percent *big.Rat) *big.Rat {
 	base := new(big.Rat).SetInt64(cents)
 	base.Quo(base, big.NewRat(100, 1))
 	result := new(big.Rat).Mul(base, percent)
@@ -65,7 +64,7 @@ func percentOfMoney(cents int64, percent *big.Rat) *big.Rat {
 	return result
 }
 
-func quantizeMoney(value *big.Rat) int64 {
+func quantize(value *big.Rat) int64 {
 	if value == nil {
 		return 0
 	}
@@ -104,8 +103,8 @@ func roundHalfUp(value *big.Rat) *big.Int {
 	return quotient
 }
 
-// FormatMoneyCents formats cents as 1.234,56, without a currency.
-func FormatMoneyCents(cents int64) string {
+// FormatCents formats cents as 1.234,56, without a currency.
+func FormatCents(cents int64) string {
 	sign := ""
 	if cents < 0 {
 		sign = "-"
@@ -133,7 +132,9 @@ func groupThousands(value int64) string {
 	return strings.Join(parts, ".")
 }
 
-func formatQuantity(value *big.Rat) string {
+// FormatQuantity formats a quantity or rate with a decimal comma and no
+// trailing zeros, such as 2,5.
+func FormatQuantity(value *big.Rat) string {
 	if value == nil {
 		return ""
 	}
@@ -143,4 +144,47 @@ func formatQuantity(value *big.Rat) string {
 	text := value.FloatString(10)
 	text = strings.TrimRight(strings.TrimRight(text, "0"), ".")
 	return strings.ReplaceAll(text, ".", ",")
+}
+
+// Unit prices are shown with as many decimals as they need, at least
+// minUnitPriceDecimals and at most maxUnitPriceDecimals (rounded half up beyond
+// that), so that unit price × quantity matches the line total.
+const (
+	minUnitPriceDecimals = 2
+	maxUnitPriceDecimals = 4
+)
+
+// FormatUnitPrice formats a unit price like FormatCents, with as
+// many decimals as it needs.
+func FormatUnitPrice(value *big.Rat) string {
+	decimals := unitPriceDecimals(value)
+	if decimals == minUnitPriceDecimals {
+		return FormatCents(quantize(value))
+	}
+	scale := int64(1)
+	for range decimals {
+		scale *= 10
+	}
+	units := roundHalfUpToInt(new(big.Rat).Mul(value, new(big.Rat).SetInt64(scale)))
+	sign := ""
+	if units < 0 {
+		sign = "-"
+		units = -units
+	}
+	return fmt.Sprintf("%s%s,%0*d", sign, groupThousands(units/scale), decimals, units%scale)
+}
+
+func unitPriceDecimals(value *big.Rat) int {
+	if value == nil {
+		return minUnitPriceDecimals
+	}
+	scaled := new(big.Rat).Set(value)
+	scaled.Mul(scaled, big.NewRat(100, 1))
+	for decimals := minUnitPriceDecimals; decimals < maxUnitPriceDecimals; decimals++ {
+		if scaled.IsInt() {
+			return decimals
+		}
+		scaled.Mul(scaled, big.NewRat(10, 1))
+	}
+	return maxUnitPriceDecimals
 }

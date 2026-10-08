@@ -1,6 +1,10 @@
 package invoice
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/0xboris/invox/internal/money"
+)
 
 // UnknownCustomerError reports a customer_id that customers.yaml does not
 // define. Path is the file the error is about: the invoice that names the
@@ -30,4 +34,10 @@ type TemplateNotFoundError struct {
 
 func (e *TemplateNotFoundError) Error() string {
 	return fmt.Sprintf("template %q not found", e.Name)
+}
+
+// errAmountTooLarge reports an amount above money.MaxCents. subject names the
+// amount, such as "invoice.paid_amount:" or "invoice total".
+func errAmountTooLarge(subject string) error {
+	return fmt.Errorf("%s exceeds the maximum amount of `%s`", subject, money.FormatCents(money.MaxCents))
 }

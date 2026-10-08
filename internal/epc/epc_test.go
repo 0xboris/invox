@@ -1,50 +1,14 @@
-package invoice
+package epc
 
 import (
-	"strings"
 	"testing"
 )
 
-func TestQRCodePayloadTeXSourceUsesQrcodeEscapesForReservedCharacters(t *testing.T) {
-	payload := []byte("A B\\C^D~E%F#G&H_I$J{K}L\n")
-
-	got := qrcodePayloadTeXSource(payload)
-	want := strings.Join([]string{
-		"A",
-		`\noexpand\ `,
-		"B",
-		`\noexpand\\`,
-		"C",
-		`\noexpand\^`,
-		"D",
-		`\noexpand\~`,
-		"E",
-		`\noexpand\%`,
-		"F",
-		`\noexpand\#`,
-		"G",
-		`\noexpand\&`,
-		"H",
-		`\noexpand\_`,
-		"I",
-		`\noexpand\$`,
-		"J",
-		`\noexpand\{`,
-		"K",
-		`\noexpand\}`,
-		"L",
-		`\noexpand\?`,
-	}, "")
-	if got != want {
-		t.Fatalf("qrcodePayloadTeXSource(%q) = %q, want %q", payload, got, want)
-	}
-}
-
 func TestCompactEPCAccountIdentifierRemovesUnicodeWhitespace(t *testing.T) {
-	got := compactEPCAccountIdentifier(" \tAT61\u00a01904 3002\t3457 3201\n")
+	got := CompactIdentifier(" \tAT61\u00a01904 3002\t3457 3201\n")
 	want := "AT611904300234573201"
 	if got != want {
-		t.Fatalf("compactEPCAccountIdentifier returned %q, want %q", got, want)
+		t.Fatalf("CompactIdentifier returned %q, want %q", got, want)
 	}
 }
 
@@ -63,8 +27,8 @@ func TestIsValidIBANRejectsUnknownCountryCodeAndWrongLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isValidIBAN(tt.iban); got != tt.valid {
-				t.Fatalf("isValidIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
+			if got := ValidIBAN(tt.iban); got != tt.valid {
+				t.Fatalf("ValidIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
 			}
 		})
 	}
@@ -85,8 +49,8 @@ func TestIsSEPASchemeIBAN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isSEPASchemeIBAN(tt.iban); got != tt.valid {
-				t.Fatalf("isSEPASchemeIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
+			if got := SEPASchemeIBAN(tt.iban); got != tt.valid {
+				t.Fatalf("SEPASchemeIBAN(%q) = %v, want %v", tt.iban, got, tt.valid)
 			}
 		})
 	}

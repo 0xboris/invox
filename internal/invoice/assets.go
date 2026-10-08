@@ -3,11 +3,9 @@ package invoice
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
-	"strings"
 
 	"github.com/0xboris/invox/internal/fsutil"
+	"github.com/0xboris/invox/internal/render/latex"
 )
 
 func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) error {
@@ -17,7 +15,7 @@ func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) erro
 		return nil
 	}
 
-	for _, relDir := range referencedAssetDirs(rendered) {
+	for _, relDir := range latex.AssetDirs(rendered) {
 		sourceDir := h.findAssetDir(templatePath, relDir)
 		if sourceDir == "" {
 			continue
@@ -28,7 +26,7 @@ func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) erro
 		}
 	}
 
-	for _, relFile := range referencedAssetFiles(rendered) {
+	for _, relFile := range latex.AssetFiles(rendered) {
 		sourceFile := h.findAssetFile(templatePath, relFile)
 		if sourceFile == "" {
 			continue
@@ -61,39 +59,6 @@ func (h Host) findAsset(templatePath, relPath string, isDir bool) string {
 	}
 	found, _ := h.findInConfigDir(isDir, relPath)
 	return found.Path
-}
-
-func referencedAssetDirs(rendered string) []string {
-	re := regexp.MustCompile(`Path=([^,\]\n]+)`)
-	matches := re.FindAllStringSubmatch(rendered, -1)
-	return uniqueRelativePaths(matches, 1)
-}
-
-func referencedAssetFiles(rendered string) []string {
-	re := regexp.MustCompile(`\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}`)
-	matches := re.FindAllStringSubmatch(rendered, -1)
-	return uniqueRelativePaths(matches, 1)
-}
-
-func uniqueRelativePaths(matches [][]string, index int) []string {
-	seen := make(map[string]struct{})
-	paths := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) <= index {
-			continue
-		}
-		path := strings.TrimSpace(match[index])
-		if path == "" || filepath.IsAbs(path) || strings.HasPrefix(path, "..") {
-			continue
-		}
-		if _, exists := seen[path]; exists {
-			continue
-		}
-		seen[path] = struct{}{}
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	return paths
 }
 
 func copyDir(sourceDir, destDir string) error {

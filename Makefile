@@ -33,16 +33,18 @@ build: ## Build the local binary at ./bin/invox.
 test: ## Run the Go test suite with the race detector.
 	$(GO) test -race ./...
 
-FUZZ_PACKAGE := ./internal/invoice
+# Every package with a fuzz target; go test -fuzz takes one package at a time.
+FUZZ_PACKAGES ?= $(shell grep -rl --include='*_test.go' '^func Fuzz' . | xargs -n1 dirname | sort -u)
 FUZZTIME ?= 10s
 
 fuzz: ## Run each fuzz target for FUZZTIME (default: 10s).
 	set -e; \
-	targets="$$($(GO) test -list '^Fuzz' $(FUZZ_PACKAGE) | grep '^Fuzz' || true)"; \
-	if [ -z "$$targets" ]; then echo "no fuzz targets found in $(FUZZ_PACKAGE)" >&2; exit 1; fi; \
-	for target in $$targets; do \
-		echo "$$target"; \
-		$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $(FUZZ_PACKAGE) || exit 1; \
+	if [ -z "$(FUZZ_PACKAGES)" ]; then echo "no fuzz targets found" >&2; exit 1; fi; \
+	for package in $(FUZZ_PACKAGES); do \
+		for target in $$($(GO) test -list '^Fuzz' $$package | grep '^Fuzz'); do \
+			echo "$$package $$target"; \
+			$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $$package || exit 1; \
+		done; \
 	done
 
 vet: ## Run go vet across the module.

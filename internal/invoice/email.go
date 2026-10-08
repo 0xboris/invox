@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/fsutil"
+	"github.com/0xboris/invox/internal/money"
 )
 
 type EmailDraftResult struct {
@@ -394,7 +395,7 @@ func emailTemplateReplacer(ctx *Context) *strings.Replacer {
 }
 
 func emailMoney(cents int64, currency string) string {
-	return FormatMoneyCents(cents) + " " + currency
+	return money.FormatCents(cents) + " " + currency
 }
 
 // formatMIMEParameter keeps the plain quoted form for printable ASCII values

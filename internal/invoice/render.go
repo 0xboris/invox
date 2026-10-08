@@ -2,15 +2,13 @@ package invoice
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/0xboris/invox/internal/fsutil"
+	"github.com/0xboris/invox/internal/render/latex"
 )
 
 const (
@@ -27,8 +25,8 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 	if err != nil {
 		return err
 	}
-	template := migrateLegacyTemplatePlaceholders(string(content))
-	if err := validateTemplatePlaceholders(template); err != nil {
+	template := latex.MigrateLegacyPlaceholders(string(content))
+	if err := latex.ValidateTemplate(template); err != nil {
 		return fmt.Errorf("%s: %w", templatePath, err)
 	}
 	hasActiveEPCQRAvailable := strings.Contains(template, epcQRAvailablePlaceholder)
@@ -47,7 +45,7 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 	values[epcQRAvailablePlaceholder] = epcQRAvailable
 	values[epcQRLabelPlaceholder] = epcQRLabel
 	values[epcQRCodePlaceholder] = epcQRCode
-	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, sortedReplacementPairs(values))
+	rendered := latex.Fill(template, values, latexItems(ctx.LineItems), ctx.Currency)
 	if err := fsutil.WriteFile(outputPath, []byte(rendered), fsutil.Public); err != nil {
 		return err
 	}
@@ -80,84 +78,59 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	return fsutil.WriteFile(outputPath, pdf, fsutil.Public)
 }
 
-func validateTemplatePlaceholders(template string) error {
-	var validationErrors []string
-	for placeholder, replacement := range map[string]string{
-		"@@VAT_RATE@@":                      "@@VAT_SUMMARY_ROWS@@",
-		"@@VAT_AMOUNT@@":                    "@@VAT_SUMMARY_ROWS@@",
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@":   "@@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@": "@@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
-	} {
-		if strings.Contains(template, placeholder) {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))
-		}
-	}
-	if validateLineItemBlockPlaceholders(template, &validationErrors) {
-		validateLineItemPlaceholdersOutsideBlocks(template, &validationErrors)
-	}
-	if len(validationErrors) > 0 {
-		return errors.New(strings.Join(validationErrors, "\n"))
-	}
-	return nil
-}
-
-func migrateLegacyTemplatePlaceholders(template string) string {
-	legacyVATRowPattern := regexp.MustCompile(`(?m)^([ \t]*)VAT \(@@VAT_RATE@@\\%\): & @@VAT_AMOUNT@@\\\\[ \t]*$`)
-	return legacyVATRowPattern.ReplaceAllString(template, `${1}@@VAT_SUMMARY_ROWS@@`)
-}
-
 func buildTemplateValues(ctx *Context) map[string]string {
 	return map[string]string{
-		"@@ISSUER_NAME@@":              latexEscape(string(ctx.Company.LegalCompanyName)),
-		"@@ISSUER_COMPANY_REG_NO@@":    latexEscape(string(ctx.Company.CompanyRegistrationNumber)),
-		"@@ISSUER_VAT_TAX_ID@@":        latexEscape(string(ctx.Company.VATTaxID)),
-		"@@ISSUER_WEBSITE@@":           latexEscape(string(ctx.Company.Website)),
-		"@@ISSUER_EMAIL@@":             latexEscape(string(ctx.Company.Email)),
-		"@@ISSUER_STREET@@":            latexEscape(string(ctx.Company.Address.Street)),
-		"@@ISSUER_CITY@@":              latexEscape(string(ctx.Company.Address.City)),
-		"@@ISSUER_POSTAL_CODE@@":       latexEscape(string(ctx.Company.Address.PostalCode)),
-		"@@ISSUER_COUNTRY@@":           latexEscape(string(ctx.Company.Address.Country)),
-		"@@INVOICE_NUMBER@@":           latexEscape(string(ctx.Invoice.Number)),
-		"@@ISSUE_DATE@@":               latexEscape(ctx.Invoice.IssueDate.Display()),
-		"@@DUE_DATE@@":                 latexEscape(ctx.Invoice.DueDate.Display()),
-		"@@INVOICE_TOTAL@@":            FormatCurrency(ctx.TotalCents, ctx.Currency),
-		"@@OUTSTANDING_TOTAL@@":        FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@CUSTOMER_NAME@@":            latexEscape(ctx.Customer.DisplayName()),
-		"@@CUSTOMER_STREET@@":          latexEscape(string(ctx.Customer.Address.Street)),
-		"@@CUSTOMER_CITY@@":            latexEscape(string(ctx.Customer.Address.City)),
-		"@@CUSTOMER_POSTAL_CODE@@":     latexEscape(string(ctx.Customer.Address.PostalCode)),
-		"@@CUSTOMER_COUNTRY@@":         latexEscape(string(ctx.Customer.Address.Country)),
-		"@@CUSTOMER_VAT_TAX_ID@@":      latexEscape(string(ctx.Customer.Tax.VATTaxID)),
-		"@@CUSTOMER_EMAIL@@":           latexEscape(ctx.CustomerEmail),
-		"@@LINE_ITEMS_ROWS@@":          renderLineItems(ctx.LineItems, ctx.Currency),
-		"@@LINE_ITEMS_ROWS_WITH_VAT@@": renderLineItemsWithVAT(ctx.LineItems, ctx.Currency),
-		"@@PERIOD_LABEL@@":             latexEscape(string(ctx.Invoice.Period)),
-		"@@PAYMENT_TERMS_TEXT@@":       latexEscape(string(ctx.Payment.PaymentTermsText)),
-		"@@VAT_LABEL@@":                latexEscape(ctx.Payment.vatLabel()),
-		"@@SUBTOTAL@@":                 FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_SUMMARY_ROWS@@":         renderVATSummaryRows(ctx.Payment.vatLabel(), ctx.VATBreakdowns, ctx.Currency),
-		"@@TOTAL@@":                    FormatCurrency(ctx.TotalCents, ctx.Currency),
-		"@@PAID_AMOUNT@@":              FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
-		"@@OUTSTANDING_AMOUNT@@":       FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@BANK_NAME@@":                latexEscape(string(ctx.Payment.BankName)),
-		"@@IBAN@@":                     latexEscape(string(ctx.Payment.IBAN)),
-		"@@BIC@@":                      latexEscape(string(ctx.Payment.BIC)),
+		"@@ISSUER_NAME@@":              latex.Escape(string(ctx.Company.LegalCompanyName)),
+		"@@ISSUER_COMPANY_REG_NO@@":    latex.Escape(string(ctx.Company.CompanyRegistrationNumber)),
+		"@@ISSUER_VAT_TAX_ID@@":        latex.Escape(string(ctx.Company.VATTaxID)),
+		"@@ISSUER_WEBSITE@@":           latex.Escape(string(ctx.Company.Website)),
+		"@@ISSUER_EMAIL@@":             latex.Escape(string(ctx.Company.Email)),
+		"@@ISSUER_STREET@@":            latex.Escape(string(ctx.Company.Address.Street)),
+		"@@ISSUER_CITY@@":              latex.Escape(string(ctx.Company.Address.City)),
+		"@@ISSUER_POSTAL_CODE@@":       latex.Escape(string(ctx.Company.Address.PostalCode)),
+		"@@ISSUER_COUNTRY@@":           latex.Escape(string(ctx.Company.Address.Country)),
+		"@@INVOICE_NUMBER@@":           latex.Escape(string(ctx.Invoice.Number)),
+		"@@ISSUE_DATE@@":               latex.Escape(ctx.Invoice.IssueDate.Display()),
+		"@@DUE_DATE@@":                 latex.Escape(ctx.Invoice.DueDate.Display()),
+		"@@INVOICE_TOTAL@@":            latex.FormatCurrency(ctx.TotalCents, ctx.Currency),
+		"@@OUTSTANDING_TOTAL@@":        latex.FormatCurrency(ctx.OutstandingCents, ctx.Currency),
+		"@@CUSTOMER_NAME@@":            latex.Escape(ctx.Customer.DisplayName()),
+		"@@CUSTOMER_STREET@@":          latex.Escape(string(ctx.Customer.Address.Street)),
+		"@@CUSTOMER_CITY@@":            latex.Escape(string(ctx.Customer.Address.City)),
+		"@@CUSTOMER_POSTAL_CODE@@":     latex.Escape(string(ctx.Customer.Address.PostalCode)),
+		"@@CUSTOMER_COUNTRY@@":         latex.Escape(string(ctx.Customer.Address.Country)),
+		"@@CUSTOMER_VAT_TAX_ID@@":      latex.Escape(string(ctx.Customer.Tax.VATTaxID)),
+		"@@CUSTOMER_EMAIL@@":           latex.Escape(ctx.CustomerEmail),
+		"@@LINE_ITEMS_ROWS@@":          latex.LineItemRows(latexItems(ctx.LineItems), ctx.Currency),
+		"@@LINE_ITEMS_ROWS_WITH_VAT@@": latex.LineItemRowsWithVAT(latexItems(ctx.LineItems), ctx.Currency),
+		"@@PERIOD_LABEL@@":             latex.Escape(string(ctx.Invoice.Period)),
+		"@@PAYMENT_TERMS_TEXT@@":       latex.Escape(string(ctx.Payment.PaymentTermsText)),
+		"@@VAT_LABEL@@":                latex.Escape(ctx.Payment.vatLabel()),
+		"@@SUBTOTAL@@":                 latex.FormatCurrency(ctx.SubtotalCents, ctx.Currency),
+		"@@VAT_SUMMARY_ROWS@@":         latex.VATSummaryRows(ctx.Payment.vatLabel(), latexVATRows(ctx.VATBreakdowns), ctx.Currency),
+		"@@TOTAL@@":                    latex.FormatCurrency(ctx.TotalCents, ctx.Currency),
+		"@@PAID_AMOUNT@@":              latex.FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
+		"@@OUTSTANDING_AMOUNT@@":       latex.FormatCurrency(ctx.OutstandingCents, ctx.Currency),
+		"@@BANK_NAME@@":                latex.Escape(string(ctx.Payment.BankName)),
+		"@@IBAN@@":                     latex.Escape(string(ctx.Payment.IBAN)),
+		"@@BIC@@":                      latex.Escape(string(ctx.Payment.BIC)),
 	}
 }
 
-// sortedReplacementPairs flattens placeholder values into strings.NewReplacer
-// arguments in sorted key order, so rendering does not depend on map order.
-func sortedReplacementPairs(values map[string]string) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
+func latexItems(items []LineItem) []latex.Item {
+	converted := make([]latex.Item, len(items))
+	for i, item := range items {
+		converted[i] = latex.Item(item)
 	}
-	sort.Strings(keys)
-	pairs := make([]string, 0, len(keys)*2)
-	for _, key := range keys {
-		pairs = append(pairs, key, values[key])
+	return converted
+}
+
+func latexVATRows(breakdowns []VATBreakdown) []latex.VATRow {
+	converted := make([]latex.VATRow, len(breakdowns))
+	for i, breakdown := range breakdowns {
+		converted[i] = latex.VATRow(breakdown)
 	}
-	return pairs
+	return converted
 }
 
 func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode bool) (string, string, string, error) {
@@ -180,7 +153,7 @@ func resolveEPCQRPlaceholders(ctx *Context, wantAvailable, wantLabel, wantCode b
 	if wantLabel {
 		label = renderEPCQRCodeLabel(ctx)
 	}
-	return epcQRAvailabilityLiteral(wantAvailable, true), label, renderQRCodePayload(payload), nil
+	return epcQRAvailabilityLiteral(wantAvailable, true), label, latex.QRCode(payload), nil
 }
 
 func epcQRAvailabilityLiteral(wantAvailable, available bool) string {
@@ -200,5 +173,5 @@ func renderEPCQRCodeLabel(ctx *Context) string {
 			label = configured
 		}
 	}
-	return latexEscape(label)
+	return latex.Escape(label)
 }

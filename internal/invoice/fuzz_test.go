@@ -2,20 +2,21 @@ package invoice
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/0xboris/invox/internal/epc"
+	"github.com/0xboris/invox/internal/money"
 )
 
 // The fuzz targets below run their seeds, and every crasher committed under
 // testdata/fuzz/<Target>/, as part of `go test`. Run one for longer with
 //
-//	go test -run='^$' -fuzz='^FuzzParseDecimal$' -fuzztime=60s ./internal/invoice
+//	go test -run='^$' -fuzz='^FuzzLoadContext$' -fuzztime=60s ./internal/invoice
 //
 // or all of them with `make fuzz`.
 
@@ -77,276 +78,6 @@ func FuzzInvoiceNumberRoundTrip(f *testing.F) {
 		}
 		if got != counter {
 			t.Fatalf("pattern %q formatted counter %d as %q, which parses back as %d", pattern, counter, number, got)
-		}
-	})
-}
-
-func FuzzParseDecimal(f *testing.F) {
-	for _, seed := range []string{
-		"12", "12.50", "-3.5", " 7 ", "010", "-0", "0.005", "-0.005", "0.125",
-		"0x10", "0o10", "0b10", "1/3", "010/1", "1e3", ".5", "5.", "+5", "1_000", "1,5", "",
-		// #17: amounts that overflowed int64 cents.
-		"100000000000000000", "1000000000000000000000000000000",
-		"10000000000000", "10000000000000.004", "10000000000000.005", "-10000000000000.005",
-	} {
-		f.Add(seed)
-	}
-
-	maxCents := big.NewInt(maxMoneyCents)
-	f.Fuzz(func(t *testing.T, text string) {
-		value, ok := parseDecimal(text)
-		want, wantOK := decimalOracle(strings.TrimSpace(text))
-		if ok != wantOK {
-			t.Fatalf("parseDecimal(%q) ok = %v, want %v", text, ok, wantOK)
-		}
-		if !ok {
-			return
-		}
-		if value.Cmp(want) != 0 {
-			t.Fatalf("parseDecimal(%q) = %s, want %s", text, value.RatString(), want.RatString())
-		}
-
-		// Accepted values never overflow downstream: they either fit in the
-		// money range, rounded exactly, or are reported as too large.
-		wantCents := centsOracle(strings.TrimSpace(text))
-		cents, ok := moneyCents(value)
-		if fits := wantCents.CmpAbs(maxCents) <= 0; ok != fits {
-			t.Fatalf("moneyCents(%q) ok = %v, want %v (cents %s)", text, ok, fits, wantCents)
-		}
-		if !ok {
-			return
-		}
-		if cents != wantCents.Int64() {
-			t.Fatalf("moneyCents(%q) = %d, want %s", text, cents, wantCents)
-		}
-		if quantized := quantizeMoney(value); quantized != cents {
-			t.Fatalf("quantizeMoney(%q) = %d, want %d", text, quantized, cents)
-		}
-	})
-}
-
-// decimalOracle accepts `^-?[0-9]+(\.[0-9]+)?$` with a hand-written scanner,
-// so it does not share code with parseDecimal.
-func decimalOracle(text string) (*big.Rat, bool) {
-	digits := strings.TrimPrefix(text, "-")
-	whole, fraction, hasPoint := strings.Cut(digits, ".")
-	if whole == "" || (hasPoint && fraction == "") {
-		return nil, false
-	}
-	for _, r := range whole + fraction {
-		if r < '0' || r > '9' {
-			return nil, false
-		}
-	}
-	numerator, _ := new(big.Int).SetString(whole+fraction, 10)
-	if digits != text {
-		numerator.Neg(numerator)
-	}
-	denominator := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(len(fraction))), nil)
-	return new(big.Rat).SetFrac(numerator, denominator), true
-}
-
-// centsOracle rounds an accepted decimal to cents, halves away from zero, by
-// looking at its digits.
-func centsOracle(text string) *big.Int {
-	digits := strings.TrimPrefix(text, "-")
-	whole, fraction, _ := strings.Cut(digits, ".")
-	fraction += "000"
-	cents, _ := new(big.Int).SetString(whole+fraction[:2], 10)
-	if fraction[2] >= '5' {
-		cents.Add(cents, big.NewInt(1))
-	}
-	if digits != text {
-		cents.Neg(cents)
-	}
-	return cents
-}
-
-func FuzzIsValidIBAN(f *testing.F) {
-	for _, seed := range []string{
-		"AT611904300234573201",
-		"PL61109010140000071219812874",
-		"DE89370400440532013000",
-		"GI75NWBK000000007099453",
-		"ZZ6600000000000",
-		"AT61190430023457320",
-		"ATAA1904300234573201",
-		"at611904300234573201",
-		// #17: check digits 00, 01 and 99 never occur in a valid IBAN.
-		"DE01370400440000000042",
-		"DE00370400440000000",
-		"DE99370400440000000000",
-		"",
-	} {
-		f.Add(seed)
-	}
-
-	f.Fuzz(func(t *testing.T, value string) {
-		got := isValidIBAN(value)
-		if want := ibanOracle(value); got != want {
-			t.Fatalf("isValidIBAN(%q) = %v, want %v", value, got, want)
-		}
-	})
-}
-
-// ibanOracle checks an IBAN with big-integer arithmetic: a known country and
-// length, upper-case letters and digits only, check digits 02-98, and the
-// rearranged number mod 97 == 1.
-func ibanOracle(value string) bool {
-	if len(value) < 4 || ibanCountryLengths[value[:2]] != len(value) {
-		return false
-	}
-	checkDigits := value[2:4]
-	if checkDigits[0] < '0' || checkDigits[0] > '9' || checkDigits[1] < '0' || checkDigits[1] > '9' {
-		return false
-	}
-	if checkDigits < "02" || checkDigits > "98" {
-		return false
-	}
-	var numeric strings.Builder
-	for _, r := range value[4:] + value[:4] {
-		switch {
-		case r >= '0' && r <= '9':
-			numeric.WriteRune(r)
-		case r >= 'A' && r <= 'Z':
-			numeric.WriteString(strconv.Itoa(int(r-'A') + 10))
-		default:
-			return false
-		}
-	}
-	number, ok := new(big.Int).SetString(numeric.String(), 10)
-	if !ok {
-		return false
-	}
-	return new(big.Int).Mod(number, big.NewInt(97)).Int64() == 1
-}
-
-func FuzzLatexEscape(f *testing.F) {
-	for _, seed := range []string{
-		"",
-		"Hauptstrasse 1",
-		`100% & $5 #1 a_b {c} ~d ^e \f`,
-		`\textbf{bold}`,
-		`\\`,
-		"Café Zürich",
-		"[Q1] 2026",
-		"*Street 1",
-	} {
-		f.Add(seed)
-	}
-
-	f.Fuzz(func(t *testing.T, text string) {
-		escaped := latexEscape(text)
-		decoded, err := decodeLatexEscape(escaped)
-		if err != nil {
-			t.Fatalf("latexEscape(%q) = %q: %v", text, escaped, err)
-		}
-		if decoded != text {
-			t.Fatalf("latexEscape(%q) = %q, which reads back as %q", text, escaped, decoded)
-		}
-	})
-}
-
-// latexEscapeSequences are the control sequences latexEscape may emit, and the
-// input text each one stands for.
-var latexEscapeSequences = []struct{ sequence, text string }{
-	{`\textbackslash{}`, `\`},
-	{`\textasciitilde{}`, `~`},
-	{`\textasciicircum{}`, `^`},
-	{`\&`, `&`},
-	{`\%`, `%`},
-	{`\$`, `$`},
-	{`\#`, `#`},
-	{`\_`, `_`},
-	{`\{`, `{`},
-	{`\}`, `}`},
-}
-
-// decodeLatexEscape reads latexEscape output back into text. It fails on any
-// TeX special character that is not part of an escape sequence, so a
-// successful round trip shows that every special in the input was escaped
-// and that no control sequence in the output came from the input. A brace
-// group holding at most one plain character, such as `{}` or `{[}`, is
-// allowed so the escaper may protect `[` and `*`.
-func decodeLatexEscape(escaped string) (string, error) {
-	var decoded strings.Builder
-	rest := escaped
-next:
-	for rest != "" {
-		for _, escape := range latexEscapeSequences {
-			if strings.HasPrefix(rest, escape.sequence) {
-				decoded.WriteString(escape.text)
-				rest = rest[len(escape.sequence):]
-				continue next
-			}
-		}
-		if rest[0] == '{' {
-			body, after, ok := strings.Cut(rest[1:], "}")
-			if ok && utf8.RuneCountInString(body) <= 1 && !strings.ContainsAny(body, `\&%$#_{}~^`) {
-				decoded.WriteString(body)
-				rest = after
-				continue
-			}
-		}
-		if strings.ContainsRune(`\&%$#_{}~^`, rune(rest[0])) {
-			return "", fmt.Errorf("unescaped TeX special character at byte %d", len(escaped)-len(rest))
-		}
-		decoded.WriteByte(rest[0])
-		rest = rest[1:]
-	}
-	return decoded.String(), nil
-}
-
-func FuzzValidateTemplatePlaceholders(f *testing.F) {
-	for _, seed := range []string{
-		"",
-		"Invoice @@INVOICE_NUMBER@@\n@@LINE_ITEMS_ROWS@@\n",
-		"@@LINE_ITEMS_BEGIN@@\n@@LINE_ITEM_NAME@@ & @@LINE_ITEM_LINE_TOTAL@@\\\\\n@@LINE_ITEM_RULE@@\n@@LINE_ITEMS_END@@\n",
-		"  @@LINE_ITEMS_BEGIN@@\r\n@@LINE_ITEM_NAME@@\r\n  @@LINE_ITEMS_END@@\r\n",
-		"@@LINE_ITEMS_BEGIN@@@@LINE_ITEMS_BEGIN@@@@LINE_ITEMS_END@@@@LINE_ITEMS_END@@",
-		"@@LINE_ITEMS_END@@",
-		"@@LINE_ITEMS_BEGIN@@",
-		"@@LINE_ITEM_NAME@@",
-		"VAT (@@VAT_RATE@@\\%): & @@VAT_AMOUNT@@\\\\",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@ @@ISSUER_CITY_AND_POSTAL_CODE@@",
-	} {
-		f.Add(seed)
-	}
-
-	ctx := fuzzContext(f)
-	pairs := sortedReplacementPairs(buildTemplateValues(ctx))
-	f.Fuzz(func(t *testing.T, template string) {
-		err := validateTemplatePlaceholders(template)
-		if err != nil {
-			if strings.TrimSpace(err.Error()) == "" {
-				t.Fatalf("validateTemplatePlaceholders(%q) returned an empty error", template)
-			}
-			return
-		}
-
-		// The renderer expands exactly the blocks the validator approved:
-		// each block starts at a BEGIN and ends at the END that the
-		// boundary scan paired with it.
-		var boundaries []int
-		for _, match := range lineItemsBoundaryPattern.FindAllStringIndex(template, -1) {
-			boundaries = append(boundaries, match[0], match[1])
-		}
-		var blocks []int
-		for _, match := range lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1) {
-			blocks = append(blocks, match[0], match[2], match[3], match[1])
-		}
-		if len(blocks) != len(boundaries) {
-			t.Fatalf("template %q: renderer finds blocks %v, validator finds boundaries %v", template, blocks, boundaries)
-		}
-		for index := range blocks {
-			if blocks[index] != boundaries[index] {
-				t.Fatalf("template %q: renderer finds blocks %v, validator finds boundaries %v", template, blocks, boundaries)
-			}
-		}
-
-		rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, pairs)
-		if !strings.Contains(template, "@@") && rendered != template {
-			t.Fatalf("template %q without placeholders rendered as %q", template, rendered)
 		}
 	})
 }
@@ -425,8 +156,8 @@ func FuzzBuildEPCPayload(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if len(payload) > epcQRMaxPayloadBytes {
-			t.Fatalf("payload is %d bytes, more than %d: %q", len(payload), epcQRMaxPayloadBytes, payload)
+		if len(payload) > epc.MaxPayloadBytes {
+			t.Fatalf("payload is %d bytes, more than %d: %q", len(payload), epc.MaxPayloadBytes, payload)
 		}
 		if !utf8.Valid(payload) {
 			t.Fatalf("payload is not valid UTF-8: %q", payload)
@@ -435,10 +166,10 @@ func FuzzBuildEPCPayload(f *testing.F) {
 		if len(lines) < 8 || len(lines) > 12 || lines[0] != "BCD" || lines[3] != "SCT" {
 			t.Fatalf("payload does not have the EPC layout: %q", payload)
 		}
-		if !isValidIBAN(lines[6]) {
+		if !epc.ValidIBAN(lines[6]) {
 			t.Fatalf("payload carries invalid IBAN %q", lines[6])
 		}
-		if cents < 1 || cents > epcQRMaxAmountCents {
+		if cents < 1 || cents > epc.MaxAmountCents {
 			t.Fatalf("payload accepted amount %d cents outside 0.01-999999999.99: %q", cents, payload)
 		}
 		if want := fmt.Sprintf("EUR%d.%02d", cents/100, cents%100); lines[7] != want {
@@ -488,8 +219,8 @@ func checkContextTotals(t *testing.T, ctx *Context) {
 	t.Helper()
 
 	inRange := func(label string, cents int64) {
-		if cents < 0 || cents > maxMoneyCents {
-			t.Fatalf("%s = %d cents, outside 0..%d", label, cents, maxMoneyCents)
+		if cents < 0 || cents > money.MaxCents {
+			t.Fatalf("%s = %d cents, outside 0..%d", label, cents, money.MaxCents)
 		}
 	}
 	if len(ctx.LineItems) == 0 {
@@ -498,7 +229,7 @@ func checkContextTotals(t *testing.T, ctx *Context) {
 	var subtotal int64
 	for index, item := range ctx.LineItems {
 		inRange("line total", item.LineTotalCents)
-		if _, ok := moneyCents(item.UnitPrice); !ok {
+		if _, ok := money.Cents(item.UnitPrice); !ok {
 			t.Fatalf("positions[%d].unit_price %s does not fit in cents", index+1, item.UnitPrice.RatString())
 		}
 		subtotal += item.LineTotalCents

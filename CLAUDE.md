@@ -31,9 +31,13 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   streams and the external-program adapters.
 - `internal/adapters`: `run` is the only package that calls `os/exec`. `tectonic`, `editor`,
   `opener` and `applemail` each wrap one program on top of a `run.Runner`.
-- `internal/invoice`: domain logic (loading and validation, money and VAT, numbering,
-  rendering, EPC QR, email drafts, archive), one file per concept. Issue #44 moves `money`,
-  `epc`, `render/latex`, `archive` and `email` out into their own packages.
+- `internal/invoice`: domain logic (loading and validation, VAT totals, numbering, the
+  render and EPC orchestration, email drafts, archive), one file per concept. Issue #44 moves
+  `archive` and `email` out next.
+- `internal/money` (decimals, cents, 1.234,56 formatting) and `internal/epc` (EPC QR rules
+  and payload) import only the standard library. `internal/render/latex` (escaping, rows,
+  line item blocks, template checks) imports only `money`. `invoice` imports all three;
+  none of them imports `invoice`.
 - `internal/invoice/starter`: files embedded for `invox init`.
 
 ## Quality roadmap
