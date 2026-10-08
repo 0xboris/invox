@@ -1,23 +1,16 @@
 package invoice
 
 import (
-	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"mime"
-	"mime/multipart"
-	"mime/quotedprintable"
-	"net/mail"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/email"
 	"github.com/0xboris/invox/internal/fsutil"
 	"github.com/0xboris/invox/internal/money"
 )
@@ -30,30 +23,12 @@ type EmailDraftResult struct {
 	InvoiceNumber string
 }
 
+// EmailMessage is the draft of an invoice email and the invoice it is for.
 type EmailMessage struct {
-	Recipient      string
-	Subject        string
-	Body           string
-	SenderName     string
-	SenderAddress  string
-	AttachmentPath string
-	CustomerID     string
-	InvoiceNumber  string
+	email.Draft
+	CustomerID    string
+	InvoiceNumber string
 }
-
-const (
-	defaultEmailSubjectTemplate = "Invoice {invoice_number}"
-	defaultEmailBodyTemplate    = `{email_greeting}
-
-Please find attached invoice {invoice_number}.
-Issue date: {issue_date}
-Due date: {due_date}
-Outstanding amount: {outstanding_amount}
-
-Regards,
-{issuer_name}
-`
-)
 
 type EmailDraftPaths struct {
 	InvoicePath string
@@ -121,23 +96,12 @@ func invoiceYAMLCandidatesForPDF(pdfPath string) []string {
 }
 
 func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
-	archiveDir, err := h.ResolveArchiveDir()
+	store, err := h.archiveStore()
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(archiveDir) == "" {
+	if strings.TrimSpace(store.Dir) == "" {
 		return "", nil
-	}
-
-	info, err := os.Stat(archiveDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
 	}
 
 	basenames := make([]string, 0, 2)
@@ -145,20 +109,14 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 		basenames = append(basenames, filepath.Base(path))
 	}
 	if path := firstExistingPath(
-		filepath.Join(archiveDir, basenames[0]),
-		filepath.Join(archiveDir, basenames[1]),
+		filepath.Join(store.Dir, basenames[0]),
+		filepath.Join(store.Dir, basenames[1]),
 	); path != "" {
 		return path, nil
 	}
 
 	matches := make([]string, 0, 1)
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
+	err = store.Walk(func(path string) error {
 		name := filepath.Base(path)
 		for _, basename := range basenames {
 			if name == basename {
@@ -181,7 +139,7 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	sort.Strings(matches)
 	return "", fmt.Errorf(
 		"%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s",
-		archiveDir,
+		store.Dir,
 		filepath.Base(replaceFileExtension(pdfPath, ".yaml")),
 		strings.Join(matches, ", "),
 	)
@@ -208,7 +166,7 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, 
 		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
 
-	message, err := buildInvoiceEmailDraft(emailMessage, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
+	message, err := email.Build(emailMessage.Draft, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -264,74 +222,17 @@ func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPat
 	}
 
 	return EmailMessage{
-		Recipient:      recipient,
-		Subject:        subject,
-		Body:           body,
-		SenderName:     ctx.Company.LegalCompanyName.Trim(),
-		SenderAddress:  ctx.Company.Email.Trim(),
-		AttachmentPath: pdfPath,
-		CustomerID:     ctx.CustomerID,
-		InvoiceNumber:  ctx.InvoiceNumber,
+		Draft: email.Draft{
+			Recipient:      recipient,
+			Subject:        subject,
+			Body:           body,
+			SenderName:     ctx.Company.LegalCompanyName.Trim(),
+			SenderAddress:  ctx.Company.Email.Trim(),
+			AttachmentPath: pdfPath,
+		},
+		CustomerID:    ctx.CustomerID,
+		InvoiceNumber: ctx.InvoiceNumber,
 	}, nil
-}
-
-func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte, now time.Time, boundary string) ([]byte, error) {
-	fromAddress := mail.Address{
-		Name:    emailMessage.SenderName,
-		Address: emailMessage.SenderAddress,
-	}
-	toAddress := mail.Address{
-		Address: emailMessage.Recipient,
-	}
-
-	var buffer bytes.Buffer
-
-	fmt.Fprintf(&buffer, "From: %s\r\n", fromAddress.String())
-	fmt.Fprintf(&buffer, "To: %s\r\n", toAddress.String())
-	fmt.Fprintf(&buffer, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", emailMessage.Subject))
-	fmt.Fprintf(&buffer, "Date: %s\r\n", now.Format(time.RFC1123Z))
-	fmt.Fprintf(&buffer, "MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&buffer, "X-Unsent: 1\r\n")
-	fmt.Fprintf(&buffer, "Content-Type: multipart/mixed; boundary=%q\r\n", boundary)
-	fmt.Fprintf(&buffer, "\r\n")
-
-	writer := multipart.NewWriter(&buffer)
-	if err := writer.SetBoundary(boundary); err != nil {
-		return nil, err
-	}
-
-	textPart, err := writer.CreatePart(textproto.MIMEHeader{
-		"Content-Type":              {`text/plain; charset="utf-8"`},
-		"Content-Transfer-Encoding": {"quoted-printable"},
-	})
-	if err != nil {
-		return nil, err
-	}
-	bodyWriter := quotedprintable.NewWriter(textPart)
-	if _, err := bodyWriter.Write([]byte(emailMessage.Body)); err != nil {
-		return nil, err
-	}
-	if err := bodyWriter.Close(); err != nil {
-		return nil, err
-	}
-
-	filename := filepath.Base(emailMessage.AttachmentPath)
-	attachmentPart, err := writer.CreatePart(textproto.MIMEHeader{
-		"Content-Type":              {formatMIMEParameter("application/pdf", "name", filename)},
-		"Content-Transfer-Encoding": {"base64"},
-		"Content-Disposition":       {formatMIMEParameter("attachment", "filename", filename)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if err := writeBase64MIME(attachmentPart, pdfBytes); err != nil {
-		return nil, err
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
 }
 
 func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (string, error) {
@@ -343,16 +244,9 @@ func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride str
 		}
 		template = string(cfg.Email.Subject)
 	}
-	if strings.TrimSpace(template) == "" {
-		template = defaultEmailSubjectTemplate
-	}
-
-	subject := strings.TrimSpace(renderEmailTemplate(template, ctx))
-	if subject == "" {
-		return "", fmt.Errorf("%s: email subject resolved to empty value", invoicePath)
-	}
-	if strings.ContainsAny(subject, "\r\n") {
-		return "", fmt.Errorf("%s: email subject must be a single line", invoicePath)
+	subject, err := email.Subject(template, emailFields(ctx))
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", invoicePath, err)
 	}
 	return subject, nil
 }
@@ -362,71 +256,26 @@ func (h Host) invoiceEmailBodyText(ctx *Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	template := string(cfg.Email.Body)
-	if template == "" {
-		template = defaultEmailBodyTemplate
+	return email.Body(string(cfg.Email.Body), emailFields(ctx)), nil
+}
+
+// emailFields is what the email placeholders stand for in ctx.
+func emailFields(ctx *Context) email.Fields {
+	return email.Fields{
+		CustomerName:      ctx.Customer.DisplayName(),
+		Greeting:          ctx.Customer.emailGreeting(),
+		ContactPerson:     ctx.Customer.contactPerson(),
+		CustomerID:        ctx.CustomerID,
+		InvoiceNumber:     ctx.InvoiceNumber,
+		IssueDate:         ctx.Invoice.IssueDate.String(),
+		DueDate:           ctx.Invoice.DueDate.String(),
+		TotalAmount:       emailMoney(ctx.TotalCents, ctx.Currency),
+		OutstandingAmount: emailMoney(ctx.OutstandingCents, ctx.Currency),
+		PaymentTermsText:  ctx.Payment.PaymentTermsText.Trim(),
+		IssuerName:        ctx.Company.LegalCompanyName.Trim(),
 	}
-
-	body := renderEmailTemplate(template, ctx)
-	body = strings.TrimRight(body, "\n") + "\n\n"
-	return body, nil
-}
-
-func renderEmailTemplate(template string, ctx *Context) string {
-	template = strings.ReplaceAll(template, "\r\n", "\n")
-	template = strings.ReplaceAll(template, "\r", "\n")
-	return emailTemplateReplacer(ctx).Replace(template)
-}
-
-func emailTemplateReplacer(ctx *Context) *strings.Replacer {
-	return strings.NewReplacer(
-		"{customer_name}", ctx.Customer.DisplayName(),
-		"{email_greeting}", ctx.Customer.emailGreeting(),
-		"{contact_person}", ctx.Customer.contactPerson(),
-		"{customer_id}", ctx.CustomerID,
-		"{invoice_number}", ctx.InvoiceNumber,
-		"{issue_date}", ctx.Invoice.IssueDate.String(),
-		"{due_date}", ctx.Invoice.DueDate.String(),
-		"{total_amount}", emailMoney(ctx.TotalCents, ctx.Currency),
-		"{outstanding_amount}", emailMoney(ctx.OutstandingCents, ctx.Currency),
-		"{payment_terms_text}", ctx.Payment.PaymentTermsText.Trim(),
-		"{issuer_name}", ctx.Company.LegalCompanyName.Trim(),
-	)
 }
 
 func emailMoney(cents int64, currency string) string {
 	return money.FormatCents(cents) + " " + currency
-}
-
-// formatMIMEParameter keeps the plain quoted form for printable ASCII values
-// without quotes or backslashes, and otherwise lets mime.FormatMediaType escape
-// the value or RFC 2231-encode it.
-func formatMIMEParameter(mediaType, key, value string) string {
-	plain := true
-	for i := 0; i < len(value); i++ {
-		if c := value[i]; c < 0x20 || c > 0x7e || c == '"' || c == '\\' {
-			plain = false
-			break
-		}
-	}
-	if plain {
-		return fmt.Sprintf(`%s; %s="%s"`, mediaType, key, value)
-	}
-	return mime.FormatMediaType(mediaType, map[string]string{key: value})
-}
-
-func writeBase64MIME(buffer io.Writer, data []byte) error {
-	encoded := base64.StdEncoding.EncodeToString(data)
-	for len(encoded) > 76 {
-		if _, err := buffer.Write([]byte(encoded[:76] + "\r\n")); err != nil {
-			return err
-		}
-		encoded = encoded[76:]
-	}
-	if encoded != "" {
-		if _, err := buffer.Write([]byte(encoded + "\r\n")); err != nil {
-			return err
-		}
-	}
-	return nil
 }

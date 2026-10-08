@@ -82,44 +82,6 @@ func FuzzInvoiceNumberRoundTrip(f *testing.F) {
 	})
 }
 
-func FuzzRenderEmailTemplate(f *testing.F) {
-	for _, seed := range []string{
-		"",
-		defaultEmailBodyTemplate,
-		"{customer_name} | {email_greeting} | {contact_person} | {customer_id} | {invoice_number} | {issue_date} | {due_date} | {total_amount} | {outstanding_amount} | {payment_terms_text} | {issuer_name}",
-		"Invoice {invoice_number}\r\nTotal {total_amount}\r",
-		"{{invoice_number}}",
-		"{unknown}",
-	} {
-		f.Add(seed)
-	}
-
-	ctx := fuzzContext(f)
-	placeholders := []string{
-		"{customer_name}", "{email_greeting}", "{contact_person}", "{customer_id}", "{invoice_number}",
-		"{issue_date}", "{due_date}", "{total_amount}", "{outstanding_amount}", "{payment_terms_text}", "{issuer_name}",
-	}
-	f.Fuzz(func(t *testing.T, template string) {
-		rendered := renderEmailTemplate(template, ctx)
-		if strings.Contains(rendered, "\r") {
-			t.Fatalf("renderEmailTemplate(%q) = %q, which still contains a carriage return", template, rendered)
-		}
-		// The fixture's values contain no braces, so every placeholder is
-		// replaced and none can be formed by a replacement.
-		for _, placeholder := range placeholders {
-			if strings.Contains(rendered, placeholder) {
-				t.Fatalf("renderEmailTemplate(%q) = %q, which still contains %s", template, rendered, placeholder)
-			}
-		}
-		if !strings.Contains(template, "{") {
-			normalized := strings.ReplaceAll(strings.ReplaceAll(template, "\r\n", "\n"), "\r", "\n")
-			if rendered != normalized {
-				t.Fatalf("renderEmailTemplate(%q) = %q, want it unchanged", template, rendered)
-			}
-		}
-	})
-}
-
 func FuzzBuildEPCPayload(f *testing.F) {
 	for _, seed := range []struct {
 		name, iban, bic, ref string
@@ -323,21 +285,4 @@ payment:
 		}
 	}
 	return customersPath, issuerPath
-}
-
-// fuzzContext loads the fixture invoice for targets that render with it.
-func fuzzContext(tb testing.TB) *Context {
-	tb.Helper()
-
-	dir := tb.TempDir()
-	customersPath, issuerPath := writeFuzzCustomerAndIssuer(tb, dir)
-	invoicePath := filepath.Join(dir, "invoice.yaml")
-	if err := os.WriteFile(invoicePath, []byte(fuzzInvoiceYAML), 0o644); err != nil {
-		tb.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
-	}
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
-	if err != nil {
-		tb.Fatalf("LoadContext returned error: %v", err)
-	}
-	return ctx
 }

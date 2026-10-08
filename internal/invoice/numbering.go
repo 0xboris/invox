@@ -2,7 +2,6 @@ package invoice
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -197,35 +196,22 @@ func validateCustomerCounterSeparator(pattern string) error {
 }
 
 func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer Customer) (int64, []string, error) {
-	archiveDir, err := h.ResolveArchiveDir()
+	store, err := h.archiveStore()
 	if err != nil {
 		return 0, nil, err
-	}
-	if strings.TrimSpace(archiveDir) == "" {
-		return 0, nil, nil
-	}
-	info, err := os.Stat(archiveDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil, nil
-	}
-	if err != nil {
-		return 0, nil, err
-	}
-	if !info.IsDir() {
-		return 0, nil, fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
 	}
 
 	var highest int64
 	var skipped []string
-	err = walkArchiveDir(archiveDir, func(path string) error {
-		record, ok, err := archivedInvoiceRecordFromPath(path, archiveDir)
-		if err != nil || !ok || record.InvoiceNumber == "" {
+	err = store.Walk(func(path string) error {
+		identity, ok, err := readArchivedIdentity(path)
+		if err != nil || !ok || identity.InvoiceNumber == "" {
 			return err
 		}
 
-		counter, err := parseInvoiceCounter(pattern, record.InvoiceNumber, customerID, issueDate, customer)
+		counter, err := parseInvoiceCounter(pattern, identity.InvoiceNumber, customerID, issueDate, customer)
 		if err != nil {
-			if record.CustomerID == customerID && inNumberingPeriod(pattern, record.IssueDate, issueDate) {
+			if identity.CustomerID == customerID && inNumberingPeriod(pattern, identity.IssueDate, issueDate) {
 				skipped = append(skipped, path)
 			}
 			return nil
@@ -334,15 +320,6 @@ func draftInvoiceNumber(path string) (string, bool) {
 	}
 	invoiceNumber := identity.Invoice.Number.Trim()
 	return invoiceNumber, invoiceNumber != ""
-}
-
-func isArchivedInvoicePath(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".md", ".markdown", ".yaml", ".yml":
-		return true
-	default:
-		return false
-	}
 }
 
 func markdownFrontMatter(source []byte) ([]byte, bool) {
