@@ -61,8 +61,8 @@ func TestNormalizeLongFlags(t *testing.T) {
 		},
 		{
 			name: "legacy command",
-			args: []string{"archive", "x.yaml", "-yes"},
-			want: []string{"archive", "x.yaml", "-yes"},
+			args: []string{"completion", "-zsh"},
+			want: []string{"completion", "-zsh"},
 		},
 		{
 			name: "help command",
