@@ -608,38 +608,6 @@ func setMappingSequence(parent *yaml.Node, key string, content []*yaml.Node) {
 	})
 }
 
-func renameMappingKey(parent *yaml.Node, oldKey, newKey string) {
-	if parent == nil || parent.Kind != yaml.MappingNode || oldKey == newKey {
-		return
-	}
-
-	oldIndex := -1
-	newIndex := -1
-	for index := 0; index+1 < len(parent.Content); index += 2 {
-		switch parent.Content[index].Value {
-		case oldKey:
-			oldIndex = index
-		case newKey:
-			newIndex = index
-		}
-	}
-	if oldIndex == -1 {
-		return
-	}
-	if newIndex == -1 {
-		parent.Content[oldIndex].Value = newKey
-		return
-	}
-
-	oldValue := parent.Content[oldIndex+1]
-	newValue := parent.Content[newIndex+1]
-	if nodeIsEmpty(newValue) && !nodeIsEmpty(oldValue) {
-		parent.Content[newIndex+1] = oldValue
-	}
-
-	parent.Content = append(parent.Content[:oldIndex], parent.Content[oldIndex+2:]...)
-}
-
 func deleteMappingKey(parent *yaml.Node, key string) {
 	if parent == nil || parent.Kind != yaml.MappingNode {
 		return
@@ -698,17 +666,4 @@ func setArchiveMetadata(root *yaml.Node, archivePath, archiveReplacePath string)
 
 func clearArchiveMetadata(root *yaml.Node) {
 	deleteMappingKey(root, internalMetadataKey)
-}
-
-func nodeIsEmpty(node *yaml.Node) bool {
-	if node == nil {
-		return true
-	}
-
-	switch node.Kind {
-	case yaml.MappingNode, yaml.SequenceNode:
-		return len(node.Content) == 0
-	default:
-		return strings.TrimSpace(node.Value) == ""
-	}
 }
