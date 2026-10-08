@@ -1,5 +1,8 @@
 # invox
 
+[![CI](https://github.com/0xboris/invox/actions/workflows/ci.yml/badge.svg)](https://github.com/0xboris/invox/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 invox turns invoice data in YAML into LaTeX and PDF invoices.
 
 You keep your company, your customers and each invoice in plain YAML files. invox numbers new invoices, validates them, renders them into a LaTeX template, builds the PDF with [Tectonic](https://tectonic-typesetting.github.io), drafts the email to the customer and moves the finished invoice into an archive.
@@ -101,11 +104,12 @@ Next month, start from the customer's last archived invoice. invox gives the cop
 invox new CUST-001 --from-last
 ```
 
-To fix an archived invoice, copy it out, edit it and archive it again. invox asks before it replaces the archived file and keeps the old version in `.history/` inside the archive directory.
+To fix an archived invoice, copy it out with `archive edit`, edit the copy in your editor, then rebuild and archive it again. invox asks before it replaces the archived file and keeps the old version in `.history/` inside the archive directory.
 
 ```sh
 invox archive list
 invox archive edit CUST-001-001.yaml
+$EDITOR CUST-001-001.yaml
 invox build CUST-001-001.yaml --archive
 ```
 
@@ -177,7 +181,7 @@ invox archive list --json file,customerId,number
 
 These flags make runs safe to automate:
 
-- `-n, --dry-run` runs the same checks as a real run, prints what it would do on stderr and writes nothing. `new`, `increment`, `render`, `build`, `email`, `archive add` and `archive edit` take it.
+- `-n, --dry-run` runs the same checks as a real run, prints what it would do on stderr and writes nothing. `new`, `increment`, `render`, `build`, `email`, `archive add` and `archive edit` take it. Except for `email`, a dry run prints on stdout the same path the real run would print, so a script can read it first.
 - `--force` lets `new`, `archive edit` and `email -o` overwrite an existing output file. On `new` and `archive edit` it never replaces a file inside the archive.
 - `--yes` lets `archive add` and `build --archive` replace an archived invoice without asking.
 - `--no-input`, or a non-empty `INVOX_PROMPT_DISABLED`, stops invox from prompting or opening an editor. A step that needs one fails with exit status 2.
