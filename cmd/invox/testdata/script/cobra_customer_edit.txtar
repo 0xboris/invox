@@ -21,7 +21,7 @@ exits 2 invox customer list --customers
 cmp stderr want-dangling.txt
 
 # --no-input works after the command.
-exits 2 invox customer config --no-input -c other.yaml
+exits 2 invox customer edit --no-input -c other.yaml
 ! stdout .
 cmp stderr want-disabled.txt
 exits 2 invox config --no-input
@@ -38,7 +38,7 @@ OTHER-1	Other Ltd	active
 error: unknown flag: --customer; did you mean --customers?
 Run 'invox customer list --help' for usage.
 -- want-subcommand.txt --
-error: unknown customer subcommand "lsit"; did you mean "list"?
+error: unknown customer subcommand "lsit"; did you mean "list\" or \"edit"?
 Run 'invox customer --help' for usage.
 -- want-single-dash.txt --
 warning: -customers is deprecated; use --customers
@@ -47,4 +47,4 @@ error: flag needs an argument: --customers
 Run 'invox customer list --help' for usage.
 -- want-disabled.txt --
 error: cannot open an editor: prompts are disabled (--no-input or INVOX_PROMPT_DISABLED); edit other.yaml directly
-Run 'invox customer config --help' for usage.
+Run 'invox customer edit --help' for usage.

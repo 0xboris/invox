@@ -6,7 +6,7 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	customerconfig "github.com/0xboris/invox/internal/cmd/customer/config"
+	"github.com/0xboris/invox/internal/cmd/customer/edit"
 	"github.com/0xboris/invox/internal/cmd/customer/list"
 )
 
@@ -30,7 +30,7 @@ Documentation:
 			helptext.CustomerYAMLExample(),
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
-$ invox customer config
+$ invox customer edit
 `,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,7 +42,8 @@ $ invox customer config
 	}
 	cmd.AddCommand(
 		list.NewCmdList(f, nil),
-		customerconfig.NewCmdConfig(f, nil),
+		edit.NewCmdEdit(f, nil),
+		edit.NewCmdConfig(f, nil),
 	)
 	return cmd
 }

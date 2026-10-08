@@ -1,4 +1,5 @@
-// Package email is the `invox email` command, also run as `invox send`.
+// Package email is the `invox email` command, also run as the deprecated
+// `invox send`.
 package email
 
 import (
@@ -83,12 +84,12 @@ $ invox email invoice.yaml --dry-run
 $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if rest := shared.TakeInput(&opts.InvoicePath, args); len(rest) > 0 {
-				return cmdutil.FlagErrorf("email", "unexpected arguments: %s", strings.Join(rest, " "))
-			}
-			return nil
+			return shared.TakeInput("email", &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.CalledAs() == "send" {
+				fmt.Fprintln(opts.IO.ErrOut, "warning: send only drafts an email; use 'invox email'")
+			}
 			if err := validate(opts); err != nil {
 				return err
 			}

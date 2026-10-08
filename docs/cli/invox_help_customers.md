@@ -8,7 +8,7 @@ Usage:
 
 Behavior:
   Shows the supported customers.yaml shape used by new, validate, render, build, and email.
-  `invox customer config` opens the resolved file for editing.
+  `invox customer edit` opens the resolved file for editing.
 
 Formatting:
   Top-level customer IDs must start at column 1 with no leading spaces.
@@ -54,7 +54,7 @@ Lookup:
 
 Examples:
   invox help customers
-  invox customer config
+  invox customer edit
   invox new CUST-001 -c customers.yaml
 
 customers.yaml example:

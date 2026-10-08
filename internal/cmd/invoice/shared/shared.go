@@ -13,11 +13,11 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// RequireInput is the usage error of command when no invoice was given with
-// -i, --input.
+// RequireInput is the usage error of command when no invoice was given as
+// the INVOICE argument or with -i, --input.
 func RequireInput(command, invoicePath string) error {
 	if strings.TrimSpace(invoicePath) == "" {
-		return cmdutil.FlagErrorf(command, "missing required flags: -i, --input")
+		return cmdutil.FlagErrorf(command, "missing required input: INVOICE.yaml or -i, --input")
 	}
 	return nil
 }
@@ -74,12 +74,20 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, h invoice.Host, invoicePath
 	)
 }
 
-// TakeInput makes the first positional argument the invoice when -i, --input
-// did not name one, and returns the arguments left over.
-func TakeInput(invoicePath *string, args []string) []string {
-	if strings.TrimSpace(*invoicePath) == "" && len(args) > 0 {
-		*invoicePath = args[0]
-		return args[1:]
+// TakeInput makes the INVOICE argument, the first of args, the invoice of
+// command. It is a usage error when -i, --input names a different file, or
+// when more arguments follow.
+func TakeInput(command string, invoicePath *string, args []string) error {
+	if len(args) == 0 {
+		return nil
 	}
-	return args
+	if strings.TrimSpace(*invoicePath) == "" {
+		*invoicePath = args[0]
+	} else if filepath.Clean(args[0]) != filepath.Clean(*invoicePath) {
+		return cmdutil.FlagErrorf(command, "the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+	}
+	if rest := args[1:]; len(rest) > 0 {
+		return cmdutil.FlagErrorf(command, "unexpected arguments: %s", strings.Join(rest, " "))
+	}
+	return nil
 }

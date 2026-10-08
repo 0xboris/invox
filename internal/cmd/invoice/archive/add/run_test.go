@@ -1,4 +1,4 @@
-package archive
+package add
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 // The invoice is relative to the working directory invox was given, which
 // need not be the process's own.
-func TestArchiveRunResolvesInputAgainstGetwd(t *testing.T) {
+func TestAddRunResolvesInputAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
 	dataHome := t.TempDir()
 	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: dataHome, ConfigDir: t.TempDir()})
@@ -28,15 +28,15 @@ func TestArchiveRunResolvesInputAgainstGetwd(t *testing.T) {
 	}
 
 	ios, _, out, errOut := iostreams.Test()
-	opts := &ArchiveOptions{
+	opts := &AddOptions{
 		IO:          ios,
 		Host:        func() invoice.Host { return host },
 		Getwd:       func() (string, error) { return work, nil },
 		Now:         time.Now,
 		InvoicePath: "inv.yaml",
 	}
-	if err := archiveRun(context.Background(), opts); err != nil {
-		t.Fatalf("archiveRun returned error: %v", err)
+	if err := addRun(context.Background(), opts); err != nil {
+		t.Fatalf("addRun returned error: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(work, "inv.yaml")); !os.IsNotExist(err) {
 		t.Errorf("inv.yaml is still in the working directory (Stat error %v), want it moved to the archive", err)

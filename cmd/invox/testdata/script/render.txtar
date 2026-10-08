@@ -96,7 +96,7 @@ Rendered out.tex for CUST-001 (CUST-001-001)
 -- want-other.tex --
 CUST-001-001/Appsters GmbH/252,00 \euro
 -- want-missing-input.txt --
-error: missing required flags: -i, --input
+error: missing required input: INVOICE.yaml or -i, --input
 Run 'invox render --help' for usage.
 -- want-foreign.txt --
 error: foreign.yaml: unknown customer_id `NOPE-1`

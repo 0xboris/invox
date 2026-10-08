@@ -32,8 +32,8 @@ Supported settings:
 Invoice numbers:
   `new` uses the next counter after the highest one found in archive.dir and in
   draft or built invoice YAML files in the current directory and the output directory.
-  `archive` refuses an invoice whose number is already archived under another file;
-  `validate` warns about it. Run `invox increment -i FILE` to give it the next free number.
+  `archive add` refuses an invoice whose number is already archived under another file;
+  `validate` warns about it. Run `invox increment FILE` to give it the next free number.
 
 email template placeholders:
   {customer_name}        Customer display name
@@ -131,6 +131,7 @@ Usage:
   invox config <subcommand> [flags]
 
 Commands:
+  edit   Open config.yaml in your editor
   paths  Show where each config and support file is read from
 
 Global flags:
@@ -140,6 +141,7 @@ Global flags:
 
 Examples:
   $ invox config
+  $ invox config edit
   $ invox config paths
   $ invox help config
 ```
@@ -147,4 +149,5 @@ Examples:
 ## See also
 
 - [invox](invox.md): Generate LaTeX and PDF invoices from YAML data
+- [invox config edit](invox_config_edit.md): Open config.yaml in your editor
 - [invox config paths](invox_config_paths.md): Show where each config and support file is read from

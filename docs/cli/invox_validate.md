@@ -4,7 +4,7 @@
 Validate invoice YAML against customers and issuer data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
   customers.yaml: upward project search, then $HOME/.config/invox/customers.yaml
@@ -18,7 +18,7 @@ JSON output:
   lists each problem with its file, line and field where they are known.
 
 Usage:
-  invox validate -i INVOICE.yaml [flags]
+  invox validate [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -35,9 +35,9 @@ JSON fields:
   currency, customerId, errors, lineItems, number, total, valid
 
 Examples:
-  $ invox validate -i invoice.yaml
-  $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
-  $ invox validate -i invoice.yaml --json valid,total,currency,errors
+  $ invox validate invoice.yaml
+  $ invox validate invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+  $ invox validate invoice.yaml --json valid,total,currency,errors
 ```
 
 ## See also

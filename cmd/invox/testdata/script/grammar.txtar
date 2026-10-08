@@ -1,0 +1,197 @@
+# increment, validate and render take the invoice as the INVOICE argument,
+# as build, email and archive add do, and -i, --input still works. Naming
+# the same file both ways is fine; naming two files is a usage error, the
+# same on every command.
+
+exec invox validate invoice.yaml
+! stdout .
+cmp stderr want-validate.txt
+exec invox validate ./invoice.yaml -i invoice.yaml
+! stdout .
+cmp stderr want-validate.txt
+exec invox render invoice.yaml -n
+cmp stdout want-render-stdout.txt
+cmp stderr want-render.txt
+exec invox increment invoice.yaml -n
+cmp stdout want-increment-stdout.txt
+cmp stderr want-increment.txt
+
+exits 2 invox increment a.yaml -i b.yaml
+! stdout .
+cmp stderr want-increment-both.txt
+exits 2 invox validate a.yaml -i b.yaml
+! stdout .
+cmp stderr want-validate-both.txt
+exits 2 invox render a.yaml -i b.yaml
+! stdout .
+cmp stderr want-render-both.txt
+exits 2 invox build a.yaml -i b.yaml
+! stdout .
+cmp stderr want-build-both.txt
+exits 2 invox email a.yaml -i b.yaml
+! stdout .
+cmp stderr want-email-both.txt
+exits 2 invox archive add a.yaml -i b.yaml
+! stdout .
+cmp stderr want-archive-add-both.txt
+
+# One INVOICE argument at most, and one of the two ways is required.
+exits 2 invox validate a.yaml b.yaml
+! stdout .
+cmp stderr want-validate-extra.txt
+exits 2 invox render
+! stdout .
+cmp stderr want-render-missing.txt
+
+# The shell completes YAML files for the INVOICE argument.
+exec invox __complete increment ''
+cmp stdout want-complete-increment.txt
+
+# config edit is what config does without a subcommand: open config.yaml in
+# the editor, which needs a terminal.
+exits 2 invox config edit
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-config-edit.txt
+exits 2 invox config edit extra
+! stdout .
+cmp stderr want-config-edit-extra.txt
+
+-- want-validate.txt --
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
+-- want-render-stdout.txt --
+invoice.tex
+-- want-render.txt --
+Would render invoice.tex for CUST-001 (CUST-001-001)
+-- want-increment-stdout.txt --
+invoice.yaml
+-- want-increment.txt --
+Would increment invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-002
+-- want-increment-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox increment --help' for usage.
+-- want-validate-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox validate --help' for usage.
+-- want-render-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox render --help' for usage.
+-- want-build-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox build --help' for usage.
+-- want-email-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox email --help' for usage.
+-- want-archive-add-both.txt --
+error: the INVOICE argument a.yaml and -i, --input b.yaml name different files; pass only one
+Run 'invox archive add --help' for usage.
+-- want-validate-extra.txt --
+error: unexpected arguments: b.yaml
+Run 'invox validate --help' for usage.
+-- want-render-missing.txt --
+error: missing required input: INVOICE.yaml or -i, --input
+Run 'invox render --help' for usage.
+-- want-complete-increment.txt --
+yaml
+yml
+:8
+-- want-config-edit.txt --
+error: cannot open an editor: stdin is not a terminal; edit home/.config/invox/config.yaml directly
+Run 'invox config edit --help' for usage.
+-- want-config-edit-extra.txt --
+error: unexpected arguments: extra
+Run 'invox config edit --help' for usage.
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

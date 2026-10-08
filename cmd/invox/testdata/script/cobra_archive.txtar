@@ -1,17 +1,17 @@
-# archive, archive edit and archive list parse their flags with pflag.
+# archive add, archive edit and archive list parse their flags with pflag.
 
 # A misspelt flag after the positional suggests the right one.
-exits 2 invox archive F.yaml --yse
+exits 2 invox archive add F.yaml --yse
 ! stdout .
 cmp stderr want-misspelt.txt
 
-# -i after the positional is read, so the positional is extra.
-exits 2 invox archive F.yaml -i x.yaml
+# -i naming another file than the positional is a usage error.
+exits 2 invox archive add F.yaml -i x.yaml
 ! stdout .
 cmp stderr want-both.txt
 
 # A dangling -i names the flag.
-exits 2 invox archive -i
+exits 2 invox archive add -i
 ! stdout .
 cmp stderr want-dangling.txt
 
@@ -23,16 +23,16 @@ stderr '^Run ''invox archive list --help'' for usage\.$'
 
 # A single-dash long flag works and warns. F.yaml doesn't exist, so archive
 # then fails at run time.
-exits 1 invox archive F.yaml -yes
+exits 1 invox archive add F.yaml -yes
 ! stdout .
 stderr '^warning: -yes is deprecated; use --yes$'
 
 -- want-misspelt.txt --
 error: unknown flag: --yse; did you mean --yes?
-Run 'invox archive --help' for usage.
+Run 'invox archive add --help' for usage.
 -- want-both.txt --
-error: unexpected arguments: F.yaml
-Run 'invox archive --help' for usage.
+error: the INVOICE argument F.yaml and -i, --input x.yaml name different files; pass only one
+Run 'invox archive add --help' for usage.
 -- want-dangling.txt --
 error: flag needs an argument: -i
-Run 'invox archive --help' for usage.
+Run 'invox archive add --help' for usage.

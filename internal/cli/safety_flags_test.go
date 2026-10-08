@@ -100,7 +100,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 			configPath := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
 			chdirForTest(t, workDir)
 			return dryRunCase{
-				args:       []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-n", "-e"},
+				args:       []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-n", "-e"},
 				dirs:       []string{workDir, filepath.Dir(customersPath), filepath.Dir(configPath)},
 				wantStdout: "CUST-001-002.yaml\n",
 				wantStderr: "Would create CUST-001-002.yaml for CUST-001 (CUST-001-002)\n" +
@@ -170,7 +170,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 			chdirForTest(t, workDir)
 			archived := filepath.Join(archiveDir, "first.yaml")
 			return dryRunCase{
-				args:       []string{"archive", "first.yaml", "-n"},
+				args:       []string{"archive", "add", "first.yaml", "-n"},
 				dirs:       []string{workDir, archiveDir},
 				wantStdout: archived + "\n",
 				wantStderr: "Would archive first.yaml -> " + archived + "\n",
@@ -179,7 +179,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 		{name: "archive replacing an archived invoice without a terminal", setup: func(t *testing.T) dryRunCase {
 			e := setupEditedArchive(t)
 			return dryRunCase{
-				args:       []string{"archive", "first.yaml", "--dry-run"},
+				args:       []string{"archive", "add", "first.yaml", "--dry-run"},
 				dirs:       []string{filepath.Dir(e.workingCopy), e.archiveDir},
 				wantStdout: e.archivedPath + "\n",
 				wantStderr: "Would replace archived invoice " + e.archivedPath + "; the previous version would be kept in " + filepath.Join(e.archiveDir, ".history") + "\n" +
@@ -189,7 +189,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 		{name: "archive --json replacing an archived invoice", setup: func(t *testing.T) dryRunCase {
 			e := setupEditedArchive(t)
 			return dryRunCase{
-				args:       []string{"archive", "first.yaml", "--dry-run", "--json", "path,replaced"},
+				args:       []string{"archive", "add", "first.yaml", "--dry-run", "--json", "path,replaced"},
 				dirs:       []string{filepath.Dir(e.workingCopy), e.archiveDir},
 				wantStdout: "{\"path\":" + jsonString(e.archivedPath) + ",\"replaced\":[{\"path\":" + jsonString(e.archivedPath) + ",\"backupPath\":\"\"}]}\n",
 				wantStderr: "Would replace archived invoice " + e.archivedPath + "; the previous version would be kept in " + filepath.Join(e.archiveDir, ".history") + "\n" +
@@ -291,7 +291,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 				t.Fatalf("WriteFile returned error: %v", err)
 			}
 			chdirForTest(t, workDir)
-			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", "mine.yaml"}, []string{workDir}
+			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-o", "mine.yaml"}, []string{workDir}
 		}, wantStderr: "error: mine.yaml already exists; pass --force to replace it or choose a different -o/--output path\n"},
 		{name: "new --force over an archived invoice", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
@@ -300,7 +300,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
 			workDir := t.TempDir()
 			chdirForTest(t, workDir)
-			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", archivedPath, "--force"}, []string{workDir, archiveDir}
+			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-o", archivedPath, "--force"}, []string{workDir, archiveDir}
 		}, wantStderr: "first.yaml is in the archive directory and is never overwritten"},
 		{name: "archive edit --force inside the archive", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			archiveDir := t.TempDir()
@@ -358,7 +358,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			workDir := t.TempDir()
 			writeNumberedInvoice(t, workDir, "first.yaml", "CUST-001-001", "built")
 			chdirForTest(t, workDir)
-			return []string{"archive", "first.yaml"}, []string{workDir, archiveDir}
+			return []string{"archive", "add", "first.yaml"}, []string{workDir, archiveDir}
 		}, wantStderr: "is already used by archived invoice"},
 		{name: "archive edit over a working copy", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			archiveDir := t.TempDir()
@@ -473,7 +473,7 @@ func TestForceNeverReplacesArchivedFile(t *testing.T) {
 			chdirForTest(t, workDir)
 
 			for _, args := range [][]string{{"--force"}, {"--force", "--dry-run"}} {
-				exitCode, stdout, stderr := captureRun(t, append([]string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", output}, args...))
+				exitCode, stdout, stderr := captureRun(t, append([]string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-o", output}, args...))
 				if exitCode != 1 {
 					t.Fatalf("%v: exitCode = %d, want 1, stderr=%q", args, exitCode, stderr)
 				}
@@ -502,7 +502,7 @@ func TestNewForceReplacesExistingOutput(t *testing.T) {
 	}
 	chdirForTest(t, workDir)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", "mine.yaml", "--force"})
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-o", "mine.yaml", "--force"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -549,9 +549,9 @@ func TestArchiveDryRunNeedsNoConfirmation(t *testing.T) {
 		terminal bool
 		args     []string
 	}{
-		{name: "terminal", terminal: true, args: []string{"archive", "first.yaml", "-n"}},
-		{name: "no terminal", terminal: false, args: []string{"archive", "first.yaml", "-n"}},
-		{name: "no input", terminal: true, args: []string{"archive", "first.yaml", "-n", "--no-input"}},
+		{name: "terminal", terminal: true, args: []string{"archive", "add", "first.yaml", "-n"}},
+		{name: "no terminal", terminal: false, args: []string{"archive", "add", "first.yaml", "-n"}},
+		{name: "no input", terminal: true, args: []string{"archive", "add", "first.yaml", "-n", "--no-input"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := setupEditedArchive(t)

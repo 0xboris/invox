@@ -68,8 +68,8 @@ Usage:
   invox customer <subcommand> [flags]
 
 Commands:
-  config  Open customers.yaml in your editor
-  list    List all customers from customers.yaml
+  edit  Open customers.yaml in your editor
+  list  List all customers from customers.yaml
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -79,11 +79,11 @@ Global flags:
 Examples:
   $ invox customer list
   $ invox customer list -c customers.yaml
-  $ invox customer config
+  $ invox customer edit
 ```
 
 ## See also
 
 - [invox](invox.md): Generate LaTeX and PDF invoices from YAML data
-- [invox customer config](invox_customer_config.md): Open customers.yaml in your editor
+- [invox customer edit](invox_customer_edit.md): Open customers.yaml in your editor
 - [invox customer list](invox_customer_list.md): List all customers from customers.yaml

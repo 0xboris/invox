@@ -28,7 +28,7 @@ var editorCases = []editorCase{
 		setup: func(t *testing.T, dir string) ([]string, string) {
 			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 			writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-			return []string{"new", "CUST-001", "-e", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath},
+			return []string{"new", "CUST-001", "-e", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath},
 				filepath.Join(dir, "CUST-001-002.yaml")
 		},
 		gate:   "created CUST-001-002.yaml but cannot open an editor: %s; edit it and run 'invox validate -i CUST-001-002.yaml'",
@@ -46,16 +46,16 @@ var editorCases = []editorCase{
 		failed: "failed to open " + filepath.Join("config-home", "invox", "config.yaml"),
 	},
 	{
-		name: "customer config",
+		name: "customer edit",
 		setup: func(t *testing.T, dir string) ([]string, string) {
 			path := filepath.Join(dir, "customers.yaml")
 			if err := os.WriteFile(path, []byte("CUST-001: {}\n"), 0o644); err != nil {
 				t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 			}
-			return []string{"customer", "config", "-c", "customers.yaml"}, path
+			return []string{"customer", "edit", "-c", "customers.yaml"}, path
 		},
 		gate:   "cannot open an editor: %s; edit customers.yaml directly",
-		usage:  "Run 'invox customer config --help' for usage.",
+		usage:  "Run 'invox customer edit --help' for usage.",
 		failed: "failed to open customers.yaml",
 	},
 }

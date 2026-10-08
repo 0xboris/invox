@@ -52,7 +52,7 @@ func printCustomersHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  %s help customers\n\n", commandName)
 	fmt.Fprintf(w, "Behavior:\n")
 	fmt.Fprintf(w, "  Shows the supported customers.yaml shape used by new, validate, render, build, and email.\n")
-	fmt.Fprintf(w, "  `invox customer config` opens the resolved file for editing.\n\n")
+	fmt.Fprintf(w, "  `invox customer edit` opens the resolved file for editing.\n\n")
 	fmt.Fprintf(w, "Formatting:\n")
 	fmt.Fprintf(w, "  Top-level customer IDs must start at column 1 with no leading spaces.\n\n")
 	printCustomerFieldReference(w)
@@ -66,7 +66,7 @@ func printCustomersHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", h.GlobalCustomersPath())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help customers"))
-	fmt.Fprintf(w, "  %s\n", commandExample("customer config"))
+	fmt.Fprintf(w, "  %s\n", commandExample("customer edit"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -c customers.yaml"))
 	printCustomerYAMLExample(w)
 }
@@ -117,7 +117,7 @@ func printDefaultsHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", h.GlobalInvoiceDefaultsPath())
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help defaults"))
-	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -s invoice_defaults.yaml"))
+	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 --defaults invoice_defaults.yaml"))
 	printInvoiceDefaultsYAMLExample(w)
 }
 
@@ -151,7 +151,7 @@ var environmentVariables = []environmentVariable{
 		"A relative value is ignored.",
 	}},
 	{"VISUAL", []string{
-		"Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.",
+		"Editor for `config`, `customer edit` and `new -e`. Wins over EDITOR.",
 		"The value is split into words like a shell would and run directly, with the",
 		"file as the last argument. A value with shell syntax ($, |, ; and the like)",
 		"runs through sh -c, where an unquoted # starts a comment that drops the file.",
@@ -209,7 +209,7 @@ func printEnvironmentHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "  variables only move the default directories; no variable overrides a flag or\n")
 	fmt.Fprintf(w, "  a config.yaml setting.\n\n")
 	fmt.Fprintf(w, "Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, template):\n")
-	fmt.Fprintf(w, "  1. explicit flag (-c, -u, -s, -t)\n")
+	fmt.Fprintf(w, "  1. explicit flag (-c, -u, --defaults, -t)\n")
 	fmt.Fprintf(w, "  2. upward search from the current directory\n")
 	fmt.Fprintf(w, "  3. paths.* in config.yaml, relative to config.yaml\n")
 	fmt.Fprintf(w, "  4. the file in the config directory, then in the legacy directory\n\n")

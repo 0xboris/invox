@@ -30,9 +30,6 @@ Behavior:
 Usage:
   invox email [INVOICE.yaml | INVOICE.pdf] [flags]
 
-Aliases:
-  invox send
-
 Flags:
   -c, --customers string   Path to customers.yaml
   -n, --dry-run            Print the recipient, subject and attachment, and neither write nor open a draft

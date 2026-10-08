@@ -66,7 +66,7 @@ func TestNewRunWithoutDefaultsIsAUsageError(t *testing.T) {
 	err := newRun(context.Background(), opts)
 
 	var flagErr *cmdutil.FlagError
-	want := "defaults file not found; pass -s/--source, set paths.defaults in config.yaml, or place invoice_defaults.yaml at " + filepath.Join(configDir, "invoice_defaults.yaml")
+	want := "defaults file not found; pass --defaults, set paths.defaults in config.yaml, or place invoice_defaults.yaml at " + filepath.Join(configDir, "invoice_defaults.yaml")
 	if !errors.As(err, &flagErr) || flagErr.Command != "new" || err.Error() != want {
 		t.Fatalf("newRun error = %#v, want FlagError for new: %q", err, want)
 	}

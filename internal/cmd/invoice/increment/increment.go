@@ -4,7 +4,6 @@ package increment
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -40,26 +39,23 @@ type incrementJSON struct {
 func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
 	opts := &IncrementOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "increment -i INVOICE.yaml",
+		Use:   "increment [INVOICE.yaml]",
 		Short: "Increment the invoice number in an existing invoice YAML file",
 		Long: `Increment the invoice number in an existing invoice YAML file.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
 ` +
 			helptext.LookupCustomers,
-		Example: `$ invox increment -i invoice.yaml
-$ invox increment -i invoices/2026-0022.yaml -c customers.yaml
-$ invox increment -i invoice.yaml --dry-run
-$ invox increment -i invoice.yaml --json number,previousNumber
+		Example: `$ invox increment invoice.yaml
+$ invox increment invoices/2026-0022.yaml -c customers.yaml
+$ invox increment invoice.yaml --dry-run
+$ invox increment invoice.yaml --json number,previousNumber
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("increment", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
+			return shared.TakeInput("increment", &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("increment", opts.InvoicePath); err != nil {
@@ -74,7 +70,7 @@ $ invox increment -i invoice.yaml --json number,previousNumber
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the old and new number and change nothing")
-	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, incrementJSON{})

@@ -67,18 +67,25 @@ func CommandPath(cmd *cobra.Command) string {
 }
 
 // closestFlag returns the name of cmd's flag nearest to name, or "" when none
-// is within two edits.
+// is within two edits. A hidden flag, such as a deprecated one or one of a
+// deprecated command form, is suggested only when no visible flag is close.
 func closestFlag(cmd *cobra.Command, name string) string {
-	best, bestDistance := "", 3
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if f.Hidden {
-			return
-		}
-		if d := editDistance(name, f.Name); d < bestDistance {
-			best, bestDistance = f.Name, d
-		}
-	})
-	return best
+	closest := func(hidden bool) string {
+		best, bestDistance := "", 3
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Hidden != hidden {
+				return
+			}
+			if d := editDistance(name, f.Name); d < bestDistance {
+				best, bestDistance = f.Name, d
+			}
+		})
+		return best
+	}
+	if best := closest(false); best != "" {
+		return best
+	}
+	return closest(true)
 }
 
 // editDistance is the Levenshtein distance between a and b.

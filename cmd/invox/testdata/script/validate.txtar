@@ -71,7 +71,7 @@ Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-ok.txt --
 Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-missing-input.txt --
-error: missing required flags: -i, --input
+error: missing required input: INVOICE.yaml or -i, --input
 Run 'invox validate --help' for usage.
 -- want-broken.txt --
 error: broken.yaml: unknown customer_id `NOPE-1`

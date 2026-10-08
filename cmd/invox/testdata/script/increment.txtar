@@ -16,6 +16,9 @@ exits 2 invox increment
 cmp stderr want-missing-input.txt
 exits 2 invox increment -i invoice.yaml extra
 ! stdout .
+stderr '^error: the INVOICE argument extra and -i, --input invoice.yaml name different files; pass only one$'
+exits 2 invox increment invoice.yaml extra
+! stdout .
 stderr '^error: unexpected arguments: extra$'
 
 # Runtime errors.
@@ -36,7 +39,7 @@ invoice:
 -- want-increment.txt --
 Incremented invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-002
 -- want-missing-input.txt --
-error: missing required flags: -i, --input
+error: missing required input: INVOICE.yaml or -i, --input
 Run 'invox increment --help' for usage.
 -- want-foreign.txt --
 error: home/.config/invox/customers.yaml: unknown customer_id `NOPE-1`

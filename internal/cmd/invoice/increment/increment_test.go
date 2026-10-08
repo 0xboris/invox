@@ -23,8 +23,11 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 	}{
 		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
 		{name: "long", args: []string{"--input=x.yaml", "--customers", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
-		{name: "no input", args: []string{}, wantErr: "missing required flags: -i, --input"},
-		{name: "positional input", args: []string{"x.yaml"}, wantErr: "unexpected arguments: x.yaml"},
+		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml or -i, --input"},
+		{name: "positional input", args: []string{"x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
+		{name: "positional and input naming it", args: []string{"x.yaml", "-i", "x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
+		{name: "positional and input naming another file", args: []string{"x.yaml", "-i", "y.yaml"}, wantErr: "the INVOICE argument x.yaml and -i, --input y.yaml name different files; pass only one"},
+		{name: "two positionals", args: []string{"x.yaml", "y.yaml"}, wantErr: "unexpected arguments: y.yaml"},
 		{name: "misspelt flag", args: []string{"-i", "x.yaml", "--inptu", "y"}, wantErr: "unknown flag: --inptu; did you mean --input?"},
 		{name: "dangling input", args: []string{"-i"}, wantErr: "flag needs an argument: -i"},
 	}

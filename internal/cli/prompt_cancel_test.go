@@ -35,7 +35,7 @@ func TestSignalAtReplacePrompt(t *testing.T) {
 			cancel(&SignalError{Signal: tc.signal})
 
 			exitCode := make(chan int, 1)
-			go func() { exitCode <- mainContext(ctx, []string{"archive", "first.yaml"}, f) }()
+			go func() { exitCode <- mainContext(ctx, []string{"archive", "add", "first.yaml"}, f) }()
 			var got int
 			select {
 			case got = <-exitCode:

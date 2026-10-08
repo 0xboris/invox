@@ -128,7 +128,7 @@ func TestArchiveCreatesPrivateArchive(t *testing.T) {
 	}
 	setUmask(t, 0o077)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", invoicePath})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", invoicePath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -261,7 +261,7 @@ func TestArchiveCreatesMissingArchiveParentsPublic(t *testing.T) {
 	}
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", invoicePath})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", invoicePath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

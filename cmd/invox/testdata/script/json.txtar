@@ -90,7 +90,7 @@ cmp got.json want-build.json
 exec invox build second.yaml --archive --json path,archivedPath
 scrubpaths -json stdout got.json
 cmp got.json want-build-archive.json
-exec invox archive invoice.yaml --json path,input,replaced
+exec invox archive add invoice.yaml --json path,input,replaced
 scrubpaths -json stdout got.json
 cmp got.json want-archive.json
 exec invox archive list --json file,path,customerId,number,issueDate,status
@@ -100,7 +100,7 @@ exec invox archive edit invoice.yaml --json path,archivedPath
 scrubpaths -json stdout got.json
 cmp got.json want-edit.json
 # The backup's name has the time in it, so it is matched loosely.
-exec invox archive invoice.yaml --yes --json replaced
+exec invox archive add invoice.yaml --yes --json replaced
 stdout '^\{"replaced":\[\{"path":"[^"]*archive[/\\]+invoice\.yaml","backupPath":"[^"]*archive[/\\]+\.history[/\\]+invoice\.\d{8}T\d{6}Z\.yaml"\}\]\}$'
 
 -- want-empty.json --

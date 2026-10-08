@@ -100,7 +100,7 @@ func TestArchiveReplaceWithoutTerminalRequiresYes(t *testing.T) {
 	e := setupEditedArchive(t)
 	ios := promptStreams(false, "y\n")
 
-	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "add", "first.yaml"})
 	if exitCode != 2 {
 		t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
 	}
@@ -108,7 +108,7 @@ func TestArchiveReplaceWithoutTerminalRequiresYes(t *testing.T) {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	want := "error: archiving first.yaml replaces archived invoice " + e.archivedPath + "; pass --yes to replace it (stdin is not a terminal)\n" +
-		"Run 'invox archive --help' for usage.\n"
+		"Run 'invox archive add --help' for usage.\n"
 	if stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
@@ -128,7 +128,7 @@ func TestArchiveReplaceOnTerminalDeclined(t *testing.T) {
 			e := setupEditedArchive(t)
 			ios := promptStreams(true, tc.input)
 
-			exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
+			exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "add", "first.yaml"})
 			if exitCode != 2 {
 				t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
 			}
@@ -152,7 +152,7 @@ func TestArchiveReplaceOnTerminalConfirmed(t *testing.T) {
 	e := setupEditedArchive(t)
 	ios := promptStreams(true, "y\n")
 
-	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "add", "first.yaml"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -172,7 +172,7 @@ func TestArchiveReplaceWithYesKeepsBackup(t *testing.T) {
 	// --yes answers the question, so the declining input is never read.
 	ios := promptStreams(true, "n\n")
 
-	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "first.yaml", "--yes"})
+	exitCode, stdout, stderr := captureRunStreams(t, ios, []string{"archive", "add", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -201,7 +201,7 @@ func TestArchiveReplaceWithYesStillValidates(t *testing.T) {
 		t.Fatalf("WriteFile(working copy) returned error: %v", err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "first.yaml", "--yes"})
 	if exitCode != 1 {
 		t.Fatalf("exitCode = %d, want 1, stdout=%q stderr=%q", exitCode, stdout, stderr)
 	}
@@ -309,7 +309,7 @@ func TestYesFlagIsDocumented(t *testing.T) {
 		want []string
 	}{
 		{
-			args: []string{"archive", "-h"},
+			args: []string{"archive", "add", "-h"},
 			want: []string{"      --yes            Replace an archived invoice without asking\n", "archive.dir/.history/<path>.<UTC timestamp>.<ext>"},
 		},
 		{

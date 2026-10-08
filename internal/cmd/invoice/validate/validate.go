@@ -4,7 +4,6 @@ package validate
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -32,12 +31,12 @@ type ValidateOptions struct {
 func NewCmdValidate(f *cmdutil.Factory, runF func(*ValidateOptions) error) *cobra.Command {
 	opts := &ValidateOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "validate -i INVOICE.yaml",
+		Use:   "validate [INVOICE.yaml]",
 		Short: "Validate invoice YAML against customers and issuer data",
 		Long: `Validate invoice YAML against customers and issuer data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
 ` +
@@ -49,15 +48,12 @@ JSON output:
   exits 1. The invoice's fields are null when it is invalid, and errors
   lists each problem with its file, line and field where they are known.
 `,
-		Example: `$ invox validate -i invoice.yaml
-$ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
-$ invox validate -i invoice.yaml --json valid,total,currency,errors
+		Example: `$ invox validate invoice.yaml
+$ invox validate invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+$ invox validate invoice.yaml --json valid,total,currency,errors
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("validate", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
+			return shared.TakeInput("validate", &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("validate", opts.InvoicePath); err != nil {
@@ -72,7 +68,7 @@ $ invox validate -i invoice.yaml --json valid,total,currency,errors
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
-	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")

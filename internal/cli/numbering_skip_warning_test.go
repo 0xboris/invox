@@ -17,7 +17,7 @@ func TestNewWarnsAboutArchivedInvoicesThatDoNotMatchThePattern(t *testing.T) {
 	skippedPath := writeNumberedInvoice(t, archiveDir, "old-format.yaml", "CUST-001/0009", "archived")
 	chdirForTest(t, t.TempDir())
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath})
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -70,7 +70,7 @@ func TestNewListsAtMostFiveSkippedArchivedInvoices(t *testing.T) {
 	}
 	chdirForTest(t, t.TempDir())
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath})
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -125,7 +125,7 @@ func TestNewDoesNotWarnWhenNoArchivedInvoiceOfTheCustomerIsSkipped(t *testing.T)
 			}
 			chdirForTest(t, t.TempDir())
 
-			exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath})
+			exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
 			if exitCode != 0 {
 				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 			}

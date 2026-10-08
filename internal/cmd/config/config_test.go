@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cmd/config/edit"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -23,6 +24,8 @@ func TestNewCmdConfigParsing(t *testing.T) {
 	}{
 		{name: "no arguments", args: []string{"config"}, wantRun: true},
 		{name: "extra argument", args: []string{"config", "extra"}, wantErr: "unexpected arguments: extra"},
+		{name: "edit", args: []string{"config", "edit"}, wantRun: true},
+		{name: "edit extra argument", args: []string{"config", "edit", "extra"}, wantErr: "unexpected arguments: extra"},
 		{name: "paths extra argument", args: []string{"config", "paths", "extra"}, wantErr: "unexpected arguments: extra"},
 	}
 	for _, tc := range tests {
@@ -30,7 +33,7 @@ func TestNewCmdConfigParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			ran := false
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdConfig(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *ConfigOptions) error {
+			root.AddCommand(NewCmdConfig(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *edit.EditOptions) error {
 				ran = opts.Editor != nil
 				return nil
 			}))

@@ -14,8 +14,8 @@ exec invox customer list -c escapes.yaml
 cmp stdout want-list-escapes.tsv
 ! stderr .
 
-# customer config opens customers.yaml in an editor, which needs a terminal.
-exits 2 invox customer config
+# customer edit opens customers.yaml in an editor, which needs a terminal.
+exits 2 invox customer edit
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-config.txt
@@ -35,7 +35,7 @@ cmp stderr want-list-extra.txt
 exits 2 invox customer list --bogus
 ! stdout .
 stderr '^error: unknown flag: --bogus$'
-exits 2 invox customer config extra
+exits 2 invox customer edit extra
 ! stdout .
 stderr '^error: unexpected arguments: extra$'
 
@@ -63,7 +63,7 @@ CUST-003	Third Customer KG	active
 OTHER-1	Other Ltd	active
 -- want-config.txt --
 error: cannot open an editor: stdin is not a terminal; edit home/.config/invox/customers.yaml directly
-Run 'invox customer config --help' for usage.
+Run 'invox customer edit --help' for usage.
 -- want-list-extra.txt --
 error: unexpected arguments: extra
 Run 'invox customer list --help' for usage.

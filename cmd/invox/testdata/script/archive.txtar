@@ -28,14 +28,14 @@ cmp got.txt want-build-archive.txt
 ! exists invoice.yaml
 grep '^  status: archived$' home/.config/invox/archive/invoice.yaml
 
-# archive on its own.
-exec invox archive second.yaml -n
+# archive add on its own.
+exec invox archive add second.yaml -n
 scrubpaths stdout got.txt
 cmp got.txt want-archive-stdout.txt
 scrubpaths stderr got.txt
 cmp got.txt want-archive-dry-run.txt
 exists second.yaml
-exec invox archive second.yaml
+exec invox archive add second.yaml
 scrubpaths stdout got.txt
 cmp got.txt want-archive-stdout.txt
 scrubpaths stderr got.txt
@@ -51,7 +51,7 @@ cmp stdout want-list.tsv
 
 # archive edit copies an archived invoice back for editing; archiving the
 # working copy replaces the archived one. stdin is not a terminal here, so
-# replacing needs --yes: without it, archive exits 2 and changes nothing.
+# replacing needs --yes: without it, archive add exits 2 and changes nothing.
 exec invox archive edit invoice.yaml
 scrubpaths stdout got.txt
 cmp got.txt want-edit-stdout.txt
@@ -59,7 +59,7 @@ scrubpaths stderr got.txt
 cmp got.txt want-edit.txt
 grep '^  status: editing$' invoice.yaml
 cp home/.config/invox/archive/invoice.yaml archived-before.yaml
-exits 2 invox archive -i invoice.yaml
+exits 2 invox archive add -i invoice.yaml
 ! stdout .
 stderr '^error: archiving invoice\.yaml replaces archived invoice .*; pass --yes to replace it \(stdin is not a terminal\)$'
 cmp home/.config/invox/archive/invoice.yaml archived-before.yaml
@@ -68,7 +68,7 @@ exists invoice.yaml
 
 # With --yes the working copy replaces the archived invoice, and the previous
 # version is kept in archive/.history, which archive list ignores.
-exec invox archive -i invoice.yaml --yes
+exec invox archive add -i invoice.yaml --yes
 scrubpaths stdout got.txt
 cmp got.txt want-rearchive.txt
 stderr '^Archived invoice\.yaml -> .*archive[/\\]invoice\.yaml$'
@@ -91,7 +91,7 @@ grep '^  - name: Development$' CUST-001-010.yaml
 exits 2 invox archive
 ! stdout .
 cmp stderr want-missing-input.txt
-exits 2 invox archive a.yaml b.yaml
+exits 2 invox archive add a.yaml b.yaml
 ! stdout .
 stderr '^error: unexpected arguments: b\.yaml$'
 exits 2 invox archive edit
@@ -102,12 +102,12 @@ exits 2 invox archive list extra
 stderr '^error: unexpected arguments: extra$'
 
 # Runtime errors.
-exits 1 invox archive draft.yaml
+exits 1 invox archive add draft.yaml
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-not-built.txt
 exists draft.yaml
-exits 1 invox archive duplicate.yaml
+exits 1 invox archive add duplicate.yaml
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-duplicate.txt

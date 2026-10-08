@@ -4,14 +4,14 @@
 Increment the invoice number in an existing invoice YAML file.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
   customers.yaml: upward project search, then $HOME/.config/invox/customers.yaml
   schema/docs: run `invox help customers`
 
 Usage:
-  invox increment -i INVOICE.yaml [flags]
+  invox increment [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -28,10 +28,10 @@ JSON fields:
   customerId, number, path, previousNumber
 
 Examples:
-  $ invox increment -i invoice.yaml
-  $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
-  $ invox increment -i invoice.yaml --dry-run
-  $ invox increment -i invoice.yaml --json number,previousNumber
+  $ invox increment invoice.yaml
+  $ invox increment invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment invoice.yaml --dry-run
+  $ invox increment invoice.yaml --json number,previousNumber
 ```
 
 ## See also

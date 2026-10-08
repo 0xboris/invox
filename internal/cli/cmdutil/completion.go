@@ -82,16 +82,11 @@ func CompleteArchivedInvoices(f *Factory) cobra.CompletionFunc {
 
 // CompleteInputFile completes the optional positional input of a command
 // that also takes -i, --input: files with one of exts, and nothing once the
-// input is given. A command with subcommands, such as archive, gets them
-// and any file instead: the shell would read the subcommand names as
-// extensions.
+// input is given.
 func CompleteInputFile(exts ...string) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-		switch {
-		case len(args) > 0 || cmd.Flags().Changed("input"):
+		if len(args) > 0 || cmd.Flags().Changed("input") {
 			return nil, cobra.ShellCompDirectiveNoFileComp
-		case cmd.HasAvailableSubCommands():
-			return nil, cobra.ShellCompDirectiveDefault
 		}
 		return exts, cobra.ShellCompDirectiveFilterFileExt
 	}
