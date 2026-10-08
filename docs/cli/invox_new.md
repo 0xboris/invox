@@ -26,7 +26,7 @@ Flags:
   -e, --edit               Open the created invoice in your editor
       --from-last          Use the latest archived invoice for this customer as the source document
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output YAML path
+  -o, --output string      Output YAML path (must end with .yaml)
   -s, --source string      Path to invoice_defaults.yaml
 
 Global flags:

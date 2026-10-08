@@ -81,7 +81,7 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 			return newRun(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path (must end with .yaml)")
 	cmd.Flags().StringVarP(&opts.DefaultsPath, "source", "s", "", "Path to invoice_defaults.yaml")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")

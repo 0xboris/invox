@@ -98,11 +98,11 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML or PDF file")
 	cmd.Flags().StringVarP(&opts.PDFPath, "pdf", "p", "", "Path to the invoice PDF (default: the input with .pdf)")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Write the draft to this .eml file instead of a temporary one")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Write the draft to this .eml file instead of a temporary one (must end with .eml)")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVar(&opts.To, "to", "", "Recipient email override")
-	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override")
+	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override, supports placeholders")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml", "pdf")

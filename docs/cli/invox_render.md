@@ -23,7 +23,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output TeX path (default invoice.tex)
+  -o, --output string      Output TeX path (must end with .tex; default invoice.tex)
   -t, --template string    Template path or name
 
 Global flags:

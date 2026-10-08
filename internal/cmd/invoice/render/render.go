@@ -69,7 +69,7 @@ $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output TeX path (default invoice.tex)")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output TeX path (must end with .tex; default invoice.tex)")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")

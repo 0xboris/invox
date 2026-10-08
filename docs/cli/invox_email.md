@@ -38,9 +38,9 @@ Flags:
       --force              Overwrite an existing output file
   -i, --input string       Input invoice YAML or PDF file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Write the draft to this .eml file instead of a temporary one
+  -o, --output string      Write the draft to this .eml file instead of a temporary one (must end with .eml)
   -p, --pdf string         Path to the invoice PDF (default: the input with .pdf)
-      --subject string     Email subject override
+      --subject string     Email subject override, supports placeholders
       --to string          Recipient email override
 
 Global flags:

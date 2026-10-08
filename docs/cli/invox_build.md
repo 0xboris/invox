@@ -32,7 +32,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output PDF path (default: the input with .pdf)
+  -o, --output string      Output PDF path (must end with .pdf; default: the input with .pdf)
   -t, --template string    Template path or name
       --yes                Replace an archived invoice without asking
 

@@ -60,7 +60,7 @@ $ invox init --force
 			return initRun(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.Force, "force", false, "Copy files from the deprecated config directory without asking")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Copy files from the deprecated config directory without asking (required without a terminal)")
 	return cmd
 }
 

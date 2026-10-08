@@ -92,13 +92,12 @@ cmp got.txt want-template-list.txt
 exec invox template list --help
 scrubpaths stdout got.txt
 cmp got.txt want-template-list.txt
+# The completion help has no sandbox paths, and its ~/.local/share is literal.
 exec invox help completion
-scrubpaths stdout got.txt
-cmp got.txt want-completion.txt
+cmp stdout want-completion.txt
 ! stderr .
 exec invox completion --help
-scrubpaths stdout got.txt
-cmp got.txt want-completion.txt
+cmp stdout want-completion.txt
 exec invox help new
 scrubpaths stdout got.txt
 cmp got.txt want-new.txt
@@ -925,7 +924,7 @@ Usage:
   invox init [flags]
 
 Flags:
-      --force   Copy files from the deprecated config directory without asking
+      --force   Copy files from the deprecated config directory without asking (required without a terminal)
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -977,7 +976,7 @@ Notes:
 Bash:
   source <(invox completion bash)
   Persistent install, with the bash-completion package:
-    invox completion bash > $DATA_HOME_TILDE/bash-completion/completions/invox
+    invox completion bash > ~/.local/share/bash-completion/completions/invox
 
 Zsh:
   source <(invox completion zsh)
@@ -1006,7 +1005,7 @@ Global flags:
 
 Examples:
   $ invox completion zsh
-  $ invox completion bash > $DATA_HOME_TILDE/bash-completion/completions/invox
+  $ invox completion bash > ~/.local/share/bash-completion/completions/invox
 -- want-new.txt --
 Create a new invoice YAML file with a generated number and prefilled defaults.
 
@@ -1033,7 +1032,7 @@ Flags:
   -e, --edit               Open the created invoice in your editor
       --from-last          Use the latest archived invoice for this customer as the source document
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output YAML path
+  -o, --output string      Output YAML path (must end with .yaml)
   -s, --source string      Path to invoice_defaults.yaml
 
 Global flags:
@@ -1122,7 +1121,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output TeX path (default invoice.tex)
+  -o, --output string      Output TeX path (must end with .tex; default invoice.tex)
   -t, --template string    Template path or name
 
 Global flags:
@@ -1171,9 +1170,9 @@ Flags:
       --force              Overwrite an existing output file
   -i, --input string       Input invoice YAML or PDF file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Write the draft to this .eml file instead of a temporary one
+  -o, --output string      Write the draft to this .eml file instead of a temporary one (must end with .eml)
   -p, --pdf string         Path to the invoice PDF (default: the input with .pdf)
-      --subject string     Email subject override
+      --subject string     Email subject override, supports placeholders
       --to string          Recipient email override
 
 Global flags:
@@ -1218,7 +1217,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
-  -o, --output string      Output PDF path (default: the input with .pdf)
+  -o, --output string      Output PDF path (must end with .pdf; default: the input with .pdf)
   -t, --template string    Template path or name
       --yes                Replace an archived invoice without asking
 
