@@ -1,6 +1,6 @@
 # validate reports a malformed value, an unknown key or a value of the wrong
-# kind with the file, line and field. Once every value decodes, it lists every
-# missing field and an unknown customer_id together.
+# kind with the file, line and field, and lists every missing field and an
+# unknown customer_id in the same run.
 exits 1 invox validate -i fields.yaml
 ! stdout .
 scrubpaths stderr got.txt
@@ -89,15 +89,16 @@ payment:
   due_days: thirty
   payment_terms_text: Pay within 30 days
 -- want-unknown.txt --
-error: customers-unknown.yaml:4: unknown key "phone" in CUST-001
-customers-unknown.yaml:10: unknown key "floor" in CUST-001.address
-issuer-unknown.yaml:1: company must be a mapping, got a string
-issuer-unknown.yaml:6: payment.due_days: expected an integer, got `thirty`
+error: customers-unknown.yaml:4: unknown key "phone" in customer
+customers-unknown.yaml:10: unknown key "floor" in customer.address
+issuer-unknown.yaml:1: issuer.company must be a mapping, got a string
+issuer-unknown.yaml:6: issuer.payment.due_days: expected an integer, got `thirty`
 unknown.yaml:2: line_items: unsupported key; use positions
 unknown.yaml:8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent
 unknown.yaml:9: unknown key "notes" in invoice
 unknown.yaml:12: positions[1].description: expected a string, got a list
 unknown.yaml:15: positions[2] must be a mapping, got a string
+invoice.vat_percent: missing value
 Remove the unknown keys or fix their spelling; 'invox help customers' or 'invox help defaults' lists the supported fields.
 -- anchors.yaml --
 customer_id: CUST-001
@@ -148,7 +149,7 @@ Validation OK: 1001-001 for 1001, 1 line item(s), total 120,00 €
   tax:
     vat_tax_id: ATU12345678
 -- want-mapping-name.txt --
-error: customers-mapping-name.yaml:2: 1001.name: expected a string, got a mapping
+error: customers-mapping-name.yaml:2: customer.name: expected a string, got a mapping
 -- customers-mapping-name-other.yaml --
 1001:
   name: Appsters GmbH

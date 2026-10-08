@@ -433,9 +433,10 @@ func (h Host) DefaultArchiveDir() string {
 }
 
 // LoadContext decodes the three files, validates them together and computes
-// the invoice totals. Problems with single values (*DecodeError) are
-// reported first, all at once; then problems that need the files together,
-// such as missing fields or an unknown customer_id.
+// the invoice totals. It reports every problem at once: values that do not
+// decode (*DecodeError, with file and line), then an unknown customer_id
+// and the fields that are missing or out of range. Validation skips the
+// fields that did not decode.
 func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error) {
 	customers, err := loadCustomerTable(customersPath)
 	if err != nil {
@@ -460,17 +461,16 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	var customer *Customer
 	var customerErr error
 	if customerID == "" {
-		problems = append(problems, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
+		if !within("customer_id", failedFields(invoiceErr)) {
+			problems = append(problems, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
+		}
 	} else if found, ok, err := customers.customer(customerID, true); !ok {
 		unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
-	} else if err != nil {
-		customerErr = err
 	} else {
-		customer = &found
+		customer, customerErr = &found, err
 	}
-	if err := errors.Join(customerErr, issuerErr, invoiceErr); err != nil {
-		return nil, err
-	}
+	decodeErr := errors.Join(customerErr, issuerErr, invoiceErr)
+	failed := failedFields(decodeErr)
 
 	header := invoiceFile.Invoice
 	if header == nil {
@@ -487,27 +487,32 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		problems = append(problems, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
 		payment = &Payment{}
 	}
-	if len(invoiceFile.Positions) == 0 {
+	if len(invoiceFile.Positions) == 0 && !within("positions", failed) {
 		problems = append(problems, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
 	}
+	var fieldProblems []string
 	if customer != nil {
-		problems = append(problems, customer.validate()...)
+		fieldProblems = append(fieldProblems, customer.validate()...)
 	}
-	problems = append(problems, company.validate()...)
-	problems = append(problems, header.validate()...)
-	problems = append(problems, payment.validate()...)
+	fieldProblems = append(fieldProblems, company.validate()...)
+	fieldProblems = append(fieldProblems, header.validate()...)
+	fieldProblems = append(fieldProblems, payment.validate()...)
 
 	var customerVATRate Rate
 	if customer != nil {
 		customerVATRate = customer.Tax.DefaultVATRate
 	}
+	// A rate that did not decode may be the one that applies, so a missing
+	// rate is not reported while one did not decode.
+	vatUndecoded := within("invoice.vat_percent", failed) || within("customer.tax.default_vat_rate", failed)
 	items := make([]LineItem, 0, len(invoiceFile.Positions))
 	missingVATReported := false
 	for index, position := range invoiceFile.Positions {
-		problems = append(problems, position.validate(index+1)...)
+		fieldProblems = append(fieldProblems, position.validate(index+1)...)
 		rate := firstRate(position.VATPercent, header.VATPercent, customerVATRate)
-		if rate == nil && !missingVATReported {
-			problems = append(problems, "invoice.vat_percent: missing value")
+		positionVATUndecoded := within(fmt.Sprintf("positions[%d].vat_percent", index+1), failed)
+		if rate == nil && !missingVATReported && !vatUndecoded && !positionVATUndecoded {
+			fieldProblems = append(fieldProblems, "invoice.vat_percent: missing value")
 			missingVATReported = true
 		}
 		items = append(items, LineItem{
@@ -518,12 +523,18 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 			VATRatePercent: rate,
 		})
 	}
+	// Every field problem starts with the path of its field.
+	for _, problem := range fieldProblems {
+		if path, _, _ := strings.Cut(problem, ":"); !within(path, failed) {
+			problems = append(problems, problem)
+		}
+	}
 
 	var validationErr error
 	if len(problems) > 0 {
 		validationErr = errors.New(strings.Join(problems, "\n"))
 	}
-	if err := errors.Join(unknownCustomer, validationErr); err != nil {
+	if err := errors.Join(unknownCustomer, decodeErr, validationErr); err != nil {
 		return nil, err
 	}
 

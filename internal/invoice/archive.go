@@ -149,7 +149,7 @@ func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
 		return invoiceIdentity{}, false, nil
 	}
 	var identity invoiceIdentity
-	if err := decodeYAMLNode(root, path, "", &identity, false); err != nil || identity.Invoice == nil {
+	if err := decodeYAMLNode(root, path, &identity, false); err != nil || identity.Invoice == nil {
 		return invoiceIdentity{}, false, nil
 	}
 	return identity, true, nil

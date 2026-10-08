@@ -41,11 +41,11 @@ func TestLoadContextRejectsValuesOfTheWrongKind(t *testing.T) {
 		to      string
 		wantErr string
 	}{
-		{name: "customer name mapping", file: "customers", from: "  name: Appsters GmbH\n", to: "  name: {first: Appsters}\n", wantErr: "%s:2: CUST-001.name: expected a string, got a mapping"},
-		{name: "customer street list", file: "customers", from: "    street: Hauptstrasse 1\n", to: "    street: [Hauptstrasse, 1]\n", wantErr: "%s:8: CUST-001.address.street: expected a string, got a list"},
-		{name: "customer address scalar", file: "customers", from: "  address:\n    street: Hauptstrasse 1\n    postal_code: 1010\n    city: Vienna\n    country: Austria\n", to: "  address: Hauptstrasse 1\n", wantErr: "%s:7: CUST-001.address must be a mapping, got a string"},
-		{name: "issuer website mapping", file: "issuer", from: "  website: https://example.com\n", to: "  website: {url: https://example.com}\n", wantErr: "%s:5: company.website: expected a string, got a mapping"},
-		{name: "issuer due_days list", file: "issuer", from: "  due_days: 30\n", to: "  due_days: [30]\n", wantErr: "%s:16: payment.due_days: expected an integer, got a list"},
+		{name: "customer name mapping", file: "customers", from: "  name: Appsters GmbH\n", to: "  name: {first: Appsters}\n", wantErr: "%s:2: customer.name: expected a string, got a mapping"},
+		{name: "customer street list", file: "customers", from: "    street: Hauptstrasse 1\n", to: "    street: [Hauptstrasse, 1]\n", wantErr: "%s:8: customer.address.street: expected a string, got a list"},
+		{name: "customer address scalar", file: "customers", from: "  address:\n    street: Hauptstrasse 1\n    postal_code: 1010\n    city: Vienna\n    country: Austria\n", to: "  address: Hauptstrasse 1\n", wantErr: "%s:7: customer.address must be a mapping, got a string"},
+		{name: "issuer website mapping", file: "issuer", from: "  website: https://example.com\n", to: "  website: {url: https://example.com}\n", wantErr: "%s:5: issuer.company.website: expected a string, got a mapping"},
+		{name: "issuer due_days list", file: "issuer", from: "  due_days: 30\n", to: "  due_days: [30]\n", wantErr: "%s:16: issuer.payment.due_days: expected an integer, got a list"},
 		{name: "invoice period list", file: "invoice", from: "  period: Leistungszeitraum\n", to: "  period: [March]\n", wantErr: "%s:6: invoice.period: expected a string, got a list"},
 		{name: "invoice date mapping", file: "invoice", from: "  issue_date: 2026-03-06\n", to: "  issue_date: {day: 6}\n", wantErr: "%s:4: invoice.issue_date: expected YYYY-MM-DD, got a mapping"},
 		{name: "position name mapping", file: "invoice", from: "  - name: Support\n", to: "  - name: {de: Support}\n", wantErr: "%s:14: positions[2].name: expected a string, got a mapping"},
@@ -84,10 +84,10 @@ func TestLoadContextRejectsUnknownKeys(t *testing.T) {
 		to      string
 		wantErr string
 	}{
-		{name: "customer", file: "customers", from: "  status: active\n", to: "  status: active\n  phone: 123\n", wantErr: `%s:4: unknown key "phone" in CUST-001`},
-		{name: "customer address", file: "customers", from: "    city: Vienna\n", to: "    city: Vienna\n    floor: 3\n", wantErr: `%s:11: unknown key "floor" in CUST-001.address`},
-		{name: "issuer top level", file: "issuer", from: "payment:\n", to: "bank: x\npayment:\n", wantErr: `%s:12: unknown key "bank"`},
-		{name: "issuer payment", file: "issuer", from: "  bic: BKAUATWW\n", to: "  bic: BKAUATWW\n  swift: BKAUATWW\n", wantErr: `%s:16: unknown key "swift" in payment`},
+		{name: "customer", file: "customers", from: "  status: active\n", to: "  status: active\n  phone: 123\n", wantErr: `%s:4: unknown key "phone" in customer`},
+		{name: "customer address", file: "customers", from: "    city: Vienna\n", to: "    city: Vienna\n    floor: 3\n", wantErr: `%s:11: unknown key "floor" in customer.address`},
+		{name: "issuer top level", file: "issuer", from: "payment:\n", to: "bank: x\npayment:\n", wantErr: `%s:12: unknown key "bank" in issuer`},
+		{name: "issuer payment", file: "issuer", from: "  bic: BKAUATWW\n", to: "  bic: BKAUATWW\n  swift: BKAUATWW\n", wantErr: `%s:16: unknown key "swift" in issuer.payment`},
 		{name: "invoice header", file: "invoice", from: "  period: Leistungszeitraum\n", to: "  period: Leistungszeitraum\n  currency: EUR\n", wantErr: `%s:7: unknown key "currency" in invoice`},
 		{name: "position", file: "invoice", from: "    quantity: 2\n", to: "    quantity: 2\n    unit: h\n", wantErr: `%s:14: unknown key "unit" in positions[1]`},
 		{name: "anchor holder", file: "invoice", from: "customer_id: CUST-001\n", to: "customer_id: CUST-001\nextra: &extra {unit: h}\n", wantErr: ""},
@@ -136,8 +136,8 @@ func TestLoadContextReportsEveryDecodeProblemInFileOrder(t *testing.T) {
 
 	_, err := LoadContext(customersPath, issuerPath, invoicePath)
 	want := strings.Join([]string{
-		customersPath + ":3: CUST-001.status: expected a string, got a list",
-		issuerPath + ":16: payment.due_days: expected an integer, got `soon`",
+		customersPath + ":3: customer.status: expected a string, got a list",
+		issuerPath + ":16: issuer.payment.due_days: expected an integer, got `soon`",
 		invoicePath + ":4: invoice.issue_date: expected YYYY-MM-DD, got `06.03.2026`",
 		invoicePath + ":16: positions[2].unit_price: expected a decimal number such as 12 or 12.50, got `ten`",
 	}, "\n")
@@ -188,7 +188,7 @@ func TestListCustomersRejectsAValueOfTheWrongKind(t *testing.T) {
 	}
 
 	_, err := ListCustomers(path)
-	if want := path + ":2: A.name: expected a string, got a list"; err == nil || err.Error() != want {
+	if want := path + ":2: customer.name: expected a string, got a list"; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
 	}
 }

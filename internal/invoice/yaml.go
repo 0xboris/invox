@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 )
@@ -170,11 +171,44 @@ type DecodeError struct {
 	// Problem names the field itself.
 	Path    string
 	Problem string
+	// Field is the field that did not decode, which validation then
+	// skips. It is "" for an unknown or removed key.
+	Field string
 	// UnknownKey is set when the problem is a key the schema does not
 	// define. Schema then names the kind of file: "customers", "issuer" or
 	// "invoice".
 	UnknownKey bool
 	Schema     string
+}
+
+// failedFields returns the Field of every *DecodeError in err.
+func failedFields(err error) map[string]bool {
+	failed := map[string]bool{}
+	var walk func(error)
+	walk = func(err error) {
+		switch e := err.(type) {
+		case *DecodeError:
+			if e.Field != "" {
+				failed[e.Field] = true
+			}
+		case interface{ Unwrap() []error }:
+			for _, inner := range e.Unwrap() {
+				walk(inner)
+			}
+		}
+	}
+	walk(err)
+	return failed
+}
+
+// within reports whether path is one of fields or lies inside one of them.
+func within(path string, fields map[string]bool) bool {
+	for field := range fields {
+		if path == field || strings.HasPrefix(path, field+".") || strings.HasPrefix(path, field+"[") {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *DecodeError) Error() string {
@@ -200,14 +234,17 @@ func decodeYAMLDocument(document *yaml.Node, label string, out any, strict bool)
 	if err != nil {
 		return err
 	}
-	return decodeYAMLNode(root, label, "", out, strict)
+	d := newYAMLDecoder(label, out, strict)
+	d.root = root
+	d.decode(root, reflect.ValueOf(out).Elem(), d.rootPath())
+	return errors.Join(d.errs...)
 }
 
-// decodeYAMLNode decodes n, found at path in the file label, into out. A
+// decodeYAMLNode decodes n, an entry inside the file label, into out. A
 // strict decode rejects keys the schema does not define.
-func decodeYAMLNode(n *yaml.Node, label, path string, out any, strict bool) error {
-	d := &yamlDecoder{label: label, strict: strict, schema: schemaName(out)}
-	d.decode(n, reflect.ValueOf(out).Elem(), path)
+func decodeYAMLNode(n *yaml.Node, label string, out any, strict bool) error {
+	d := newYAMLDecoder(label, out, strict)
+	d.decode(n, reflect.ValueOf(out).Elem(), d.rootPath())
 	return errors.Join(d.errs...)
 }
 
@@ -215,23 +252,45 @@ type yamlDecoder struct {
 	label  string
 	strict bool
 	schema string
-	errs   []error
+	// root is the root mapping of the file, where a key whose value
+	// defines an anchor is a holder of definitions, not an unknown key.
+	root *yaml.Node
+	errs []error
 }
 
-func schemaName(out any) string {
+func newYAMLDecoder(label string, out any, strict bool) *yamlDecoder {
+	d := &yamlDecoder{label: label, strict: strict}
 	switch out.(type) {
 	case *Customer:
-		return "customers"
+		d.schema = "customers"
 	case *IssuerFile:
-		return "issuer"
+		d.schema = "issuer"
 	case *InvoiceFile:
-		return "invoice"
+		d.schema = "invoice"
+	}
+	return d
+}
+
+// rootPath is the prefix field paths start with, the same one validation
+// messages use: customer.name, issuer.payment.iban, invoice.number.
+func (d *yamlDecoder) rootPath() string {
+	switch d.schema {
+	case "customers":
+		return "customer"
+	case "issuer":
+		return "issuer"
 	}
 	return ""
 }
 
 func (d *yamlDecoder) fail(n *yaml.Node, path, problem string) {
-	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Path: path, Problem: problem})
+	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Path: path, Problem: problem, Field: path})
+}
+
+// failShape reports a value of the wrong kind for the struct or list at
+// path; problem names the path itself.
+func (d *yamlDecoder) failShape(n *yaml.Node, path, problem string) {
+	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Problem: problem, Field: path})
 }
 
 // decode fills out from n. Schema structs map YAML keys to fields with yaml
@@ -255,13 +314,13 @@ func (d *yamlDecoder) decode(n *yaml.Node, out reflect.Value, path string) {
 		out.Set(value)
 	case reflect.Struct:
 		if n.Kind != yaml.MappingNode {
-			d.fail(n, "", fmt.Sprintf("%s must be a mapping, got %s", path, describeNode(n)))
+			d.failShape(n, path, fmt.Sprintf("%s must be a mapping, got %s", path, describeNode(n)))
 			return
 		}
 		d.decodeStruct(n, out, path)
 	case reflect.Slice:
 		if n.Kind != yaml.SequenceNode {
-			d.fail(n, "", fmt.Sprintf("%s must be a list, got %s", path, describeNode(n)))
+			d.failShape(n, path, fmt.Sprintf("%s must be a list, got %s", path, describeNode(n)))
 			return
 		}
 		items := reflect.MakeSlice(out.Type(), len(n.Content), len(n.Content))
@@ -291,9 +350,10 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 		index, ok := fields[key]
 		switch {
 		case !ok:
-			// A key whose value defines an anchor holds a definition for
-			// aliases elsewhere, as in `reduced: &reduced {vat_percent: 10}`.
-			if d.strict && pair.value.Anchor == "" {
+			// A top-level key whose value defines an anchor holds a
+			// definition for aliases elsewhere, as in
+			// `reduced: &reduced {vat_percent: 10}`.
+			if d.strict && !(n == d.root && pair.value.Anchor != "") {
 				problem := fmt.Sprintf("unknown key %q", key)
 				if path != "" {
 					problem += " in " + path
@@ -301,7 +361,7 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 				d.errs = append(d.errs, &DecodeError{File: d.label, Line: pair.key.Line, Problem: problem, UnknownKey: true, Schema: d.schema})
 			}
 		case out.Type().Field(index).Type == removedKeyType:
-			d.fail(pair.key, fieldPath, "unsupported key; use "+out.Type().Field(index).Tag.Get("replacement"))
+			d.errs = append(d.errs, &DecodeError{File: d.label, Line: pair.key.Line, Path: fieldPath, Problem: "unsupported key; use " + out.Type().Field(index).Tag.Get("replacement")})
 		default:
 			d.decode(pair.value, out.Field(index), fieldPath)
 		}

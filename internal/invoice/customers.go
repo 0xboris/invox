@@ -76,8 +76,8 @@ func (t customerTable) customer(customerID string, strict bool) (customer Custom
 	}
 	entry = resolveYAMLAlias(entry)
 	if entry.Kind != yaml.MappingNode {
-		return Customer{}, true, &DecodeError{File: t.path, Line: entry.Line, Problem: fmt.Sprintf("customer `%s` must be a mapping", customerID)}
+		return Customer{}, true, &DecodeError{File: t.path, Line: entry.Line, Problem: fmt.Sprintf("customer `%s` must be a mapping", customerID), Field: "customer"}
 	}
-	err = decodeYAMLNode(entry, t.path, customerID, &customer, strict)
+	err = decodeYAMLNode(entry, t.path, &customer, strict)
 	return customer, true, err
 }
