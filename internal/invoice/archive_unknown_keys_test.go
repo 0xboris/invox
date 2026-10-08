@@ -39,7 +39,7 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", NewInvoiceOptions{FromLast: true}); err != nil {
+	if _, err := h.CreateNewInvoice(NewInvoiceParams{Now: time.Now(), WorkDir: t.TempDir(), DefaultsPath: defaultsPath, OutputPath: outputPath, CustomersPath: customersPath, IssuerPath: issuerPath, CustomerID: "CUST-001", FromLast: true}); err != nil {
 		t.Fatalf("CreateNewInvoice --from-last returned error: %v", err)
 	}
 	if created := readTestFile(t, outputPath); !strings.Contains(created, "\nnotes: call before invoicing\n") {
@@ -55,7 +55,7 @@ positions:
 	}
 
 	replaceInFixture(t, defaultsPath, "invoice:\n", "notes: x\ninvoice:\n")
-	_, err = h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, filepath.Join(t.TempDir(), "next.yaml"), customersPath, issuerPath, "CUST-001", NewInvoiceOptions{})
+	_, err = h.CreateNewInvoice(NewInvoiceParams{Now: time.Now(), WorkDir: t.TempDir(), DefaultsPath: defaultsPath, OutputPath: filepath.Join(t.TempDir(), "next.yaml"), CustomersPath: customersPath, IssuerPath: issuerPath, CustomerID: "CUST-001"})
 	if want := defaultsPath + `:1: unknown key "notes"`; err == nil || err.Error() != want {
 		t.Fatalf("CreateNewInvoice from defaults error = %v, want %q", err, want)
 	}

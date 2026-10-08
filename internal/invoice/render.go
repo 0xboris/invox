@@ -80,7 +80,7 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	if err := compile(ctx, renderPath); err != nil {
 		return err
 	}
-	pdf, err := os.ReadFile(PDFPathForOutput(renderPath))
+	pdf, err := os.ReadFile(ReplaceExt(renderPath, ".pdf"))
 	if err != nil {
 		return err
 	}

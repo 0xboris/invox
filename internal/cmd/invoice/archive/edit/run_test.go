@@ -20,7 +20,7 @@ func TestEditRunCopiesIntoGetwd(t *testing.T) {
 		t.Fatal(err)
 	}
 	invoicePath := filepath.Join(draft, "inv.yaml")
-	if _, err := host.CreateNewInvoice(time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), draft, host.GlobalInvoiceDefaultsPath(), invoicePath, host.GlobalCustomersPath(), host.GlobalIssuerPath(), "CUST-001", invoice.NewInvoiceOptions{}); err != nil {
+	if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: draft, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: invoicePath, CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := invoice.MarkInvoiceBuilt(invoicePath); err != nil {

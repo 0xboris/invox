@@ -58,52 +58,63 @@ type NewInvoice struct {
 	SkippedArchiveFiles []string
 }
 
-// NewInvoiceOptions controls CreateNewInvoice.
-type NewInvoiceOptions struct {
-	// FromLast copies the customer's latest archived invoice instead of
-	// the defaults file.
+// NewInvoiceParams says which invoice CreateNewInvoice drafts and where.
+type NewInvoiceParams struct {
+	// Now dates the invoice.
+	Now time.Time
+	// WorkDir is searched for unarchived drafts when numbering.
+	WorkDir string
+	// DefaultsPath is invoice_defaults.yaml.
+	DefaultsPath  string
+	OutputPath    string
+	CustomersPath string
+	IssuerPath    string
+	CustomerID    string
+	// FromLast starts from the customer's last archived invoice instead of
+	// the defaults.
 	FromLast bool
-	// Overwrite replaces an existing file at the output path.
+	// Overwrite replaces an existing file at OutputPath, unless it is in
+	// the archive directory.
 	Overwrite bool
 	// DryRun runs every check and returns the result without writing.
 	DryRun bool
 }
 
-func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, opts NewInvoiceOptions) (NewInvoice, error) {
-	if strings.TrimSpace(outputPath) != "" && !opts.Overwrite && fileExists(outputPath) {
-		return NewInvoice{}, &OutputExistsError{Path: outputPath}
+func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
+	if strings.TrimSpace(p.OutputPath) != "" && !p.Overwrite && fileExists(p.OutputPath) {
+		return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 	}
 
-	customer, err := LoadCustomer(customersPath, customerID)
+	customer, err := LoadCustomer(p.CustomersPath, p.CustomerID)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	issuerPayment, err := LoadIssuerPayment(issuerPath)
-	if err != nil {
-		return NewInvoice{}, err
-	}
-
-	document, sourceLabel, err := h.loadNewInvoiceDocument(defaultsPath, customerID, opts.FromLast)
+	issuerPayment, err := LoadIssuerPayment(p.IssuerPath)
 	if err != nil {
 		return NewInvoice{}, err
 	}
 
-	now = now.In(time.Local)
-	issueDate := now.Format("2006-01-02")
-	draftDirs := draftSearchDirs(workDir, outputPath)
-	draftCounter, err := h.highestDraftCounter(draftDirs, customerID, issueDate, customer)
+	document, sourceLabel, err := h.loadNewInvoiceDocument(p.DefaultsPath, p.CustomerID, p.FromLast)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	invoiceNumber, skipped, err := h.NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
+
+	p.Now = p.Now.In(time.Local)
+	issueDate := p.Now.Format("2006-01-02")
+	draftDirs := draftSearchDirs(p.WorkDir, p.OutputPath)
+	draftCounter, err := h.highestDraftCounter(draftDirs, p.CustomerID, issueDate, customer)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	if strings.TrimSpace(outputPath) == "" {
-		outputPath = filepath.Join(workDir, invoiceNumber+".yaml")
+	invoiceNumber, skipped, err := h.NextInvoiceNumber(p.CustomerID, issueDate, customer, draftCounter)
+	if err != nil {
+		return NewInvoice{}, err
 	}
-	if !opts.Overwrite && fileExists(outputPath) {
-		return NewInvoice{}, &OutputExistsError{Path: outputPath}
+	if strings.TrimSpace(p.OutputPath) == "" {
+		p.OutputPath = filepath.Join(p.WorkDir, invoiceNumber+".yaml")
+	}
+	if !p.Overwrite && fileExists(p.OutputPath) {
+		return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
 	if err != nil {
@@ -111,17 +122,17 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	}
 	deleteMappingKey(root, internalMetadataKey)
 
-	setMappingString(root, "customer_id", customerID)
+	setMappingString(root, "customer_id", p.CustomerID)
 
 	invoiceNode := getOrCreateMappingNode(root, "invoice")
-	dueDays, err := issuerDueDays(issuerPath, issuerPayment)
+	dueDays, err := issuerDueDays(p.IssuerPath, issuerPayment)
 	if err != nil {
 		return NewInvoice{}, err
 	}
 
 	setMappingString(invoiceNode, "number", invoiceNumber)
 	setMappingString(invoiceNode, "issue_date", issueDate)
-	setMappingString(invoiceNode, "due_date", now.AddDate(0, 0, dueDays).Format("2006-01-02"))
+	setMappingString(invoiceNode, "due_date", p.Now.AddDate(0, 0, dueDays).Format("2006-01-02"))
 	setMappingString(invoiceNode, "status", "draft")
 	setMappingString(invoiceNode, "paid_amount", "0")
 
@@ -136,27 +147,27 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	}
 	// An archived invoice is a record: keys it has that invox does not
 	// know are copied over as they are, for validate to report.
-	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, !opts.FromLast); err != nil {
+	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, !p.FromLast); err != nil {
 		return NewInvoice{}, err
 	}
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	if err := h.refuseArchivedOverwrite(outputPath, opts.Overwrite); err != nil {
+	if err := h.refuseArchivedOverwrite(p.OutputPath, p.Overwrite); err != nil {
 		return NewInvoice{}, err
 	}
-	created := NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}
-	if opts.DryRun {
+	created := NewInvoice{Number: invoiceNumber, Path: p.OutputPath, SkippedArchiveFiles: skipped}
+	if p.DryRun {
 		return created, nil
 	}
 	write := fsutil.WriteNewFile
-	if opts.Overwrite {
+	if p.Overwrite {
 		write = fsutil.WriteFile
 	}
-	if err := write(outputPath, data, fsutil.Public); err != nil {
+	if err := write(p.OutputPath, data, fsutil.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return NewInvoice{}, &OutputExistsError{Path: outputPath}
+			return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 		}
 		return NewInvoice{}, err
 	}
@@ -256,7 +267,8 @@ func SetInvoiceStatus(invoicePath, status string) error {
 
 // EditArchiveOptions controls EditArchivedInvoice.
 type EditArchiveOptions struct {
-	// Overwrite replaces an existing working copy.
+	// Overwrite replaces an existing working copy, unless it is in the
+	// archive directory.
 	Overwrite bool
 	// DryRun runs every check and returns the paths without writing.
 	DryRun bool
@@ -288,12 +300,9 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 	if err != nil {
 		return "", "", err
 	}
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return "", "", fmt.Errorf("%s: missing `invoice` mapping", archivePath)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return "", "", fmt.Errorf("%s: `invoice` must be a mapping", archivePath)
+	invoiceNode, err := invoiceMapping(root, archivePath)
+	if err != nil {
+		return "", "", err
 	}
 
 	edit := target.Edit()
@@ -344,12 +353,9 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, err
 	}
 
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return ArchiveResult{}, fmt.Errorf("%s: missing `invoice` mapping", invoicePath)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return ArchiveResult{}, fmt.Errorf("%s: `invoice` must be a mapping", invoicePath)
+	invoiceNode, err := invoiceMapping(root, invoicePath)
+	if err != nil {
+		return ArchiveResult{}, err
 	}
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
@@ -580,27 +586,13 @@ func writeInvoiceStringField(path, key, value string) error {
 		return err
 	}
 
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return fmt.Errorf("%s: missing `invoice` mapping", path)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: `invoice` must be a mapping", path)
+	invoiceNode, err := invoiceMapping(root, path)
+	if err != nil {
+		return err
 	}
 
 	setMappingString(invoiceNode, key, value)
 	return writeYAMLDocument(path, document)
-}
-
-func replaceFileExtension(path, ext string) string {
-	if strings.TrimSpace(path) == "" || strings.TrimSpace(ext) == "" {
-		return path
-	}
-	currentExt := filepath.Ext(path)
-	if currentExt == "" {
-		return path + ext
-	}
-	return strings.TrimSuffix(path, currentExt) + ext
 }
 
 func archiveMetadata(root *yaml.Node) (string, string) {

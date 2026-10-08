@@ -129,10 +129,17 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
 
-	created, err := h.CreateNewInvoice(opts.Now(), baseDir, defaultsPath, outputPath, customersPath, issuerPath, opts.CustomerID, invoice.NewInvoiceOptions{
-		FromLast:  opts.FromLast,
-		Overwrite: opts.Force,
-		DryRun:    opts.DryRun,
+	created, err := h.CreateNewInvoice(invoice.NewInvoiceParams{
+		Now:           opts.Now(),
+		WorkDir:       baseDir,
+		DefaultsPath:  defaultsPath,
+		OutputPath:    outputPath,
+		CustomersPath: customersPath,
+		IssuerPath:    issuerPath,
+		CustomerID:    opts.CustomerID,
+		FromLast:      opts.FromLast,
+		Overwrite:     opts.Force,
+		DryRun:        opts.DryRun,
 	})
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
