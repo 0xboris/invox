@@ -8,11 +8,14 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/spf13/cobra"
+
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/config"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
+	cobra.MousetrapHelpText = ""
 	ctx, stop := signalContext(context.Background())
 	defer stop()
 	return mainContext(ctx, args, f)
@@ -28,19 +31,16 @@ func Main(args []string, f *cmdutil.Factory) int {
 // waits for the child to exit and be reaped. If it ever happened, invox would
 // exit 1 and print the child's error instead of exiting 130.
 func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
-	g, rest, err := splitGlobalFlags(args)
-	if err != nil {
-		return exitCode(f.IOStreams, err)
-	}
-	f.ConfigFile = g.configFile
-	if g.noInput || f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
+	if f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
 		f.IOStreams.SetNeverPrompt(true)
 	}
-	err = dispatch(ctx, f, rest)
+	root := newRootCmd(f)
+	root.SetArgs(normalizeLongFlags(root, versionFlagToCommand(args), f.IOStreams.ErrOut))
+	_, err := root.ExecuteContextC(ctx)
 	warnLegacyFiles(f)
 	var configErr *config.Error
-	if g.configFile != "" && errors.As(err, &configErr) {
-		err = &configFlagError{err: err, path: g.configFile}
+	if f.ConfigFile != "" && errors.As(err, &configErr) {
+		err = &configFlagError{err: err, path: f.ConfigFile}
 	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
@@ -48,6 +48,21 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		err = sigErr
 	}
 	return exitCode(f.IOStreams, err)
+}
+
+// runLegacy runs a command that has not moved to cobra yet. It parses the
+// global flags itself, because the root command leaves its arguments
+// unparsed.
+func runLegacy(ctx context.Context, f *cmdutil.Factory, args []string) error {
+	g, rest, err := splitGlobalFlags(args)
+	if err != nil {
+		return err
+	}
+	f.ConfigFile = g.configFile
+	if g.noInput {
+		f.IOStreams.SetNeverPrompt(true)
+	}
+	return dispatch(ctx, f, rest)
 }
 
 // warnLegacyFiles prints one line when the command read files from the
@@ -84,10 +99,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return nil
 	}
 
-	if args[0] == "--version" {
-		return runVersion(ios, args[1:])
-	}
-
 	if args[0] == "help" {
 		return runHelp(f, args[1:])
 	}
@@ -99,8 +110,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return runConfig(ctx, f, args[1:])
 	case "init":
 		return runInit(ctx, f, args[1:])
-	case "template":
-		return runTemplate(f, args[1:])
 	case "completion":
 		return runCompletion(ios, args[1:])
 	case "new":
@@ -119,8 +128,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return runBuild(ctx, f, args[1:])
 	case "archive":
 		return runArchive(ctx, f, args[1:])
-	case "version":
-		return runVersion(ios, args[1:])
 	default:
 		return cmdutil.FlagErrorf("", "unknown subcommand %q", args[0])
 	}

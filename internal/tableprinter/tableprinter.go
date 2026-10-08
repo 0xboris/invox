@@ -1,4 +1,5 @@
-package cli
+// Package tableprinter prints the output of list commands.
+package tableprinter
 
 import (
 	"fmt"
@@ -8,33 +9,35 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// column is one table column. maxWidth caps the column on a terminal, in
+// Column is one table column. MaxWidth caps the column on a terminal, in
 // cells, and 0 never truncates. Piped output is never truncated.
-type column struct {
-	header   string
-	maxWidth int
+type Column struct {
+	Header   string
+	MaxWidth int
 }
 
-// table is the output of a list command: one row of fields per record. On a
+// Table is the output of a list command: one row of fields per record. On a
 // terminal it prints a header and aligned columns, and an empty table prints
-// emptyHint to stderr. Piped, it prints tab-separated rows with no header,
+// EmptyHint to stderr. Piped, it prints tab-separated rows with no header,
 // and nothing for an empty table.
-type table struct {
-	columns   []column
+type Table struct {
+	Columns   []Column
 	rows      [][]string
-	emptyHint string
+	EmptyHint string
 }
 
-func (t *table) addRow(fields ...string) {
+// AddRow adds one record.
+func (t *Table) AddRow(fields ...string) {
 	t.rows = append(t.rows, fields)
 }
 
-func (t *table) print(ios *iostreams.IOStreams) {
+// Print writes the table to ios.Out, or the empty hint to ios.ErrOut.
+func (t *Table) Print(ios *iostreams.IOStreams) {
 	if !ios.IsStdoutTTY() {
 		for _, row := range t.rows {
 			fields := make([]string, len(row))
 			for i, field := range row {
-				fields[i] = escapeTSVField(field)
+				fields[i] = EscapeTSVField(field)
 			}
 			fmt.Fprintln(ios.Out, strings.Join(fields, "\t"))
 		}
@@ -42,25 +45,25 @@ func (t *table) print(ios *iostreams.IOStreams) {
 	}
 
 	if len(t.rows) == 0 {
-		fmt.Fprintln(ios.ErrOut, t.emptyHint)
+		fmt.Fprintln(ios.ErrOut, t.EmptyHint)
 		return
 	}
 
 	cells := make([][]string, 0, len(t.rows)+1)
-	header := make([]string, len(t.columns))
-	for i, col := range t.columns {
-		header[i] = col.header
+	header := make([]string, len(t.Columns))
+	for i, col := range t.Columns {
+		header[i] = col.Header
 	}
 	cells = append(cells, header)
 	for _, row := range t.rows {
 		fields := make([]string, len(row))
 		for i, field := range row {
-			fields[i] = truncateCells(terminalField(field), t.columns[i].maxWidth)
+			fields[i] = truncateCells(terminalField(field), t.Columns[i].MaxWidth)
 		}
 		cells = append(cells, fields)
 	}
 
-	widths := make([]int, len(t.columns))
+	widths := make([]int, len(t.Columns))
 	for _, row := range cells {
 		for i, field := range row {
 			widths[i] = max(widths[i], cellWidth(field))
@@ -79,10 +82,10 @@ func (t *table) print(ios *iostreams.IOStreams) {
 	}
 }
 
-// escapeTSVField keeps a piped record on one line: backslash, tab, CR and LF
+// EscapeTSVField keeps a piped record on one line: backslash, tab, CR and LF
 // are written as \\, \t, \r and \n, and terminal escape sequences and other
 // control and format characters are dropped.
-func escapeTSVField(field string) string {
+func EscapeTSVField(field string) string {
 	var b strings.Builder
 	for _, r := range stripEscapeSequences(field) {
 		switch r {

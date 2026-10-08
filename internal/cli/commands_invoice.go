@@ -15,6 +15,7 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
@@ -478,17 +479,17 @@ func runArchiveList(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	list := table{
-		columns:   []column{{header: "FILE"}, {header: "CUSTOMER"}, {header: "ISSUE DATE"}, {header: "STATUS"}},
-		emptyHint: "No archived invoices found in " + archiveDir,
+	list := tableprinter.Table{
+		Columns:   []tableprinter.Column{{Header: "FILE"}, {Header: "CUSTOMER"}, {Header: "ISSUE DATE"}, {Header: "STATUS"}},
+		EmptyHint: "No archived invoices found in " + archiveDir,
 	}
 	if archiveDir == "" {
-		list.emptyHint = "No archived invoices found"
+		list.EmptyHint = "No archived invoices found"
 	}
 	for _, archivedInvoice := range archivedInvoices {
-		list.addRow(archivedInvoice.Filename, archivedInvoice.CustomerID, archivedInvoice.IssueDate, archivedInvoice.Status)
+		list.AddRow(archivedInvoice.Filename, archivedInvoice.CustomerID, archivedInvoice.IssueDate, archivedInvoice.Status)
 	}
-	list.print(ios)
+	list.Print(ios)
 	return nil
 }
 

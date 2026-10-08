@@ -7,6 +7,7 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
@@ -64,11 +65,11 @@ func runConfigPaths(f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		return err
 	}
-	t := table{columns: []column{{header: "NAME"}, {header: "PATH"}, {header: "SOURCE"}}}
+	t := tableprinter.Table{Columns: []tableprinter.Column{{Header: "NAME"}, {Header: "PATH"}, {Header: "SOURCE"}}}
 	for _, r := range reports {
-		t.addRow(r.Name, r.Path, sourceWords[r.Source])
+		t.AddRow(r.Name, r.Path, sourceWords[r.Source])
 	}
-	t.print(ios)
+	t.Print(ios)
 	return nil
 }
 

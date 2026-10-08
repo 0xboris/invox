@@ -913,3 +913,10 @@ func printInitHelp(w io.Writer, h invoice.Host) {
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("init"))
 }
+
+func printVersionHelp(w io.Writer) {
+	fmt.Fprintf(w, "Show the %s version.\n\n", commandName)
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s version\n", commandName)
+	fmt.Fprintf(w, "  %s --version\n", commandName)
+}

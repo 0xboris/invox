@@ -1,82 +1,12 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
-
-func runTemplate(f *cmdutil.Factory, args []string) error {
-	ios := f.IOStreams
-	if len(args) == 0 {
-		printTemplateHelp(ios.Out)
-		return nil
-	}
-	if len(args) == 1 && wantsHelp(args) {
-		printTemplateHelp(ios.Out)
-		return nil
-	}
-
-	switch args[0] {
-	case "list":
-		return runTemplateList(f, args[1:])
-	default:
-		return cmdutil.FlagErrorf("template", "unknown template subcommand %q", args[0])
-	}
-}
-
-func runTemplateList(f *cmdutil.Factory, args []string) error {
-	ios := f.IOStreams
-	h := f.Host()
-	if wantsHelp(args) {
-		printTemplateListHelp(ios.Out)
-		return nil
-	}
-
-	spec := templateListSpec()
-	fs := flag.NewFlagSet(spec.Name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	var namesOnly bool
-	fs.BoolVar(&namesOnly, "names", false, "print only template names")
-
-	if err := fs.Parse(args); err != nil {
-		return &cmdutil.FlagError{Command: spec.Name, Err: err}
-	}
-	if len(fs.Args()) > 0 {
-		return cmdutil.FlagErrorf(spec.Name, "unexpected arguments: %s", strings.Join(fs.Args(), " "))
-	}
-
-	templates, err := h.ListTemplates()
-	if err != nil {
-		return err
-	}
-	templateDir, err := h.TemplateCatalogDir()
-	if err != nil {
-		return err
-	}
-
-	list := table{
-		columns:   []column{{header: "NAME"}, {header: "PATH"}},
-		emptyHint: "No templates found in " + templateDir,
-	}
-	if namesOnly {
-		list.columns = list.columns[:1]
-	}
-	for _, template := range templates {
-		if namesOnly {
-			list.addRow(template.Name)
-			continue
-		}
-		list.addRow(template.Name, template.Path)
-	}
-	list.print(ios)
-	return nil
-}
 
 func runCompletion(ios *iostreams.IOStreams, args []string) error {
 	if len(args) == 0 || wantsHelp(args) {

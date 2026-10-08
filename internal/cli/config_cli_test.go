@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 // configLayout is a config home with an invox and a legacy directory and a
@@ -46,7 +47,7 @@ func tsv(rows ...[]string) string {
 	for _, row := range rows {
 		fields := make([]string, len(row))
 		for i, field := range row {
-			fields[i] = escapeTSVField(field)
+			fields[i] = tableprinter.EscapeTSVField(field)
 		}
 		b.WriteString(strings.Join(fields, "\t") + "\n")
 	}

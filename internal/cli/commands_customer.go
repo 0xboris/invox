@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func runCustomerList(f *cmdutil.Factory, args []string) error {
@@ -22,14 +23,14 @@ func runCustomerList(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	list := table{
-		columns:   []column{{header: "ID"}, {header: "NAME", maxWidth: 40}, {header: "STATUS"}},
-		emptyHint: "No customers found in " + invoice.DisplayPath(opts.CustomersPath, opts.BaseDir),
+	list := tableprinter.Table{
+		Columns:   []tableprinter.Column{{Header: "ID"}, {Header: "NAME", MaxWidth: 40}, {Header: "STATUS"}},
+		EmptyHint: "No customers found in " + invoice.DisplayPath(opts.CustomersPath, opts.BaseDir),
 	}
 	for _, customer := range customers {
-		list.addRow(customer.ID, customer.LegalCompanyName, customer.Status)
+		list.AddRow(customer.ID, customer.LegalCompanyName, customer.Status)
 	}
-	list.print(ios)
+	list.Print(ios)
 	return nil
 }
 
