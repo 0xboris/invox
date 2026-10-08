@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	// DefaultSubjectTemplate is the subject when the config sets none.
-	DefaultSubjectTemplate = "Invoice {invoice_number}"
-	// DefaultBodyTemplate is the body when the config sets none.
-	DefaultBodyTemplate = `{email_greeting}
+	// defaultSubjectTemplate is the subject when the config sets none.
+	defaultSubjectTemplate = "Invoice {invoice_number}"
+	// defaultBodyTemplate is the body when the config sets none.
+	defaultBodyTemplate = `{email_greeting}
 
 Please find attached invoice {invoice_number}.
 Issue date: {issue_date}
@@ -58,13 +58,13 @@ var ErrEmptySubject = errors.New("email subject resolved to empty value")
 // ErrMultilineSubject reports a subject that rendered to more than one line.
 var ErrMultilineSubject = errors.New("email subject must be a single line")
 
-// Subject renders the subject template, or DefaultSubjectTemplate when
+// Subject renders the subject template, or defaultSubjectTemplate when
 // template is blank, and trims it. The result must be one non-empty line.
 func Subject(template string, f Fields) (string, error) {
 	if strings.TrimSpace(template) == "" {
-		template = DefaultSubjectTemplate
+		template = defaultSubjectTemplate
 	}
-	subject := strings.TrimSpace(Render(template, f))
+	subject := strings.TrimSpace(render(template, f))
 	if subject == "" {
 		return "", ErrEmptySubject
 	}
@@ -74,19 +74,19 @@ func Subject(template string, f Fields) (string, error) {
 	return subject, nil
 }
 
-// Body renders the body template, or DefaultBodyTemplate when template is
+// Body renders the body template, or defaultBodyTemplate when template is
 // empty, and ends it with exactly one blank line.
 func Body(template string, f Fields) string {
 	if template == "" {
-		template = DefaultBodyTemplate
+		template = defaultBodyTemplate
 	}
-	body := Render(template, f)
+	body := render(template, f)
 	return strings.TrimRight(body, "\n") + "\n\n"
 }
 
-// Render replaces every placeholder in template with its field. Line
+// render replaces every placeholder in template with its field. Line
 // endings become \n.
-func Render(template string, f Fields) string {
+func render(template string, f Fields) string {
 	template = strings.ReplaceAll(template, "\r\n", "\n")
 	template = strings.ReplaceAll(template, "\r", "\n")
 	return strings.NewReplacer(

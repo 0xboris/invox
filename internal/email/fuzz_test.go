@@ -8,7 +8,7 @@ import (
 func FuzzRenderEmailTemplate(f *testing.F) {
 	for _, seed := range []string{
 		"",
-		DefaultBodyTemplate,
+		defaultBodyTemplate,
 		"{customer_name} | {email_greeting} | {contact_person} | {customer_id} | {invoice_number} | {issue_date} | {due_date} | {total_amount} | {outstanding_amount} | {payment_terms_text} | {issuer_name}",
 		"Invoice {invoice_number}\r\nTotal {total_amount}\r",
 		"{{invoice_number}}",
@@ -37,19 +37,19 @@ func FuzzRenderEmailTemplate(f *testing.F) {
 		"{issue_date}", "{due_date}", "{total_amount}", "{outstanding_amount}", "{payment_terms_text}", "{issuer_name}",
 	}
 	f.Fuzz(func(t *testing.T, template string) {
-		rendered := Render(template, fields)
+		rendered := render(template, fields)
 		if strings.Contains(rendered, "\r") {
-			t.Fatalf("Render(%q) = %q, which still contains a carriage return", template, rendered)
+			t.Fatalf("render(%q) = %q, which still contains a carriage return", template, rendered)
 		}
 		for _, placeholder := range placeholders {
 			if strings.Contains(rendered, placeholder) {
-				t.Fatalf("Render(%q) = %q, which still contains %s", template, rendered, placeholder)
+				t.Fatalf("render(%q) = %q, which still contains %s", template, rendered, placeholder)
 			}
 		}
 		if !strings.Contains(template, "{") {
 			normalized := strings.ReplaceAll(strings.ReplaceAll(template, "\r\n", "\n"), "\r", "\n")
 			if rendered != normalized {
-				t.Fatalf("Render(%q) = %q, want it unchanged", template, rendered)
+				t.Fatalf("render(%q) = %q, want it unchanged", template, rendered)
 			}
 		}
 	})
