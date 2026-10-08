@@ -1,6 +1,7 @@
 package list
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/0xboris/invox/internal/invoice"
@@ -14,7 +15,7 @@ func TestListRunEmptyHint(t *testing.T) {
 		in   invoice.HostInputs
 		want string
 	}{
-		{name: "archive directory", in: invoice.HostInputs{GOOS: "linux", XDGDataHome: dataHome}, want: "No archived invoices found in " + invoice.NewHost(invoice.HostInputs{GOOS: "linux", XDGDataHome: dataHome}).DefaultArchiveDir() + "\n"},
+		{name: "archive directory", in: invoice.HostInputs{GOOS: "linux", XDGDataHome: dataHome}, want: "No archived invoices found in " + filepath.Join(dataHome, "invox", "invoices") + "\n"},
 		{name: "no archive directory", in: invoice.HostInputs{GOOS: "linux"}, want: "No archived invoices found\n"},
 	}
 	for _, tc := range tests {
