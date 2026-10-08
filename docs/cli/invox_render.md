@@ -4,7 +4,7 @@
 Render a LaTeX invoice file from YAML data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default output:
   invoice.tex in the current directory
@@ -17,7 +17,7 @@ Default lookup:
   template.tex: upward project search, then $HOME/.config/invox/template.tex
 
 Usage:
-  invox render -i INVOICE.yaml [flags]
+  invox render [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -37,10 +37,10 @@ JSON fields:
   customerId, input, number, path
 
 Examples:
-  $ invox render -i invoice.yaml
-  $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
-  $ invox render -i invoice.yaml --dry-run
-  $ invox render -i invoice.yaml --json path
+  $ invox render invoice.yaml
+  $ invox render invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+  $ invox render invoice.yaml --dry-run
+  $ invox render invoice.yaml --json path
 ```
 
 ## See also

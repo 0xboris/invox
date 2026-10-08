@@ -78,14 +78,11 @@ $ invox build invoice.yaml --json path,number
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if rest := shared.TakeInput(&opts.InvoicePath, args); len(rest) > 0 {
-				return cmdutil.FlagErrorf("build", "unexpected arguments: %s", strings.Join(rest, " "))
-			}
-			return nil
+			return shared.TakeInput("build", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(opts.InvoicePath) == "" {
-				return cmdutil.FlagErrorf("build", "missing required input: INVOICE.yaml or -i, --input")
+			if err := shared.RequireInput("build", opts.InvoicePath); err != nil {
+				return err
 			}
 			if err := shared.RequireExtension("build", opts.OutputPath, ".pdf"); err != nil {
 				return err

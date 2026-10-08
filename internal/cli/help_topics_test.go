@@ -24,7 +24,7 @@ func TestHelpTopicsWorkWithAndWithoutConfig(t *testing.T) {
 			wantStdout: []string{
 				"Environment variables and default directories.\n",
 				"  XDG_CONFIG_HOME\n",
-				"  1. explicit flag (-c, -u, -s, -t)\n",
+				"  1. explicit flag (-c, -u, --defaults, -t)\n",
 			},
 		},
 		{

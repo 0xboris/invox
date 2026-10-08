@@ -16,7 +16,7 @@ var supportFlags = map[invoice.SupportFile]struct {
 }{
 	invoice.Customers: {"customers", "-c/--customers", "paths.customers", "customers.yaml", invoice.Host.GlobalCustomersPath},
 	invoice.Issuer:    {"issuer", "-u/--issuer", "paths.issuer", "issuer.yaml", invoice.Host.GlobalIssuerPath},
-	invoice.Defaults:  {"defaults", "-s/--source", "paths.defaults", "invoice_defaults.yaml", invoice.Host.GlobalInvoiceDefaultsPath},
+	invoice.Defaults:  {"defaults", "--defaults", "paths.defaults", "invoice_defaults.yaml", invoice.Host.GlobalInvoiceDefaultsPath},
 	invoice.Template:  {"template", "-t/--template", "paths.template", "template.tex", invoice.Host.GlobalTemplatePath},
 }
 

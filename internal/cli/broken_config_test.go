@@ -122,7 +122,7 @@ func TestBrokenConfigUsageErrorsExitTwo(t *testing.T) {
 		wantStderr string
 	}{
 		{name: "unknown flag", args: []string{"new", "--bogus"}, wantStderr: "unknown flag: --bogus"},
-		{name: "missing input", args: []string{"validate"}, wantStderr: "missing required flags: -i, --input"},
+		{name: "missing input", args: []string{"validate"}, wantStderr: "missing required input: INVOICE.yaml or -i, --input"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

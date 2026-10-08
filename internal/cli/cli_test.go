@@ -39,8 +39,8 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 	}
 	for _, want := range []string{
 		"invox customer <subcommand> [flags]",
-		"  list    List all customers from customers.yaml\n",
-		"  config  Open customers.yaml in your editor\n",
+		"  edit  Open customers.yaml in your editor\n",
+		"  list  List all customers from customers.yaml\n",
 		"Customer fields:",
 		"<customer>.tax.default_vat_rate",
 		"<customer>.billing.send_invoice_to",
@@ -312,7 +312,7 @@ func TestHelpCustomersShowsCustomersDocumentation(t *testing.T) {
 	for _, want := range []string{
 		"customers.yaml reference.",
 		"invox help customers",
-		"invox customer config",
+		"invox customer edit",
 		"Formatting:",
 		"Top-level customer IDs must start at column 1 with no leading spaces.",
 		"Customer fields:",
@@ -403,36 +403,44 @@ func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
 	}
 }
 
-func TestCustomerConfigOpensCustomersFile(t *testing.T) {
-	customersPath := filepath.Join(t.TempDir(), "customers.yaml")
-	if err := os.WriteFile(customersPath, []byte("CUST-001: {}\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
-	}
+// customer config, the deprecated name of customer edit, still opens the
+// file, after a warning.
+func TestCustomerEditOpensCustomersFile(t *testing.T) {
+	for _, tc := range []struct {
+		verb        string
+		wantWarning string
+	}{
+		{verb: "edit"},
+		{verb: "config", wantWarning: "warning: customer config is deprecated; use customer edit\n"},
+	} {
+		t.Run(tc.verb, func(t *testing.T) {
+			customersPath := filepath.Join(t.TempDir(), "customers.yaml")
+			if err := os.WriteFile(customersPath, []byte("CUST-001: {}\n"), 0o644); err != nil {
+				t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+			}
 
-	f, stub := testFactory(t)
-	openedPath := expectEditor(f, stub, nil)
+			f, stub := testFactory(t)
+			openedPath := expectEditor(f, stub, nil)
 
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
-		"customer",
-		"config",
-		"-c", customersPath,
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if *openedPath != customersPath {
-		t.Fatalf("openedPath = %q, want %q", *openedPath, customersPath)
-	}
-	if want := "Opened " + customersPath + "\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
+			exitCode, stdout, stderr := captureRunFactory(t, f, []string{"customer", tc.verb, "-c", customersPath})
+			if exitCode != 0 {
+				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+			}
+			if *openedPath != customersPath {
+				t.Fatalf("openedPath = %q, want %q", *openedPath, customersPath)
+			}
+			if want := tc.wantWarning + "Opened " + customersPath + "\n"; stderr != want {
+				t.Fatalf("stderr = %q, want %q", stderr, want)
+			}
+			if stdout != "" {
+				t.Fatalf("stdout = %q, want empty", stdout)
+			}
+		})
 	}
 }
 
-func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"customer", "config", "-h"})
+func TestCustomerEditHelpShowsEditUsage(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"customer", "edit", "-h"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -441,7 +449,7 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Open customers.yaml in your editor.",
-		"invox customer config [flags]",
+		"invox customer edit [flags]",
 		"-c, --customers string",
 		"<customer>.name",
 		"<customer>.email",
@@ -450,7 +458,7 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 		"<customer>.billing.currency",
 		"<customer>.numbering.code",
 		"<customer>.numbering.start",
-		"invox customer config",
+		"$ invox customer edit -c customers.yaml",
 		"customers.yaml example:",
 		"# legal_company_name: Appsters GmbH",
 	} {
@@ -463,7 +471,7 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 func TestCustomerConfigReportsIndentedTopLevelConfig(t *testing.T) {
 	writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"customer", "config"})
+	exitCode, stdout, stderr := captureRun(t, []string{"customer", "edit"})
 	if exitCode != 1 {
 		t.Fatalf("exitCode = %d, want 1", exitCode)
 	}
@@ -730,7 +738,7 @@ func TestNewHelpShowsShortFlags(t *testing.T) {
 		"CUSTOMER_ID",
 		"-c, --customers string",
 		"-u, --issuer string",
-		"-s, --source string",
+		"      --defaults string",
 		"-o, --output string",
 		"-e, --edit",
 		"--from-last",
@@ -753,7 +761,7 @@ func TestNewCreatesDefaultOutputInvoiceFile(t *testing.T) {
 		"CUST-001",
 		"-c", customersPath,
 		"-u", issuerPath,
-		"-s", defaultsPath,
+		"--defaults", defaultsPath,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -784,7 +792,7 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 		"-e",
 		"-c", customersPath,
 		"-u", issuerPath,
-		"-s", defaultsPath,
+		"--defaults", defaultsPath,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -820,7 +828,7 @@ func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
 		"--edit",
 		"-c", customersPath,
 		"-u", issuerPath,
-		"-s", defaultsPath,
+		"--defaults", defaultsPath,
 	})
 	if exitCode != 1 {
 		t.Fatalf("exitCode = %d, want 1", exitCode)
@@ -849,7 +857,7 @@ func TestNewUsesCustomerSpecificStartFromCustomersFile(t *testing.T) {
 		"CUST-001",
 		"-c", customersPath,
 		"-u", issuerPath,
-		"-s", defaultsPath,
+		"--defaults", defaultsPath,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -872,7 +880,7 @@ func TestNewAcceptsInlineLongFlagsAfterCustomerID(t *testing.T) {
 		"--output=" + outputPath,
 		"--customers=" + customersPath,
 		"--issuer=" + issuerPath,
-		"--source=" + defaultsPath,
+		"--defaults=" + defaultsPath,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -990,7 +998,7 @@ func TestIncrementRequiresInput(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "missing required flags: -i, --input") {
+	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
 		t.Fatalf("stderr %q does not contain missing input message", stderr)
 	}
 }
@@ -1003,7 +1011,7 @@ func TestRenderRequiresInputOnly(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if want := "error: missing required flags: -i, --input\nRun 'invox render --help' for usage.\n"; stderr != want {
+	if want := "error: missing required input: INVOICE.yaml or -i, --input\nRun 'invox render --help' for usage.\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
@@ -1043,7 +1051,7 @@ func TestNewHelpShowsSupportFileDocumentationHints(t *testing.T) {
 	for _, want := range []string{
 		"-c, --customers string",
 		"-u, --issuer string",
-		"-s, --source string",
+		"      --defaults string",
 		"schema/docs: run `invox help customers`",
 		"schema/docs: run `invox help issuer`",
 		"schema/docs: run `invox help defaults`",
@@ -1260,6 +1268,8 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	}
 }
 
+// send is a hidden alias of email: its help is email's, without the alias,
+// and running it warns that send only drafts an email.
 func TestSendAliasUsesEmailCommand(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"send", "-h"})
 	if exitCode != 0 {
@@ -1268,14 +1278,16 @@ func TestSendAliasUsesEmailCommand(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
-	for _, want := range []string{
-		"invox email [INVOICE.yaml | INVOICE.pdf] [flags]",
-		"Aliases:\n  invox send\n",
-		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
-	} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout %q does not contain %q", stdout, want)
-		}
+	if !strings.Contains(stdout, "invox email [INVOICE.yaml | INVOICE.pdf] [flags]") || strings.Contains(stdout, "invox send") {
+		t.Fatalf("stdout %q is not the email help without send", stdout)
+	}
+
+	exitCode, stdout, stderr = captureRun(t, []string{"send"})
+	want := "warning: send only drafts an email; use 'invox email'\n" +
+		"error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input\n" +
+		"Run 'invox email --help' for usage.\n"
+	if exitCode != 2 || stdout != "" || stderr != want {
+		t.Fatalf("send = (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, want)
 	}
 }
 
@@ -1380,8 +1392,8 @@ func TestBuildRequiresPositionalOrFlagInput(t *testing.T) {
 	}
 }
 
-func TestArchiveHelpShowsShortFlags(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "-h"})
+func TestArchiveAddHelpShowsShortFlags(t *testing.T) {
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "-h"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -1390,8 +1402,8 @@ func TestArchiveHelpShowsShortFlags(t *testing.T) {
 	}
 	for _, want := range []string{
 		"INVOICE.yaml or -i, --input PATH",
-		"invox archive [INVOICE.yaml] [flags]",
-		"$ invox archive invoice.yaml",
+		"invox archive add [INVOICE.yaml] [flags]",
+		"$ invox archive add invoice.yaml",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -1863,6 +1875,7 @@ positions:
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"archive",
+		"add",
 		invoicePath,
 	})
 	if exitCode != 0 {
@@ -2010,6 +2023,7 @@ positions:
 
 	exitCode, stdout, stderr = captureRun(t, []string{
 		"archive",
+		"add",
 		editedPath,
 		"--yes",
 	})
@@ -2072,6 +2086,7 @@ invoice:
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"archive",
+		"add",
 		invoicePath,
 	})
 	if exitCode != 1 {

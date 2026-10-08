@@ -31,4 +31,4 @@ Examples:
 
 ## See also
 
-- [invox archive](invox_archive.md): Archive a built or edited invoice YAML file into the configured archive directory
+- [invox archive](invox_archive.md): Archive invoices, and list or edit archived ones

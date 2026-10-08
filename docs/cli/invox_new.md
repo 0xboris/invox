@@ -23,6 +23,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+      --defaults string    Path to invoice_defaults.yaml
   -n, --dry-run            Print the number and path the invoice would get and write nothing
   -e, --edit               Open the created invoice in your editor
       --force              Overwrite an existing output file
@@ -30,7 +31,6 @@ Flags:
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
   -o, --output string      Output YAML path (must end with .yaml)
-  -s, --source string      Path to invoice_defaults.yaml
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -46,7 +46,7 @@ Examples:
   $ invox new CUST-001 --from-last
   $ invox new CUST-001 --dry-run
   $ invox new CUST-001 --json path,number
-  $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+  $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 ```
 
 ## See also

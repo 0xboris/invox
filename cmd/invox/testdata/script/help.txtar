@@ -64,6 +64,17 @@ cmp got.txt want-customer-list.txt
 exec invox customer list --help
 scrubpaths stdout got.txt
 cmp got.txt want-customer-list.txt
+
+exec invox help customer edit
+scrubpaths stdout got.txt
+cmp got.txt want-customer-edit.txt
+! stderr .
+
+exec invox customer edit -h
+scrubpaths stdout got.txt
+cmp got.txt want-customer-edit.txt
+
+# The deprecated customer config keeps its own help page.
 exec invox help customer config
 scrubpaths stdout got.txt
 cmp got.txt want-customer-config.txt
@@ -75,6 +86,15 @@ exec invox config --help
 scrubpaths stdout got.txt
 cmp got.txt want-config.txt
 ! stderr .
+
+exec invox help config edit
+scrubpaths stdout got.txt
+cmp got.txt want-config-edit.txt
+! stderr .
+
+exec invox config edit --help
+scrubpaths stdout got.txt
+cmp got.txt want-config-edit.txt
 exec invox help init
 scrubpaths stdout got.txt
 cmp got.txt want-init.txt
@@ -133,6 +153,7 @@ cmp got.txt want-email.txt
 exec invox email --help
 scrubpaths stdout got.txt
 cmp got.txt want-email.txt
+# send, the deprecated alias of email, prints the email help.
 exec invox help send
 scrubpaths stdout got.txt
 cmp got.txt want-email.txt
@@ -153,6 +174,15 @@ cmp got.txt want-archive.txt
 exec invox archive --help
 scrubpaths stdout got.txt
 cmp got.txt want-archive.txt
+
+exec invox help archive add
+scrubpaths stdout got.txt
+cmp got.txt want-archive-add.txt
+! stderr .
+
+exec invox archive add --help
+scrubpaths stdout got.txt
+cmp got.txt want-archive-add.txt
 exec invox help archive edit
 scrubpaths stdout got.txt
 cmp got.txt want-archive-edit.txt
@@ -195,7 +225,7 @@ Usage:
   invox <command> [flags]
 
 Invoice commands:
-  archive    Archive a built or edited invoice YAML file into the configured archive directory
+  archive    Archive invoices, and list or edit archived ones
   build      Render and compile an invoice PDF with Tectonic
   email      Create an email draft and open it in the default mail app
   increment  Increment the invoice number in an existing invoice YAML file
@@ -249,7 +279,7 @@ Usage:
 
 Behavior:
   Shows the supported customers.yaml shape used by new, validate, render, build, and email.
-  `invox customer config` opens the resolved file for editing.
+  `invox customer edit` opens the resolved file for editing.
 
 Formatting:
   Top-level customer IDs must start at column 1 with no leading spaces.
@@ -295,7 +325,7 @@ Lookup:
 
 Examples:
   invox help customers
-  invox customer config
+  invox customer edit
   invox new CUST-001 -c customers.yaml
 
 customers.yaml example:
@@ -464,7 +494,7 @@ Lookup:
 
 Examples:
   invox help defaults
-  invox new CUST-001 -s invoice_defaults.yaml
+  invox new CUST-001 --defaults invoice_defaults.yaml
 
 invoice_defaults.yaml example:
 invoice:
@@ -618,8 +648,8 @@ Supported settings:
 Invoice numbers:
   `new` uses the next counter after the highest one found in archive.dir and in
   draft or built invoice YAML files in the current directory and the output directory.
-  `archive` refuses an invoice whose number is already archived under another file;
-  `validate` warns about it. Run `invox increment -i FILE` to give it the next free number.
+  `archive add` refuses an invoice whose number is already archived under another file;
+  `validate` warns about it. Run `invox increment FILE` to give it the next free number.
 
 email template placeholders:
   {customer_name}        Customer display name
@@ -717,6 +747,7 @@ Usage:
   invox config <subcommand> [flags]
 
 Commands:
+  edit   Open config.yaml in your editor
   paths  Show where each config and support file is read from
 
 Global flags:
@@ -726,6 +757,7 @@ Global flags:
 
 Examples:
   $ invox config
+  $ invox config edit
   $ invox config paths
   $ invox help config
 -- want-customer.txt --
@@ -796,8 +828,8 @@ Usage:
   invox customer <subcommand> [flags]
 
 Commands:
-  config  Open customers.yaml in your editor
-  list    List all customers from customers.yaml
+  edit  Open customers.yaml in your editor
+  list  List all customers from customers.yaml
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -807,7 +839,7 @@ Global flags:
 Examples:
   $ invox customer list
   $ invox customer list -c customers.yaml
-  $ invox customer config
+  $ invox customer edit
 -- want-customer-list.txt --
 List all customers from customers.yaml.
 
@@ -908,8 +940,8 @@ Global flags:
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
 Examples:
-  $ invox customer config
-  $ invox customer config -c customers.yaml
+  $ invox customer edit
+  $ invox customer edit -c customers.yaml
 -- want-init.txt --
 Create starter support files in the global config directory.
 
@@ -1041,6 +1073,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+      --defaults string    Path to invoice_defaults.yaml
   -n, --dry-run            Print the number and path the invoice would get and write nothing
   -e, --edit               Open the created invoice in your editor
       --force              Overwrite an existing output file
@@ -1048,7 +1081,6 @@ Flags:
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
   -o, --output string      Output YAML path (must end with .yaml)
-  -s, --source string      Path to invoice_defaults.yaml
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -1064,19 +1096,19 @@ Examples:
   $ invox new CUST-001 --from-last
   $ invox new CUST-001 --dry-run
   $ invox new CUST-001 --json path,number
-  $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+  $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 -- want-increment.txt --
 Increment the invoice number in an existing invoice YAML file.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
   schema/docs: run `invox help customers`
 
 Usage:
-  invox increment -i INVOICE.yaml [flags]
+  invox increment [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -1093,15 +1125,15 @@ JSON fields:
   customerId, number, path, previousNumber
 
 Examples:
-  $ invox increment -i invoice.yaml
-  $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
-  $ invox increment -i invoice.yaml --dry-run
-  $ invox increment -i invoice.yaml --json number,previousNumber
+  $ invox increment invoice.yaml
+  $ invox increment invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment invoice.yaml --dry-run
+  $ invox increment invoice.yaml --json number,previousNumber
 -- want-validate.txt --
 Validate invoice YAML against customers and issuer data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1115,7 +1147,7 @@ JSON output:
   lists each problem with its file, line and field where they are known.
 
 Usage:
-  invox validate -i INVOICE.yaml [flags]
+  invox validate [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -1132,14 +1164,14 @@ JSON fields:
   currency, customerId, errors, lineItems, number, total, valid
 
 Examples:
-  $ invox validate -i invoice.yaml
-  $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
-  $ invox validate -i invoice.yaml --json valid,total,currency,errors
+  $ invox validate invoice.yaml
+  $ invox validate invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+  $ invox validate invoice.yaml --json valid,total,currency,errors
 -- want-render.txt --
 Render a LaTeX invoice file from YAML data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default output:
   invoice.tex in the current directory
@@ -1152,7 +1184,7 @@ Default lookup:
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
 
 Usage:
-  invox render -i INVOICE.yaml [flags]
+  invox render [INVOICE.yaml] [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -1172,10 +1204,10 @@ JSON fields:
   customerId, input, number, path
 
 Examples:
-  $ invox render -i invoice.yaml
-  $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
-  $ invox render -i invoice.yaml --dry-run
-  $ invox render -i invoice.yaml --json path
+  $ invox render invoice.yaml
+  $ invox render invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+  $ invox render invoice.yaml --dry-run
+  $ invox render invoice.yaml --json path
 -- want-email.txt --
 Create an email draft and open it in the default mail app.
 
@@ -1205,9 +1237,6 @@ Behavior:
 
 Usage:
   invox email [INVOICE.yaml | INVOICE.pdf] [flags]
-
-Aliases:
-  invox send
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -1284,51 +1313,28 @@ Examples:
   $ invox build invoice.yaml --json path,number
   $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 -- want-archive.txt --
-Archive a built or edited invoice YAML file into the configured archive directory.
-
-Required inputs:
-  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
+Archive invoices, and list or edit archived ones.
 
 Default lookup:
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
 
-Replacing an archived invoice:
-  Archiving a working copy from `invox archive edit` replaces the archived invoice it came from.
-  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.
-  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,
-  which archive list, numbering and the duplicate-number check ignore.
-  --yes only answers the question; every other check still applies.
-
 Usage:
-  invox archive [INVOICE.yaml] [flags]
   invox archive <subcommand> [flags]
 
 Commands:
+  add   Archive a built or edited invoice YAML file into the configured archive directory
   edit  Copy an archived invoice into the current directory and mark it as editing
   list  List archived invoices from the configured archive directory
-
-Flags:
-  -n, --dry-run        Print where the invoice would be archived and change nothing
-  -i, --input string   Input invoice YAML file
-      --json fields    Output JSON with the specified fields
-      --yes            Replace an archived invoice without asking
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
-JSON fields:
-  input, path, replaced
-
 Examples:
-  $ invox archive invoice.yaml
-  $ invox archive invoices/2026-0021.yaml
-  $ invox archive 2026-03-06.yaml --yes
-  $ invox archive invoice.yaml --dry-run
-  $ invox archive invoice.yaml --json path
-  $ invox archive edit 2026-03-06.yaml
+  $ invox archive add invoice.yaml
   $ invox archive list
+  $ invox archive edit 2026-03-06.yaml
 -- want-archive-edit.txt --
 Copy an archived invoice into the current directory and mark it as editing.
 
@@ -1341,7 +1347,7 @@ Default lookup:
 Behavior:
   Copies the archived invoice from archive.dir into the current directory.
   The working copy is written as YAML with invoice.status set to editing.
-  Re-running invox archive on that working copy replaces the archived invoice.
+  Re-running invox archive add on that working copy replaces the archived invoice.
   It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.
 
 Usage:
@@ -1408,3 +1414,135 @@ Examples:
   $ invox --version
 -- want-help-warning.txt --
 warning: -help is deprecated; use --help
+-- want-customer-edit.txt --
+Open customers.yaml in your editor.
+
+Default lookup:
+  customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
+  schema/docs: run `invox help customers`
+
+Customer fields:
+  customers.yaml maps CUSTOMER_ID keys to customer data.
+  Use the preferred paths below unless you need an alternate supported path.
+
+Preferred fields:
+  <customer>.name                     Preferred display name used on invoices and in emails
+  <customer>.status                   Optional status shown by customer list
+  <customer>.contact_person           Preferred contact used by email templates
+  <customer>.email_greeting           Preferred greeting used by email templates
+  <customer>.email                    Invoice email when billing.send_invoice_to is unset
+  <customer>.address.street           Billing address street
+  <customer>.address.postal_code      Billing address postal code
+  <customer>.address.city             Billing address city
+  <customer>.address.country          Billing address country
+  <customer>.tax.vat_tax_id           VAT number shown on the invoice
+  <customer>.tax.default_vat_rate     Optional default VAT used by new/validate/render/build/email
+  <customer>.billing.send_invoice_to  Preferred invoice-recipient email override
+  <customer>.billing.currency         Optional billing currency, defaults to EUR
+  <customer>.numbering.code           Value used by {customer_code}
+  <customer>.numbering.start          Override numbering.start for this customer
+
+Alternate supported paths:
+  <customer>.legal_company_name       Alternate path for the customer display name
+  <customer>.billing.email            Alternate path for the invoice email
+  <customer>.billing.contact_person   Alternate path for the customer contact
+  <customer>.billing.email_greeting   Alternate path for the email greeting
+  <customer>.currency                 Alternate path for billing.currency
+
+customers.yaml example:
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  contact_person: Jane Doe
+  email_greeting: Dear Jane Doe,
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+    default_vat_rate: 20
+  billing:
+    send_invoice_to: accounting@appsters.example
+    currency: EUR
+    # email: invoices@appsters.example
+    # contact_person: Jane Billing
+    # email_greeting: Dear Accounts Team,
+  numbering:
+    code: APP
+    start: 100
+  # legal_company_name: Appsters GmbH
+  # currency: EUR
+
+Usage:
+  invox customer edit [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox customer edit
+  $ invox customer edit -c customers.yaml
+-- want-config-edit.txt --
+Open config.yaml in your editor.
+
+Opens the resolved config.yaml, or the file given with --config. If it does
+not exist yet, creates it from the template that `invox help config` shows.
+
+Usage:
+  invox config edit [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox config edit
+  $ invox --config ./config.yaml config edit
+-- want-archive-add.txt --
+Archive a built or edited invoice YAML file into the configured archive directory.
+
+Required inputs:
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
+
+Default lookup:
+  archive.dir: config.yaml, then $DATA_HOME/invox/invoices
+
+Replacing an archived invoice:
+  Archiving a working copy from `invox archive edit` replaces the archived invoice it came from.
+  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.
+  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,
+  which archive list, numbering and the duplicate-number check ignore.
+  --yes only answers the question; every other check still applies.
+
+Usage:
+  invox archive add [INVOICE.yaml] [flags]
+
+Flags:
+  -n, --dry-run        Print where the invoice would be archived and change nothing
+  -i, --input string   Input invoice YAML file
+      --json fields    Output JSON with the specified fields
+      --yes            Replace an archived invoice without asking
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+JSON fields:
+  input, path, replaced
+
+Examples:
+  $ invox archive add invoice.yaml
+  $ invox archive add invoices/2026-0021.yaml
+  $ invox archive add 2026-03-06.yaml --yes
+  $ invox archive add invoice.yaml --dry-run
+  $ invox archive add invoice.yaml --json path

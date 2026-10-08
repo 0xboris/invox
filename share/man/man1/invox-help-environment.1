@@ -26,7 +26,7 @@ Environment variables:
       Default: %USERPROFILE%\eAppData\eRoaming. Not used elsewhere.
       A relative value is ignored.
   VISUAL
-      Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.
+      Editor for `config`, `customer edit` and `new -e`. Wins over EDITOR.
       The value is split into words like a shell would and run directly, with the
       file as the last argument. A value with shell syntax ($, |, ; and the like)
       runs through sh -c, where an unquoted # starts a comment that drops the file.
@@ -73,7 +73,7 @@ Precedence:
   a config.yaml setting.
 
 Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, template):
-  1. explicit flag (-c, -u, -s, -t)
+  1. explicit flag (-c, -u, --defaults, -t)
   2. upward search from the current directory
   3. paths.* in config.yaml, relative to config.yaml
   4. the file in the config directory, then in the legacy directory

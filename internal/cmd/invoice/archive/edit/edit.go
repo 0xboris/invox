@@ -55,7 +55,7 @@ Default lookup:
 Behavior:
   Copies the archived invoice from archive.dir into the current directory.
   The working copy is written as YAML with invoice.status set to editing.
-  Re-running invox archive on that working copy replaces the archived invoice.
+  Re-running invox archive add on that working copy replaces the archived invoice.
   It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.
 `,
 		Example: `$ invox archive edit 2026-03-06.yaml

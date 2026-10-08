@@ -59,10 +59,10 @@ exec invox __complete archive edit ''
 cmp stdout want-archived.txt
 
 # Flags and file arguments.
-exec invox __complete archive --y
+exec invox __complete archive add --y
 cmp stdout want-yes.txt
 exec invox __complete render ''
-cmp stdout want-nofiles.txt
+cmp stdout want-yaml.txt
 exec invox __complete validate -i ''
 cmp stdout want-yaml.txt
 exec invox __complete build ''
@@ -127,14 +127,15 @@ fish
 powershell
 :4
 -- want-archive.txt --
-archive	Archive a built or edited invoice YAML file into the configured archive directory
+archive	Archive invoices, and list or edit archived ones
 :4
 -- want-archive-subcommands.txt --
+add	Archive a built or edited invoice YAML file into the configured archive directory
 edit	Copy an archived invoice into the current directory and mark it as editing
 list	List archived invoices from the configured archive directory
-:0
+:4
 -- want-help.txt --
-archive	Archive a built or edited invoice YAML file into the configured archive directory
+archive	Archive invoices, and list or edit archived ones
 build	Render and compile an invoice PDF with Tectonic
 completion	Generate shell completion scripts
 config	Open config.yaml in your editor
@@ -154,6 +155,7 @@ environment	environment variables, default directories, and precedence
 exit-codes	what each exit status means
 :4
 -- want-help-archive.txt --
+add	Archive a built or edited invoice YAML file into the configured archive directory
 edit	Copy an archived invoice into the current directory and mark it as editing
 list	List archived invoices from the configured archive directory
 :4

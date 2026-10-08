@@ -17,7 +17,7 @@ Usage:
   invox <command> [flags]
 
 Invoice commands:
-  archive    Archive a built or edited invoice YAML file into the configured archive directory
+  archive    Archive invoices, and list or edit archived ones
   build      Render and compile an invoice PDF with Tectonic
   email      Create an email draft and open it in the default mail app
   increment  Increment the invoice number in an existing invoice YAML file
@@ -67,7 +67,7 @@ Learn more:
 
 ## See also
 
-- [invox archive](invox_archive.md): Archive a built or edited invoice YAML file into the configured archive directory
+- [invox archive](invox_archive.md): Archive invoices, and list or edit archived ones
 - [invox build](invox_build.md): Render and compile an invoice PDF with Tectonic
 - [invox completion](invox_completion.md): Generate shell completion scripts
 - [invox config](invox_config.md): Open config.yaml in your editor

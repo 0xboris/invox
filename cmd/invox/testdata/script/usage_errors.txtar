@@ -37,7 +37,7 @@ stderr 'missing\.yaml'
 error: missing subcommand
 Run 'invox --help' for usage.
 -- want-validate.txt --
-error: missing required flags: -i, --input
+error: missing required input: INVOICE.yaml or -i, --input
 Run 'invox validate --help' for usage.
 -- want-new-flag.txt --
 error: unknown flag: --bogus

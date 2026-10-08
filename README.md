@@ -16,7 +16,7 @@
 
 - Go `1.24+`
 - `tectonic` in `PATH` for `invox build`
-- A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer config`, and `invox new -e`
+- A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer edit`, and `invox new -e`
 
 Install `tectonic` on macOS with:
 
@@ -57,18 +57,18 @@ Edit the generated files:
 
 ```sh
 invox config
-invox customer config
+invox customer edit
 ```
 
 Create, validate, build, email, and archive an invoice:
 
 ```sh
 invox new CUST-001 -o invoice.yaml -e
-invox validate -i invoice.yaml
-invox render -i invoice.yaml -o invoice.tex
+invox validate invoice.yaml
+invox render invoice.yaml -o invoice.tex
 invox build invoice.yaml
 invox email invoice.pdf
-invox archive invoice.yaml
+invox archive add invoice.yaml
 ```
 
 Common shortcuts:
@@ -106,16 +106,16 @@ Support files resolve in this order:
 | `invox init` | Create starter support files in the global config directory |
 | `invox config` | Open `config.yaml` in the default shell editor |
 | `invox customer list` | List customers from `customers.yaml` |
-| `invox customer config` | Open `customers.yaml` in the default shell editor |
+| `invox customer edit` | Open `customers.yaml` in the default shell editor |
 | `invox template list` | List available LaTeX templates |
 | `invox completion zsh` | Generate Zsh completion output |
 | `invox new CUSTOMER_ID` | Create a new invoice with a generated number |
-| `invox increment -i invoice.yaml` | Increment an existing invoice number in place |
-| `invox validate -i invoice.yaml` | Validate invoice data against customer and issuer files |
-| `invox render -i invoice.yaml` | Render a LaTeX invoice file |
+| `invox increment invoice.yaml` | Increment an existing invoice number in place |
+| `invox validate invoice.yaml` | Validate invoice data against customer and issuer files |
+| `invox render invoice.yaml` | Render a LaTeX invoice file |
 | `invox build invoice.yaml` | Render and compile a PDF with `tectonic` |
 | `invox email invoice.yaml` | Draft an email with the invoice PDF attached |
-| `invox archive invoice.yaml` | Move a built or edited invoice into the archive (`--yes` to replace an archived invoice without asking) |
+| `invox archive add invoice.yaml` | Move a built or edited invoice into the archive (`--yes` to replace an archived invoice without asking) |
 | `invox archive edit FILENAME` | Copy an archived invoice into the current directory as an editable working copy |
 | `invox archive list` | List archived invoices |
 | `invox version` | Show the installed invox version |
@@ -136,13 +136,13 @@ invox help exit-codes
 
 stdout carries only data, so scripts can capture it:
 
-- `new`, `increment`, `render`, `build` (also with `--archive`), `archive` and `archive edit` print the path they created or changed, one line, relative to the current directory when it is inside it. `email` prints the `.eml` path only when it writes one with `-o`.
-- `validate`, `init`, `config` and `customer config` print nothing on stdout.
+- `new`, `increment`, `render`, `build` (also with `--archive`), `archive add` and `archive edit` print the path they created or changed, one line, relative to the current directory when it is inside it. `email` prints the `.eml` path only when it writes one with `-o`.
+- `validate`, `init`, `config` and `customer edit` print nothing on stdout.
 - List commands print their rows, and help, `completion` and `version` print what they always did.
 
 Everything else goes to stderr: status lines such as `Built invoice.pdf for CUST-001 (CUST-001-001)`, hints, prompts, warnings, errors, and the output of the programs invox runs (`tectonic`, the editor, the opener).
 
-A terminal editor, opened by `config`, `customer config` and `new -e`, draws on stderr too, so leave stderr on the terminal (no `2>`) when an editor will open.
+A terminal editor, opened by `config`, `customer edit` and `new -e`, draws on stderr too, so leave stderr on the terminal (no `2>`) when an editor will open.
 
 ```sh
 pdf=$(invox build -i invoice.yaml)
@@ -152,8 +152,8 @@ invox email "$pdf" -o draft.eml
 ## Notes
 
 - `invox new` writes `./<invoice.number>.yaml` by default. `--from-last` clones the latest archived invoice for the customer and refreshes numbering and dates.
-- Invoice numbers are unique. `invox new` picks the next counter after the highest one in `archive.dir` and in invoice YAML files with `status: draft` or `status: built` in the current directory and the output directory, so drafts created one after another get different numbers. Drafts elsewhere are not seen, so `invox archive` also refuses an invoice whose number is already archived under a different file, and `invox validate` warns about it; run `invox increment -i FILE` to move it to the next free number. Re-archiving an invoice opened with `invox archive edit` keeps working.
-- Re-archiving a working copy from `invox archive edit` replaces the archived invoice. On a terminal `invox archive` asks first (the prompt is on stderr); without one it needs `--yes`, and otherwise exits with status 2 and changes nothing. Declining also exits 2. `--yes` only answers the question; every other check still applies. The previous version is kept as `archive.dir/.history/<path>.<UTC timestamp>.<ext>` (for example `.history/customer-a/2026-03-06.20261005T123045Z.yaml`), and the replacement is reported on stderr. `invox archive list`, numbering and the duplicate-number check ignore `.history`, and `invox archive edit` refuses paths inside it. `invox build --archive` behaves the same way and takes `--yes` too.
+- Invoice numbers are unique. `invox new` picks the next counter after the highest one in `archive.dir` and in invoice YAML files with `status: draft` or `status: built` in the current directory and the output directory, so drafts created one after another get different numbers. Drafts elsewhere are not seen, so `invox archive add` also refuses an invoice whose number is already archived under a different file, and `invox validate` warns about it; run `invox increment FILE` to move it to the next free number. Re-archiving an invoice opened with `invox archive edit` keeps working.
+- Re-archiving a working copy from `invox archive edit` replaces the archived invoice. On a terminal `invox archive add` asks first (the prompt is on stderr); without one it needs `--yes`, and otherwise exits with status 2 and changes nothing. Declining also exits 2. `--yes` only answers the question; every other check still applies. The previous version is kept as `archive.dir/.history/<path>.<UTC timestamp>.<ext>` (for example `.history/customer-a/2026-03-06.20261005T123045Z.yaml`), and the replacement is reported on stderr. `invox archive list`, numbering and the duplicate-number check ignore `.history`, and `invox archive edit` refuses paths inside it. `invox build --archive` behaves the same way and takes `--yes` too.
 - `invox build` writes to the input path with a `.pdf` extension by default, updates the invoice status to `built`, and can archive immediately via `--archive`. An invoice with `status: archived` keeps that status, so rebuilding the PDF of an archived invoice does not take it out of the archive; change one with `invox archive edit`.
 - `invox email` accepts either the invoice YAML or a built PDF. When given a PDF, it looks for the matching YAML next to the PDF first and then in `archive.dir`.
 - On macOS, `invox email` opens an editable Apple Mail compose window when possible. Otherwise it creates an `.eml` draft and opens it. Without `-o`, the draft goes to a new temporary directory, and a later `invox email` removes it after 24 hours. A draft written with `-o` is kept, and an existing `-o` file is only overwritten with `--force`.

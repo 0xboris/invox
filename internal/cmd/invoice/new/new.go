@@ -71,7 +71,7 @@ $ invox new CUST-001 -e
 $ invox new CUST-001 --from-last
 $ invox new CUST-001 --dry-run
 $ invox new CUST-001 --json path,number
-$ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+$ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
@@ -83,6 +83,9 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("source") {
+				cmdutil.WarnDeprecated(opts.IO.ErrOut, "-s, --source", "--defaults")
+			}
 			opts.CustomerID = strings.TrimSpace(args[0])
 			if err := shared.RequireExtension("new", opts.OutputPath, ".yaml"); err != nil {
 				return err
@@ -94,7 +97,9 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 		},
 	}
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path (must end with .yaml)")
-	cmd.Flags().StringVarP(&opts.DefaultsPath, "source", "s", "", "Path to invoice_defaults.yaml")
+	cmd.Flags().StringVar(&opts.DefaultsPath, "defaults", "", "Path to invoice_defaults.yaml")
+	cmd.Flags().StringVarP(&opts.DefaultsPath, "source", "s", "", "Path to invoice_defaults.yaml (deprecated: use --defaults)")
+	cmdutil.DeprecateFlag(cmd.Flags(), "source")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
@@ -103,7 +108,7 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the number and path the invoice would get and write nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
 	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("source", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("defaults", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, newJSON{})

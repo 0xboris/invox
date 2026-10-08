@@ -235,7 +235,10 @@ func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []strin
 		case len(arg) > 2 && arg[0] == '-':
 			name, _, _ := strings.Cut(arg[1:], "=")
 			if flag = lookup(name); flag != nil {
-				fmt.Fprintf(w, "warning: -%s is deprecated; use --%s\n", name, name)
+				// A deprecated flag warns about itself, once.
+				if _, deprecated := flag.Annotations[cmdutil.DeprecatedFlagAnnotation]; !deprecated {
+					cmdutil.WarnDeprecated(w, "-"+name, "--"+name)
+				}
 				arg = "-" + arg
 			} else if isLetter(arg[1]) && cmd.Flags().ShorthandLookup(arg[1:2]) == nil && cmd.InheritedFlags().ShorthandLookup(arg[1:2]) == nil {
 				// Not a shorthand cluster such as -ofile.yaml: report it as

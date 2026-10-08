@@ -1,8 +1,6 @@
-.TH "INVOX-CUSTOMER-CONFIG" 1 "" "invox" "invox manual"
-.SH NAME
-invox-customer-config \- Open customers.yaml in your editor
-.SH DESCRIPTION
-.nf
+# invox customer edit
+
+```text
 Open customers.yaml in your editor.
 
 Default lookup:
@@ -65,7 +63,7 @@ CUST-001:
   # currency: EUR
 
 Usage:
-  invox customer config [flags]
+  invox customer edit [flags]
 
 Flags:
   -c, --customers string   Path to customers.yaml
@@ -76,8 +74,10 @@ Global flags:
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
 Examples:
-  $ invox customer config
-  $ invox customer config -c customers.yaml
-.fi
-.SH SEE ALSO
-\fBinvox-customer\fP(1)
+  $ invox customer edit
+  $ invox customer edit -c customers.yaml
+```
+
+## See also
+
+- [invox customer](invox_customer.md): Customer-related commands

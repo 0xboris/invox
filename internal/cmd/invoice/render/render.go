@@ -42,12 +42,12 @@ type renderJSON struct {
 func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Command {
 	opts := &RenderOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "render -i INVOICE.yaml",
+		Use:   "render [INVOICE.yaml]",
 		Short: "Render a LaTeX invoice file from YAML data",
 		Long: `Render a LaTeX invoice file from YAML data.
 
 Required inputs:
-  -i, --input PATH        Path to the invoice YAML file
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default output:
   invoice.tex in the current directory
@@ -57,16 +57,13 @@ Default lookup:
 			helptext.LookupCustomers +
 			helptext.LookupIssuer +
 			helptext.LookupTemplate,
-		Example: `$ invox render -i invoice.yaml
-$ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
-$ invox render -i invoice.yaml --dry-run
-$ invox render -i invoice.yaml --json path
+		Example: `$ invox render invoice.yaml
+$ invox render invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+$ invox render invoice.yaml --dry-run
+$ invox render invoice.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("render", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
+			return shared.TakeInput("render", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("render", opts.InvoicePath); err != nil {
@@ -87,7 +84,7 @@ $ invox render -i invoice.yaml --json path
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print the output path and write nothing")
-	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "tex")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")

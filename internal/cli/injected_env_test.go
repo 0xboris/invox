@@ -65,7 +65,7 @@ func TestNewUsesTheInjectedWorkingDirectory(t *testing.T) {
 	writeTestFile(t, filepath.Join(root, "config", "invox", "config.yaml"), "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
 
 	e := testEnv(root, func() (string, error) { return workDir, nil })
-	exitCode, stdout, stderr := runWithEnv(e, "new", "CUST-001", "-c", "customers.yaml", "-u", "issuer.yaml", "-s", "defaults.yaml")
+	exitCode, stdout, stderr := runWithEnv(e, "new", "CUST-001", "-c", "customers.yaml", "-u", "issuer.yaml", "--defaults", "defaults.yaml")
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

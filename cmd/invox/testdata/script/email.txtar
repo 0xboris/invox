@@ -95,6 +95,7 @@ Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-send.txt --
 draft3.eml
 -- want-send-stderr.txt --
+warning: send only drafts an email; use 'invox email'
 fake open: draft3.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-missing-input.txt --

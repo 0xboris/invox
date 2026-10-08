@@ -23,7 +23,7 @@ func TestNewTwiceWithoutArchivingAllocatesDifferentNumbers(t *testing.T) {
 		{output: "b.yaml", wantStdout: "b.yaml\n", wantStderr: "Created b.yaml for CUST-001 (CUST-001-002)\n"},
 		{output: "", wantStdout: "CUST-001-003.yaml\n", wantStderr: "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)\n"},
 	} {
-		args := []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath}
+		args := []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath}
 		if tc.output != "" {
 			args = append(args, "-o", tc.output)
 		}
@@ -52,7 +52,7 @@ func TestNewSkipsNumbersOfDraftsInOutputDirectory(t *testing.T) {
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"new", "CUST-001",
-		"-c", customersPath, "-u", issuerPath, "-s", defaultsPath,
+		"-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath,
 		"-o", filepath.Join(outputDir, "next.yaml"),
 	})
 	if exitCode != 0 {
@@ -76,7 +76,7 @@ func TestArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 	chdirForTest(t, workDir)
 	writeNumberedInvoice(t, workDir, "second.yaml", "CUST-001-001", "built")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "second.yaml"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "second.yaml"})
 	if exitCode != 1 {
 		t.Fatalf("exitCode = %d, want 1, stdout=%q stderr=%q", exitCode, stdout, stderr)
 	}
@@ -151,7 +151,7 @@ func TestArchiveEditThenRearchiveKeepsSameNumber(t *testing.T) {
 		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("archive: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -230,7 +230,7 @@ func TestForgedReplacePathDoesNotExemptDuplicateNumber(t *testing.T) {
 	if err := os.WriteFile(invoicePath, []byte(source), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", invoicePath})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", invoicePath})
 	if exitCode != 1 {
 		t.Fatalf("archive: exitCode = %d, want 1, stdout=%q stderr=%q", exitCode, stdout, stderr)
 	}
@@ -268,7 +268,7 @@ func TestNewIgnoresUnrelatedAndOversizedYAMLInWorkingDirectory(t *testing.T) {
 		t.Fatalf("WriteFile(huge.yaml) returned error: %v", err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath})
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -297,7 +297,7 @@ func TestArchiveEditMarkdownThenRearchiveReplacesOriginal(t *testing.T) {
 		t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "first.yaml", "--yes"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "first.yaml", "--yes"})
 	if exitCode != 0 {
 		t.Fatalf("archive: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

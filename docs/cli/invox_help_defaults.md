@@ -56,7 +56,7 @@ Lookup:
 
 Examples:
   invox help defaults
-  invox new CUST-001 -s invoice_defaults.yaml
+  invox new CUST-001 --defaults invoice_defaults.yaml
 
 invoice_defaults.yaml example:
 invoice:

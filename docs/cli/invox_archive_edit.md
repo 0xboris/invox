@@ -12,7 +12,7 @@ Default lookup:
 Behavior:
   Copies the archived invoice from archive.dir into the current directory.
   The working copy is written as YAML with invoice.status set to editing.
-  Re-running invox archive on that working copy replaces the archived invoice.
+  Re-running invox archive add on that working copy replaces the archived invoice.
   It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.
 
 Usage:
@@ -40,4 +40,4 @@ Examples:
 
 ## See also
 
-- [invox archive](invox_archive.md): Archive a built or edited invoice YAML file into the configured archive directory
+- [invox archive](invox_archive.md): Archive invoices, and list or edit archived ones
