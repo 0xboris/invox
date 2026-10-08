@@ -488,7 +488,7 @@ func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
 	}
 	archiveInfo, err := os.Stat(store.Dir)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // no readable archive directory means no archived file to protect
 	}
 	if inDir(outputPath, archiveInfo) {
 		return &ArchivedOutputError{Path: outputPath}
