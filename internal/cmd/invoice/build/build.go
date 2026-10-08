@@ -78,7 +78,7 @@ $ invox build invoice.yaml --json path,number
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("build", &opts.InvoicePath, args)
+			return shared.TakeInput("build", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("build", opts.InvoicePath); err != nil {

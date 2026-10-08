@@ -16,7 +16,7 @@
 
 - Go `1.24+`
 - `tectonic` in `PATH` for `invox build`
-- A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer config`, and `invox new -e`
+- A shell editor configured via `VISUAL` or `EDITOR` for `invox config`, `invox customer edit`, and `invox new -e`
 
 Install `tectonic` on macOS with:
 

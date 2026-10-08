@@ -63,7 +63,7 @@ $ invox render invoice.yaml --dry-run
 $ invox render invoice.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("render", &opts.InvoicePath, args)
+			return shared.TakeInput("render", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("render", opts.InvoicePath); err != nil {

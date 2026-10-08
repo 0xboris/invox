@@ -80,7 +80,7 @@ $ invox archive add invoice.yaml --json path
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *AddOptions) error, deprecated bool) {
 	opts := &AddOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		return shared.TakeInput(cmdutil.CommandPath(cmd), &opts.InvoicePath, args)
+		return shared.TakeInput(cmdutil.CommandPath(cmd), opts.Getwd, &opts.InvoicePath, args)
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		opts.Command = cmdutil.CommandPath(cmd)

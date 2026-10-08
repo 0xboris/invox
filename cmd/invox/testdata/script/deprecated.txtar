@@ -60,6 +60,9 @@ cmp stderr want-new-source.txt
 exec invox new CUST-001 --source=home/.config/invox/invoice_defaults.yaml -n
 cmp stdout new-stdout.txt
 cmp stderr want-new-source.txt
+exec invox new CUST-001 -source home/.config/invox/invoice_defaults.yaml -n
+cmp stdout new-stdout.txt
+cmp stderr want-new-source.txt
 
 # send is email, and says that it only drafts one.
 exits 2 invox send

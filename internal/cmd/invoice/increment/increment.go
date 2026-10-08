@@ -55,7 +55,7 @@ $ invox increment invoice.yaml --dry-run
 $ invox increment invoice.yaml --json number,previousNumber
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("increment", &opts.InvoicePath, args)
+			return shared.TakeInput("increment", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("increment", opts.InvoicePath); err != nil {

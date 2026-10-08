@@ -9,6 +9,12 @@ cmp stderr want-validate.txt
 exec invox validate ./invoice.yaml -i invoice.yaml
 ! stdout .
 cmp stderr want-validate.txt
+exec invox validate invoice.yaml -i $WORK${/}invoice.yaml
+! stdout .
+cmp stderr want-validate.txt
+exec invox validate $WORK${/}invoice.yaml -i invoice.yaml
+! stdout .
+cmp stderr want-validate.txt
 exec invox render invoice.yaml -n
 cmp stdout want-render-stdout.txt
 cmp stderr want-render.txt

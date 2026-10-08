@@ -53,7 +53,7 @@ $ invox validate invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
 $ invox validate invoice.yaml --json valid,total,currency,errors
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("validate", &opts.InvoicePath, args)
+			return shared.TakeInput("validate", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput("validate", opts.InvoicePath); err != nil {

@@ -76,15 +76,22 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, h invoice.Host, invoicePath
 
 // TakeInput makes the INVOICE argument, the first of args, the invoice of
 // command. It is a usage error when -i, --input names a different file, or
-// when more arguments follow.
-func TakeInput(command string, invoicePath *string, args []string) error {
+// when more arguments follow. Paths relative to getwd count as the same
+// file as their absolute form.
+func TakeInput(command string, getwd func() (string, error), invoicePath *string, args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
 	if strings.TrimSpace(*invoicePath) == "" {
 		*invoicePath = args[0]
-	} else if filepath.Clean(args[0]) != filepath.Clean(*invoicePath) {
-		return cmdutil.FlagErrorf(command, "the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+	} else {
+		cwd, err := getwd()
+		if err != nil {
+			return err
+		}
+		if invoice.AbsPath(cwd, args[0]) != invoice.AbsPath(cwd, *invoicePath) {
+			return cmdutil.FlagErrorf(command, "the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+		}
 	}
 	if rest := args[1:]; len(rest) > 0 {
 		return cmdutil.FlagErrorf(command, "unexpected arguments: %s", strings.Join(rest, " "))
