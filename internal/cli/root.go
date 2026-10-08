@@ -84,6 +84,9 @@ $ invox archive edit 2026-0001.yaml
 	help := &cobra.Command{
 		Use:    "help [command | topic]",
 		Hidden: true,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return helpCompletions(root, args), cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return helpTopic(cmd.OutOrStdout(), root, f.Host(), args)
 		},
@@ -102,7 +105,7 @@ $ invox archive edit 2026-0001.yaml
 			cmd = root
 		}
 		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Host()); err != nil {
-			fmt.Fprintf(ios.ErrOut, "error: %s\n", err)
+			helpErr = err
 		}
 	})
 

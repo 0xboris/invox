@@ -38,6 +38,12 @@ cmp stdout want-archive.txt
 exec invox __complete archive ''
 cmp stdout want-archive-subcommands.txt
 
+# help completes commands and topics, then subcommands.
+exec invox __complete help ''
+cmp stdout want-help.txt
+exec invox __complete help archive ''
+cmp stdout want-help-archive.txt
+
 # Dynamic values: customer IDs, template names and archived invoices.
 exec invox __complete new ''
 cmp stdout want-customers.txt
@@ -127,6 +133,30 @@ archive	Archive a built or edited invoice YAML file into the configured archive 
 edit	Copy an archived invoice into the current directory and mark it as editing
 list	List archived invoices from the configured archive directory
 :0
+-- want-help.txt --
+archive	Archive a built or edited invoice YAML file into the configured archive directory
+build	Render and compile an invoice PDF with Tectonic
+completion	Generate shell completion scripts
+config	Open config.yaml in your editor
+customer	Customer-related commands
+email	Create an email draft and open it in the default mail app
+increment	Increment the invoice number in an existing invoice YAML file
+init	Create starter support files in the global config directory
+new	Create a new invoice YAML file with a generated number and prefilled defaults
+render	Render a LaTeX invoice file from YAML data
+template	Template-related commands
+validate	Validate invoice YAML against customers and issuer data
+version	Show the invox version
+customers	customers.yaml fields, aliases, and example
+issuer	issuer.yaml fields, validation rules, and example
+defaults	invoice_defaults.yaml shape and new-command behavior
+environment	environment variables, default directories, and precedence
+exit-codes	what each exit status means
+:4
+-- want-help-archive.txt --
+edit	Copy an archived invoice into the current directory and mark it as editing
+list	List archived invoices from the configured archive directory
+:4
 -- want-customers.txt --
 CUST-001	Appsters GmbH
 CUST-002	Example AG

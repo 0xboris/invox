@@ -136,3 +136,26 @@ func helpTopic(w io.Writer, root *cobra.Command, h invoice.Host, args []string) 
 	}
 	return writeHelp(w, cmd, h)
 }
+
+// helpCompletions completes `invox help ARGS`: the subcommands of the
+// command ARGS names, and the help topics after `help` alone.
+func helpCompletions(root *cobra.Command, args []string) []cobra.Completion {
+	cmd, rest, err := root.Find(args)
+	if err != nil || len(rest) > 0 {
+		return nil
+	}
+	var names []cobra.Completion
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() {
+			names = append(names, cobra.CompletionWithDesc(sub.Name(), sub.Short))
+		}
+	}
+	if cmd == root {
+		for _, topic := range helptext.Topics {
+			if topic.Print != nil {
+				names = append(names, cobra.CompletionWithDesc(topic.Name, topic.Short))
+			}
+		}
+	}
+	return names
+}

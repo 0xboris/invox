@@ -59,7 +59,7 @@ fmt: ## Format all Go files in place with gofmt.
 tidy: ## Check that go.mod and go.sum are tidy (prints the diff otherwise).
 	$(GO) mod tidy -diff
 
-docs: ## Regenerate docs/cli and share/man/man1 from the command tree.
+docs: ## Regenerate docs/cli and share/man/man1 from the command tree (Linux or macOS).
 	$(GO) run ./internal/docs/gen
 
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.

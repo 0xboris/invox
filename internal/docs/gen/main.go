@@ -1,7 +1,8 @@
 // Command gen writes the command reference from the invox command tree:
 // docs/cli/*.md and share/man/man1/*.1, one page per command and help topic.
 // Each page holds the command's help, as `invox help` prints it for a user
-// whose home directory is $HOME. Run it from the repository root:
+// whose home directory is $HOME. Run it from the repository root, on Linux or
+// macOS: on Windows the paths in the help come out with backslashes.
 //
 //	go run ./internal/docs/gen
 package main
