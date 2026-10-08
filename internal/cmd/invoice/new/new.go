@@ -14,6 +14,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -41,6 +42,25 @@ func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error
 	cmd := &cobra.Command{
 		Use:   "new CUSTOMER_ID",
 		Short: "Create a new invoice YAML file with a generated number and prefilled defaults",
+		Long: `Create a new invoice YAML file with a generated number and prefilled defaults.
+
+Required inputs:
+  CUSTOMER_ID                  Required positional argument
+
+Default output:
+  <invoice.number>.yaml in the current directory
+
+Default lookup:
+` +
+			helptext.LookupCustomers +
+			helptext.LookupIssuer +
+			helptext.LookupDefaults +
+			helptext.LookupArchive,
+		Example: `$ invox new CUST-001
+$ invox new CUST-001 -e
+$ invox new CUST-001 --from-last
+$ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case len(args) == 0:
@@ -61,12 +81,17 @@ func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error
 			return newRun(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path (must end with .yaml)")
 	cmd.Flags().StringVarP(&opts.DefaultsPath, "source", "s", "", "Path to invoice_defaults.yaml")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
 	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
+	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
+	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("source", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	return cmd
 }
 

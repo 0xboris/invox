@@ -1,0 +1,89 @@
+# invox customer
+
+```text
+Customer-related commands.
+
+Default lookup:
+  customers.yaml: upward project search, then $HOME/.config/invox/customers.yaml
+
+Documentation:
+  Run `invox help customers` for the customers.yaml schema reference.
+
+Customer fields:
+  customers.yaml maps CUSTOMER_ID keys to customer data.
+  Use the preferred paths below unless you need an alternate supported path.
+
+Preferred fields:
+  <customer>.name                     Preferred display name used on invoices and in emails
+  <customer>.status                   Optional status shown by customer list
+  <customer>.contact_person           Preferred contact used by email templates
+  <customer>.email_greeting           Preferred greeting used by email templates
+  <customer>.email                    Invoice email when billing.send_invoice_to is unset
+  <customer>.address.street           Billing address street
+  <customer>.address.postal_code      Billing address postal code
+  <customer>.address.city             Billing address city
+  <customer>.address.country          Billing address country
+  <customer>.tax.vat_tax_id           VAT number shown on the invoice
+  <customer>.tax.default_vat_rate     Optional default VAT used by new/validate/render/build/email
+  <customer>.billing.send_invoice_to  Preferred invoice-recipient email override
+  <customer>.billing.currency         Optional billing currency, defaults to EUR
+  <customer>.numbering.code           Value used by {customer_code}
+  <customer>.numbering.start          Override numbering.start for this customer
+
+Alternate supported paths:
+  <customer>.legal_company_name       Alternate path for the customer display name
+  <customer>.billing.email            Alternate path for the invoice email
+  <customer>.billing.contact_person   Alternate path for the customer contact
+  <customer>.billing.email_greeting   Alternate path for the email greeting
+  <customer>.currency                 Alternate path for billing.currency
+
+customers.yaml example:
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  contact_person: Jane Doe
+  email_greeting: Dear Jane Doe,
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+    default_vat_rate: 20
+  billing:
+    send_invoice_to: accounting@appsters.example
+    currency: EUR
+    # email: invoices@appsters.example
+    # contact_person: Jane Billing
+    # email_greeting: Dear Accounts Team,
+  numbering:
+    code: APP
+    start: 100
+  # legal_company_name: Appsters GmbH
+  # currency: EUR
+
+Usage:
+  invox customer <subcommand> [flags]
+
+Commands:
+  config  Open customers.yaml in your editor
+  list    List all customers from customers.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox customer list
+  $ invox customer list -c customers.yaml
+  $ invox customer config
+```
+
+## See also
+
+- [invox](invox.md): Generate LaTeX and PDF invoices from YAML data
+- [invox customer config](invox_customer_config.md): Open customers.yaml in your editor
+- [invox customer list](invox_customer_list.md): List all customers from customers.yaml

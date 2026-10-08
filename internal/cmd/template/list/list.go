@@ -23,8 +23,24 @@ type ListOptions struct {
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List available invoice templates",
+		Use:               "list",
+		Short:             "List available invoice templates",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Long: `List available LaTeX invoice templates from the same directory as the resolved default template.
+
+Output:
+  Default: NAME<TAB>ABSOLUTE_PATH
+  --names: TEMPLATE_NAME per line
+  On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
+
+Lookup:
+  The directory is derived from the resolved default template path.
+  Name-only -t/--template values are resolved in that same directory.
+`,
+		Example: `$ invox template list
+$ invox template list --names
+$ invox build invoice.yaml -t multi_vat.tex
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("template list", "unexpected arguments: %s", strings.Join(args, " "))

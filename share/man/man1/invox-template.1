@@ -1,0 +1,112 @@
+.TH "INVOX-TEMPLATE" 1 "" "invox" "invox manual"
+.SH NAME
+invox-template \- Template-related commands
+.SH DESCRIPTION
+.nf
+Template-related commands.
+
+Description:
+  Author and discover the LaTeX templates used by render and build.
+  Templates are regular .tex files with literal @@PLACEHOLDER@@ tokens.
+
+Important rules:
+  Placeholder names are case-sensitive and must match exactly.
+  Unknown placeholders are left unchanged in the rendered TeX.
+  @@VAT_RATE@@ and @@VAT_AMOUNT@@ are unsupported; use @@VAT_SUMMARY_ROWS@@.
+  Most placeholders are LaTeX-escaped automatically.
+  Dates render as DD.MM.YYYY.
+  Money renders as 1.234,56 \eeuro for EUR, or with the currency code otherwise.
+
+Structured placeholders:
+  @@LINE_ITEMS_ROWS@@ requires a five-column table.
+  @@LINE_ITEMS_ROWS_WITH_VAT@@ requires a six-column table.
+  @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@ repeats a custom snippet once per position.
+  Inside that block, use @@LINE_ITEM_NAME@@, @@LINE_ITEM_DESCRIPTION@@, @@LINE_ITEM_UNIT_PRICE@@,
+  @@LINE_ITEM_QUANTITY@@, @@LINE_ITEM_VAT_RATE@@, @@LINE_ITEM_LINE_TOTAL@@, and @@LINE_ITEM_RULE@@.
+  @@VAT_SUMMARY_ROWS@@ belongs inside a two-column totals table.
+  Use @@VAT_LABEL@@ anywhere you want the same VAT label text in the template.
+
+Custom line-item block example:
+  @@LINE_ITEMS_BEGIN@@
+  @@LINE_ITEM_NAME@@ & @@LINE_ITEM_UNIT_PRICE@@ & @@LINE_ITEM_VAT_RATE@@ & @@LINE_ITEM_LINE_TOTAL@@\e\e
+  @@LINE_ITEM_RULE@@
+  @@LINE_ITEMS_END@@
+
+Template workflow:
+  Run `invox render -i invoice.yaml` to inspect the generated .tex.
+  Run `invox build invoice.yaml` after the rendered LaTeX looks correct.
+  Run `invox template list` to discover templates addressable by name with -t/--template.
+
+Available .tex placeholders:
+  Issuer:
+    @@ISSUER_NAME@@                  issuer.company.legal_company_name
+    @@ISSUER_COMPANY_REG_NO@@        issuer.company.company_registration_number
+    @@ISSUER_VAT_TAX_ID@@            issuer.company.vat_tax_id
+    @@ISSUER_WEBSITE@@               issuer.company.website
+    @@ISSUER_EMAIL@@                 issuer.company.email
+    @@ISSUER_STREET@@                issuer.company.address.street
+    @@ISSUER_CITY@@                  issuer.company.address.city
+    @@ISSUER_POSTAL_CODE@@           issuer.company.address.postal_code
+    @@ISSUER_COUNTRY@@               issuer.company.address.country
+  Customer:
+    @@CUSTOMER_NAME@@                Preferred customer name
+    @@CUSTOMER_STREET@@              customer.address.street
+    @@CUSTOMER_CITY@@                customer.address.city
+    @@CUSTOMER_POSTAL_CODE@@         customer.address.postal_code
+    @@CUSTOMER_COUNTRY@@             customer.address.country
+    @@CUSTOMER_VAT_TAX_ID@@          customer.tax.vat_tax_id
+    @@CUSTOMER_EMAIL@@               Preferred invoice email
+  Invoice metadata:
+    @@INVOICE_NUMBER@@               invoice.number
+    @@ISSUE_DATE@@                   invoice.issue_date formatted as DD.MM.YYYY
+    @@DUE_DATE@@                     invoice.due_date formatted as DD.MM.YYYY
+    @@PERIOD_LABEL@@                 invoice.period
+  Line items:
+    @@LINE_ITEMS_ROWS@@              Structured rows: name, description, unit price, quantity, line total
+    @@LINE_ITEMS_ROWS_WITH_VAT@@     Structured rows: name, description, unit price, quantity, VAT rate, line total
+    @@LINE_ITEMS_BEGIN@@             Begin custom line-item block; repeat enclosed snippet once per position
+    @@LINE_ITEMS_END@@               End custom line-item block
+    @@LINE_ITEM_NAME@@               Line-item name; only inside @@LINE_ITEMS_BEGIN@@ ... @@LINE_ITEMS_END@@
+    @@LINE_ITEM_DESCRIPTION@@        Line-item description; only inside the custom line-item block
+    @@LINE_ITEM_UNIT_PRICE@@         Formatted unit price with 2 to 4 decimals, as many as it needs (rounded half up beyond 4); only inside the custom line-item block
+    @@LINE_ITEM_QUANTITY@@           Formatted quantity; only inside the custom line-item block
+    @@LINE_ITEM_VAT_RATE@@           Formatted effective VAT rate; only inside the custom line-item block
+    @@LINE_ITEM_LINE_TOTAL@@         Formatted line total; only inside the custom line-item block
+    @@LINE_ITEM_RULE@@               Line separator rule; only inside the custom line-item block
+  Totals:
+    @@SUBTOTAL@@                     Formatted net subtotal
+    @@VAT_SUMMARY_ROWS@@             Structured VAT summary rows, one row per VAT bucket
+    @@TOTAL@@                        Formatted invoice total
+    @@PAID_AMOUNT@@                  Formatted paid amount
+    @@OUTSTANDING_AMOUNT@@           Formatted outstanding amount
+    @@INVOICE_TOTAL@@                Alias for @@TOTAL@@
+    @@OUTSTANDING_TOTAL@@            Alias for @@OUTSTANDING_AMOUNT@@
+  Payment:
+    @@PAYMENT_TERMS_TEXT@@           issuer.payment.payment_terms_text
+    @@VAT_LABEL@@                    VAT label from issuer.payment.vat_label, defaults to VAT
+    @@BANK_NAME@@                    issuer.payment.bank_name
+    @@IBAN@@                         issuer.payment.iban
+    @@BIC@@                          issuer.payment.bic
+    @@EPC_QR_AVAILABLE@@             1 when an EPC QR code will be rendered, otherwise 0
+    @@EPC_QR_LABEL@@                 EPC QR label text
+    @@EPC_QR_CODE@@                  EPC QR code placeholder
+
+Usage:
+  invox template <subcommand> [flags]
+
+Commands:
+  list  List available invoice templates
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox template list
+  $ invox template list --names
+  $ invox render -i invoice.yaml -t multi_vat.tex
+  $ invox build invoice.yaml -t multi_vat.tex
+.fi
+.SH SEE ALSO
+\fBinvox\fP(1), \fBinvox-template-list\fP(1)

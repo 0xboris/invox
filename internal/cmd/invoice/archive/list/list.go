@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
@@ -24,8 +25,21 @@ type ListOptions struct {
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List archived invoices from the configured archive directory",
+		Use:               "list",
+		Short:             "List archived invoices from the configured archive directory",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Long: `List archived invoices from the configured archive directory.
+
+Default lookup:
+` +
+			helptext.LookupArchive +
+			`
+Output:
+  One archived invoice per line as FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS
+  On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
+`,
+		Example: `$ invox archive list
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("archive list", "unexpected arguments: %s", strings.Join(args, " "))

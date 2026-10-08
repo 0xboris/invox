@@ -1,0 +1,27 @@
+# invox help exit-codes
+
+```text
+Exit codes.
+
+Usage:
+  invox help exit-codes
+
+Exit codes:
+  0    Success.
+  1    The command failed: invalid invoice data, a missing or broken file,
+       a failed build or a failed external program.
+  2    Usage error: unknown command, topic or flag, or a missing or extra
+       argument. Also used when a confirmation was declined, or was needed
+       without a terminal to ask on and without --yes, and when an editor was
+       needed without a terminal or with --no-input. The step that needed
+       confirmation or the editor was not done. Ctrl-C at a confirmation
+       prompt also exits 2.
+  130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped
+       and its temporary files are removed. While an editor runs, Ctrl-C
+       goes to the editor alone and invox keeps waiting for it.
+  143  Stopped by SIGTERM, with the same cleanup as 130.
+```
+
+## See also
+
+- [invox](invox.md): Generate LaTeX and PDF invoices from YAML data

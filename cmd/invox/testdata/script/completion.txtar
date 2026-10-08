@@ -1,6 +1,20 @@
-# completion prints the zsh script on stdout. It has no runtime failure mode.
+# completion prints a cobra completion script for bash, zsh, fish and
+# powershell. Each one asks `invox __complete` for the values.
+exec invox completion bash
+stdout 'complete -o default -F __start_invox invox$'
+stdout '__complete'
+! stderr .
 exec invox completion zsh
-cmp stdout want-zsh.txt
+stdout '^#compdef invox$'
+stdout '__complete'
+! stderr .
+exec invox completion fish
+stdout '^complete -c invox '
+stdout '__complete'
+! stderr .
+exec invox completion powershell
+stdout '^Register-ArgumentCompleter -CommandName ''invox'''
+stdout '__complete'
 ! stderr .
 
 # Without a shell it prints its help.
@@ -8,147 +22,171 @@ exec invox completion
 stdout '^Generate shell completion scripts\.$'
 ! stderr .
 
-exits 2 invox completion bash
+exits 2 invox completion tcsh
 ! stdout .
-cmp stderr want-bash.txt
+cmp stderr want-tcsh.txt
 
 exits 2 invox completion zsh extra
 ! stdout .
 stderr '^error: unexpected arguments: zsh extra$'
 
--- want-zsh.txt --
-#compdef invox
+# The shells and the subcommands.
+exec invox __complete completion ''
+cmp stdout want-shells.txt
+exec invox __complete ar
+cmp stdout want-archive.txt
+exec invox __complete archive ''
+cmp stdout want-archive-subcommands.txt
 
-_invox_template_names() {
-  local -a templates
-  templates=(${(f)"$(${invox_command:-$words[1]} template list --names 2>/dev/null)"})
-  (( ${#templates[@]} == 0 )) && return 1
-  _describe 'template' templates
-}
+# help completes commands and topics, then subcommands.
+exec invox __complete help ''
+cmp stdout want-help.txt
+exec invox __complete help archive ''
+cmp stdout want-help-archive.txt
 
-_invox_template_values() {
-  _alternative \
-    'templates:template name:_invox_template_names' \
-    'files:template file:_files -g "*.tex"'
-}
+# Dynamic values: customer IDs, template names and archived invoices.
+exec invox __complete new ''
+cmp stdout want-customers.txt
+exec invox __complete new -c other.yaml ''
+cmp stdout want-other-customers.txt
+exec invox __complete build x.yaml -t ''
+cmp stdout want-templates.txt
+exec invox __complete render -t multi
+cmp stdout want-multi.txt
+exec invox __complete render -t ./
+cmp stdout want-files.txt
+exec invox __complete archive edit ''
+cmp stdout want-archived.txt
 
-_invox_invoice_files() {
-  _files -g "*.y(|a)ml(-.)"
-}
+# Flags and file arguments.
+exec invox __complete archive --y
+cmp stdout want-yes.txt
+exec invox __complete render ''
+cmp stdout want-nofiles.txt
+exec invox __complete validate -i ''
+cmp stdout want-yaml.txt
+exec invox __complete build ''
+cmp stdout want-yaml.txt
+exec invox __complete build -i x.yaml ''
+cmp stdout want-nofiles.txt
+exec invox __complete email ''
+cmp stdout want-yaml-pdf.txt
 
-_invox_shift_words() {
-  local skip=$1
-  local -a subwords
-  subwords=("${(@)words[$((skip + 1)),-1]}")
-  words=("${(@)subwords}")
-  (( CURRENT -= skip ))
-}
+# A broken config.yaml completes nothing, without an error.
+cp broken.yaml home/.config/invox/config.yaml
+exec invox __complete new ''
+cmp stdout want-nofiles.txt
+exec invox __complete archive edit ''
+cmp stdout want-nofiles.txt
+exec invox __complete build x.yaml -t ''
+cmp stdout want-files.txt
+exec invox __complete new --config other-config.yaml ''
+cmp stdout want-customers.txt
 
-_invox() {
-  local context state line
-  local invox_command=$words[1]
-  typeset -A opt_args
+# Without any support files there is nothing to complete either.
+rm home/.config/invox
+exec invox __complete new ''
+cmp stdout want-nofiles.txt
+exec invox __complete archive edit ''
+cmp stdout want-nofiles.txt
 
-  if (( CURRENT == 2 )); then
-    _values 'subcommand' \
-      'customer[Customer-related commands]' \
-      'config[Open config.yaml in your editor]' \
-      'init[Create starter support files in the global config directory]' \
-      'template[List available templates]' \
-      'completion[Generate shell completion scripts]' \
-      'new[Create a new invoice YAML file]' \
-      'increment[Increment the invoice number in an invoice YAML file]' \
-      'validate[Validate invoice YAML against customers and issuer data]' \
-      'render[Render a LaTeX invoice file]' \
-      'email[Create and open an email draft]' \
-      'build[Render and compile an invoice PDF]' \
-      'archive[Archive invoices and manage archived invoices]'
-    return
-  fi
-
-  case $words[2] in
-    template)
-      if (( CURRENT == 3 )); then
-        _values 'template command' 'list[List available templates]'
-        return
-      fi
-      case $words[3] in
-        list)
-          _invox_shift_words 2
-          _arguments '--names[print only template names]'
-          return
-          ;;
-      esac
-      ;;
-    config)
-      if (( CURRENT == 3 )); then
-        _values 'config command' 'paths[Show where each config and support file is read from]'
-        return
-      fi
-      ;;
-    completion)
-      if (( CURRENT == 3 )); then
-        _values 'shell' 'zsh[Zsh completion script]'
-        return
-      fi
-      ;;
-    render)
-      if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then
-        _invox_invoice_files
-        return
-      fi
-      _invox_shift_words 1
-      _arguments -s \
-        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
-        '(-o --output)'{-o+,--output=}'[output TeX path]:output:_files' \
-        '(-c --customers)'{-c+,--customers=}'[customers.yaml]:customers:_files -g "*.yaml"' \
-        '(-u --issuer)'{-u+,--issuer=}'[issuer.yaml]:issuer:_files -g "*.yaml"' \
-        '(-t --template)'{-t+,--template=}'[template file or known template name]:template:_invox_template_values' \
-        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"'
-      return
-      ;;
-    build)
-      if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then
-        _invox_invoice_files
-        return
-      fi
-      _invox_shift_words 1
-      _arguments -s \
-        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
-        '(-o --output)'{-o+,--output=}'[output PDF path]:output:_files' \
-        '(-c --customers)'{-c+,--customers=}'[customers.yaml]:customers:_files -g "*.yaml"' \
-        '(-u --issuer)'{-u+,--issuer=}'[issuer.yaml]:issuer:_files -g "*.yaml"' \
-        '(-t --template)'{-t+,--template=}'[template file or known template name]:template:_invox_template_values' \
-        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"' \
-        '--archive[archive after a successful PDF build]' \
-        '--yes[replace an archived invoice without asking]'
-      return
-      ;;
-    archive)
-      if (( CURRENT == 3 )); then
-        _alternative \
-          'archive-commands:archive command:((edit\:"Copy an archived invoice for editing" list\:"List archived invoices"))' \
-          'files:invoice:_invox_invoice_files'
-        return
-      fi
-      case $words[3] in
-        edit|list)
-          return
-          ;;
-      esac
-      _invox_shift_words 1
-      _arguments -s \
-        '(-i --input)'{-i+,--input=}'[invoice YAML file]:invoice:_files -g "*.y(|a)ml"' \
-        '--yes[replace an archived invoice without asking]' \
-        '(-i --input)1::invoice:_files -g "*.y(|a)ml(-.)"'
-      return
-      ;;
-  esac
-
-  _files
-}
-
-compdef _invox invox
--- want-bash.txt --
-error: unsupported shell "bash"
+-- broken.yaml --
+archive:
+  dir: [unclosed
+-- other-config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+CUST-002:
+  name: Example AG
+-- other.yaml --
+OTHER:
+  name: Other GmbH
+-- home/.config/invox/template.tex --
+\documentclass{article}
+-- home/.config/invox/multi_vat.tex --
+\documentclass{article}
+-- home/.config/invox/archive/2026-0001.yaml --
+customer_id: CUST-001
+invoice:
+  number: 2026-0001
+  issue_date: 2026-03-06
+  status: archived
+-- want-tcsh.txt --
+error: unsupported shell "tcsh"
 Run 'invox completion --help' for usage.
+-- want-shells.txt --
+bash
+zsh
+fish
+powershell
+:4
+-- want-archive.txt --
+archive	Archive a built or edited invoice YAML file into the configured archive directory
+:4
+-- want-archive-subcommands.txt --
+edit	Copy an archived invoice into the current directory and mark it as editing
+list	List archived invoices from the configured archive directory
+:0
+-- want-help.txt --
+archive	Archive a built or edited invoice YAML file into the configured archive directory
+build	Render and compile an invoice PDF with Tectonic
+completion	Generate shell completion scripts
+config	Open config.yaml in your editor
+customer	Customer-related commands
+email	Create an email draft and open it in the default mail app
+increment	Increment the invoice number in an existing invoice YAML file
+init	Create starter support files in the global config directory
+new	Create a new invoice YAML file with a generated number and prefilled defaults
+render	Render a LaTeX invoice file from YAML data
+template	Template-related commands
+validate	Validate invoice YAML against customers and issuer data
+version	Show the invox version
+customers	customers.yaml fields, aliases, and example
+issuer	issuer.yaml fields, validation rules, and example
+defaults	invoice_defaults.yaml shape and new-command behavior
+environment	environment variables, default directories, and precedence
+exit-codes	what each exit status means
+:4
+-- want-help-archive.txt --
+edit	Copy an archived invoice into the current directory and mark it as editing
+list	List archived invoices from the configured archive directory
+:4
+-- want-customers.txt --
+CUST-001	Appsters GmbH
+CUST-002	Example AG
+:4
+-- want-other-customers.txt --
+OTHER	Other GmbH
+:4
+-- want-templates.txt --
+multi_vat.tex
+template.tex
+:4
+-- want-multi.txt --
+multi_vat.tex
+:4
+-- want-files.txt --
+:0
+-- want-archived.txt --
+2026-0001.yaml	CUST-001
+:4
+-- want-yes.txt --
+--yes	Replace an archived invoice without asking
+:4
+-- want-nofiles.txt --
+:4
+-- want-yaml.txt --
+yaml
+yml
+:8
+-- want-yaml-pdf.txt --
+yaml
+yml
+pdf
+:8

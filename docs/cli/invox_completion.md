@@ -1,0 +1,52 @@
+# invox completion
+
+```text
+Generate shell completion scripts.
+
+Supported shells:
+  bash, zsh, fish, powershell
+
+Notes:
+  The script completes commands and flags, customer IDs for new, template
+  names for -t/--template, archived invoices for archive edit, and file names.
+  It asks invox for the values each time, so they follow your files. When a
+  file is missing or broken, the values from it are not completed.
+
+Bash:
+  source <(invox completion bash)
+  Persistent install, with the bash-completion package:
+    invox completion bash > ~/.local/share/bash-completion/completions/invox
+
+Zsh:
+  source <(invox completion zsh)
+  Persistent install:
+    mkdir -p ~/.zsh/completions
+    invox completion zsh > ~/.zsh/completions/_invox
+  Add this before compinit in ~/.zshrc:
+    fpath=(~/.zsh/completions $fpath)
+    autoload -Uz compinit
+    compinit
+
+Fish:
+  invox completion fish > ~/.config/fish/completions/invox.fish
+
+PowerShell:
+  invox completion powershell | Out-String | Invoke-Expression
+  Add that line to your $PROFILE to load it in every session.
+
+Usage:
+  invox completion <shell> [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox completion zsh
+  $ invox completion bash > ~/.local/share/bash-completion/completions/invox
+```
+
+## See also
+
+- [invox](invox.md): Generate LaTeX and PDF invoices from YAML data

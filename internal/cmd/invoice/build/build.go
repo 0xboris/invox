@@ -14,6 +14,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -43,6 +44,25 @@ func NewCmdBuild(f *cmdutil.Factory, runF func(context.Context, *BuildOptions) e
 	cmd := &cobra.Command{
 		Use:   "build [INVOICE.yaml]",
 		Short: "Render and compile an invoice PDF with Tectonic",
+		Long: `Render and compile an invoice PDF with Tectonic.
+
+Required inputs:
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
+
+Default output:
+  the input path with .pdf extension
+
+Default lookup:
+` +
+			helptext.LookupCustomers +
+			helptext.LookupIssuer +
+			helptext.LookupTemplate +
+			"\n" +
+			helptext.ReplacingArchived(true),
+		Example: `$ invox build invoice.yaml
+$ invox build invoice.yaml --archive
+$ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if rest := shared.TakeInput(&opts.InvoicePath, args); len(rest) > 0 {
 				return cmdutil.FlagErrorf("build", "unexpected arguments: %s", strings.Join(rest, " "))
@@ -63,12 +83,18 @@ func NewCmdBuild(f *cmdutil.Factory, runF func(context.Context, *BuildOptions) e
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output PDF path (default: the input with .pdf)")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output PDF path (must end with .pdf; default: the input with .pdf)")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
 	cmd.Flags().BoolVar(&opts.Archive, "archive", false, "Archive the invoice after a successful build")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("output", "pdf")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
+	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
 	return cmd
 }
 

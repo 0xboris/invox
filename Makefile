@@ -13,7 +13,7 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 BUILD_PKG := github.com/0xboris/invox/internal/build
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
-.PHONY: help build test fuzz vet lint fmt tidy install clean
+.PHONY: help build test fuzz vet lint fmt tidy docs install clean
 
 help: ## Show available targets.
 	@printf "Targets:\n"
@@ -59,6 +59,9 @@ fmt: ## Format all Go files in place with gofmt.
 
 tidy: ## Check that go.mod and go.sum are tidy (prints the diff otherwise).
 	$(GO) mod tidy -diff
+
+docs: ## Regenerate docs/cli and share/man/man1 from the command tree (Linux or macOS).
+	$(GO) run ./internal/docs/gen
 
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.
 	CGO_ENABLED=0 $(GO) install -trimpath -ldflags "$(LDFLAGS)" "$(PACKAGE)"

@@ -37,7 +37,11 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		f.IOStreams.SetNeverPrompt(true)
 	}
 	root, helpErr := newRootCmd(f)
-	root.SetArgs(versionFlagToCommand(normalizeLongFlags(root, args, f.IOStreams.ErrOut)))
+	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
+		// A completion request passes the words typed so far as they are.
+		args = versionFlagToCommand(normalizeLongFlags(root, args, f.IOStreams.ErrOut))
+	}
+	root.SetArgs(args)
 	_, err := root.ExecuteContextC(ctx)
 	if err == nil {
 		err = helpErr()
@@ -76,110 +80,4 @@ func warnLegacyFiles(f *cmdutil.Factory) {
 		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
 	}
 	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, h.ConfigDir())
-}
-
-func runHelp(f *cmdutil.Factory, args []string) error {
-	ios := f.IOStreams
-	h := f.Host()
-	if len(args) == 0 {
-		printRootHelp(ios.Out, h)
-		return nil
-	}
-
-	if args[0] == "customer" {
-		if len(args) == 1 {
-			printCustomerHelp(ios.Out, h)
-			return nil
-		}
-		if len(args) == 2 && (args[1] == "list" || args[1] == "config") {
-			spec, _ := lookupCommand("customer " + args[1])
-			printCommandHelp(ios.Out, h, spec)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if args[0] == "template" {
-		if len(args) == 1 {
-			printTemplateHelp(ios.Out)
-			return nil
-		}
-		if len(args) == 2 && args[1] == "list" {
-			printTemplateListHelp(ios.Out)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if args[0] == "completion" {
-		if len(args) == 1 || (len(args) == 2 && args[1] == "zsh") {
-			printCompletionHelp(ios.Out)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if args[0] == "customers" {
-		if len(args) == 1 {
-			printCustomersHelp(ios.Out, h)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if args[0] == "issuer" {
-		if len(args) == 1 {
-			printIssuerHelp(ios.Out, h)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if args[0] == "defaults" || args[0] == "invoice-defaults" || args[0] == "invoice_defaults" {
-		if len(args) == 1 {
-			printDefaultsHelp(ios.Out, h)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	if len(args) == 1 && args[0] == "environment" {
-		printEnvironmentHelp(ios.Out, h)
-		return nil
-	}
-
-	if len(args) == 1 && args[0] == "exit-codes" {
-		printExitCodesHelp(ios.Out)
-		return nil
-	}
-
-	if args[0] == "version" && len(args) == 1 {
-		printVersionHelp(ios.Out)
-		return nil
-	}
-
-	if args[0] == "archive" {
-		if len(args) == 1 {
-			spec, _ := lookupCommand("archive")
-			printCommandHelp(ios.Out, h, spec)
-			return nil
-		}
-		if len(args) == 2 && (args[1] == "edit" || args[1] == "list") {
-			spec, _ := lookupCommand("archive " + args[1])
-			printCommandHelp(ios.Out, h, spec)
-			return nil
-		}
-		return unknownHelpTopic(args)
-	}
-
-	spec, ok := lookupCommand(strings.Join(args, " "))
-	if !ok {
-		return unknownHelpTopic(args)
-	}
-	printCommandHelp(ios.Out, h, spec)
-	return nil
-}
-
-func unknownHelpTopic(args []string) error {
-	return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
 }
