@@ -1,0 +1,48 @@
+# invox archive
+
+```text
+Archive a built or edited invoice YAML file into the configured archive directory.
+
+Required inputs:
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
+
+Default lookup:
+  archive.dir: config.yaml, then $HOME/.local/share/invox/invoices
+
+Replacing an archived invoice:
+  Archiving a working copy from `invox archive edit` replaces the archived invoice it came from.
+  On a terminal you are asked to confirm; otherwise pass --yes. Declining exits with status 2.
+  The previous version is kept as archive.dir/.history/<path>.<UTC timestamp>.<ext>,
+  which archive list, numbering and the duplicate-number check ignore.
+  --yes only answers the question; every other check still applies.
+
+Usage:
+  invox archive [INVOICE.yaml] [flags]
+  invox archive <subcommand> [flags]
+
+Commands:
+  edit  Copy an archived invoice into the current directory and mark it as editing
+  list  List archived invoices from the configured archive directory
+
+Flags:
+  -i, --input string   Input invoice YAML file
+      --yes            Replace an archived invoice without asking
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox archive invoice.yaml
+  $ invox archive invoices/2026-0021.yaml
+  $ invox archive 2026-03-06.yaml --yes
+  $ invox archive edit 2026-03-06.yaml
+  $ invox archive list
+```
+
+## See also
+
+- [invox](invox.md): Generate LaTeX and PDF invoices from YAML data
+- [invox archive edit](invox_archive_edit.md): Copy an archived invoice into the current directory and mark it as editing
+- [invox archive list](invox_archive_list.md): List archived invoices from the configured archive directory

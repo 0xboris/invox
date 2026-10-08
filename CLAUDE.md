@@ -27,9 +27,15 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   fails on any other read, apart from a short allowlist (`iostreams.newSystem`, `exit.go`, and
   `adapters/run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
 - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the single-dash flag
-  normaliser, help routing), exit codes (`exit.go`), signals and the hand-written help
-  (`help.go`, replaced by generated help in #48). `cmdutil` holds the `Factory`, the error
-  types, `FlagErrorFunc` and helpers commands share (support-file lookup, editor, prompt).
+  normaliser, help routing, help groups), exit codes (`exit.go`), signals, the help page
+  renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
+  `Long` and `Example`; a `Long` is a text/template filled in from the `invoice.Host`.
+  `helptext` holds the shared help content: the topic pages, reference tables and lookup lines.
+  `cmdutil` holds the `Factory`, the error types, `FlagErrorFunc` and helpers commands share
+  (support-file lookup, editor, prompt, completion funcs).
+- `internal/docs/gen`: `go run ./internal/docs/gen` (or `make docs`) rewrites `docs/cli/*.md`
+  and `share/man/man1/*.1` from the command tree. CI fails when they are stale, so regenerate
+  them with any help change. The release binary doesn't import it.
 - `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
   `NewCmdX(f, runF)` and a run function. Parse-only tests pass a `runF`. The invoice verbs
   live under `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`.
