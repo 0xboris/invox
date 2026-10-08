@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/archive"
 )
 
 // archiveBackupTime is the time the replacement tests archive at, so the
@@ -95,7 +97,7 @@ func TestArchiveInvoiceReplaceKeepsBackupInHistory(t *testing.T) {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
 	backupPath := filepath.Join(archiveDir, ".history", "first.20261005T123045Z.yaml")
-	if want := []ArchiveBackup{{Path: archivedPath, BackupPath: backupPath}}; len(result.Replaced) != 1 || result.Replaced[0] != want[0] {
+	if want := []archive.Backup{{Path: archivedPath, BackupPath: backupPath}}; len(result.Replaced) != 1 || result.Replaced[0] != want[0] {
 		t.Fatalf("Replaced = %+v, want %+v", result.Replaced, want)
 	}
 	if got := readTestFile(t, backupPath); got != original {
@@ -145,7 +147,7 @@ func TestArchiveInvoiceReplaceBacksUpMarkdownOriginalInSubdirectory(t *testing.T
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
 	backupPath := filepath.Join(archiveDir, ".history", "customer-a", "first.20261005T123045Z.md")
-	if len(result.Replaced) != 1 || result.Replaced[0] != (ArchiveBackup{Path: markdownPath, BackupPath: backupPath}) {
+	if len(result.Replaced) != 1 || result.Replaced[0] != (archive.Backup{Path: markdownPath, BackupPath: backupPath}) {
 		t.Fatalf("Replaced = %+v, want %s backed up to %s", result.Replaced, markdownPath, backupPath)
 	}
 	if got := readTestFile(t, backupPath); got != original {

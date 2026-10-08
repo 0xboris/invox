@@ -11,6 +11,7 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/0xboris/invox/internal/archive"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
@@ -227,10 +228,11 @@ func SetInvoiceStatus(invoicePath, status string) error {
 }
 
 func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
-	archivePath, relativeArchivePath, err := h.resolveArchiveInputPath(archiveName)
+	target, err := h.resolveArchiveInputPath(archiveName)
 	if err != nil {
 		return "", "", err
 	}
+	archivePath := target.Path
 
 	document, ok, err := loadArchivedInvoiceDocument(archivePath)
 	if err != nil {
@@ -257,14 +259,14 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 		return "", "", fmt.Errorf("%s: `invoice` must be a mapping", archivePath)
 	}
 
-	outputFilename, archiveTargetPath, archiveReplacePath := editableArchivePaths(relativeArchivePath)
-	outputPath := filepath.Join(workDir, outputFilename)
+	edit := target.Edit()
+	outputPath := filepath.Join(workDir, edit.Filename)
 	if fileExists(outputPath) {
 		return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
 	}
 
 	setMappingString(invoiceNode, "status", "editing")
-	setArchiveMetadata(root, archiveTargetPath, archiveReplacePath)
+	setArchiveMetadata(root, edit.Target, edit.Replace)
 
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
@@ -304,15 +306,15 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
-	archiveDir, err := h.ResolveArchiveDir()
+	store, err := h.archiveStore()
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	if strings.TrimSpace(archiveDir) == "" {
+	if strings.TrimSpace(store.Dir) == "" {
 		return ArchiveResult{}, fmt.Errorf("archive directory is unavailable")
 	}
 
-	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
+	archivePath := filepath.Join(store.Dir, filepath.Base(invoicePath))
 	sourcePath := filepath.Clean(invoicePath)
 
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
@@ -323,10 +325,11 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		default:
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", invoicePath, status)
 		}
-		archivePath, err = resolveArchiveTargetPath(archiveDir, archiveTargetPath)
+		target, err := store.Resolve(archiveTargetPath)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
+		archivePath = target.Path
 	} else {
 		switch status {
 		case "":
@@ -344,23 +347,24 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 
 	invoiceNumber := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "number")))
-	if err := h.checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root); err != nil {
+	if err := h.checkArchivedNumberUnique(invoicePath, invoiceNumber, store, root); err != nil {
 		return ArchiveResult{}, err
 	}
 
 	var replacePath string
 	if editingArchive && strings.TrimSpace(archiveReplacePath) != "" && archiveReplacePath != archiveTargetPath {
-		replacePath, err = resolveArchiveTargetPath(archiveDir, archiveReplacePath)
+		target, err := store.Resolve(archiveReplacePath)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
+		replacePath = target.Path
 		if replacePath == archivePath {
 			replacePath = ""
 		}
 	}
 	var replaced []string
 	if editingArchive {
-		replaced, err = existingArchivePaths(archivePath, replacePath)
+		replaced, err = archive.ExistingFiles(archivePath, replacePath)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -369,13 +373,13 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, &ArchiveReplaceError{
 			InvoicePath: invoicePath,
 			Paths:       replaced,
-			HistoryDir:  filepath.Join(archiveDir, archiveHistoryDirName),
+			HistoryDir:  store.HistoryDir(),
 		}
 	}
-	if err := fsutil.MkdirAll(archiveDir, fsutil.Private); err != nil {
+	if err := fsutil.MkdirAll(store.Dir, fsutil.Private); err != nil {
 		return ArchiveResult{}, err
 	}
-	backups, err := backupArchivedFiles(archiveDir, replaced, now)
+	backups, err := store.Backup(replaced, now)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
@@ -495,18 +499,6 @@ func writeInvoiceStringField(path, key, value string) error {
 
 	setMappingString(invoiceNode, key, value)
 	return writeYAMLDocument(path, document)
-}
-
-func editableArchivePaths(relativeArchivePath string) (string, string, string) {
-	relativeArchivePath = filepath.Clean(relativeArchivePath)
-	ext := strings.ToLower(filepath.Ext(relativeArchivePath))
-	switch ext {
-	case ".md", ".markdown":
-		yamlRelativePath := replaceFileExtension(relativeArchivePath, ".yaml")
-		return filepath.Base(yamlRelativePath), yamlRelativePath, relativeArchivePath
-	default:
-		return filepath.Base(relativeArchivePath), relativeArchivePath, ""
-	}
 }
 
 func replaceFileExtension(path, ext string) string {

@@ -1,26 +1,11 @@
 package invoice
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
-	"github.com/0xboris/invox/internal/fsutil"
+	"github.com/0xboris/invox/internal/archive"
 )
-
-// archiveHistoryDirName is the directory below archive.dir that keeps the
-// previous version of every archived invoice that re-archiving replaced.
-// It is not part of the archive: listing, numbering and the duplicate check
-// skip it.
-const archiveHistoryDirName = ".history"
-
-// archiveBackupTimeFormat is the UTC timestamp in a backup's file name.
-const archiveBackupTimeFormat = "20060102T150405Z"
 
 // ArchiveOptions controls ArchiveInvoice.
 type ArchiveOptions struct {
@@ -35,14 +20,7 @@ type ArchiveResult struct {
 	// Path is the archived invoice.
 	Path string
 	// Replaced lists the archived files the invoice replaced.
-	Replaced []ArchiveBackup
-}
-
-// ArchiveBackup records an archived file that re-archiving replaced and
-// where its previous version was kept.
-type ArchiveBackup struct {
-	Path       string
-	BackupPath string
+	Replaced []archive.Backup
 }
 
 // ArchiveReplaceError reports that archiving the invoice would replace
@@ -57,93 +35,6 @@ type ArchiveReplaceError struct {
 
 func (e *ArchiveReplaceError) Error() string {
 	return fmt.Sprintf("%s: archiving replaces archived invoice %s", e.InvoicePath, strings.Join(e.Paths, ", "))
-}
-
-// isArchiveHistoryDir reports whether dir is the history directory directly
-// below the archive root.
-func isArchiveHistoryDir(root, dir string) bool {
-	return filepath.Base(dir) == archiveHistoryDirName && filepath.Dir(dir) == filepath.Clean(root)
-}
-
-// isInArchiveHistory reports whether relativePath, relative to archive.dir,
-// is inside the history directory. The comparison ignores case, matching
-// file systems that do.
-func isInArchiveHistory(relativePath string) bool {
-	first, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(relativePath)), "/")
-	return strings.EqualFold(first, archiveHistoryDirName)
-}
-
-// existingArchivePaths returns the paths that exist, without duplicates.
-func existingArchivePaths(paths ...string) ([]string, error) {
-	var existing []string
-	seen := make(map[string]bool)
-	for _, path := range paths {
-		if path == "" || seen[path] {
-			continue
-		}
-		seen[path] = true
-		info, err := os.Stat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("%s: archived invoice must be a file", path)
-		}
-		existing = append(existing, path)
-	}
-	return existing, nil
-}
-
-// backupArchivedFiles copies each archived file to
-// <archive.dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its
-// directory below archive.dir.
-func backupArchivedFiles(archiveDir string, paths []string, now time.Time) ([]ArchiveBackup, error) {
-	absArchiveDir := filepath.Clean(archiveDir)
-	stamp := now.UTC().Format(archiveBackupTimeFormat)
-
-	backups := make([]ArchiveBackup, 0, len(paths))
-	for _, path := range paths {
-		relativePath, err := filepath.Rel(absArchiveDir, path)
-		if err != nil {
-			return nil, err
-		}
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		backupPath, err := writeArchiveBackup(filepath.Join(absArchiveDir, archiveHistoryDirName, relativePath), stamp, source)
-		if err != nil {
-			return nil, fmt.Errorf("back up %s: %w", path, err)
-		}
-		backups = append(backups, ArchiveBackup{Path: path, BackupPath: backupPath})
-	}
-	return backups, nil
-}
-
-// writeArchiveBackup writes data to path with stamp inserted before the
-// extension, adding a counter when a backup with that name already exists.
-// An existing backup is never replaced, and the data is synced to disk
-// before it returns the backup's path.
-func writeArchiveBackup(path, stamp string, data []byte) (string, error) {
-	ext := filepath.Ext(path)
-	stem := strings.TrimSuffix(path, ext)
-	for counter := 1; ; counter++ {
-		candidate := stem + "." + stamp + ext
-		if counter > 1 {
-			candidate = stem + "." + stamp + "-" + strconv.Itoa(counter) + ext
-		}
-		err := fsutil.WriteNewFile(candidate, data, fsutil.Private)
-		if errors.Is(err, fs.ErrExist) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		return candidate, nil
-	}
 }
 
 // MarkInvoiceBuilt sets invoice.status to `built` after a successful PDF

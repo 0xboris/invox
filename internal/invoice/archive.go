@@ -1,16 +1,13 @@
 package invoice
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/archive"
 )
 
 type ArchivedInvoiceSummary struct {
@@ -18,15 +15,6 @@ type ArchivedInvoiceSummary struct {
 	CustomerID string
 	IssueDate  string
 	Status     string
-}
-
-type archivedInvoiceRecord struct {
-	Path          string
-	Filename      string
-	CustomerID    string
-	IssueDate     string
-	Status        string
-	InvoiceNumber string
 }
 
 func (h Host) ListArchivedInvoices() ([]ArchivedInvoiceSummary, error) {
@@ -53,13 +41,13 @@ func (h Host) latestArchivedInvoicePath(customerID string) (string, bool, error)
 		return "", false, err
 	}
 
-	var latest archivedInvoiceRecord
+	var latest archive.Entry
 	found := false
 	for _, record := range records {
 		if record.CustomerID != customerID {
 			continue
 		}
-		if !found || archivedInvoiceIsNewer(record, latest) {
+		if !found || record.Newer(latest) {
 			latest = record
 			found = true
 		}
@@ -70,70 +58,22 @@ func (h Host) latestArchivedInvoicePath(customerID string) (string, bool, error)
 	return latest.Path, true, nil
 }
 
-func (h Host) collectArchivedInvoiceRecords() ([]archivedInvoiceRecord, error) {
+// archiveStore is the configured archive. Its Dir is "" when no archive
+// directory is configured.
+func (h Host) archiveStore() (archive.Store, error) {
 	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
-		return nil, err
+		return archive.Store{}, err
 	}
-	if strings.TrimSpace(archiveDir) == "" {
-		return nil, nil
-	}
-
-	info, err := os.Stat(archiveDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
-	}
-
-	records := make([]archivedInvoiceRecord, 0)
-	err = walkArchiveDir(archiveDir, func(path string) error {
-		record, ok, err := archivedInvoiceRecordFromPath(path, archiveDir)
-		if err != nil || !ok {
-			return err
-		}
-		records = append(records, record)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	sort.Slice(records, func(i, j int) bool {
-		return records[i].Filename < records[j].Filename
-	})
-	return records, nil
+	return archive.Store{Dir: archiveDir}, nil
 }
 
-// walkArchiveDir calls visit for every archived invoice file below
-// archiveDir. A symlinked archiveDir is followed, and visit receives paths
-// below archiveDir as configured, not below the symlink target. Backups in
-// the history directory are not archived invoices and are skipped.
-func walkArchiveDir(archiveDir string, visit func(path string) error) error {
-	walkRoot, err := filepath.EvalSymlinks(archiveDir)
+func (h Host) collectArchivedInvoiceRecords() ([]archive.Entry, error) {
+	store, err := h.archiveStore()
 	if err != nil {
-		walkRoot = archiveDir
+		return nil, err
 	}
-	return filepath.WalkDir(walkRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() && isArchiveHistoryDir(walkRoot, path) {
-			return filepath.SkipDir
-		}
-		if entry.IsDir() || !isArchivedInvoicePath(path) {
-			return nil
-		}
-		relativePath, err := filepath.Rel(walkRoot, path)
-		if err != nil {
-			return err
-		}
-		return visit(filepath.Join(archiveDir, relativePath))
-	})
+	return store.List(readArchivedIdentity)
 }
 
 // archivedInvoiceIdentity reads what the archive lists of the invoice at
@@ -155,24 +95,19 @@ func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
 	return identity, true, nil
 }
 
-func archivedInvoiceRecordFromPath(path, archiveDir string) (archivedInvoiceRecord, bool, error) {
+// readArchivedIdentity is the archive.Reader for invoices. An archived
+// invoice without a status is listed as `archived`.
+func readArchivedIdentity(path string) (archive.Identity, bool, error) {
 	identity, ok, err := archivedInvoiceIdentity(path)
 	if err != nil || !ok {
-		return archivedInvoiceRecord{}, ok, err
+		return archive.Identity{}, ok, err
 	}
 
-	filename, err := filepath.Rel(archiveDir, path)
-	if err != nil {
-		filename = filepath.Base(path)
-	}
 	status := identity.Invoice.Status.Trim()
 	if status == "" {
 		status = "archived"
 	}
-
-	return archivedInvoiceRecord{
-		Path:          path,
-		Filename:      filename,
+	return archive.Identity{
 		CustomerID:    identity.CustomerID.Trim(),
 		IssueDate:     identity.Invoice.IssueDate.Trim(),
 		Status:        status,
@@ -180,94 +115,15 @@ func archivedInvoiceRecordFromPath(path, archiveDir string) (archivedInvoiceReco
 	}, true, nil
 }
 
-func archivedInvoiceIsNewer(left, right archivedInvoiceRecord) bool {
-	leftDate, leftOK := parseArchivedIssueDate(left.IssueDate)
-	rightDate, rightOK := parseArchivedIssueDate(right.IssueDate)
-
-	switch {
-	case leftOK && !rightOK:
-		return true
-	case !leftOK && rightOK:
-		return false
-	case leftOK && rightOK && !leftDate.Equal(rightDate):
-		return leftDate.After(rightDate)
-	}
-
-	switch {
-	case left.InvoiceNumber != right.InvoiceNumber:
-		return left.InvoiceNumber > right.InvoiceNumber
-	case left.Filename != right.Filename:
-		return left.Filename > right.Filename
-	default:
-		return left.Path > right.Path
-	}
-}
-
-func parseArchivedIssueDate(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false
-	}
-	parsed, err := time.Parse("2006-01-02", value)
+func (h Host) resolveArchiveInputPath(name string) (archive.Target, error) {
+	store, err := h.archiveStore()
 	if err != nil {
-		return time.Time{}, false
+		return archive.Target{}, err
 	}
-	return parsed, true
-}
-
-func (h Host) resolveArchiveInputPath(name string) (string, string, error) {
-	archiveDir, err := h.ResolveArchiveDir()
-	if err != nil {
-		return "", "", err
+	if strings.TrimSpace(store.Dir) == "" {
+		return archive.Target{}, fmt.Errorf("archive directory is unavailable")
 	}
-	if strings.TrimSpace(archiveDir) == "" {
-		return "", "", fmt.Errorf("archive directory is unavailable")
-	}
-
-	targetPath, relativePath, err := resolveArchivePath(archiveDir, name)
-	if err != nil {
-		return "", "", err
-	}
-	info, err := os.Stat(targetPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", "", fmt.Errorf("%s does not exist in %s", relativePath, archiveDir)
-	}
-	if err != nil {
-		return "", "", err
-	}
-	if info.IsDir() {
-		return "", "", fmt.Errorf("%s: archived invoice must be a file", targetPath)
-	}
-	return targetPath, relativePath, nil
-}
-
-func resolveArchiveTargetPath(archiveDir, relativePath string) (string, error) {
-	targetPath, _, err := resolveArchivePath(archiveDir, relativePath)
-	return targetPath, err
-}
-
-func resolveArchivePath(archiveDir, name string) (string, string, error) {
-	archiveDir = filepath.Clean(archiveDir)
-	cleanName := filepath.Clean(strings.TrimSpace(name))
-	if cleanName == "" || cleanName == "." {
-		return "", "", fmt.Errorf("archive filename must not be empty")
-	}
-	if filepath.IsAbs(cleanName) {
-		return "", "", fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
-	}
-
-	targetPath := filepath.Join(archiveDir, cleanName)
-	relativePath, err := filepath.Rel(archiveDir, targetPath)
-	if err != nil {
-		return "", "", err
-	}
-	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return "", "", fmt.Errorf("%s must stay within %s", cleanName, archiveDir)
-	}
-	if isInArchiveHistory(relativePath) {
-		return "", "", fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, archiveHistoryDirName)
-	}
-	return targetPath, filepath.Clean(relativePath), nil
+	return store.Find(name)
 }
 
 // DuplicateInvoiceNumberError reports that an invoice uses a number that an
@@ -299,18 +155,18 @@ func (h Host) CheckArchivedNumberUnique(invoicePath string) error {
 	if invoiceNode == nil || invoiceNode.Kind != yaml.MappingNode {
 		return nil
 	}
-	archiveDir, err := h.ResolveArchiveDir()
+	store, err := h.archiveStore()
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(archiveDir) == "" {
+	if strings.TrimSpace(store.Dir) == "" {
 		return nil
 	}
 	invoiceNumber := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "number")))
-	return h.checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root)
+	return h.checkArchivedNumberUnique(invoicePath, invoiceNumber, store, root)
 }
 
-func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir string, root *yaml.Node) error {
+func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber string, store archive.Store, root *yaml.Node) error {
 	if invoiceNumber == "" {
 		return nil
 	}
@@ -328,14 +184,14 @@ func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir s
 		if strings.TrimSpace(relativePath) == "" {
 			continue
 		}
-		path, err := resolveArchiveTargetPath(archiveDir, relativePath)
+		target, err := store.Resolve(relativePath)
 		if err != nil {
 			return err
 		}
-		excluded[path] = true
+		excluded[target.Path] = true
 	}
 
-	records, err := h.collectArchivedInvoiceRecords()
+	records, err := store.List(readArchivedIdentity)
 	if err != nil {
 		return err
 	}
