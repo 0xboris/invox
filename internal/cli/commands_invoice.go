@@ -43,7 +43,7 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 
 	customerID := strings.TrimSpace(extraArgs[0])
-	invoiceNumber, outputPath, err := h.CreateNewInvoice(e.Now(), opts.BaseDir, opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
+	created, err := h.CreateNewInvoice(e.Now(), opts.BaseDir, opts.DefaultsPath, opts.OutputPath, opts.CustomersPath, opts.IssuerPath, customerID, opts.FromLastInvoice)
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; choose a different -o/--output path", exists)
@@ -51,20 +51,21 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		return err
 	}
+	warnSkippedArchiveFiles(ios, customerID, created.SkippedArchiveFiles, opts.BaseDir)
 	if opts.EditNewInvoice {
-		if err := f.Editor.Edit(ctx, outputPath); err != nil {
-			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(outputPath, opts.BaseDir), err)
+		if err := f.Editor.Edit(ctx, created.Path); err != nil {
+			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(created.Path, opts.BaseDir), err)
 		}
 	}
 
 	fmt.Fprintf(
 		ios.ErrOut,
 		"Created %s for %s (%s)\n",
-		invoice.DisplayPath(outputPath, opts.BaseDir),
+		invoice.DisplayPath(created.Path, opts.BaseDir),
 		customerID,
-		invoiceNumber,
+		created.Number,
 	)
-	fmt.Fprintln(ios.Out, invoice.DisplayPath(outputPath, opts.BaseDir))
+	fmt.Fprintln(ios.Out, invoice.DisplayPath(created.Path, opts.BaseDir))
 	return nil
 }
 
@@ -78,18 +79,19 @@ func runIncrement(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	customerID, oldNumber, newNumber, err := h.IncrementInvoiceNumber(opts.InvoicePath, opts.CustomersPath)
+	incremented, err := h.IncrementInvoiceNumber(opts.InvoicePath, opts.CustomersPath)
 	if err != nil {
 		return err
 	}
+	warnSkippedArchiveFiles(ios, incremented.CustomerID, incremented.SkippedArchiveFiles, opts.BaseDir)
 
 	fmt.Fprintf(
 		ios.ErrOut,
 		"Incremented %s for %s: %s -> %s\n",
 		invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
-		customerID,
-		oldNumber,
-		newNumber,
+		incremented.CustomerID,
+		incremented.OldNumber,
+		incremented.NewNumber,
 	)
 	fmt.Fprintln(ios.Out, invoice.DisplayPath(opts.InvoicePath, opts.BaseDir))
 	return nil
@@ -350,7 +352,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 			"built %s but ",
 			invoice.DisplayPath(opts.OutputPath, opts.BaseDir),
 		)
-		result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, errorPrefix)
+		result, err := archiveWithConfirmation(ctx, ios, h, e.Now, spec, opts, errorPrefix)
 		// These already start with errorPrefix, and wrapping a FlagError would
 		// repeat "built ... but" in its message.
 		if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
@@ -389,7 +391,7 @@ func runBuild(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	return nil
 }
 
-func runArchive(f *cmdutil.Factory, args []string) error {
+func runArchive(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
 	e := f.Env
 	h := f.Host()
@@ -415,7 +417,7 @@ func runArchive(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	result, err := archiveWithConfirmation(ios, h, e.Now, spec, opts, "")
+	result, err := archiveWithConfirmation(ctx, ios, h, e.Now, spec, opts, "")
 	if err != nil {
 		return err
 	}
@@ -487,6 +489,28 @@ func runArchiveList(f *cmdutil.Factory, args []string) error {
 	}
 	list.print(ios)
 	return nil
+}
+
+// maxListedSkippedArchiveFiles caps the files named in the skipped archive
+// warning.
+const maxListedSkippedArchiveFiles = 5
+
+// warnSkippedArchiveFiles warns on stderr about archived invoices that
+// numbering ignored because they do not match numbering.pattern.
+func warnSkippedArchiveFiles(ios *iostreams.IOStreams, customerID string, paths []string, baseDir string) {
+	if len(paths) == 0 {
+		return
+	}
+	listed := make([]string, 0, maxListedSkippedArchiveFiles)
+	for _, path := range paths[:min(len(paths), maxListedSkippedArchiveFiles)] {
+		listed = append(listed, invoice.DisplayPath(path, baseDir))
+	}
+	list := strings.Join(listed, ", ")
+	if more := len(paths) - len(listed); more > 0 {
+		list += fmt.Sprintf(" and %d more", more)
+	}
+	fmt.Fprintf(ios.ErrOut, "warning: numbering ignored %d archived invoice(s) for %s that do not match numbering.pattern: %s\n", len(paths), customerID, list)
+	fmt.Fprintf(ios.ErrOut, "If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.%s.numbering.start) to the next number.\n", customerID)
 }
 
 // warnArchivedDuplicate warns on stderr when the invoice's number is already

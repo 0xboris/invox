@@ -8,7 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"syscall"
+	"time"
 )
+
+// waitDelay is how long a cancelled program gets to exit after SIGTERM before
+// it is killed.
+const waitDelay = 3 * time.Second
 
 // Cmd is one invocation of an external program.
 type Cmd struct {
@@ -60,6 +66,17 @@ func (Exec) Run(ctx context.Context, c Cmd) error {
 	cmd.Stdin = c.Stdin
 	cmd.Stdout = c.Stdout
 	cmd.Stderr = c.Stderr
+	// SIGTERM, not SIGINT: programs such as editors and pagers ignore SIGINT or
+	// treat it as "abort the current action". Windows can't send SIGTERM, so
+	// there it kills.
+	cmd.Cancel = func() error {
+		err := cmd.Process.Signal(syscall.SIGTERM)
+		if err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return cmd.Process.Kill()
+		}
+		return err
+	}
+	cmd.WaitDelay = waitDelay
 
 	err := cmd.Run()
 	var exitErr *exec.ExitError
