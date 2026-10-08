@@ -45,7 +45,6 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	// Until help is generated from the command tree (#48), every help request
 	// prints the hand-written page for the command.
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		_ = applyGlobalFlags(cmd, f)
 		if err := runHelp(f, strings.Fields(cmdutil.CommandPath(cmd))); err != nil {
 			fmt.Fprintf(ios.ErrOut, "error: %s\n", err)
 		}
@@ -142,6 +141,10 @@ func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []strin
 			if flag = lookup(name); flag != nil {
 				fmt.Fprintf(w, "warning: -%s is deprecated; use --%s\n", name, name)
 				arg = "-" + arg
+			} else if isLetter(arg[1]) && cmd.Flags().ShorthandLookup(arg[1:2]) == nil && cmd.InheritedFlags().ShorthandLookup(arg[1:2]) == nil {
+				// Not a shorthand cluster such as -ofile.yaml: report it as
+				// the unknown long flag it looks like, with a suggestion.
+				arg = "-" + arg
 			}
 		}
 		out = append(out, arg)
@@ -151,4 +154,8 @@ func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []strin
 		}
 	}
 	return out
+}
+
+func isLetter(b byte) bool {
+	return 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
 }

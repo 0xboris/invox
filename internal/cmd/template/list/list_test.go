@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
@@ -12,7 +13,6 @@ import (
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func TestNewCmdListParsing(t *testing.T) {
@@ -87,8 +87,8 @@ func TestListRun(t *testing.T) {
 	}{
 		{
 			name: "piped",
-			want: "plain.tex\t" + tableprinter.EscapeTSVField(filepath.Join(configDir, "plain.tex")) + "\n" +
-				"template.tex\t" + tableprinter.EscapeTSVField(filepath.Join(configDir, "template.tex")) + "\n",
+			want: "plain.tex\t" + tsvPath(configDir, "plain.tex") + "\n" +
+				"template.tex\t" + tsvPath(configDir, "template.tex") + "\n",
 		},
 		{name: "names only", namesOnly: true, want: "plain.tex\ntemplate.tex\n"},
 	}
@@ -107,4 +107,10 @@ func TestListRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+// tsvPath is the path to name in dir as piped output writes it, with each
+// backslash of a Windows path escaped.
+func tsvPath(dir, name string) string {
+	return strings.ReplaceAll(filepath.Join(dir, name), `\`, `\\`)
 }

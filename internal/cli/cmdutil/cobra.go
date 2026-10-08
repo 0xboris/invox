@@ -2,6 +2,7 @@ package cmdutil
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,11 +18,18 @@ func FlagErrorFunc(cmd *cobra.Command, err error) error {
 			err = fmt.Errorf("%w; did you mean --%s?", err, suggestion)
 		}
 	}
+	if m := invalidArgument.FindStringSubmatch(err.Error()); m != nil {
+		err = fmt.Errorf("invalid value %s for %s", m[1], m[2])
+	}
 	if name, ok := strings.CutPrefix(err.Error(), "flag needs an argument: --"); ok && cmd.InheritedFlags().Lookup(name) != nil {
 		return &FlagError{Err: err}
 	}
 	return &FlagError{Command: CommandPath(cmd), Err: err}
 }
+
+// invalidArgument matches pflag's error for a value its flag rejects, such as
+// `invalid argument "x" for "-n, --names" flag: strconv.ParseBool: ...`.
+var invalidArgument = regexp.MustCompile(`^invalid argument (".*") for "(?:-\w, )?(--[^"]+)" flag: `)
 
 // UnknownSubcommandError is the usage error for an unknown subcommand of
 // cmd, with the closest subcommands as a suggestion.

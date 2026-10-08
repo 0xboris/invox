@@ -52,7 +52,12 @@ func TestNormalizeLongFlags(t *testing.T) {
 		{
 			name: "unknown single-dash flag",
 			args: []string{"template", "list", "-bogus"},
-			want: []string{"template", "list", "-bogus"},
+			want: []string{"template", "list", "--bogus"},
+		},
+		{
+			name: "shorthand cluster and negative number",
+			args: []string{"template", "list", "-hx", "-5"},
+			want: []string{"template", "list", "-hx", "-5"},
 		},
 		{
 			name: "legacy command",
@@ -108,6 +113,16 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 			name:       "unknown flag",
 			args:       []string{"template", "list", "--bogus"},
 			wantStderr: "error: unknown flag: --bogus\nRun 'invox template list --help' for usage.\n",
+		},
+		{
+			name:       "unknown single-dash long flag",
+			args:       []string{"template", "list", "-nmaes"},
+			wantStderr: "error: unknown flag: --nmaes; did you mean --names?\nRun 'invox template list --help' for usage.\n",
+		},
+		{
+			name:       "invalid boolean",
+			args:       []string{"template", "list", "--names=bogus"},
+			wantStderr: "error: invalid value \"bogus\" for --names\nRun 'invox template list --help' for usage.\n",
 		},
 		{
 			name:       "unknown shorthand",

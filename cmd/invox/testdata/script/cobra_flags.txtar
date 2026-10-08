@@ -7,6 +7,11 @@ exits 2 invox template list --nmaes
 ! stdout .
 cmp stderr want-misspelt.txt
 
+# A bad value names the flag.
+exits 2 invox template list --names=bogus
+! stdout .
+cmp stderr want-bad-value.txt
+
 # A misspelt subcommand suggests the right one.
 exits 2 invox template lsit
 ! stdout .
@@ -63,3 +68,6 @@ warning: -names is deprecated; use --names
 -- want-config-missing.txt --
 error: flag needs an argument: --config
 Run 'invox --help' for usage.
+-- want-bad-value.txt --
+error: invalid value "bogus" for --names
+Run 'invox template list --help' for usage.
