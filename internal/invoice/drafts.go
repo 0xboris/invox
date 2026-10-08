@@ -81,8 +81,13 @@ type NewInvoiceParams struct {
 }
 
 func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
-	if strings.TrimSpace(p.OutputPath) != "" && !p.Overwrite && fileExists(p.OutputPath) {
-		return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
+	if strings.TrimSpace(p.OutputPath) != "" {
+		if err := refuseDirOutput(p.OutputPath); err != nil {
+			return NewInvoice{}, err
+		}
+		if !p.Overwrite && fileExists(p.OutputPath) {
+			return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
+		}
 	}
 
 	customer, err := LoadCustomer(p.CustomersPath, p.CustomerID)
@@ -112,6 +117,9 @@ func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
 	}
 	if strings.TrimSpace(p.OutputPath) == "" {
 		p.OutputPath = filepath.Join(p.WorkDir, invoiceNumber+".yaml")
+	}
+	if err := refuseDirOutput(p.OutputPath); err != nil {
+		return NewInvoice{}, err
 	}
 	if !p.Overwrite && fileExists(p.OutputPath) {
 		return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
@@ -307,6 +315,9 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 
 	edit := target.Edit()
 	outputPath := filepath.Join(workDir, edit.Filename)
+	if err := refuseDirOutput(outputPath); err != nil {
+		return "", "", err
+	}
 	if !opts.Overwrite && fileExists(outputPath) {
 		return "", "", &OutputExistsError{Path: outputPath}
 	}
