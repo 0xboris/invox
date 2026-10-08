@@ -9,14 +9,14 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	CustomersPath string
@@ -73,12 +73,12 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), "customer list", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(opts.Host(), "customer list", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
 
-	customers, err := invoice.ListCustomers(customersPath)
+	customers, err := store.ListCustomers(customersPath)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func listRun(opts *ListOptions) error {
 
 	list := tableprinter.Table{
 		Columns:   []tableprinter.Column{{Header: "ID"}, {Header: "NAME", MaxWidth: 40}, {Header: "STATUS"}},
-		EmptyHint: "No customers found in " + invoice.DisplayPath(customersPath, baseDir),
+		EmptyHint: "No customers found in " + store.DisplayPath(customersPath, baseDir),
 	}
 	for _, customer := range customers {
 		list.AddRow(customer.ID, customer.LegalCompanyName, customer.Status)

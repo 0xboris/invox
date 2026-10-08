@@ -7,11 +7,11 @@ import (
 
 // Bundle is an invoice with the customer and issuer it is checked against.
 type Bundle struct {
-	Invoice InvoiceFile
+	Invoice Invoice
 	// Customer is nil when the invoice names no customer that customers.yaml
 	// has.
 	Customer *Customer
-	Issuer   IssuerFile
+	Issuer   Issuer
 	// InvoicePath and IssuerPath name the files in problems about a whole
 	// mapping.
 	InvoicePath string
@@ -34,10 +34,10 @@ func Validate(b Bundle) []Problem {
 	if b.Invoice.CustomerID.Trim() == "" && !undecoded("customer_id") {
 		problems = append(problems, Problem{File: b.InvoicePath, Field: "customer_id", Message: "missing `customer_id`"})
 	}
-	header := b.Invoice.Invoice
+	header := b.Invoice.Header
 	if header == nil {
 		problems = append(problems, Problem{File: b.InvoicePath, Field: "invoice", Message: "missing `invoice` mapping"})
-		header = &InvoiceHeader{}
+		header = &Header{}
 	}
 	company := b.Issuer.Company
 	if company == nil {

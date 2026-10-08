@@ -10,15 +10,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // InitOptions is what init needs: its streams, the user directories and
 // the parsed flags.
 type InitOptions struct {
 	IO   *iostreams.IOStreams
-	Host func() invoice.Host
+	Host func() store.Host
 
 	Force bool
 }
@@ -81,14 +81,14 @@ func initRun(ctx context.Context, opts *InitOptions) error {
 		if result.Created {
 			status = "created"
 		}
-		fmt.Fprintf(opts.IO.ErrOut, "%s %s\n", status, invoice.DisplayPath(result.Path, configDir))
+		fmt.Fprintf(opts.IO.ErrOut, "%s %s\n", status, store.DisplayPath(result.Path, configDir))
 	}
 	return nil
 }
 
 // copyLegacyFiles copies the files of the deprecated config directory that
 // the config directory lacks, after asking, unless force is set.
-func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, h invoice.Host, force bool) error {
+func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, h store.Host, force bool) error {
 	missing, err := h.LegacyFilesToCopy()
 	if err != nil || len(missing) == 0 {
 		return err

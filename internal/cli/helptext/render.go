@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // The lines of a command's "Default lookup:" section. Like every Long, they
@@ -38,8 +38,8 @@ func ReplacingArchived(withArchiveFlag bool) string {
 }
 
 // Render writes text, a command's Long, with its {{...}} actions filled in
-// from h. They can call the methods of invoice.Host and of data.
-func Render(w io.Writer, text string, h invoice.Host) error {
+// from h. They can call the methods of store.Host and of data.
+func Render(w io.Writer, text string, h store.Host) error {
 	tmpl, err := template.New("").Option("missingkey=error").Parse(text)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func Render(w io.Writer, text string, h invoice.Host) error {
 }
 
 type data struct {
-	invoice.Host
+	store.Host
 }
 
 // LegacyConfigFile is config.yaml in the legacy directory, or "none".

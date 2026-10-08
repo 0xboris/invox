@@ -8,8 +8,8 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
@@ -17,7 +17,7 @@ import (
 // directories.
 type ListOptions struct {
 	IO   *iostreams.IOStreams
-	Host func() invoice.Host
+	Host func() store.Host
 
 	Exporter *cmdutil.Exporter
 }

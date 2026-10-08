@@ -11,13 +11,13 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 type RenderOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	InvoicePath   string
@@ -101,11 +101,11 @@ func renderRun(opts *RenderOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "render", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "render", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "render", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := cmdutil.SupportPath(h, "render", store.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
@@ -115,19 +115,19 @@ func renderRun(opts *RenderOptions) error {
 	}
 	outputPath := filepath.Join(baseDir, "invoice.tex")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
+		outputPath = store.AbsPath(baseDir, opts.OutputPath)
 	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := store.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
-	displayPath := invoice.DisplayPath(outputPath, baseDir)
+	displayPath := store.DisplayPath(outputPath, baseDir)
 	verb := "Rendered"
 	if opts.DryRun {
 		verb = "Would render"
-		if _, err := invoice.RenderTeX(templatePath, ctx); err != nil {
+		if _, err := store.RenderTeX(templatePath, ctx); err != nil {
 			return err
 		}
 	} else if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {

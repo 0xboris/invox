@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // The invoice is relative to the working directory invox was given, which
@@ -16,21 +16,21 @@ import (
 func TestAddRunResolvesInputAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
 	dataHome := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: dataHome, ConfigDir: t.TempDir()})
+	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: dataHome, ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
+	if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := invoice.MarkInvoiceBuilt(filepath.Join(work, "inv.yaml")); err != nil {
+	if err := store.MarkInvoiceBuilt(filepath.Join(work, "inv.yaml")); err != nil {
 		t.Fatal(err)
 	}
 
 	ios, _, out, errOut := iostreams.Test()
 	opts := &AddOptions{
 		IO:          ios,
-		Host:        func() invoice.Host { return host },
+		Host:        func() store.Host { return host },
 		Getwd:       func() (string, error) { return work, nil },
 		Now:         time.Now,
 		InvoicePath: "inv.yaml",

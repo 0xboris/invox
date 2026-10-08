@@ -11,15 +11,15 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // EditOptions is what archive edit needs: its streams, the user directories
 // and the archived file to copy.
 type EditOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	Filename string
@@ -93,15 +93,15 @@ func editRun(opts *EditOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 
-	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir, invoice.EditArchiveOptions{
+	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir, store.EditArchiveOptions{
 		Overwrite: opts.Force,
 		DryRun:    opts.DryRun,
 	})
-	var exists *invoice.OutputExistsError
+	var exists *store.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
 	}
-	var isDir *invoice.OutputIsDirError
+	var isDir *store.OutputIsDirError
 	if errors.As(err, &isDir) {
 		return fmt.Errorf("%s; choose a different working directory", isDir)
 	}
@@ -113,10 +113,10 @@ func editRun(opts *EditOptions) error {
 	if opts.DryRun {
 		verb = "Would copy"
 	}
-	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, store.DisplayPath(archivePath, baseDir), store.DisplayPath(outputPath, baseDir))
 	if opts.Exporter != nil {
 		return opts.Exporter.Write(opts.IO, editJSON{Path: outputPath, ArchivedPath: archivePath})
 	}
-	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(outputPath, baseDir))
+	fmt.Fprintln(opts.IO.Out, store.DisplayPath(outputPath, baseDir))
 	return nil
 }

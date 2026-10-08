@@ -16,14 +16,14 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 type NewOptions struct {
 	IO     *iostreams.IOStreams
 	Editor *editor.Editor
-	Host   func() invoice.Host
+	Host   func() store.Host
 	Getwd  func() (string, error)
 	Now    func() time.Time
 
@@ -122,15 +122,15 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "new", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "new", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "new", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := cmdutil.SupportPath(h, "new", store.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	defaultsPath, err := cmdutil.SupportPath(h, "new", invoice.Defaults, opts.DefaultsPath, baseDir)
+	defaultsPath, err := cmdutil.SupportPath(h, "new", store.Defaults, opts.DefaultsPath, baseDir)
 	var notFound *cmdutil.FlagError
 	if opts.FromLast && errors.As(err, &notFound) {
 		// --from-last copies the last archived invoice instead.
@@ -141,10 +141,10 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	}
 	outputPath := ""
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
+		outputPath = store.AbsPath(baseDir, opts.OutputPath)
 	}
 
-	created, err := h.CreateNewInvoice(invoice.NewInvoiceParams{
+	created, err := h.CreateNewInvoice(store.NewInvoiceParams{
 		Now:           opts.Now(),
 		WorkDir:       baseDir,
 		DefaultsPath:  defaultsPath,
@@ -156,11 +156,11 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		Overwrite:     opts.Force,
 		DryRun:        opts.DryRun,
 	})
-	var exists *invoice.OutputExistsError
+	var exists *store.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different -o/--output path", exists)
 	}
-	var isDir *invoice.OutputIsDirError
+	var isDir *store.OutputIsDirError
 	if errors.As(err, &isDir) {
 		return fmt.Errorf("%s; choose a different -o/--output path", isDir)
 	}
@@ -168,7 +168,7 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		return err
 	}
 	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.SkippedArchiveFiles, baseDir)
-	displayPath := invoice.DisplayPath(created.Path, baseDir)
+	displayPath := store.DisplayPath(created.Path, baseDir)
 	if opts.Edit && !opts.DryRun {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
 		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)

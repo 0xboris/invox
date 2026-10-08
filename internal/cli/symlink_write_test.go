@@ -88,7 +88,7 @@ func TestInitWritesThroughDanglingStarterSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("link target was not created: %v", err)
 	}
-	starter, err := os.ReadFile(filepath.Join("..", "invoice", "starter", "issuer.yaml"))
+	starter, err := os.ReadFile(filepath.Join("..", "store", "starter", "issuer.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}

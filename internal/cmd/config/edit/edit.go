@@ -11,8 +11,8 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // EditOptions is what config edit needs: its streams, the editor and the
@@ -20,7 +20,7 @@ import (
 type EditOptions struct {
 	IO     *iostreams.IOStreams
 	Editor *editor.Editor
-	Host   func() invoice.Host
+	Host   func() store.Host
 	Getwd  func() (string, error)
 
 	Command string
@@ -73,7 +73,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	if err != nil {
 		return err
 	}
-	displayPath := invoice.DisplayPath(configPath, baseDir)
+	displayPath := store.DisplayPath(configPath, baseDir)
 
 	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, configPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)

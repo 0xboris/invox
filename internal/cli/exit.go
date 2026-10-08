@@ -15,6 +15,7 @@ import (
 	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // exitCode reports err on ios.ErrOut and returns the code invox exits with.
@@ -105,7 +106,7 @@ func unknownKeyHelpTopics(err error) []string {
 	var walk func(error)
 	walk = func(err error) {
 		switch e := err.(type) {
-		case *invoice.DecodeError:
+		case *store.DecodeError:
 			if topic := topicOf[e.Schema]; e.UnknownKey && topic != "" && !seen[topic] {
 				seen[topic] = true
 				topics = append(topics, topic)

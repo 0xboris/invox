@@ -8,14 +8,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	NamesOnly bool
@@ -109,12 +109,12 @@ func listRun(opts *ListOptions) error {
 	return nil
 }
 
-func exportTemplates(opts *ListOptions, h invoice.Host, templates []invoice.TemplateSummary) error {
+func exportTemplates(opts *ListOptions, h store.Host, templates []store.TemplateSummary) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
-	defaultTemplate, err := h.ResolveSupportFile(invoice.Template, filepath.Clean(cwd))
+	defaultTemplate, err := h.ResolveSupportFile(store.Template, filepath.Clean(cwd))
 	if err != nil {
 		return err
 	}

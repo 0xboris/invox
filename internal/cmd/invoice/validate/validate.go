@@ -10,14 +10,14 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/money"
+	"github.com/0xboris/invox/internal/store"
 )
 
 type ValidateOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	InvoicePath   string
@@ -83,17 +83,17 @@ func validateRun(opts *ValidateOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "validate", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "validate", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "validate", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := cmdutil.SupportPath(h, "validate", store.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := store.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
 			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {

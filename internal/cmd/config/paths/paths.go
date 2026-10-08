@@ -7,14 +7,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type PathsOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 }
 
@@ -79,12 +79,12 @@ func pathsRun(opts *PathsOptions) error {
 }
 
 // sourceWords are the SOURCE column.
-var sourceWords = map[invoice.Source]string{
-	invoice.SourceNone:     "none",
-	invoice.SourceExplicit: "flag",
-	invoice.SourceEnvDir:   "env",
-	invoice.SourceDefault:  "default",
-	invoice.SourceLegacy:   "legacy",
-	invoice.SourceProject:  "project",
-	invoice.SourceConfig:   "config",
+var sourceWords = map[store.Source]string{
+	store.SourceNone:     "none",
+	store.SourceExplicit: "flag",
+	store.SourceEnvDir:   "env",
+	store.SourceDefault:  "default",
+	store.SourceLegacy:   "legacy",
+	store.SourceProject:  "project",
+	store.SourceConfig:   "config",
 }

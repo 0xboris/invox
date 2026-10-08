@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // Relative paths are relative to the working directory invox was given,
@@ -24,11 +24,11 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
-			host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+			host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
 			if _, _, err := host.InitializeConfigDir(); err != nil {
 				t.Fatal(err)
 			}
-			created, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"})
+			created, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,7 +39,7 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 			ios, _, out, _ := iostreams.Test()
 			opts := &RenderOptions{
 				IO:          ios,
-				Host:        func() invoice.Host { return host },
+				Host:        func() store.Host { return host },
 				Getwd:       func() (string, error) { return work, nil },
 				InvoicePath: filepath.Base(created.Path),
 				OutputPath:  tc.outputPath,

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // archive edit copies into the working directory invox was given, which
@@ -15,18 +15,18 @@ import (
 func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	work := t.TempDir()
 	draft := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
+	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
 	invoicePath := filepath.Join(draft, "inv.yaml")
-	if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: draft, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: invoicePath, CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
+	if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: draft, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: invoicePath, CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := invoice.MarkInvoiceBuilt(invoicePath); err != nil {
+	if err := store.MarkInvoiceBuilt(invoicePath); err != nil {
 		t.Fatal(err)
 	}
-	result, err := host.ArchiveInvoice(time.Now(), invoicePath, invoice.ArchiveOptions{})
+	result, err := host.ArchiveInvoice(time.Now(), invoicePath, store.ArchiveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	opts := &EditOptions{
 		IO:       ios,
-		Host:     func() invoice.Host { return host },
+		Host:     func() store.Host { return host },
 		Getwd:    func() (string, error) { return work, nil },
 		Filename: filepath.Base(result.Path),
 	}

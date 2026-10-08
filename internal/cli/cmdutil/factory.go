@@ -11,8 +11,8 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // Factory holds what commands use to reach outside invox: the standard
@@ -29,7 +29,7 @@ type Factory struct {
 	// sets it before anything calls Host.
 	ConfigFile string
 
-	host func() invoice.Host
+	host func() store.Host
 }
 
 // NewFactory returns a Factory whose adapters run programs with runner on the
@@ -42,7 +42,7 @@ func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory
 		Editor:    editor.New(runner, ios, e.GOOS, e.Getenv),
 		Opener:    opener.New(runner, ios, e.GOOS),
 	}
-	f.host = sync.OnceValue(func() invoice.Host { return newHost(e, f.ConfigFile) })
+	f.host = sync.OnceValue(func() store.Host { return newHost(e, f.ConfigFile) })
 	if e.GOOS == "darwin" {
 		f.Mailer = applemail.New(runner, ios)
 	}
@@ -51,7 +51,7 @@ func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory
 
 // Host returns the user directories, resolved from Env on the first call so
 // that a test can set up its environment after building the Factory.
-func (f *Factory) Host() invoice.Host {
+func (f *Factory) Host() store.Host {
 	return f.host()
 }
 
@@ -59,7 +59,7 @@ func (f *Factory) Host() invoice.Host {
 // ignored, as the XDG spec asks, so every directory the Host holds is
 // absolute. configFile and INVOX_CONFIG_DIR are made absolute against the
 // working directory.
-func newHost(e env.Env, configFile string) invoice.Host {
+func newHost(e env.Env, configFile string) store.Host {
 	home, err := e.HomeDir()
 	if err != nil {
 		home = ""
@@ -68,7 +68,7 @@ func newHost(e env.Env, configFile string) invoice.Host {
 	if err != nil {
 		cwd = ""
 	}
-	return invoice.NewHost(invoice.HostInputs{
+	return store.NewHost(store.HostInputs{
 		GOOS:          e.GOOS,
 		Home:          absOnly(home),
 		XDGConfigHome: absOnly(e.Getenv("XDG_CONFIG_HOME")),

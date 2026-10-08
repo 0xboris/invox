@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // Topic is a page of `invox help NAME`. Print is nil for a topic that is the
@@ -13,7 +13,7 @@ type Topic struct {
 	Name    string
 	Aliases []string
 	Short   string
-	Print   func(w io.Writer, h invoice.Host)
+	Print   func(w io.Writer, h store.Host)
 }
 
 // Topics lists the help topics in the order the root help shows them.
@@ -24,7 +24,7 @@ var Topics = []Topic{
 	{Name: "defaults", Aliases: []string{"invoice-defaults", "invoice_defaults"}, Short: "invoice_defaults.yaml shape and new-command behavior", Print: printDefaultsHelp},
 	{Name: "template", Short: "template placeholders and authoring rules"},
 	{Name: "environment", Short: "environment variables, default directories, and precedence", Print: printEnvironmentHelp},
-	{Name: "exit-codes", Short: "what each exit status means", Print: func(w io.Writer, _ invoice.Host) { printExitCodesHelp(w) }},
+	{Name: "exit-codes", Short: "what each exit status means", Print: func(w io.Writer, _ store.Host) { printExitCodesHelp(w) }},
 }
 
 // LookupTopic returns the topic called name or one of its aliases.
@@ -46,7 +46,7 @@ func commandExample(args string) string {
 	return commandName + " " + args
 }
 
-func printCustomersHelp(w io.Writer, h invoice.Host) {
+func printCustomersHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "customers.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help customers\n\n", commandName)
@@ -71,7 +71,7 @@ func printCustomersHelp(w io.Writer, h invoice.Host) {
 	printCustomerYAMLExample(w)
 }
 
-func printIssuerHelp(w io.Writer, h invoice.Host) {
+func printIssuerHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "issuer.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help issuer\n\n", commandName)
@@ -96,7 +96,7 @@ func printIssuerHelp(w io.Writer, h invoice.Host) {
 	printIssuerYAMLExample(w)
 }
 
-func printDefaultsHelp(w io.Writer, h invoice.Host) {
+func printDefaultsHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "invoice_defaults.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help defaults\n", commandName)
@@ -170,7 +170,7 @@ var environmentVariables = []environmentVariable{
 	}},
 }
 
-func printEnvironmentHelp(w io.Writer, h invoice.Host) {
+func printEnvironmentHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "Environment variables and default directories.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help environment\n\n", commandName)

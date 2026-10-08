@@ -19,8 +19,8 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // EmailOptions is what email needs: its streams, the programs that show the
@@ -30,7 +30,7 @@ type EmailOptions struct {
 	Opener *opener.Opener
 	// Mailer is nil where Apple Mail is not available.
 	Mailer *applemail.Composer
-	Host   func() invoice.Host
+	Host   func() store.Host
 	Getwd  func() (string, error)
 	Now    func() time.Time
 
@@ -152,23 +152,23 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "email", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "email", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "email", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := cmdutil.SupportPath(h, "email", store.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
-	pdfPath := invoice.AbsPath(baseDir, orDefault(opts.PDFPath, invoice.ReplaceExt(opts.InvoicePath, ".pdf")))
-	outputPath := invoice.AbsPath(baseDir, orDefault(opts.OutputPath, invoice.ReplaceExt(opts.InvoicePath, ".eml")))
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	pdfPath := store.AbsPath(baseDir, orDefault(opts.PDFPath, store.ReplaceExt(opts.InvoicePath, ".pdf")))
+	outputPath := store.AbsPath(baseDir, orDefault(opts.OutputPath, store.ReplaceExt(opts.InvoicePath, ".eml")))
 
 	paths, err := h.ResolveEmailDraftPaths(invoicePath, pdfPath, outputPath)
 	if err != nil {
 		return err
 	}
-	message, err := h.PrepareInvoiceEmail(invoice.EmailParams{
+	message, err := h.PrepareInvoiceEmail(store.EmailParams{
 		CustomersPath: customersPath,
 		IssuerPath:    issuerPath,
 		InvoicePath:   paths.InvoicePath,
@@ -180,12 +180,12 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		return err
 	}
 	outputExists := func(outputPath string, err error) error {
-		var isDir *invoice.OutputIsDirError
+		var isDir *store.OutputIsDirError
 		if errors.As(err, &isDir) {
-			return fmt.Errorf("%s is a directory; choose another -o path", invoice.DisplayPath(outputPath, baseDir))
+			return fmt.Errorf("%s is a directory; choose another -o path", store.DisplayPath(outputPath, baseDir))
 		}
 		if errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("%s already exists; pass --force or choose another -o path", invoice.DisplayPath(outputPath, baseDir))
+			return fmt.Errorf("%s already exists; pass --force or choose another -o path", store.DisplayPath(outputPath, baseDir))
 		}
 		return err
 	}
@@ -196,15 +196,15 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 
 	if opts.DryRun {
 		if explicitOutput {
-			if err := outputExists(paths.OutputPath, invoice.CheckEmailDraftOutput(paths.OutputPath, opts.Force)); err != nil {
+			if err := outputExists(paths.OutputPath, store.CheckEmailDraftOutput(paths.OutputPath, opts.Force)); err != nil {
 				return err
 			}
 		}
 		fmt.Fprintf(opts.IO.ErrOut, "Would open email draft for %s (%s) to %s\n", message.CustomerID, message.InvoiceNumber, message.Recipient)
-		fmt.Fprintf(opts.IO.ErrOut, "Subject: %s\nAttachment: %s\n", message.Subject, invoice.DisplayPath(message.AttachmentPath, baseDir))
+		fmt.Fprintf(opts.IO.ErrOut, "Subject: %s\nAttachment: %s\n", message.Subject, store.DisplayPath(message.AttachmentPath, baseDir))
 		if explicitOutput {
-			fmt.Fprintf(opts.IO.ErrOut, "Would write the draft to %s\n", invoice.DisplayPath(paths.OutputPath, baseDir))
-			fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(paths.OutputPath, baseDir))
+			fmt.Fprintf(opts.IO.ErrOut, "Would write the draft to %s\n", store.DisplayPath(paths.OutputPath, baseDir))
+			fmt.Fprintln(opts.IO.Out, store.DisplayPath(paths.OutputPath, baseDir))
 		}
 		return nil
 	}
@@ -225,7 +225,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 			return err
 		}
 		if err := opts.Opener.Open(ctx, paths.OutputPath); err != nil {
-			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, baseDir), err)
+			return fmt.Errorf("created %s but failed to open it: %w", store.DisplayPath(paths.OutputPath, baseDir), err)
 		}
 	default:
 		pruneEmailDrafts(os.TempDir(), opts.Now().Add(-draftMaxAge))
@@ -249,7 +249,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 
 	fmt.Fprintf(opts.IO.ErrOut, "Opened email draft for %s (%s) to %s\n", message.CustomerID, message.InvoiceNumber, message.Recipient)
 	if explicitOutput {
-		fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(paths.OutputPath, baseDir))
+		fmt.Fprintln(opts.IO.Out, store.DisplayPath(paths.OutputPath, baseDir))
 	}
 	return nil
 }

@@ -3,9 +3,8 @@ package cmdutil
 import (
 	"strings"
 
+	"github.com/0xboris/invox/internal/store"
 	"github.com/spf13/cobra"
-
-	"github.com/0xboris/invox/internal/invoice"
 )
 
 // The completion funcs below read the same files as the commands. Any error,
@@ -24,11 +23,11 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		flagValue, _ := cmd.Flags().GetString("customers")
-		path, err := SupportPath(completionHost(f, cmd), "", invoice.Customers, flagValue, cwd)
+		path, err := SupportPath(completionHost(f, cmd), "", store.Customers, flagValue, cwd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		customers, err := invoice.ListCustomers(path)
+		customers, err := store.ListCustomers(path)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
@@ -95,7 +94,7 @@ func CompleteInputFile(exts ...string) cobra.CompletionFunc {
 // completionHost returns the Host for a completion request on cmd. Main
 // sets ConfigFile from --config before a command runs, but a completion
 // request runs no command, so this reads the flag itself.
-func completionHost(f *Factory, cmd *cobra.Command) invoice.Host {
+func completionHost(f *Factory, cmd *cobra.Command) store.Host {
 	if configFile, _ := cmd.Flags().GetString("config"); configFile != "" {
 		f.ConfigFile = configFile
 	}

@@ -10,13 +10,13 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 type IncrementOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 
 	InvoicePath   string
@@ -84,11 +84,11 @@ func incrementRun(opts *IncrementOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "increment", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "increment", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
 
 	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath, opts.DryRun)
 	if err != nil {
@@ -96,7 +96,7 @@ func incrementRun(opts *IncrementOptions) error {
 	}
 	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.SkippedArchiveFiles, baseDir)
 
-	displayPath := invoice.DisplayPath(invoicePath, baseDir)
+	displayPath := store.DisplayPath(invoicePath, baseDir)
 	verb := "Incremented"
 	if opts.DryRun {
 		verb = "Would increment"

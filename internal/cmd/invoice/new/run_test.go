@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // The output path is relative to the working directory invox was given,
 // which need not be the process's own.
 func TestNewRunWritesOutputRelativeToGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestNewRunWritesOutputRelativeToGetwd(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	opts := &NewOptions{
 		IO:         ios,
-		Host:       func() invoice.Host { return host },
+		Host:       func() store.Host { return host },
 		Getwd:      func() (string, error) { return work, nil },
 		Now:        func() time.Time { return time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC) },
 		CustomerID: "CUST-001",
@@ -47,7 +47,7 @@ func TestNewRunWritesOutputRelativeToGetwd(t *testing.T) {
 func TestNewRunWithoutDefaultsIsAUsageError(t *testing.T) {
 	work := t.TempDir()
 	configDir := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
+	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestNewRunWithoutDefaultsIsAUsageError(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	opts := &NewOptions{
 		IO:         ios,
-		Host:       func() invoice.Host { return host },
+		Host:       func() store.Host { return host },
 		Getwd:      func() (string, error) { return work, nil },
 		Now:        func() time.Time { return time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC) },
 		CustomerID: "CUST-001",

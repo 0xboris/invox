@@ -18,6 +18,7 @@ import (
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // BuildOptions is what build needs: its streams, the compiler, the user
@@ -25,7 +26,7 @@ import (
 type BuildOptions struct {
 	IO       *iostreams.IOStreams
 	Compiler *tectonic.Compiler
-	Host     func() invoice.Host
+	Host     func() store.Host
 	Getwd    func() (string, error)
 	Now      func() time.Time
 
@@ -118,11 +119,11 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "build", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := cmdutil.SupportPath(h, "build", store.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "build", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := cmdutil.SupportPath(h, "build", store.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
@@ -130,15 +131,15 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
-	outputPath := invoice.ReplaceExt(invoicePath, ".pdf")
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	outputPath := store.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
+		outputPath = store.AbsPath(baseDir, opts.OutputPath)
 	}
-	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
-	invoiceDisplay := invoice.DisplayPath(invoicePath, baseDir)
+	outputDisplay := store.DisplayPath(outputPath, baseDir)
+	invoiceDisplay := store.DisplayPath(invoicePath, baseDir)
 
-	inv, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := store.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -160,7 +161,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		}
 		return err
 	}
-	if err := invoice.MarkInvoiceBuilt(invoicePath); err != nil {
+	if err := store.MarkInvoiceBuilt(invoicePath); err != nil {
 		return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, err)
 	}
 	if !opts.Archive {
@@ -183,7 +184,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		inv.CustomerID,
 		inv.InvoiceNumber,
 		invoiceDisplay,
-		invoice.DisplayPath(result.Path, baseDir),
+		store.DisplayPath(result.Path, baseDir),
 	)
 	return printResult(&result.Path)
 }
@@ -191,24 +192,24 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 // buildDryRun runs the checks of a build, and of the archive step with
 // --archive, and prints what the build would do. It neither runs Tectonic
 // nor writes anything.
-func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
-	if _, err := invoice.RenderTeX(templatePath, inv); err != nil {
+func buildDryRun(opts *BuildOptions, h store.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
+	if _, err := store.RenderTeX(templatePath, inv); err != nil {
 		return err
 	}
-	var archived invoice.ArchiveResult
+	var archived store.ArchiveResult
 	if opts.Archive {
 		var err error
-		archived, err = h.ArchiveInvoice(opts.Now(), invoicePath, invoice.ArchiveOptions{Replace: true, DryRun: true, AssumeBuilt: true})
+		archived, err = h.ArchiveInvoice(opts.Now(), invoicePath, store.ArchiveOptions{Replace: true, DryRun: true, AssumeBuilt: true})
 		if err != nil {
-			return fmt.Errorf("cannot archive %s: %w", invoice.DisplayPath(invoicePath, baseDir), err)
+			return fmt.Errorf("cannot archive %s: %w", store.DisplayPath(invoicePath, baseDir), err)
 		}
 	}
 
-	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
+	outputDisplay := store.DisplayPath(outputPath, baseDir)
 	fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-	status := invoice.Status(inv.Invoice.Status.Trim())
+	status := invoice.Status(inv.Header.Status.Trim())
 	if next, _ := status.Apply(invoice.Building); next != status {
-		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", next, invoice.DisplayPath(invoicePath, baseDir))
+		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", next, store.DisplayPath(invoicePath, baseDir))
 	}
 	if !opts.Archive {
 		return printResult(nil)

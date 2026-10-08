@@ -9,14 +9,14 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // writeHelp writes the help page of cmd, all of it generated from the
 // command tree: the Long text (or the Short one), then usage, subcommands,
 // flags and examples. Command aliases are deprecated names, so it leaves
 // them out. The root page also lists the help topics.
-func writeHelp(w io.Writer, cmd *cobra.Command, h invoice.Host) error {
+func writeHelp(w io.Writer, cmd *cobra.Command, h store.Host) error {
 	description := cmd.Long
 	if description == "" {
 		description = cmd.Short + "."
@@ -120,7 +120,7 @@ func indent(text string) string {
 // helpTopic writes the page `invox help ARGS` names: a topic, or the help of
 // a command, including a hidden deprecated name such as `customer config`.
 // Anything else, including `help` itself, is an unknown topic.
-func helpTopic(w io.Writer, root *cobra.Command, h invoice.Host, args []string) error {
+func helpTopic(w io.Writer, root *cobra.Command, h store.Host, args []string) error {
 	if len(args) == 0 {
 		return writeHelp(w, root, h)
 	}

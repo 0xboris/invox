@@ -13,15 +13,15 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/store"
 )
 
 // AddOptions is what archive add needs: its streams, the user directories,
 // the clock and the parsed flags. Command names the command in its messages.
 type AddOptions struct {
 	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
+	Host  func() store.Host
 	Getwd func() (string, error)
 	Now   func() time.Time
 
@@ -113,11 +113,11 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
 
-	var result invoice.ArchiveResult
+	var result store.ArchiveResult
 	if opts.DryRun {
-		result, err = opts.Host().ArchiveInvoice(opts.Now(), invoicePath, invoice.ArchiveOptions{Replace: true, DryRun: true})
+		result, err = opts.Host().ArchiveInvoice(opts.Now(), invoicePath, store.ArchiveOptions{Replace: true, DryRun: true})
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 			return err
 		}
 		shared.PrintArchiveReplacements(opts.IO, result, baseDir)
-		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", invoice.DisplayPath(invoicePath, baseDir), invoice.DisplayPath(result.Path, baseDir))
+		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", store.DisplayPath(invoicePath, baseDir), store.DisplayPath(result.Path, baseDir))
 	}
 	if opts.Exporter != nil {
 		replaced := make([]replacedJSON, 0, len(result.Replaced))
@@ -137,6 +137,6 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		}
 		return opts.Exporter.Write(opts.IO, addJSON{Path: result.Path, Input: invoicePath, Replaced: replaced})
 	}
-	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(result.Path, baseDir))
+	fmt.Fprintln(opts.IO.Out, store.DisplayPath(result.Path, baseDir))
 	return nil
 }
