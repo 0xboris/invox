@@ -1,5 +1,12 @@
 # invox quality assessment (against `quality-cli`)
 
+> **Historical record.** This assessment predates the quality roadmap
+> ([#9](https://github.com/0xboris/invox/issues/9)). The roadmap's phase epics addressed its findings:
+> [#10](https://github.com/0xboris/invox/issues/10), [#11](https://github.com/0xboris/invox/issues/11),
+> [#12](https://github.com/0xboris/invox/issues/12), [#13](https://github.com/0xboris/invox/issues/13),
+> [#14](https://github.com/0xboris/invox/issues/14), [#15](https://github.com/0xboris/invox/issues/15) and
+> [#16](https://github.com/0xboris/invox/issues/16). The report below describes `c345065`, not the current code.
+
 Assessed: 2026-10-02 on `c345065` (main). Method: the `quality-cli` audit script, then six independent
 reviews (architecture and layering; errors, help and flags; streams, interactivity and config; testing;
 build, release and docs; domain correctness). Each finding below was either reproduced by a reviewer
