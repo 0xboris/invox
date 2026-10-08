@@ -12,6 +12,8 @@ import (
 	configcmd "github.com/0xboris/invox/internal/cmd/config"
 	customercmd "github.com/0xboris/invox/internal/cmd/customer"
 	initcmd "github.com/0xboris/invox/internal/cmd/init"
+	buildcmd "github.com/0xboris/invox/internal/cmd/invoice/build"
+	emailcmd "github.com/0xboris/invox/internal/cmd/invoice/email"
 	incrementcmd "github.com/0xboris/invox/internal/cmd/invoice/increment"
 	newcmd "github.com/0xboris/invox/internal/cmd/invoice/new"
 	rendercmd "github.com/0xboris/invox/internal/cmd/invoice/render"
@@ -67,7 +69,9 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 
 	root.AddCommand(
 		configcmd.NewCmdConfig(f, nil),
+		buildcmd.NewCmdBuild(f, nil),
 		customercmd.NewCmdCustomer(f),
+		emailcmd.NewCmdEmail(f, nil),
 		incrementcmd.NewCmdIncrement(f, nil),
 		initcmd.NewCmdInit(f, nil),
 		newcmd.NewCmdNew(f, nil),
