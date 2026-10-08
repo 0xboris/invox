@@ -2,15 +2,14 @@ package invoice
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"github.com/0xboris/invox/internal/epc"
 	"github.com/0xboris/invox/internal/money"
 )
 
@@ -81,65 +80,6 @@ func FuzzInvoiceNumberRoundTrip(f *testing.F) {
 			t.Fatalf("pattern %q formatted counter %d as %q, which parses back as %d", pattern, counter, number, got)
 		}
 	})
-}
-
-func FuzzIsValidIBAN(f *testing.F) {
-	for _, seed := range []string{
-		"AT611904300234573201",
-		"PL61109010140000071219812874",
-		"DE89370400440532013000",
-		"GI75NWBK000000007099453",
-		"ZZ6600000000000",
-		"AT61190430023457320",
-		"ATAA1904300234573201",
-		"at611904300234573201",
-		// #17: check digits 00, 01 and 99 never occur in a valid IBAN.
-		"DE01370400440000000042",
-		"DE00370400440000000",
-		"DE99370400440000000000",
-		"",
-	} {
-		f.Add(seed)
-	}
-
-	f.Fuzz(func(t *testing.T, value string) {
-		got := isValidIBAN(value)
-		if want := ibanOracle(value); got != want {
-			t.Fatalf("isValidIBAN(%q) = %v, want %v", value, got, want)
-		}
-	})
-}
-
-// ibanOracle checks an IBAN with big-integer arithmetic: a known country and
-// length, upper-case letters and digits only, check digits 02-98, and the
-// rearranged number mod 97 == 1.
-func ibanOracle(value string) bool {
-	if len(value) < 4 || ibanCountryLengths[value[:2]] != len(value) {
-		return false
-	}
-	checkDigits := value[2:4]
-	if checkDigits[0] < '0' || checkDigits[0] > '9' || checkDigits[1] < '0' || checkDigits[1] > '9' {
-		return false
-	}
-	if checkDigits < "02" || checkDigits > "98" {
-		return false
-	}
-	var numeric strings.Builder
-	for _, r := range value[4:] + value[:4] {
-		switch {
-		case r >= '0' && r <= '9':
-			numeric.WriteRune(r)
-		case r >= 'A' && r <= 'Z':
-			numeric.WriteString(strconv.Itoa(int(r-'A') + 10))
-		default:
-			return false
-		}
-	}
-	number, ok := new(big.Int).SetString(numeric.String(), 10)
-	if !ok {
-		return false
-	}
-	return new(big.Int).Mod(number, big.NewInt(97)).Int64() == 1
 }
 
 func FuzzLatexEscape(f *testing.F) {
@@ -346,8 +286,8 @@ func FuzzBuildEPCPayload(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if len(payload) > epcQRMaxPayloadBytes {
-			t.Fatalf("payload is %d bytes, more than %d: %q", len(payload), epcQRMaxPayloadBytes, payload)
+		if len(payload) > epc.MaxPayloadBytes {
+			t.Fatalf("payload is %d bytes, more than %d: %q", len(payload), epc.MaxPayloadBytes, payload)
 		}
 		if !utf8.Valid(payload) {
 			t.Fatalf("payload is not valid UTF-8: %q", payload)
@@ -356,10 +296,10 @@ func FuzzBuildEPCPayload(f *testing.F) {
 		if len(lines) < 8 || len(lines) > 12 || lines[0] != "BCD" || lines[3] != "SCT" {
 			t.Fatalf("payload does not have the EPC layout: %q", payload)
 		}
-		if !isValidIBAN(lines[6]) {
+		if !epc.ValidIBAN(lines[6]) {
 			t.Fatalf("payload carries invalid IBAN %q", lines[6])
 		}
-		if cents < 1 || cents > epcQRMaxAmountCents {
+		if cents < 1 || cents > epc.MaxAmountCents {
 			t.Fatalf("payload accepted amount %d cents outside 0.01-999999999.99: %q", cents, payload)
 		}
 		if want := fmt.Sprintf("EUR%d.%02d", cents/100, cents%100); lines[7] != want {

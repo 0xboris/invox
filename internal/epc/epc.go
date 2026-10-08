@@ -1,4 +1,6 @@
-package invoice
+// Package epc holds the rules of the EPC069-12 QR code for SEPA credit
+// transfers: IBAN, BIC, purpose and text checks, and the payload layout.
+package epc
 
 import (
 	"errors"
@@ -7,22 +9,20 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/0xboris/invox/internal/money"
 )
 
 const (
-	epcQRMaxPayloadBytes = 331
-	epcQRMaxNameChars    = 70
-	epcQRMaxPurposeChars = 4
-	epcQRMaxTextChars    = 140
-	epcQRMaxInfoChars    = 70
-	epcQRMaxAmountCents  = 99999999999
+	MaxPayloadBytes = 331
+	MaxNameChars    = 70
+	maxPurposeChars = 4
+	MaxTextChars    = 140
+	MaxInfoChars    = 70
+	MaxAmountCents  = 99999999999
 )
 
 var (
-	epcPurposePattern  = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
-	epcBICPattern      = regexp.MustCompile(`^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$`)
+	purposePattern     = regexp.MustCompile(`^[A-Za-z0-9]{1,4}$`)
+	bicPattern         = regexp.MustCompile(`^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$`)
 	ibanCountryLengths = map[string]int{
 		"AD": 24,
 		"AE": 23,
@@ -165,115 +165,75 @@ var (
 	}
 )
 
-func epcQRCodeEligible(ctx *Context) bool {
-	return ctx != nil && ctx.OutstandingCents > 0 && strings.TrimSpace(ctx.Currency) == "EUR"
+// Transfer is the content of an EPC069-12 QR code for a SEPA credit transfer
+// in EUR. Encode lays the fields out; it does not validate them.
+type Transfer struct {
+	BIC         string
+	Name        string
+	IBAN        string
+	AmountCents int64
+	Purpose     string
+	Text        string
+	Information string
 }
 
-func buildEPCPayload(ctx *Context) ([]byte, error) {
-	if strings.TrimSpace(ctx.Currency) != "EUR" {
-		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
-	}
-	// EPC amounts run from 0.01 to 999999999.99.
-	if ctx.OutstandingCents <= 0 {
-		return nil, errors.New("invoice.outstanding_amount: EPC QR code requires an amount above zero")
-	}
-	if ctx.OutstandingCents > ctx.TotalCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", money.FormatCents(ctx.OutstandingCents), money.FormatCents(ctx.TotalCents))
-	}
-	if ctx.OutstandingCents > epcQRMaxAmountCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", money.FormatCents(ctx.OutstandingCents), "999999999,99")
-	}
-
-	name := ctx.Payment.EPCQR.Name.Trim()
-	if name == "" {
-		name = ctx.Company.LegalCompanyName.Trim()
-	}
-	if name == "" {
-		return nil, errors.New("issuer.payment.epc_qr.name: missing value")
-	}
-
-	iban := compactEPCAccountIdentifier(string(ctx.Payment.IBAN))
-	if !isValidIBAN(iban) {
-		return nil, fmt.Errorf("issuer.payment.iban: invalid IBAN `%s`", ctx.Payment.IBAN)
-	}
-	if !isSEPASchemeIBAN(iban) {
-		return nil, fmt.Errorf("issuer.payment.iban: IBAN `%s` is outside the current SEPA scheme scope", ctx.Payment.IBAN)
-	}
-
-	bic := compactEPCAccountIdentifier(string(ctx.Payment.BIC))
-	if bic != "" && !epcBICPattern.MatchString(bic) {
-		return nil, fmt.Errorf("issuer.payment.bic: invalid BIC `%s`", ctx.Payment.BIC)
-	}
-
-	purpose := strings.ToUpper(ctx.Payment.EPCQR.Purpose.Trim())
-	if purpose != "" && !epcPurposePattern.MatchString(purpose) {
-		return nil, fmt.Errorf("issuer.payment.epc_qr.purpose: expected 1-4 letters or digits, got `%s`", purpose)
-	}
-
-	text := ctx.Payment.EPCQR.Text.Trim()
-	if text == "" {
-		text = ctx.Invoice.Number.Trim()
-	}
-	information := ctx.Payment.EPCQR.Information.Trim()
-
-	for _, field := range []struct {
-		label    string
-		value    string
-		maxChars int
-	}{
-		{label: "issuer.payment.epc_qr.name", value: name, maxChars: epcQRMaxNameChars},
-		{label: "issuer.payment.epc_qr.text", value: text, maxChars: epcQRMaxTextChars},
-		{label: "issuer.payment.epc_qr.information", value: information, maxChars: epcQRMaxInfoChars},
-	} {
-		if err := validateEPCTextField(field.label, field.value, field.maxChars); err != nil {
-			return nil, err
-		}
-	}
-
-	amount := "EUR" + formatEPCAmount(ctx.OutstandingCents)
+// Encode returns the QR payload, or an error when it exceeds MaxPayloadBytes.
+func (t Transfer) Encode() ([]byte, error) {
 	fields := []string{
 		"BCD",
 		"002",
 		"1",
 		"SCT",
-		bic,
-		name,
-		iban,
-		amount,
-		purpose,
+		t.BIC,
+		t.Name,
+		t.IBAN,
+		"EUR" + formatAmount(t.AmountCents),
+		t.Purpose,
 		"",
-		text,
-		information,
+		t.Text,
+		t.Information,
 	}
 	for len(fields) > 0 && fields[len(fields)-1] == "" {
 		fields = fields[:len(fields)-1]
 	}
 
-	payload := strings.Join(fields, "\n")
-	payloadBytes := []byte(payload)
-	if len(payloadBytes) > epcQRMaxPayloadBytes {
-		return nil, fmt.Errorf("EPC QR code payload exceeds %d bytes", epcQRMaxPayloadBytes)
+	payload := []byte(strings.Join(fields, "\n"))
+	if len(payload) > MaxPayloadBytes {
+		return nil, fmt.Errorf("EPC QR code payload exceeds %d bytes", MaxPayloadBytes)
 	}
-	return payloadBytes, nil
+	return payload, nil
 }
 
-func validateEPCTextField(label, value string, maxChars int) error {
+// CheckText reports why value cannot fill a free-text field of at most
+// maxChars characters. An empty value is allowed.
+func CheckText(value string, maxChars int) error {
 	if value == "" {
 		return nil
 	}
 	if !utf8.ValidString(value) {
-		return fmt.Errorf("%s: must be valid UTF-8", label)
+		return errors.New("must be valid UTF-8")
 	}
 	if strings.ContainsAny(value, "\r\n") {
-		return fmt.Errorf("%s: line breaks are not allowed", label)
+		return errors.New("line breaks are not allowed")
 	}
 	if utf8.RuneCountInString(value) > maxChars {
-		return fmt.Errorf("%s: exceeds %d characters", label, maxChars)
+		return fmt.Errorf("exceeds %d characters", maxChars)
 	}
 	return nil
 }
 
-func compactEPCAccountIdentifier(value string) string {
+// ValidBIC reports whether bic, in compact form, is an 8- or 11-character BIC.
+func ValidBIC(bic string) bool {
+	return bicPattern.MatchString(bic)
+}
+
+// ValidPurpose reports whether purpose is an EPC purpose code of 1-4 letters
+// or digits.
+func ValidPurpose(purpose string) bool {
+	return purposePattern.MatchString(purpose)
+}
+
+func CompactIdentifier(value string) string {
 	value = strings.ToUpper(value)
 	var compact strings.Builder
 	compact.Grow(len(value))
@@ -286,7 +246,7 @@ func compactEPCAccountIdentifier(value string) string {
 	return compact.String()
 }
 
-func isValidIBAN(value string) bool {
+func ValidIBAN(value string) bool {
 	if len(value) < 15 || len(value) > 34 {
 		return false
 	}
@@ -328,7 +288,7 @@ func isValidIBAN(value string) bool {
 	return remainder == 1
 }
 
-func isSEPASchemeIBAN(value string) bool {
+func SEPASchemeIBAN(value string) bool {
 	if len(value) < 2 {
 		return false
 	}
@@ -336,7 +296,7 @@ func isSEPASchemeIBAN(value string) bool {
 	return ok
 }
 
-func formatEPCAmount(cents int64) string {
+func formatAmount(cents int64) string {
 	if cents < 0 {
 		cents = -cents
 	}
