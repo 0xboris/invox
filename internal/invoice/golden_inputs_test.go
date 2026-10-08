@@ -51,7 +51,16 @@ func TestGoldenInputs(t *testing.T) {
 				ctx.SubtotalCents, ctx.VATAmountCents, ctx.TotalCents, ctx.PaidAmountCents, ctx.OutstandingCents,
 			))
 
-			for want, templatePath := range templates {
+			for want, source := range templates {
+				// A checkout may turn the templates' line endings into CRLF.
+				text, err := os.ReadFile(source)
+				if err != nil {
+					t.Fatal(err)
+				}
+				templatePath := filepath.Join(tmp, filepath.Base(source))
+				if err := os.WriteFile(templatePath, []byte(strings.ReplaceAll(string(text), "\r\n", "\n")), 0o644); err != nil {
+					t.Fatal(err)
+				}
 				outputPath := filepath.Join(tmp, want)
 				if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 					t.Fatalf("RenderInvoice(%s): %v", templatePath, err)
