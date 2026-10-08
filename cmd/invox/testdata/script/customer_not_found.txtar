@@ -1,7 +1,7 @@
 # Without a customers file, customer list and customer config fail with a
 # usage error that names the ways to provide one and the command's help.
-env INVOX_CONFIG_DIR=$WORK/empty-config
-mkdir empty-config
+env INVOX_CONFIG_DIR=$WORK/home/empty-config
+mkdir home/empty-config
 
 exits 2 invox customer list
 ! stdout .
@@ -14,8 +14,8 @@ scrubpaths stderr got.txt
 cmp got.txt want-config.txt
 
 -- want-list.txt --
-error: customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at empty-config/customers.yaml
+error: customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at home/empty-config/customers.yaml
 Run 'invox customer list --help' for usage.
 -- want-config.txt --
-error: customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at empty-config/customers.yaml
+error: customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at home/empty-config/customers.yaml
 Run 'invox customer config --help' for usage.
