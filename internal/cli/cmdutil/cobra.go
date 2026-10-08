@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -21,6 +22,10 @@ func FlagErrorFunc(cmd *cobra.Command, err error) error {
 	if m := invalidArgument.FindStringSubmatch(err.Error()); m != nil {
 		err = fmt.Errorf("invalid value %s for %s", m[1], m[2])
 	}
+	if m := shorthandIn.FindStringSubmatchIndex(err.Error()); m != nil {
+		msg := err.Error()
+		err = errors.New(msg[:m[0]] + "-" + msg[m[2]:m[3]])
+	}
 	if name, ok := strings.CutPrefix(err.Error(), "flag needs an argument: --"); ok && cmd.InheritedFlags().Lookup(name) != nil {
 		return &FlagError{Err: err}
 	}
@@ -30,6 +35,10 @@ func FlagErrorFunc(cmd *cobra.Command, err error) error {
 // invalidArgument matches pflag's error for a value its flag rejects, such as
 // `invalid argument "x" for "-n, --names" flag: strconv.ParseBool: ...`.
 var invalidArgument = regexp.MustCompile(`^invalid argument (".*") for "(?:-\w, )?(--[^"]+)" flag: `)
+
+// shorthandIn matches the end of pflag's errors about one shorthand flag in
+// a group, such as `unknown shorthand flag: 'x' in -xv`.
+var shorthandIn = regexp.MustCompile(`'(.)' in -\S+$`)
 
 // UnknownSubcommandError is the usage error for an unknown subcommand of
 // cmd, with the closest subcommands as a suggestion.

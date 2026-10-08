@@ -34,7 +34,7 @@ exits 2 invox customer list extra
 cmp stderr want-list-extra.txt
 exits 2 invox customer list --bogus
 ! stdout .
-stderr '^error: flag provided but not defined: -bogus$'
+stderr '^error: unknown flag: --bogus$'
 exits 2 invox customer config extra
 ! stdout .
 stderr '^error: unexpected arguments: extra$'

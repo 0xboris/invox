@@ -56,7 +56,7 @@ func runNew(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	displayPath := invoice.DisplayPath(created.Path, opts.BaseDir)
 	if opts.EditNewInvoice {
 		nextStep := fmt.Sprintf("edit it and run '%s validate -i %s'", commandName, displayPath)
-		err := openInEditor(ctx, f, spec.Name, created.Path, nextStep)
+		err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, spec.Name, created.Path, nextStep)
 		var flagErr *cmdutil.FlagError
 		if errors.As(err, &flagErr) {
 			return &cmdutil.FlagError{Command: flagErr.Command, Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}

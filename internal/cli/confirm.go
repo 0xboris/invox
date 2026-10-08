@@ -71,7 +71,7 @@ func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, h in
 			errorPrefix,
 			invoice.DisplayPath(opts.InvoicePath, opts.BaseDir),
 			replaced,
-			whyNoPrompt(ios),
+			cmdutil.WhyNoPrompt(ios),
 		)
 	}
 	question := fmt.Sprintf(
