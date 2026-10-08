@@ -72,7 +72,7 @@ func applyGlobalFlags(cmd *cobra.Command, f *cmdutil.Factory) error {
 	if flags.Changed("config") {
 		configFile, _ := flags.GetString("config")
 		if configFile == "" {
-			return cmdutil.FlagErrorf(cmdutil.CommandPath(cmd), "flag needs an argument: --config")
+			return cmdutil.FlagErrorf("", "flag needs an argument: --config")
 		}
 		f.ConfigFile = configFile
 	}

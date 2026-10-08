@@ -9,12 +9,16 @@ import (
 )
 
 // FlagErrorFunc turns a cobra flag-parsing error into a *FlagError for cmd.
-// An unknown long flag gets the closest flag name as a suggestion.
+// An unknown long flag gets the closest flag name as a suggestion. An error
+// in a global flag points to the root help, which documents it.
 func FlagErrorFunc(cmd *cobra.Command, err error) error {
 	if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
 		if suggestion := closestFlag(cmd, name); suggestion != "" {
 			err = fmt.Errorf("%w; did you mean --%s?", err, suggestion)
 		}
+	}
+	if name, ok := strings.CutPrefix(err.Error(), "flag needs an argument: --"); ok && cmd.InheritedFlags().Lookup(name) != nil {
+		return &FlagError{Err: err}
 	}
 	return &FlagError{Command: CommandPath(cmd), Err: err}
 }

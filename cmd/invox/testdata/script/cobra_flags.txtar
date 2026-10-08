@@ -62,4 +62,4 @@ Run 'invox template list --help' for usage.
 warning: -names is deprecated; use --names
 -- want-config-missing.txt --
 error: flag needs an argument: --config
-Run 'invox template list --help' for usage.
+Run 'invox --help' for usage.

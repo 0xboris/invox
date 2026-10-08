@@ -117,7 +117,12 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 		{
 			name:       "empty config",
 			args:       []string{"template", "list", "--config="},
-			wantStderr: "error: flag needs an argument: --config\nRun 'invox template list --help' for usage.\n",
+			wantStderr: "error: flag needs an argument: --config\nRun 'invox --help' for usage.\n",
+		},
+		{
+			name:       "global flag without value",
+			args:       []string{"template", "list", "--config"},
+			wantStderr: "error: flag needs an argument: --config\nRun 'invox --help' for usage.\n",
 		},
 		{
 			name:       "extra argument",
