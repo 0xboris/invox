@@ -1,0 +1,65 @@
+# Commands on cobra parse their flags with pflag: misspelt flags get a
+# suggestion, `--` ends the flags, single-dash long flags still work with a
+# warning, and the global flags work anywhere before `--`.
+
+# A misspelt flag is a usage error that suggests the right one.
+exits 2 invox template list --nmaes
+! stdout .
+cmp stderr want-misspelt.txt
+
+# A misspelt subcommand suggests the right one.
+exits 2 invox template lsit
+! stdout .
+cmp stderr want-subcommand.txt
+
+# After `--`, --names is an argument, not a flag.
+exits 2 invox template list -- --names
+! stdout .
+cmp stderr want-dashdash.txt
+
+# A single-dash long flag works and warns.
+exec invox template list -names
+cmp stdout want-names.txt
+cmp stderr want-single-dash.txt
+
+# --config and --no-input work before and after the command.
+exec invox --config custom.yaml template list --names
+cmp stdout want-custom-names.txt
+! stderr .
+exec invox template --no-input list --names --config custom.yaml
+cmp stdout want-custom-names.txt
+! stderr .
+exits 2 invox template list --config
+! stdout .
+cmp stderr want-config-missing.txt
+
+# --version is the version command, after global flags too.
+exec invox --no-input --version
+stdout '^invox version DEV$'
+! stderr .
+
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@
+-- custom/other.tex --
+Other @@INVOICE_NUMBER@@
+-- custom.yaml --
+paths:
+  template: 'custom/other.tex'
+-- want-names.txt --
+template.tex
+-- want-custom-names.txt --
+other.tex
+-- want-misspelt.txt --
+error: unknown flag: --nmaes; did you mean --names?
+Run 'invox template list --help' for usage.
+-- want-subcommand.txt --
+error: unknown template subcommand "lsit"; did you mean "list"?
+Run 'invox template --help' for usage.
+-- want-dashdash.txt --
+error: unexpected arguments: --names
+Run 'invox template list --help' for usage.
+-- want-single-dash.txt --
+warning: -names is deprecated; use --names
+-- want-config-missing.txt --
+error: flag needs an argument: --config
+Run 'invox template list --help' for usage.
