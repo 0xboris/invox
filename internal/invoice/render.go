@@ -68,7 +68,7 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck // best-effort cleanup of the scratch directory
 
 	renderPath := filepath.Join(
 		tempDir,

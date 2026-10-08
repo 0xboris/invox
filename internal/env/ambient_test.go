@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -13,17 +12,13 @@ import (
 	"testing"
 )
 
-// allowedFiles may read the process environment anywhere in the file.
-var allowedFiles = []string{
-	"internal/adapters/run/run.go", // child processes inherit os.Environ
-	"internal/cli/exit.go",         // printError makes paths relative to os.Getwd
-}
-
 // allowedFuncs lists, per package directory, the functions that may read the
-// process environment.
+// process environment. A method is named Type.Method.
 var allowedFuncs = map[string][]string{
-	"internal/env":       {"System"},
-	"internal/iostreams": {"newSystem"}, // reads INVOX_FORCE_TTY
+	"internal/adapters/run": {"Exec.Run"},   // child processes inherit os.Environ
+	"internal/cli":          {"printError"}, // makes paths relative to os.Getwd
+	"internal/env":          {"System"},
+	"internal/iostreams":    {"newSystem"}, // reads INVOX_FORCE_TTY
 }
 
 // ambientReads lists, per import path, the package-level identifiers that
@@ -45,11 +40,7 @@ func TestOnlyEnvSystemReadsTheProcessEnvironment(t *testing.T) {
 
 	root := filepath.Join("..", "..")
 	var violations []string
-	for _, file := range allowedFiles {
-		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); err != nil {
-			violations = append(violations, file+": allowlisted but missing; drop it from allowedFiles")
-		}
-	}
+	declared := map[string]bool{}
 	for _, dir := range []string{"cmd", "internal"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -62,20 +53,29 @@ func TestOnlyEnvSystemReadsTheProcessEnvironment(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			rel = filepath.ToSlash(rel)
-			if slices.Contains(allowedFiles, rel) {
-				return nil
-			}
+			pkgDir := filepath.ToSlash(filepath.Dir(rel))
 			fset := token.NewFileSet()
 			file, err := parser.ParseFile(fset, path, nil, 0)
 			if err != nil {
 				return err
 			}
-			violations = append(violations, ambientUses(fset, file, allowedFuncs[filepath.ToSlash(filepath.Dir(rel))])...)
+			for _, decl := range file.Decls {
+				if fn, ok := decl.(*ast.FuncDecl); ok {
+					declared[pkgDir+"."+funcName(fn)] = true
+				}
+			}
+			violations = append(violations, ambientUses(fset, file, allowedFuncs[pkgDir])...)
 			return nil
 		})
 		if err != nil {
 			t.Fatalf("walk %s: %v", dir, err)
+		}
+	}
+	for dir, funcs := range allowedFuncs {
+		for _, name := range funcs {
+			if !declared[dir+"."+name] {
+				violations = append(violations, dir+": "+name+" is allowlisted but missing; drop it from allowedFuncs")
+			}
 		}
 	}
 
@@ -130,6 +130,12 @@ func TestAmbientUsesFindsEveryForm(t *testing.T) {
 			want:    []string{"os.Getwd"},
 		},
 		{
+			name:    "method allowed by type and name",
+			src:     "import \"os\"\n\ntype Exec struct{}\n\nfunc (Exec) Run() []string { return os.Environ() }\n\nfunc (*Exec) Other() []string { return os.Environ() }\n\nfunc Run() []string { return os.Environ() }\n",
+			allowed: []string{"Exec.Run"},
+			want:    []string{"os.Environ", "os.Environ"},
+		},
+		{
 			name: "System outside an allowed package",
 			src:  "import \"os\"\n\nfunc System() string { return os.Getenv(\"A\") }\n",
 			want: []string{"os.Getenv"},
@@ -161,7 +167,7 @@ func TestAmbientUsesFindsEveryForm(t *testing.T) {
 }
 
 // ambientUses reports each use of ambientReads in file, calls and function
-// values alike, outside the package-level functions named in allowed.
+// values alike, outside the functions and methods named in allowed.
 func ambientUses(fset *token.FileSet, file *ast.File, allowed []string) []string {
 	var violations []string
 	report := func(pos token.Pos, what string) {
@@ -186,7 +192,7 @@ func ambientUses(fset *token.FileSet, file *ast.File, allowed []string) []string
 	}
 
 	for _, decl := range file.Decls {
-		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && slices.Contains(allowed, fn.Name.Name) {
+		if fn, ok := decl.(*ast.FuncDecl); ok && slices.Contains(allowed, funcName(fn)) {
 			continue
 		}
 		ast.Inspect(decl, func(node ast.Node) bool {
@@ -205,4 +211,19 @@ func ambientUses(fset *token.FileSet, file *ast.File, allowed []string) []string
 		})
 	}
 	return violations
+}
+
+// funcName returns a function's name, or Type.Method for a method.
+func funcName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
+	}
+	recv := fn.Recv.List[0].Type
+	if star, ok := recv.(*ast.StarExpr); ok {
+		recv = star.X
+	}
+	if ident, ok := recv.(*ast.Ident); ok {
+		return ident.Name + "." + fn.Name.Name
+	}
+	return fn.Name.Name
 }

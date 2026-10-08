@@ -13,7 +13,7 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 BUILD_PKG := github.com/0xboris/invox/internal/build
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
-.PHONY: help build test fuzz vet lint fmt tidy docs install clean
+.PHONY: help build test fuzz vet lint vulncheck fmt tidy docs install clean
 
 help: ## Show available targets.
 	@printf "Targets:\n"
@@ -23,6 +23,7 @@ help: ## Show available targets.
 	@printf "  BIN_DIR     Build output directory (default: bin)\n"
 	@printf "  VERSION     Version stamped into the binary (default: git describe)\n"
 	@printf "  FUZZTIME    How long make fuzz runs each fuzz target (default: 10s)\n"
+	@printf "  GOLANGCI_LINT  golangci-lint command (default: go run at the version CI uses)\n"
 
 # build is phony so it always runs go build; Go's build cache keeps it cheap
 # and the binary can never be stale.
@@ -51,8 +52,16 @@ fuzz: ## Run each fuzz target for FUZZTIME (default: 10s).
 vet: ## Run go vet across the module.
 	$(GO) vet ./...
 
-lint: ## Run the linters (go vet for now).
-	$(GO) vet ./...
+# Keep in step with the lint and vulncheck jobs in .github/workflows/ci.yml.
+GOLANGCI_LINT_VERSION ?= v2.14.0
+GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+GOVULNCHECK ?= $(GO) run golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+lint: ## Run golangci-lint with the rules in .golangci.yml.
+	$(GOLANGCI_LINT) run ./...
+
+vulncheck: ## Check the module and the Go toolchain for known vulnerabilities.
+	$(GOVULNCHECK) ./...
 
 fmt: ## Format all Go files in place with gofmt.
 	gofmt -w .

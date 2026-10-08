@@ -1,0 +1,272 @@
+# golangci-lint v2. CI pins the version in .github/workflows/ci.yml; run it
+# locally with `make lint`. internal/archtest asserts the same import rules on
+# the transitive import graph.
+version: "2"
+
+run:
+  go: "1.24"
+  relative-path-mode: gomod
+
+linters:
+  default: none
+  enable:
+    # gh's set.
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - exptostd
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - gocritic
+    - gomoddirectives
+    - goprintffuncname
+    - govet
+    - ineffassign
+    - nilerr
+    - nolintlint
+    - nosprintfhostport
+    - reassign
+    - unused
+    # Added for invox.
+    - staticcheck
+    - errcheck
+    - gosec
+    - depguard
+    - forbidigo
+
+  settings:
+    depguard:
+      rules:
+        # Imports point down: main -> cli -> cmd -> cmdutil -> domain and
+        # adapters. Nothing below the command layer knows about commands,
+        # flags or the CLI.
+        below-commands:
+          files:
+            - "**/internal/adapters/**"
+            - "**/internal/archive/**"
+            - "**/internal/build/**"
+            - "**/internal/config/**"
+            - "**/internal/email/**"
+            - "**/internal/env/**"
+            - "**/internal/epc/**"
+            - "**/internal/fsutil/**"
+            - "**/internal/invoice/**"
+            - "**/internal/iostreams/**"
+            - "**/internal/money/**"
+            - "**/internal/render/**"
+            - "**/internal/tableprinter/**"
+          deny:
+            - pkg: github.com/0xboris/invox/cmd
+              desc: imports point down only
+            - pkg: github.com/0xboris/invox/internal/cli
+              desc: the CLI layer (root, cmdutil, helptext) sits above this package
+            - pkg: github.com/0xboris/invox/internal/cmd
+              desc: commands sit above this package
+            - pkg: github.com/spf13/cobra
+              desc: only commands know about cobra
+            - pkg: github.com/spf13/pflag
+              desc: only commands know about flags
+        # Same layer, without tests: a test may define a flag such as -update.
+        below-commands-flag:
+          files:
+            - "**/internal/adapters/**"
+            - "**/internal/archive/**"
+            - "**/internal/build/**"
+            - "**/internal/config/**"
+            - "**/internal/email/**"
+            - "**/internal/env/**"
+            - "**/internal/epc/**"
+            - "**/internal/fsutil/**"
+            - "**/internal/invoice/**"
+            - "**/internal/iostreams/**"
+            - "**/internal/money/**"
+            - "**/internal/render/**"
+            - "**/internal/tableprinter/**"
+            - "!$test"
+          deny:
+            - pkg: flag
+              desc: only commands know about flags
+        # The domain returns data and typed errors. It neither writes to the
+        # terminal nor runs programs; the CLI layer does both.
+        domain:
+          files:
+            - "**/internal/archive/**"
+            - "**/internal/config/**"
+            - "**/internal/email/**"
+            - "**/internal/epc/**"
+            - "**/internal/invoice/**"
+            - "**/internal/money/**"
+            - "**/internal/render/**"
+          deny:
+            - pkg: github.com/0xboris/invox/internal/iostreams
+              desc: return data; the command renders it
+            - pkg: github.com/0xboris/invox/internal/tableprinter
+              desc: return data; the command renders it
+            - pkg: github.com/0xboris/invox/internal/adapters
+              desc: the CLI layer runs programs; the domain takes their results
+        # Adapters wrap one program each on top of run.Runner and write to
+        # IOStreams; they know nothing about the domain.
+        adapters:
+          list-mode: strict
+          files:
+            - "**/internal/adapters/**"
+            - "**/internal/tableprinter/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/adapters/run
+            - github.com/0xboris/invox/internal/iostreams
+        # Leaf packages. Each states the only module packages it may import.
+        stdlib-only:
+          list-mode: strict
+          files:
+            - "**/internal/build/**"
+            - "**/internal/email/**"
+            - "**/internal/env/**"
+            - "**/internal/epc/**"
+            - "**/internal/fsutil/**"
+            - "**/internal/iostreams/**"
+            - "**/internal/money/**"
+            - "!$test"
+          allow:
+            - $gostd
+        render-latex:
+          list-mode: strict
+          files:
+            - "**/internal/render/latex/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/money
+        archive:
+          list-mode: strict
+          files:
+            - "**/internal/archive/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/fsutil
+        # internal/adapters/run is the only package that starts programs.
+        only-run-execs:
+          files:
+            - $all
+            - "!**/internal/adapters/run/run.go"
+            - "!$test"
+          deny:
+            - pkg: os/exec
+              desc: start programs through run.Runner
+        # The docs generator is a dev tool; the release binary must not
+        # import it.
+        docs-gen-is-a-tool:
+          files:
+            - $all
+            - "!**/internal/docs/gen/**"
+          deny:
+            - pkg: github.com/0xboris/invox/internal/docs/gen
+              desc: the release binary must not import the docs generator
+
+    errcheck:
+      exclude-functions:
+        # Writes to IOStreams. A failed write to the terminal or a pipe has no
+        # recovery, and the next write or the exit code reports it.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^(fmt\.Print(f|ln)?|print|println)$
+          msg: write to the injected IOStreams
+        - pattern: ^os\.Exit$
+          msg: return an error; cli.Main picks the exit code and main exits
+        - pattern: ^os\.(Stdin|Stdout|Stderr)$
+          msg: use the injected IOStreams; only iostreams.System touches the process streams
+        - pattern: ^os\.(Getenv|LookupEnv)$
+          msg: read env.Env; only env.System reads the process environment
+        - pattern: ^time\.Now$
+          msg: use env.Env.Now; only env.System reads the clock
+        - pattern: ^runtime\.GOOS$
+          msg: use env.Env.GOOS; only env.System reads runtime.GOOS
+        - pattern: ^exec\.Command(Context)?$
+          pkg: ^os/exec$
+          msg: start programs through run.Runner
+        - pattern: ^os\.StartProcess$
+          msg: start programs through run.Runner
+        - pattern: ^syscall\.Exit$
+          msg: return an error; cli.Main picks the exit code and main exits
+        - pattern: ^log\.(Print|Fatal|Panic)(f|ln)?$
+          msg: write to the injected IOStreams and return errors
+
+    gosec:
+      excludes:
+        # Reading the files the user names (invoices, config, templates) is
+        # what invox does. G703 is the taint-analysis form of G304.
+        - G304
+        - G703
+
+    staticcheck:
+      checks:
+        # golangci-lint's default set.
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        # De Morgan rewrites of !(a && b) are not clearer.
+        - -QF1001
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    rules:
+      # Tests may use the process streams, environment and clock, exit from
+      # TestMain and helper processes, and write fixtures with any mode.
+      - path: _test\.go$
+        linters: [forbidigo, gosec]
+      # The composition root: main exits with cli.Main's code.
+      - path: ^cmd/invox/main\.go$
+        linters: [forbidigo]
+        text: "`os\\.Exit`"
+      # The docs generator is a dev tool with its own main.
+      - path: ^internal/docs/gen/main\.go$
+        linters: [forbidigo]
+        text: "`os\\.Exit`"
+      # env.System reads the process environment, the clock and GOOS.
+      - path: ^internal/env/env\.go$
+        linters: [forbidigo]
+        text: "`(os\\.Getenv|time\\.Now|runtime\\.GOOS)`"
+      # iostreams.System wraps the process streams; newSystem reads
+      # INVOX_FORCE_TTY.
+      - path: ^internal/iostreams/iostreams\.go$
+        linters: [forbidigo]
+        text: "`(os\\.(Stdin|Stdout|Stderr)|os\\.Getenv)`"
+      # TIOCGETA/TCGETS through syscall.Syscall needs unsafe.Pointer.
+      - path: ^internal/iostreams/terminal_ioctl\.go$
+        linters: [gosec]
+        text: G103
+      # syscall.Umask returns a 0-0777 mask, so the conversion can't overflow.
+      - path: ^internal/fsutil/umask_unix\.go$
+        linters: [gosec]
+        text: G115
+      # The template placeholder table names its column Token; the values
+      # are placeholders such as @@EPC_QR_CODE@@, not credentials.
+      - path: ^internal/cli/helptext/reference\.go$
+        linters: [gosec]
+        text: G101
+      # SilentError and CancelError keep gh's cmdutil names.
+      - path: ^internal/cli/cmdutil/errors\.go$
+        linters: [staticcheck]
+        text: ST1012
+
+formatters:
+  enable:
+    - gofmt
