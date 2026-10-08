@@ -23,6 +23,16 @@ cmp stdout want-force.txt
 cmp stderr want-force-stderr.txt
 grep '^To: .*office@appsters\.example' existing.eml
 
+# --force never replaces a directory, with or without --dry-run.
+mkdir dir.eml
+exits 1 invox email invoice.yaml -o dir.eml --force
+! stdout .
+cmp stderr want-dir.txt
+exits 1 invox email invoice.yaml -o dir.eml --force -n
+! stdout .
+cmp stderr want-dir.txt
+exists dir.eml
+
 # The PDF can be the input; --to and --subject override the defaults.
 exec invox email invoice.pdf -o draft2.eml --to someone@example.com --subject 'Re: {invoice_number}'
 cmp stdout want-email-to.txt
@@ -74,6 +84,8 @@ keep me
 -- invoice.pdf --
 -- want-exists.txt --
 error: existing.eml already exists; pass --force or choose another -o path
+-- want-dir.txt --
+error: dir.eml is a directory; choose another -o path
 -- want-force.txt --
 existing.eml
 -- want-force-stderr.txt --

@@ -27,6 +27,15 @@ exec invox new CUST-001 -o second.yaml --force
 cmp stdout want-second-stdout.txt
 cmp stderr want-second-force.txt
 
+# --force never replaces a directory, with or without --dry-run.
+mkdir dir.yaml
+exits 1 invox new CUST-001 -o dir.yaml --force
+! stdout .
+cmp stderr want-new-dir.txt
+exits 1 invox new CUST-001 -o dir.yaml --force -n
+! stdout .
+cmp stderr want-new-dir.txt
+
 # -o picks the output path.
 exec invox new CUST-002 -o drafts.yaml
 cmp stdout want-new-o-stdout.txt
@@ -155,6 +164,8 @@ IBAN @@IBAN@@
 Would create CUST-001-001.yaml for CUST-001 (CUST-001-001)
 -- want-new-exists.txt --
 error: second.yaml already exists; pass --force to replace it or choose a different -o/--output path
+-- want-new-dir.txt --
+error: dir.yaml is a directory; choose a different -o/--output path
 -- want-second-force.txt --
 Created second.yaml for CUST-001 (CUST-001-003)
 -- want-new-stdout.txt --
