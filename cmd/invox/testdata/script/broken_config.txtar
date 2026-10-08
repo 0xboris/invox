@@ -14,7 +14,7 @@ stdout '^Open config\.yaml in your editor\.$'
 ! stderr .
 exits 2 invox new --bogus
 ! stdout .
-stderr '^error: flag provided but not defined: -bogus$'
+stderr '^error: unknown flag: --bogus$'
 
 # A command that needs the config names the file and line, and suggests
 # `invox config`.

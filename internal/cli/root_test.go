@@ -61,8 +61,8 @@ func TestNormalizeLongFlags(t *testing.T) {
 		},
 		{
 			name: "legacy command",
-			args: []string{"new", "CUST-001", "-from-last"},
-			want: []string{"new", "CUST-001", "-from-last"},
+			args: []string{"build", "x.yaml", "-archive"},
+			want: []string{"build", "x.yaml", "-archive"},
 		},
 		{
 			name: "help command",

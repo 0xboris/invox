@@ -32,7 +32,7 @@ exits 2 invox new
 cmp stderr want-missing-id.txt
 exits 2 invox new --bogus
 ! stdout .
-stderr '^error: flag provided but not defined: -bogus$'
+stderr '^error: unknown flag: --bogus$'
 exits 2 invox new CUST-001 -o out.txt
 ! stdout .
 stderr '^error: -o, --output must end with \.yaml$'

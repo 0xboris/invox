@@ -13,7 +13,7 @@ exits 2 invox validate
 cmp stderr want-missing-input.txt
 exits 2 invox validate -i invoice.yaml --bogus
 ! stdout .
-stderr '^error: flag provided but not defined: -bogus$'
+stderr '^error: unknown flag: --bogus$'
 
 # Runtime errors: an invalid invoice lists every problem, malformed values
 # with their line.
