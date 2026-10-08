@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	configcmd "github.com/0xboris/invox/internal/cmd/config"
+	customercmd "github.com/0xboris/invox/internal/cmd/customer"
 	templatecmd "github.com/0xboris/invox/internal/cmd/template"
 	versioncmd "github.com/0xboris/invox/internal/cmd/version"
 )
@@ -59,6 +61,8 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	})
 
 	root.AddCommand(
+		configcmd.NewCmdConfig(f, nil),
+		customercmd.NewCmdCustomer(f),
 		templatecmd.NewCmdTemplate(f),
 		versioncmd.NewCmdVersion(f, nil),
 	)

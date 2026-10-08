@@ -104,10 +104,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 
 	switch args[0] {
-	case "customer":
-		return runCustomer(ctx, f, args[1:])
-	case "config":
-		return runConfig(ctx, f, args[1:])
 	case "init":
 		return runInit(ctx, f, args[1:])
 	case "completion":
@@ -233,28 +229,6 @@ func runHelp(f *cmdutil.Factory, args []string) error {
 	}
 	printCommandHelp(ios.Out, h, spec)
 	return nil
-}
-
-func runCustomer(ctx context.Context, f *cmdutil.Factory, args []string) error {
-	ios := f.IOStreams
-	h := f.Host()
-	if len(args) == 0 {
-		printCustomerHelp(ios.Out, h)
-		return nil
-	}
-	if len(args) == 1 && wantsHelp(args) {
-		printCustomerHelp(ios.Out, h)
-		return nil
-	}
-
-	switch args[0] {
-	case "list":
-		return runCustomerList(f, args[1:])
-	case "config":
-		return runCustomerConfig(ctx, f, args[1:])
-	default:
-		return cmdutil.FlagErrorf("customer", "unknown customer subcommand %q", args[0])
-	}
 }
 
 func unknownHelpTopic(args []string) error {

@@ -1,0 +1,50 @@
+# customer and config parse their flags with pflag.
+
+# A misspelt flag suggests the right one.
+exits 2 invox customer list --customer other.yaml
+! stdout .
+cmp stderr want-misspelt.txt
+
+# A misspelt subcommand suggests the right one.
+exits 2 invox customer lsit
+! stdout .
+cmp stderr want-subcommand.txt
+
+# A single-dash long flag works and warns.
+exec invox customer list -customers other.yaml
+cmp stdout want-list-other.tsv
+cmp stderr want-single-dash.txt
+
+# A dangling flag says which flag needs a value.
+exits 2 invox customer list --customers
+! stdout .
+cmp stderr want-dangling.txt
+
+# --no-input works after the command.
+exits 2 invox customer config --no-input -c other.yaml
+! stdout .
+cmp stderr want-disabled.txt
+exits 2 invox config --no-input
+! stdout .
+stderr '^error: cannot open an editor: prompts are disabled'
+
+-- other.yaml --
+OTHER-1:
+  name: Other Ltd
+  status: active
+-- want-list-other.tsv --
+OTHER-1	Other Ltd	active
+-- want-misspelt.txt --
+error: unknown flag: --customer; did you mean --customers?
+Run 'invox customer list --help' for usage.
+-- want-subcommand.txt --
+error: unknown customer subcommand "lsit"; did you mean "list"?
+Run 'invox customer --help' for usage.
+-- want-single-dash.txt --
+warning: -customers is deprecated; use --customers
+-- want-dangling.txt --
+error: flag needs an argument: --customers
+Run 'invox customer list --help' for usage.
+-- want-disabled.txt --
+error: cannot open an editor: prompts are disabled (--no-input or INVOX_PROMPT_DISABLED); edit other.yaml directly
+Run 'invox customer config --help' for usage.
