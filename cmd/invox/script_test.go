@@ -151,21 +151,21 @@ func cmdExits(ts *testscript.TestScript, neg bool, args []string) {
 // start with home\, into slashes, so on Windows the suite cannot catch a path
 // printed with mixed separators. Empty variables are skipped. With -tsv, the
 // source is piped list output, whose backslashes are escaped as \\, so the
-// paths are matched and unescaped in that form. Compare OUTFILE with cmp,
-// which -update can rewrite:
+// paths are matched and unescaped in that form; -json does the same for
+// --json output. Compare OUTFILE with cmp, which -update can rewrite:
 //
-//	scrubpaths [-tsv] SOURCE OUTFILE
+//	scrubpaths [-tsv|-json] SOURCE OUTFILE
 func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 	if neg {
 		ts.Fatalf("unsupported: ! scrubpaths")
 	}
 	separator := `\`
-	if len(args) > 0 && args[0] == "-tsv" {
+	if len(args) > 0 && (args[0] == "-tsv" || args[0] == "-json") {
 		separator = `\\`
 		args = args[1:]
 	}
 	if len(args) != 2 {
-		ts.Fatalf("usage: scrubpaths [-tsv] SOURCE OUTFILE")
+		ts.Fatalf("usage: scrubpaths [-tsv|-json] SOURCE OUTFILE")
 	}
 	text := ts.ReadFile(args[0])
 	for _, name := range []string{"DATA_HOME", "DATA_HOME_TILDE", "WORK"} {

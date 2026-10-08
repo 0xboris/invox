@@ -11,9 +11,13 @@ import (
 )
 
 // FlagErrorFunc turns a cobra flag-parsing error into a *FlagError for cmd.
+// --json without a value is the exception: it lists the fields and exits 1.
 // An unknown long flag gets the closest flag name as a suggestion. An error
 // in a global flag points to the root help, which documents it.
 func FlagErrorFunc(cmd *cobra.Command, err error) error {
+	if jsonErr := jsonFlagWithoutValue(cmd, err); jsonErr != nil {
+		return jsonErr
+	}
 	if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
 		if suggestion := closestFlag(cmd, name); suggestion != "" {
 			err = fmt.Errorf("%w; did you mean --%s?", err, suggestion)

@@ -34,6 +34,14 @@ type NewOptions struct {
 	IssuerPath    string
 	FromLast      bool
 	Edit          bool
+	Exporter      *cmdutil.Exporter
+}
+
+// newJSON is the --json output of new: the invoice it created.
+type newJSON struct {
+	Path       string `json:"path"`
+	Number     string `json:"number"`
+	CustomerID string `json:"customerId"`
 }
 
 // NewCmdNew returns the new command. runF replaces newRun in tests.
@@ -59,6 +67,7 @@ Default lookup:
 		Example: `$ invox new CUST-001
 $ invox new CUST-001 -e
 $ invox new CUST-001 --from-last
+$ invox new CUST-001 --json path,number
 $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -92,6 +101,7 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 	_ = cmd.MarkFlagFilename("source", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, newJSON{})
 	return cmd
 }
 
@@ -147,6 +157,9 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "Created %s for %s (%s)\n", displayPath, opts.CustomerID, created.Number)
+	if opts.Exporter != nil {
+		return opts.Exporter.Write(opts.IO, newJSON{Path: created.Path, Number: created.Number, CustomerID: opts.CustomerID})
+	}
 	fmt.Fprintln(opts.IO.Out, displayPath)
 	return nil
 }

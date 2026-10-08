@@ -2,6 +2,7 @@
 package list
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,15 +14,25 @@ import (
 )
 
 type ListOptions struct {
-	IO   *iostreams.IOStreams
-	Host func() invoice.Host
+	IO    *iostreams.IOStreams
+	Host  func() invoice.Host
+	Getwd func() (string, error)
 
 	NamesOnly bool
+	Exporter  *cmdutil.Exporter
+}
+
+// templateJSON is a template in --json output. Default marks the template
+// that render and build use from the current directory without -t.
+type templateJSON struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Default bool   `json:"default"`
 }
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
+	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List available invoice templates",
@@ -31,6 +42,8 @@ func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Comman
 Output:
   Default: NAME<TAB>ABSOLUTE_PATH
   --names: TEMPLATE_NAME per line
+  --json: an array of the requested fields; default is true for the template
+    render and build use from the current directory without -t
   On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
 
 Lookup:
@@ -39,6 +52,7 @@ Lookup:
 `,
 		Example: `$ invox template list
 $ invox template list --names
+$ invox template list --json name,default
 $ invox build invoice.yaml -t multi_vat.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -48,6 +62,9 @@ $ invox build invoice.yaml -t multi_vat.tex
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.NamesOnly && opts.Exporter != nil {
+				return cmdutil.FlagErrorf("template list", "--names and --json cannot be used together")
+			}
 			if runF != nil {
 				return runF(opts)
 			}
@@ -55,6 +72,7 @@ $ invox build invoice.yaml -t multi_vat.tex
 		},
 	}
 	cmd.Flags().BoolVar(&opts.NamesOnly, "names", false, "Print only template names")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, templateJSON{})
 	return cmd
 }
 
@@ -67,6 +85,10 @@ func listRun(opts *ListOptions) error {
 	templateDir, err := h.TemplateCatalogDir()
 	if err != nil {
 		return err
+	}
+
+	if opts.Exporter != nil {
+		return exportTemplates(opts, h, templates)
 	}
 
 	list := tableprinter.Table{
@@ -85,4 +107,24 @@ func listRun(opts *ListOptions) error {
 	}
 	list.Print(opts.IO)
 	return nil
+}
+
+func exportTemplates(opts *ListOptions, h invoice.Host, templates []invoice.TemplateSummary) error {
+	cwd, err := opts.Getwd()
+	if err != nil {
+		return err
+	}
+	defaultTemplate, err := h.ResolveSupportFile(invoice.Template, filepath.Clean(cwd))
+	if err != nil {
+		return err
+	}
+	items := make([]templateJSON, 0, len(templates))
+	for _, template := range templates {
+		items = append(items, templateJSON{
+			Name:    template.Name,
+			Path:    template.Path,
+			Default: defaultTemplate.Path != "" && filepath.Clean(defaultTemplate.Path) == filepath.Clean(template.Path),
+		})
+	}
+	return opts.Exporter.Write(opts.IO, items)
 }

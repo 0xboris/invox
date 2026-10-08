@@ -36,6 +36,17 @@ type BuildOptions struct {
 	TemplatePath  string
 	Archive       bool
 	Yes           bool
+	Exporter      *cmdutil.Exporter
+}
+
+// buildJSON is the --json output of build: the PDF it wrote, the invoice it
+// built and, with --archive, where the invoice was archived.
+type buildJSON struct {
+	Path         string  `json:"path"`
+	Input        string  `json:"input"`
+	Number       string  `json:"number"`
+	CustomerID   string  `json:"customerId"`
+	ArchivedPath *string `json:"archivedPath"`
 }
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
@@ -61,6 +72,7 @@ Default lookup:
 			helptext.ReplacingArchived(true),
 		Example: `$ invox build invoice.yaml
 $ invox build invoice.yaml --archive
+$ invox build invoice.yaml --json path,number
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -95,6 +107,7 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, buildJSON{})
 	return cmd
 }
 
@@ -129,6 +142,14 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
+	// printResult prints the PDF's path, or with --json the build's result.
+	printResult := func(archivedPath *string) error {
+		if opts.Exporter != nil {
+			return opts.Exporter.Write(opts.IO, buildJSON{Path: outputPath, Input: invoicePath, Number: inv.InvoiceNumber, CustomerID: inv.CustomerID, ArchivedPath: archivedPath})
+		}
+		fmt.Fprintln(opts.IO.Out, outputDisplay)
+		return nil
+	}
 	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
 		var execErr *run.ExecError
 		if errors.As(err, &execErr) {
@@ -141,8 +162,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	}
 	if !opts.Archive {
 		fmt.Fprintf(opts.IO.ErrOut, "Built %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-		fmt.Fprintln(opts.IO.Out, outputDisplay)
-		return nil
+		return printResult(nil)
 	}
 
 	errorPrefix := fmt.Sprintf("built %s but ", outputDisplay)
@@ -162,6 +182,5 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		invoiceDisplay,
 		invoice.DisplayPath(result.Path, baseDir),
 	)
-	fmt.Fprintln(opts.IO.Out, outputDisplay)
-	return nil
+	return printResult(&result.Path)
 }
