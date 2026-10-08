@@ -30,8 +30,7 @@ import (
 func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 	ios := f.IOStreams
 	var helpErr error
-	var root *cobra.Command
-	root = &cobra.Command{
+	root := &cobra.Command{
 		Use:   "invox",
 		Short: "Generate LaTeX and PDF invoices from YAML data",
 		Long: `invox generates LaTeX and PDF invoices from YAML data.

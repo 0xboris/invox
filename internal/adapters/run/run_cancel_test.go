@@ -97,27 +97,27 @@ func startCancelChild(t *testing.T, mode string) *cancelRun {
 	}
 }
 
-// cancelAndWait cancels the run and returns Run's error and how long Run took
-// to return after the cancel. It fails the test if Run does not return within
+// cancelAndWait cancels the run and returns how long Run took to return after
+// the cancel, and Run's error. It fails the test if Run does not return within
 // limit.
-func (r *cancelRun) cancelAndWait(t *testing.T, limit time.Duration) (error, time.Duration) {
+func (r *cancelRun) cancelAndWait(t *testing.T, limit time.Duration) (time.Duration, error) {
 	t.Helper()
 
 	start := time.Now()
 	r.cancel()
 	select {
 	case err := <-r.done:
-		return err, time.Since(start)
+		return time.Since(start), err
 	case <-time.After(limit):
 		t.Fatalf("Run did not return within %s of the cancel", limit)
-		return nil, 0
+		return 0, nil
 	}
 }
 
 func TestExecStopsASleepingChildOnCancel(t *testing.T) {
 	r := startCancelChild(t, childSleeps)
 
-	err, elapsed := r.cancelAndWait(t, waitDelay+5*time.Second)
+	elapsed, err := r.cancelAndWait(t, waitDelay+5*time.Second)
 
 	if err == nil {
 		t.Fatal("Run returned nil, want an error for the stopped child")

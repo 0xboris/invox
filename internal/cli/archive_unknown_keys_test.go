@@ -31,7 +31,11 @@ func TestArchiveEditThenValidateReportsUnknownKey(t *testing.T) {
 
 	workingCopy := filepath.Join(workDir, "first.yaml")
 	edited := readFileForTest(t, workingCopy)
-	line := strings.Count(edited[:strings.Index(edited, "notes: edited")], "\n") + 1
+	before, _, found := strings.Cut(edited, "notes: edited")
+	if !found {
+		t.Fatalf("edited working copy has no notes key:\n%s", edited)
+	}
+	line := strings.Count(before, "\n") + 1
 	validate := []string{"validate", "-i", "first.yaml", "-c", customersPath, "-u", issuerPath}
 
 	exitCode, stdout, stderr := captureRun(t, validate)

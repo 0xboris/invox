@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	if os.Getenv(runMainEnv) != "" {
 		// Unset so the programs invox runs, such as the fake tectonic, are not
 		// invox too.
-		os.Unsetenv(runMainEnv)
+		_ = os.Unsetenv(runMainEnv)
 		os.Exit(Main(os.Args[1:], cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())))
 	}
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {

@@ -34,7 +34,7 @@ func TestResolveEmailDraftPathsReportsUnreadableDirBelowResolvedArchiveDir(t *te
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatalf("Chmod(locked) returned error: %v", err)
 	}
-	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
 	resolvedLocked, err := filepath.EvalSymlinks(filepath.Join(archiveDir, "locked"))
 	if err != nil {
