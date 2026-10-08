@@ -45,7 +45,7 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 	secondPath := filepath.Join(archiveDir, "second.yaml")
 	writeStatusInvoice(t, secondPath, "CUST-001-002", "archived")
 
-	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir(), EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
 
-	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir(), EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}

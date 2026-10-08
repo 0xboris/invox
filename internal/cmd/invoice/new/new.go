@@ -34,6 +34,8 @@ type NewOptions struct {
 	IssuerPath    string
 	FromLast      bool
 	Edit          bool
+	Force         bool
+	DryRun        bool
 }
 
 // NewCmdNew returns the new command. runF replaces newRun in tests.
@@ -59,6 +61,7 @@ Default lookup:
 		Example: `$ invox new CUST-001
 $ invox new CUST-001 -e
 $ invox new CUST-001 --from-last
+$ invox new CUST-001 --dry-run
 $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -87,6 +90,8 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
 	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the number and path the invoice would get and write nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
 	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("source", "yaml", "yml")
@@ -124,16 +129,25 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
 
-	created, err := h.CreateNewInvoice(opts.Now(), baseDir, defaultsPath, outputPath, customersPath, issuerPath, opts.CustomerID, opts.FromLast)
+	created, err := h.CreateNewInvoice(opts.Now(), baseDir, defaultsPath, outputPath, customersPath, issuerPath, opts.CustomerID, invoice.NewInvoiceOptions{
+		FromLast:  opts.FromLast,
+		Overwrite: opts.Force,
+		DryRun:    opts.DryRun,
+	})
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
-		return fmt.Errorf("%s; choose a different -o/--output path", exists)
+		return fmt.Errorf("%s; pass --force to replace it or choose a different -o/--output path", exists)
 	}
 	if err != nil {
 		return err
 	}
 	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.SkippedArchiveFiles, baseDir)
 	displayPath := invoice.DisplayPath(created.Path, baseDir)
+	if opts.DryRun {
+		fmt.Fprintf(opts.IO.ErrOut, "Would create %s for %s (%s)\n", displayPath, opts.CustomerID, created.Number)
+		fmt.Fprintln(opts.IO.Out, displayPath)
+		return nil
+	}
 	if opts.Edit {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
 		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)

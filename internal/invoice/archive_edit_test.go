@@ -43,7 +43,7 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 	}
 
 	workDir := t.TempDir()
-	outputPath, archivePath, err := h.EditArchivedInvoice("customer-a/2026-03-06.md", workDir)
+	outputPath, archivePath, err := h.EditArchivedInvoice("customer-a/2026-03-06.md", workDir, EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -145,7 +145,7 @@ line_items:
 		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
 	}
 
-	_, _, err := h.EditArchivedInvoice("2026-03-06.yaml", t.TempDir())
+	_, _, err := h.EditArchivedInvoice("2026-03-06.yaml", t.TempDir(), EditArchiveOptions{})
 	if err == nil {
 		t.Fatal("EditArchivedInvoice returned nil error for legacy keys")
 	}

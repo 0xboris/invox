@@ -21,6 +21,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Check the invoice and template, print the output path and write nothing
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
   -o, --output string      Output TeX path (must end with .tex; default invoice.tex)
@@ -34,6 +35,7 @@ Global flags:
 Examples:
   $ invox render -i invoice.yaml
   $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+  $ invox render -i invoice.yaml --dry-run
 ```
 
 ## See also

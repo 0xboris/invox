@@ -25,6 +25,7 @@ Commands:
   list  List archived invoices from the configured archive directory
 
 Flags:
+  -n, --dry-run        Print where the invoice would be archived and change nothing
   -i, --input string   Input invoice YAML file
       --yes            Replace an archived invoice without asking
 
@@ -37,6 +38,7 @@ Examples:
   $ invox archive invoice.yaml
   $ invox archive invoices/2026-0021.yaml
   $ invox archive 2026-03-06.yaml --yes
+  $ invox archive invoice.yaml --dry-run
   $ invox archive edit 2026-03-06.yaml
   $ invox archive list
 ```

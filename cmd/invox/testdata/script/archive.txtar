@@ -9,6 +9,16 @@ exec invox archive list
 ! stdout .
 ! stderr .
 
+# build --archive --dry-run shows the build and the move and changes nothing.
+exec invox build invoice.yaml --archive --dry-run
+scrubpaths stdout got.txt
+cmp got.txt want-build-archive-stdout.txt
+scrubpaths stderr got.txt
+cmp got.txt want-build-archive-dry-run.txt
+exists invoice.yaml
+! exists invoice.pdf
+! exists home/.config/invox/archive
+
 # build --archive builds and archives in one go.
 exec invox build invoice.yaml --archive
 scrubpaths stdout got.txt
@@ -19,6 +29,12 @@ cmp got.txt want-build-archive.txt
 grep '^  status: archived$' home/.config/invox/archive/invoice.yaml
 
 # archive on its own.
+exec invox archive second.yaml -n
+scrubpaths stdout got.txt
+cmp got.txt want-archive-stdout.txt
+scrubpaths stderr got.txt
+cmp got.txt want-archive-dry-run.txt
+exists second.yaml
 exec invox archive second.yaml
 scrubpaths stdout got.txt
 cmp got.txt want-archive-stdout.txt
@@ -156,6 +172,12 @@ invoice:
 fake tectonic: compiling invoice.tex
 Built invoice.pdf for CUST-001 (CUST-001-001)
 Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml
+-- want-build-archive-dry-run.txt --
+Would build invoice.pdf for CUST-001 (CUST-001-001)
+Would set invoice.status to built in invoice.yaml
+Would archive invoice.yaml -> home/.config/invox/archive/invoice.yaml
+-- want-archive-dry-run.txt --
+Would archive second.yaml -> home/.config/invox/archive/second.yaml
 -- want-archive.txt --
 Archived second.yaml -> home/.config/invox/archive/second.yaml
 -- want-list.tsv --
@@ -180,7 +202,7 @@ Run 'invox increment -i duplicate.yaml' to give it the next free number, then ar
 -- want-not-built.txt --
 error: draft.yaml: invoice.status must be `built` before archiving, got `draft`
 -- want-edit-exists.txt --
-error: second.yaml already exists; choose a different working directory
+error: second.yaml already exists; pass --force to replace it or choose a different working directory
 -- want-not-a-dir.txt --
 error: home/.config/invox/not-a-dir: archive.dir must point to a directory
 -- home/.config/invox/config.yaml --

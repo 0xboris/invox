@@ -41,6 +41,7 @@ type EmailOptions struct {
 	To            string
 	Subject       string
 	Force         bool
+	DryRun        bool
 }
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
@@ -78,6 +79,7 @@ Behavior:
 		Example: `$ invox email invoice.yaml
 $ invox email invoice.pdf
 $ invox email invoice.yaml --to billing@example.com
+$ invox email invoice.yaml --dry-run
 $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -104,6 +106,7 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 	cmd.Flags().StringVar(&opts.To, "to", "", "Recipient email override")
 	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override, supports placeholders")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the recipient, subject and attachment, and neither write nor open a draft")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("pdf", "pdf")
@@ -168,12 +171,30 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	if err != nil {
 		return err
 	}
-	draft := func(outputPath string, overwrite bool) error {
-		_, err := h.CreateInvoiceEmailDraft(opts.Now(), customersPath, issuerPath, paths.InvoicePath, paths.PDFPath, outputPath, overwrite, opts.To, opts.Subject)
+	outputExists := func(outputPath string, err error) error {
 		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("%s already exists; pass --force or choose another -o path", invoice.DisplayPath(outputPath, baseDir))
 		}
 		return err
+	}
+	draft := func(outputPath string, overwrite bool) error {
+		_, err := h.CreateInvoiceEmailDraft(opts.Now(), customersPath, issuerPath, paths.InvoicePath, paths.PDFPath, outputPath, overwrite, opts.To, opts.Subject)
+		return outputExists(outputPath, err)
+	}
+
+	if opts.DryRun {
+		if explicitOutput {
+			if err := outputExists(paths.OutputPath, invoice.CheckEmailDraftOutput(paths.OutputPath, opts.Force)); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(opts.IO.ErrOut, "Would open email draft for %s (%s) to %s\n", message.CustomerID, message.InvoiceNumber, message.Recipient)
+		fmt.Fprintf(opts.IO.ErrOut, "Subject: %s\nAttachment: %s\n", message.Subject, invoice.DisplayPath(message.AttachmentPath, baseDir))
+		if explicitOutput {
+			fmt.Fprintf(opts.IO.ErrOut, "Would write the draft to %s\n", invoice.DisplayPath(paths.OutputPath, baseDir))
+			fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(paths.OutputPath, baseDir))
+		}
+		return nil
 	}
 
 	switch {

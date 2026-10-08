@@ -22,6 +22,7 @@ type IncrementOptions struct {
 
 	InvoicePath   string
 	CustomersPath string
+	DryRun        bool
 }
 
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
@@ -41,6 +42,7 @@ Default lookup:
 			helptext.LookupCustomers,
 		Example: `$ invox increment -i invoice.yaml
 $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+$ invox increment -i invoice.yaml --dry-run
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -60,6 +62,7 @@ $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the old and new number and change nothing")
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
@@ -79,14 +82,18 @@ func incrementRun(opts *IncrementOptions) error {
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath)
+	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath, opts.DryRun)
 	if err != nil {
 		return err
 	}
 	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.SkippedArchiveFiles, baseDir)
 
 	displayPath := invoice.DisplayPath(invoicePath, baseDir)
-	fmt.Fprintf(opts.IO.ErrOut, "Incremented %s for %s: %s -> %s\n", displayPath, incremented.CustomerID, incremented.OldNumber, incremented.NewNumber)
+	verb := "Incremented"
+	if opts.DryRun {
+		verb = "Would increment"
+	}
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s: %s -> %s\n", verb, displayPath, incremented.CustomerID, incremented.OldNumber, incremented.NewNumber)
 	fmt.Fprintln(opts.IO.Out, displayPath)
 	return nil
 }

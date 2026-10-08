@@ -36,6 +36,7 @@ type BuildOptions struct {
 	TemplatePath  string
 	Archive       bool
 	Yes           bool
+	DryRun        bool
 }
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
@@ -61,6 +62,7 @@ Default lookup:
 			helptext.ReplacingArchived(true),
 		Example: `$ invox build invoice.yaml
 $ invox build invoice.yaml --archive
+$ invox build invoice.yaml --archive --dry-run
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -89,6 +91,7 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
 	cmd.Flags().BoolVar(&opts.Archive, "archive", false, "Archive the invoice after a successful build")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print what would be built and archived, and change nothing (does not run Tectonic)")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "pdf")
@@ -129,6 +132,9 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
+	if opts.DryRun {
+		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir)
+	}
 	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
 		var execErr *run.ExecError
 		if errors.As(err, &execErr) {
@@ -162,6 +168,36 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		invoiceDisplay,
 		invoice.DisplayPath(result.Path, baseDir),
 	)
+	fmt.Fprintln(opts.IO.Out, outputDisplay)
+	return nil
+}
+
+// buildDryRun runs the checks of a build, and of the archive step with
+// --archive, and prints what the build would do. It neither runs Tectonic
+// nor writes anything.
+func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string) error {
+	if _, err := invoice.RenderTeX(templatePath, inv); err != nil {
+		return err
+	}
+	var archived invoice.ArchiveResult
+	if opts.Archive {
+		var err error
+		archived, err = h.ArchiveInvoice(opts.Now(), invoicePath, invoice.ArchiveOptions{Replace: true, DryRun: true, AssumeBuilt: true})
+		if err != nil {
+			return fmt.Errorf("cannot archive %s: %w", invoice.DisplayPath(invoicePath, baseDir), err)
+		}
+	}
+
+	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
+	fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
+	switch inv.Invoice.Status.Trim() {
+	case "built", "archived":
+	default:
+		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to built in %s\n", invoice.DisplayPath(invoicePath, baseDir))
+	}
+	if opts.Archive {
+		shared.PrintArchivePreview(opts.IO, archived, invoicePath, baseDir)
+	}
 	fmt.Fprintln(opts.IO.Out, outputDisplay)
 	return nil
 }

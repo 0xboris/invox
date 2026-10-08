@@ -2,6 +2,7 @@
 package edit
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -22,13 +23,15 @@ type EditOptions struct {
 	Getwd func() (string, error)
 
 	Filename string
+	Force    bool
+	DryRun   bool
 }
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
 func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
 		ValidArgsFunction: cmdutil.CompleteArchivedInvoices(f),
@@ -49,6 +52,7 @@ Behavior:
 `,
 		Example: `$ invox archive edit 2026-03-06.yaml
 $ invox archive edit customer-a/2026-03-06.yaml
+$ invox archive edit 2026-03-06.yaml --force
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
@@ -67,6 +71,9 @@ $ invox archive edit customer-a/2026-03-06.yaml
 			return editRun(opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing working copy")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print where the working copy would go and write nothing")
+	return cmd
 }
 
 func editRun(opts *EditOptions) error {
@@ -76,12 +83,23 @@ func editRun(opts *EditOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 
-	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir)
+	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir, invoice.EditArchiveOptions{
+		Overwrite: opts.Force,
+		DryRun:    opts.DryRun,
+	})
+	var exists *invoice.OutputExistsError
+	if errors.As(err, &exists) {
+		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
+	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(opts.IO.ErrOut, "Editing %s -> %s\n", invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
+	verb := "Editing"
+	if opts.DryRun {
+		verb = "Would copy"
+	}
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
 	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(outputPath, baseDir))
 	return nil
 }

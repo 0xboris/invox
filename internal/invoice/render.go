@@ -21,13 +21,26 @@ const (
 const defaultEPCQRLabel = "Pay via EPC-QR"
 
 func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error {
-	content, err := os.ReadFile(templatePath)
+	rendered, err := RenderTeX(templatePath, ctx)
 	if err != nil {
 		return err
 	}
+	if err := fsutil.WriteFile(outputPath, []byte(rendered), fsutil.Public); err != nil {
+		return err
+	}
+	return h.copyTemplateAssets(templatePath, outputPath, rendered)
+}
+
+// RenderTeX checks the template at templatePath and fills it in with ctx.
+// It writes nothing.
+func RenderTeX(templatePath string, ctx *Context) (string, error) {
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		return "", err
+	}
 	template := latex.MigrateLegacyPlaceholders(string(content))
 	if err := latex.ValidateTemplate(template); err != nil {
-		return fmt.Errorf("%s: %w", templatePath, err)
+		return "", fmt.Errorf("%s: %w", templatePath, err)
 	}
 	hasActiveEPCQRAvailable := strings.Contains(template, epcQRAvailablePlaceholder)
 	hasActiveEPCQRLabel := strings.Contains(template, epcQRLabelPlaceholder)
@@ -39,17 +52,13 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 		hasActiveEPCQRCode,
 	)
 	if err != nil {
-		return fmt.Errorf("%s: %w", templatePath, err)
+		return "", fmt.Errorf("%s: %w", templatePath, err)
 	}
 	values := buildTemplateValues(ctx)
 	values[epcQRAvailablePlaceholder] = epcQRAvailable
 	values[epcQRLabelPlaceholder] = epcQRLabel
 	values[epcQRCodePlaceholder] = epcQRCode
-	rendered := latex.Fill(template, values, latexItems(ctx.LineItems), ctx.Currency)
-	if err := fsutil.WriteFile(outputPath, []byte(rendered), fsutil.Public); err != nil {
-		return err
-	}
-	return h.copyTemplateAssets(templatePath, outputPath, rendered)
+	return latex.Fill(template, values, latexItems(ctx.LineItems), ctx.Currency), nil
 }
 
 // BuildInvoicePDF renders the invoice into a temporary directory, runs

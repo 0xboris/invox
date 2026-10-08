@@ -70,3 +70,17 @@ func PrintArchiveReplacements(ios *iostreams.IOStreams, result invoice.ArchiveRe
 		)
 	}
 }
+
+// PrintArchivePreview tells the user on stderr what archiving invoicePath
+// would do, from the result of a dry run.
+func PrintArchivePreview(ios *iostreams.IOStreams, result invoice.ArchiveResult, invoicePath, baseDir string) {
+	for _, backup := range result.Replaced {
+		fmt.Fprintf(
+			ios.ErrOut,
+			"Would replace archived invoice %s; the previous version would be kept in %s\n",
+			invoice.DisplayPath(backup.Path, baseDir),
+			invoice.DisplayPath(result.HistoryDir, baseDir),
+		)
+	}
+	fmt.Fprintf(ios.ErrOut, "Would archive %s -> %s\n", invoice.DisplayPath(invoicePath, baseDir), invoice.DisplayPath(result.Path, baseDir))
+}

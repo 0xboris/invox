@@ -1,3 +1,9 @@
+# --dry-run prints the number and path and writes nothing.
+exec invox new CUST-001 --dry-run
+cmp stdout want-new-stdout.txt
+cmp stderr want-new-dry-run.txt
+! exists CUST-001-001.yaml
+
 # new writes <number>.yaml from invoice_defaults.yaml with a generated number.
 # The issue and due dates come from the clock, so they are matched loosely.
 exec invox new CUST-001
@@ -12,6 +18,14 @@ grep '^customer_id: CUST-001$' CUST-001-001.yaml
 exec invox new CUST-001 -o second.yaml
 cmp stdout want-second-stdout.txt
 cmp stderr want-second.txt
+
+# An existing output is kept unless --force is set.
+exits 1 invox new CUST-001 -o second.yaml
+! stdout .
+cmp stderr want-new-exists.txt
+exec invox new CUST-001 -o second.yaml --force
+cmp stdout want-second-stdout.txt
+cmp stderr want-second-force.txt
 
 # -o picks the output path.
 exec invox new CUST-002 -o drafts.yaml
@@ -137,6 +151,12 @@ Total @@TOTAL@@
 Outstanding @@OUTSTANDING_AMOUNT@@
 @@PAYMENT_TERMS_TEXT@@
 IBAN @@IBAN@@
+-- want-new-dry-run.txt --
+Would create CUST-001-001.yaml for CUST-001 (CUST-001-001)
+-- want-new-exists.txt --
+error: second.yaml already exists; pass --force to replace it or choose a different -o/--output path
+-- want-second-force.txt --
+Created second.yaml for CUST-001 (CUST-001-003)
 -- want-new-stdout.txt --
 CUST-001-001.yaml
 -- want-second-stdout.txt --

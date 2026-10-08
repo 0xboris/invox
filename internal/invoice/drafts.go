@@ -58,8 +58,19 @@ type NewInvoice struct {
 	SkippedArchiveFiles []string
 }
 
-func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (NewInvoice, error) {
-	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
+// NewInvoiceOptions controls CreateNewInvoice.
+type NewInvoiceOptions struct {
+	// FromLast copies the customer's latest archived invoice instead of
+	// the defaults file.
+	FromLast bool
+	// Overwrite replaces an existing file at the output path.
+	Overwrite bool
+	// DryRun runs every check and returns the result without writing.
+	DryRun bool
+}
+
+func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, opts NewInvoiceOptions) (NewInvoice, error) {
+	if strings.TrimSpace(outputPath) != "" && !opts.Overwrite && fileExists(outputPath) {
 		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 
@@ -72,7 +83,7 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 		return NewInvoice{}, err
 	}
 
-	document, sourceLabel, err := h.loadNewInvoiceDocument(defaultsPath, customerID, fromLast)
+	document, sourceLabel, err := h.loadNewInvoiceDocument(defaultsPath, customerID, opts.FromLast)
 	if err != nil {
 		return NewInvoice{}, err
 	}
@@ -91,7 +102,7 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	if strings.TrimSpace(outputPath) == "" {
 		outputPath = filepath.Join(workDir, invoiceNumber+".yaml")
 	}
-	if fileExists(outputPath) {
+	if !opts.Overwrite && fileExists(outputPath) {
 		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
@@ -125,21 +136,28 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	}
 	// An archived invoice is a record: keys it has that invox does not
 	// know are copied over as they are, for validate to report.
-	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, !fromLast); err != nil {
+	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, !opts.FromLast); err != nil {
 		return NewInvoice{}, err
 	}
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+	created := NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}
+	if opts.DryRun {
+		return created, nil
+	}
+	write := fsutil.WriteNewFile
+	if opts.Overwrite {
+		write = fsutil.WriteFile
+	}
+	if err := write(outputPath, data, fsutil.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return NewInvoice{}, &OutputExistsError{Path: outputPath}
 		}
 		return NewInvoice{}, err
 	}
-
-	return NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}, nil
+	return created, nil
 }
 
 // draftSearchDirs returns the directories whose drafts `new` takes into
@@ -189,7 +207,9 @@ type IncrementedInvoice struct {
 	SkippedArchiveFiles []string
 }
 
-func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (IncrementedInvoice, error) {
+// IncrementInvoiceNumber writes the next invoice number into the invoice at
+// invoicePath. With dryRun it returns the same result and writes nothing.
+func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string, dryRun bool) (IncrementedInvoice, error) {
 	customerID, issueDate, oldInvoiceNumber, err := readInvoiceIdentity(invoicePath)
 	if err != nil {
 		return IncrementedInvoice{}, err
@@ -209,15 +229,19 @@ func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (Increme
 	if err != nil {
 		return IncrementedInvoice{}, err
 	}
-	if err := writeInvoiceNumber(invoicePath, newInvoiceNumber); err != nil {
-		return IncrementedInvoice{}, err
-	}
-	return IncrementedInvoice{
+	incremented := IncrementedInvoice{
 		CustomerID:          customerID,
 		OldNumber:           oldInvoiceNumber,
 		NewNumber:           newInvoiceNumber,
 		SkippedArchiveFiles: skipped,
-	}, nil
+	}
+	if dryRun {
+		return incremented, nil
+	}
+	if err := writeInvoiceNumber(invoicePath, newInvoiceNumber); err != nil {
+		return IncrementedInvoice{}, err
+	}
+	return incremented, nil
 }
 
 func SetInvoiceStatus(invoicePath, status string) error {
@@ -227,7 +251,17 @@ func SetInvoiceStatus(invoicePath, status string) error {
 	return writeInvoiceStringField(invoicePath, "status", status)
 }
 
-func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, error) {
+// EditArchiveOptions controls EditArchivedInvoice.
+type EditArchiveOptions struct {
+	// Overwrite replaces an existing working copy.
+	Overwrite bool
+	// DryRun runs every check and returns the paths without writing.
+	DryRun bool
+}
+
+// EditArchivedInvoice copies the archived invoice archiveName into workDir as
+// a working copy and returns its path and the archived invoice's path.
+func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveOptions) (string, string, error) {
 	target, err := h.resolveArchiveInputPath(archiveName)
 	if err != nil {
 		return "", "", err
@@ -261,8 +295,8 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 
 	edit := target.Edit()
 	outputPath := filepath.Join(workDir, edit.Filename)
-	if fileExists(outputPath) {
-		return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
+	if !opts.Overwrite && fileExists(outputPath) {
+		return "", "", &OutputExistsError{Path: outputPath}
 	}
 
 	setMappingString(invoiceNode, "status", "editing")
@@ -272,9 +306,16 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	if err != nil {
 		return "", "", err
 	}
-	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+	if opts.DryRun {
+		return outputPath, archivePath, nil
+	}
+	write := fsutil.WriteNewFile
+	if opts.Overwrite {
+		write = fsutil.WriteFile
+	}
+	if err := write(outputPath, data, fsutil.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
+			return "", "", &OutputExistsError{Path: outputPath}
 		}
 		return "", "", err
 	}
@@ -306,6 +347,9 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
+	if opts.AssumeBuilt && status != "archived" {
+		status = "built"
+	}
 	store, err := h.archiveStore()
 	if err != nil {
 		return ArchiveResult{}, err
@@ -376,6 +420,13 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 			HistoryDir:  store.HistoryDir(),
 		}
 	}
+	if opts.DryRun {
+		result := ArchiveResult{Path: archivePath, HistoryDir: store.HistoryDir()}
+		for _, path := range replaced {
+			result.Replaced = append(result.Replaced, archive.Backup{Path: path})
+		}
+		return result, nil
+	}
 	if err := fsutil.MkdirAll(store.Dir, fsutil.Private); err != nil {
 		return ArchiveResult{}, err
 	}
@@ -406,7 +457,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	if err := os.Remove(sourcePath); err != nil {
 		return ArchiveResult{}, fmt.Errorf("remove %s: %w", sourcePath, err)
 	}
-	return ArchiveResult{Path: archivePath, Replaced: backups}, nil
+	return ArchiveResult{Path: archivePath, Replaced: backups, HistoryDir: store.HistoryDir()}, nil
 }
 
 // readInvoiceIdentity reads the customer, issue date and number that

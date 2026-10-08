@@ -30,6 +30,7 @@ Usage:
 Flags:
       --archive            Archive the invoice after a successful build
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Check the invoice and template, print what would be built and archived, and change nothing (does not run Tectonic)
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
   -o, --output string      Output PDF path (must end with .pdf; default: the input with .pdf)
@@ -44,6 +45,7 @@ Global flags:
 Examples:
   $ invox build invoice.yaml
   $ invox build invoice.yaml --archive
+  $ invox build invoice.yaml --archive --dry-run
   $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 ```
 

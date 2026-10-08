@@ -18,6 +18,10 @@ Behavior:
 Usage:
   invox archive edit FILENAME [flags]
 
+Flags:
+  -n, --dry-run   Print where the working copy would go and write nothing
+      --force     Overwrite an existing working copy
+
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
@@ -26,6 +30,7 @@ Global flags:
 Examples:
   $ invox archive edit 2026-03-06.yaml
   $ invox archive edit customer-a/2026-03-06.yaml
+  $ invox archive edit 2026-03-06.yaml --force
 ```
 
 ## See also

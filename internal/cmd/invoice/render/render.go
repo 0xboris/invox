@@ -25,6 +25,7 @@ type RenderOptions struct {
 	CustomersPath string
 	IssuerPath    string
 	TemplatePath  string
+	DryRun        bool
 }
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
@@ -48,6 +49,7 @@ Default lookup:
 			helptext.LookupTemplate,
 		Example: `$ invox render -i invoice.yaml
 $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+$ invox render -i invoice.yaml --dry-run
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -73,6 +75,7 @@ $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print the output path and write nothing")
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "tex")
@@ -111,12 +114,18 @@ func renderRun(opts *RenderOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	displayPath := invoice.DisplayPath(outputPath, baseDir)
+	verb := "Rendered"
+	if opts.DryRun {
+		verb = "Would render"
+		if _, err := invoice.RenderTeX(templatePath, ctx); err != nil {
+			return err
+		}
+	} else if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
 		return err
 	}
 
-	displayPath := invoice.DisplayPath(outputPath, baseDir)
-	fmt.Fprintf(opts.IO.ErrOut, "Rendered %s for %s (%s)\n", displayPath, ctx.CustomerID, ctx.InvoiceNumber)
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s (%s)\n", verb, displayPath, ctx.CustomerID, ctx.InvoiceNumber)
 	fmt.Fprintln(opts.IO.Out, displayPath)
 	return nil
 }

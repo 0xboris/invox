@@ -30,6 +30,7 @@ type ArchiveOptions struct {
 
 	InvoicePath string
 	Yes         bool
+	DryRun      bool
 }
 
 // NewCmdArchive returns the archive command and its subcommands. runF
@@ -52,6 +53,7 @@ Default lookup:
 		Example: `$ invox archive invoice.yaml
 $ invox archive invoices/2026-0021.yaml
 $ invox archive 2026-03-06.yaml --yes
+$ invox archive invoice.yaml --dry-run
 $ invox archive edit 2026-03-06.yaml
 $ invox archive list
 `,
@@ -73,6 +75,7 @@ $ invox archive list
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print where the invoice would be archived and change nothing")
 	cmd.AddCommand(edit.NewCmdEdit(f, nil), list.NewCmdList(f, nil))
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
@@ -86,6 +89,16 @@ func archiveRun(ctx context.Context, opts *ArchiveOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+
+	if opts.DryRun {
+		result, err := opts.Host().ArchiveInvoice(opts.Now(), invoicePath, invoice.ArchiveOptions{Replace: true, DryRun: true})
+		if err != nil {
+			return err
+		}
+		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
+		fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(result.Path, baseDir))
+		return nil
+	}
 
 	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, opts.Host(), opts.Now, "archive", invoicePath, baseDir, opts.Yes, "")
 	if err != nil {

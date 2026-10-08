@@ -39,14 +39,14 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", true); err != nil {
+	if _, err := h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, outputPath, customersPath, issuerPath, "CUST-001", NewInvoiceOptions{FromLast: true}); err != nil {
 		t.Fatalf("CreateNewInvoice --from-last returned error: %v", err)
 	}
 	if created := readTestFile(t, outputPath); !strings.Contains(created, "\nnotes: call before invoicing\n") {
 		t.Fatalf("new invoice does not keep notes:\n%s", created)
 	}
 
-	workingCopy, _, err := h.EditArchivedInvoice("2026-03-08.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("2026-03-08.yaml", t.TempDir(), EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -55,7 +55,7 @@ positions:
 	}
 
 	replaceInFixture(t, defaultsPath, "invoice:\n", "notes: x\ninvoice:\n")
-	_, err = h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, filepath.Join(t.TempDir(), "next.yaml"), customersPath, issuerPath, "CUST-001", false)
+	_, err = h.CreateNewInvoice(time.Now(), t.TempDir(), defaultsPath, filepath.Join(t.TempDir(), "next.yaml"), customersPath, issuerPath, "CUST-001", NewInvoiceOptions{})
 	if want := defaultsPath + `:1: unknown key "notes"`; err == nil || err.Error() != want {
 		t.Fatalf("CreateNewInvoice from defaults error = %v, want %q", err, want)
 	}
