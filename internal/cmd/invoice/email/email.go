@@ -180,6 +180,10 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		return err
 	}
 	outputExists := func(outputPath string, err error) error {
+		var isDir *invoice.OutputIsDirError
+		if errors.As(err, &isDir) {
+			return fmt.Errorf("%s is a directory; choose another -o path", invoice.DisplayPath(outputPath, baseDir))
+		}
 		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("%s already exists; pass --force or choose another -o path", invoice.DisplayPath(outputPath, baseDir))
 		}

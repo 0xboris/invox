@@ -121,6 +121,17 @@ exits 1 invox archive edit second.yaml
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-edit-exists.txt
+rm second.yaml
+mkdir second.yaml
+exits 1 invox archive edit second.yaml --force
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-edit-dir.txt
+exits 1 invox archive edit second.yaml --force -n
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-edit-dir.txt
+rm second.yaml
 cp archive-file.yaml home/.config/invox/config.yaml
 exits 1 invox archive list
 ! stdout .
@@ -201,6 +212,8 @@ error: duplicate.yaml: invoice number CUST-003-001 is already used by archived i
 Run 'invox increment -i duplicate.yaml' to give it the next free number, then archive it again.
 -- want-not-built.txt --
 error: draft.yaml: invoice.status must be `built` before archiving, got `draft`
+-- want-edit-dir.txt --
+error: second.yaml is a directory; choose a different working directory
 -- want-edit-exists.txt --
 error: second.yaml already exists; pass --force to replace it or choose a different working directory
 -- want-not-a-dir.txt --

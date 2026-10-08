@@ -101,6 +101,10 @@ func editRun(opts *EditOptions) error {
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
 	}
+	var isDir *invoice.OutputIsDirError
+	if errors.As(err, &isDir) {
+		return fmt.Errorf("%s; choose a different working directory", isDir)
+	}
 	if err != nil {
 		return err
 	}

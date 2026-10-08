@@ -179,9 +179,13 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, 
 	}, nil
 }
 
-// CheckEmailDraftOutput returns an error matching fs.ErrExist when a draft
-// would replace an existing outputPath and overwrite is not set.
+// CheckEmailDraftOutput returns an OutputIsDirError when outputPath is a
+// directory, and an error matching fs.ErrExist when a draft would replace an
+// existing outputPath and overwrite is not set.
 func CheckEmailDraftOutput(outputPath string, overwrite bool) error {
+	if err := refuseDirOutput(outputPath); err != nil {
+		return err
+	}
 	if overwrite {
 		return nil
 	}

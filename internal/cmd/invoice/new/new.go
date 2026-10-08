@@ -160,6 +160,10 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different -o/--output path", exists)
 	}
+	var isDir *invoice.OutputIsDirError
+	if errors.As(err, &isDir) {
+		return fmt.Errorf("%s; choose a different -o/--output path", isDir)
+	}
 	if err != nil {
 		return err
 	}
