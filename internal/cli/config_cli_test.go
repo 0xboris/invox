@@ -229,7 +229,7 @@ func TestConfigOpensTheConfigFlagFile(t *testing.T) {
 	chdirForTest(t, t.TempDir())
 	path := filepath.Join(t.TempDir(), "acme.yaml")
 	f, stub := testFactory(t)
-	opened := expectEditor(stub, nil)
+	opened := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config", "--config", path})
 	if exitCode != 0 || stdout != "" || stderr != "Opened "+path+"\n" {

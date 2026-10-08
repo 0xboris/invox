@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 type NumberingSettings struct {
@@ -50,19 +52,19 @@ func (h Host) ResolveNumberingSettings() (NumberingSettings, error) {
 	return settings, nil
 }
 
-func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[string]any, minimumCounter int64) (string, int64, error) {
+func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[string]any, minimumCounter int64) (string, []string, error) {
 	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 	start, err := effectiveNumberingStart(customerID, customer, settings.Start)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
-	baseCounter, err := h.highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
+	baseCounter, skipped, err := h.highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 	if startBase := start - 1; startBase > baseCounter {
 		baseCounter = startBase
@@ -74,9 +76,9 @@ func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[strin
 	nextCounter := baseCounter + 1
 	invoiceNumber, err := formatInvoiceNumber(settings.Pattern, customerID, customer, issueDate, nextCounter)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
-	return invoiceNumber, nextCounter, nil
+	return invoiceNumber, skipped, nil
 }
 
 func effectiveNumberingStart(customerID string, customer map[string]any, globalStart int64) (int64, error) {
@@ -200,34 +202,38 @@ func validateCustomerCounterSeparator(pattern string) error {
 	return nil
 }
 
-func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer map[string]any) (int64, error) {
+func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer map[string]any) (int64, []string, error) {
 	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if strings.TrimSpace(archiveDir) == "" {
-		return 0, nil
+		return 0, nil, nil
 	}
 	info, err := os.Stat(archiveDir)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
+		return 0, nil, nil
 	}
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if !info.IsDir() {
-		return 0, fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
+		return 0, nil, fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
 	}
 
 	var highest int64
+	var skipped []string
 	err = walkArchiveDir(archiveDir, func(path string) error {
-		invoiceNumber, ok, err := archivedInvoiceNumber(path)
-		if err != nil || !ok {
+		record, ok, err := archivedInvoiceRecordFromPath(path, archiveDir)
+		if err != nil || !ok || record.InvoiceNumber == "" {
 			return err
 		}
 
-		counter, err := parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate, customer)
+		counter, err := parseInvoiceCounter(pattern, record.InvoiceNumber, customerID, issueDate, customer)
 		if err != nil {
+			if record.CustomerID == customerID && inNumberingPeriod(pattern, record.IssueDate, issueDate) {
+				skipped = append(skipped, path)
+			}
 			return nil
 		}
 		if counter > highest {
@@ -236,9 +242,31 @@ func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, cust
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return highest, nil
+	return highest, skipped, nil
+}
+
+// inNumberingPeriod reports whether date has the same {year}, {month} and
+// {day} as issueDate, for the tokens pattern uses. Counters restart in each
+// such period, so an invoice from another period never counts. A date that
+// does not parse is treated as in the period.
+func inNumberingPeriod(pattern, date, issueDate string) bool {
+	own, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return true
+	}
+	requested, err := time.Parse("2006-01-02", issueDate)
+	if err != nil {
+		return true
+	}
+	layouts := map[string]string{"year": "2006", "month": "01", "day": "02"}
+	for _, match := range numberingTokenPattern.FindAllStringSubmatch(pattern, -1) {
+		if layout, ok := layouts[match[1]]; ok && own.Format(layout) != requested.Format(layout) {
+			return false
+		}
+	}
+	return true
 }
 
 // highestDraftCounter returns the highest counter used by unarchived invoices
@@ -331,15 +359,6 @@ func isArchivedInvoicePath(path string) bool {
 	}
 }
 
-func archivedInvoiceNumber(path string) (string, bool, error) {
-	value, ok, err := archivedInvoiceValue(path)
-	if err != nil || !ok {
-		return "", ok, err
-	}
-	invoiceNumber := invoiceNumberFromValue(value)
-	return invoiceNumber, invoiceNumber != "", nil
-}
-
 func markdownFrontMatter(source []byte) ([]byte, bool) {
 	text := strings.ReplaceAll(string(source), "\r\n", "\n")
 	if !strings.HasPrefix(text, "---\n") {
@@ -353,18 +372,6 @@ func markdownFrontMatter(source []byte) ([]byte, bool) {
 	// The leading newline stands in for the opening `---`, so YAML line
 	// numbers in errors match the lines of the Markdown file.
 	return []byte("\n" + remainder[:end]), true
-}
-
-func invoiceNumberFromValue(value any) string {
-	root, ok := value.(map[string]any)
-	if !ok {
-		return ""
-	}
-	invoice, ok := root["invoice"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(asString(invoice["number"]))
 }
 
 func formatInvoiceNumber(pattern, customerID string, customer map[string]any, issueDate string, counter int64) (string, error) {
@@ -520,7 +527,7 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	return writeFileAtomic(path, buffer.Bytes(), 0o644)
+	return fsutil.WriteFile(path, buffer.Bytes(), fsutil.Public)
 }
 
 func findMappingValue(node *yaml.Node, key string) *yaml.Node {
@@ -545,41 +552,4 @@ func scalarNode(value string) *yaml.Node {
 		Tag:   "!!str",
 		Value: value,
 	}
-}
-
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tempFile, err := os.CreateTemp(filepath.Dir(path), ".invox-*")
-	if err != nil {
-		return err
-	}
-	tempPath := tempFile.Name()
-	success := false
-	defer func() {
-		if !success {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if _, err := tempFile.Write(data); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Chmod(mode); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Sync(); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return err
-	}
-	success = true
-	return syncDir(filepath.Dir(path))
 }

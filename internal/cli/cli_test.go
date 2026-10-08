@@ -40,7 +40,7 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 	for _, want := range []string{
 		"invox customer <subcommand> [options]",
 		"list          List all customers",
-		"config        Open customers.yaml in the default shell editor",
+		"config        Open customers.yaml in your editor",
 		"-c, --customers PATH",
 		"Customer fields:",
 		"<customer>.tax.default_vat_rate",
@@ -83,7 +83,7 @@ func TestConfigOpensConfigFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
@@ -125,7 +125,7 @@ func TestConfigOpensMalformedConfigFileForEditing(t *testing.T) {
 	configPath := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\n")
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
 	if exitCode != 0 {
@@ -151,7 +151,7 @@ func TestConfigHelpShowsUsage(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"Open config.yaml in the default shell editor.",
+		"Open config.yaml in your editor.",
 		"invox help config",
 		"Formatting:",
 		"Top-level keys must start at column 1 with no leading spaces.",
@@ -409,7 +409,7 @@ func TestCustomerConfigOpensCustomersFile(t *testing.T) {
 	}
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"customer",
@@ -439,7 +439,7 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"Open customers.yaml in the default shell editor.",
+		"Open customers.yaml in your editor.",
 		"invox customer config [-c CUSTOMERS.yaml]",
 		"-c, --customers PATH",
 		"<customer>.name",
@@ -783,7 +783,7 @@ func TestNewEditOpensCreatedInvoiceFile(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	f, stub := testFactory(t)
-	openedPath := expectEditor(stub, nil)
+	openedPath := expectEditor(f, stub, nil)
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",
@@ -819,7 +819,7 @@ func TestNewEditReportsFailureAfterCreatingInvoiceFile(t *testing.T) {
 	chdirForTest(t, workDir)
 
 	f, stub := testFactory(t)
-	expectEditor(stub, errors.New("editor unavailable"))
+	expectEditor(f, stub, errors.New("editor unavailable"))
 
 	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
 		"new",

@@ -6,30 +6,39 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
-// splitGlobalFlags removes --config PATH and --config=PATH from args, anywhere
-// before a bare "--", and returns the last value given. A --config without a
-// value is a usage error.
-func splitGlobalFlags(args []string) (configFile string, rest []string, err error) {
-	rest = make([]string, 0, len(args))
+// globalFlags are the flags every command accepts.
+type globalFlags struct {
+	configFile string
+	noInput    bool
+}
+
+// splitGlobalFlags removes --config PATH, --config=PATH and --no-input from
+// args, anywhere before a bare "--", and returns them. The last --config wins.
+// A --config without a value is a usage error.
+func splitGlobalFlags(args []string) (globalFlags, []string, error) {
+	var g globalFlags
+	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
 		case arg == "--":
-			return configFile, append(rest, args[i:]...), nil
+			return g, append(rest, args[i:]...), nil
+		case arg == "--no-input":
+			g.noInput = true
 		case arg == "--config":
 			if i+1 >= len(args) || args[i+1] == "" {
-				return "", nil, cmdutil.FlagErrorf("", "flag needs an argument: --config")
+				return globalFlags{}, nil, cmdutil.FlagErrorf("", "flag needs an argument: --config")
 			}
 			i++
-			configFile = args[i]
+			g.configFile = args[i]
 		case strings.HasPrefix(arg, "--config="):
-			configFile = strings.TrimPrefix(arg, "--config=")
-			if configFile == "" {
-				return "", nil, cmdutil.FlagErrorf("", "flag needs an argument: --config")
+			g.configFile = strings.TrimPrefix(arg, "--config=")
+			if g.configFile == "" {
+				return globalFlags{}, nil, cmdutil.FlagErrorf("", "flag needs an argument: --config")
 			}
 		default:
 			rest = append(rest, arg)
 		}
 	}
-	return configFile, rest, nil
+	return g, rest, nil
 }

@@ -28,16 +28,19 @@ func Main(args []string, f *cmdutil.Factory) int {
 // waits for the child to exit and be reaped. If it ever happened, invox would
 // exit 1 and print the child's error instead of exiting 130.
 func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
-	configFile, rest, err := splitGlobalFlags(args)
+	g, rest, err := splitGlobalFlags(args)
 	if err != nil {
 		return exitCode(f.IOStreams, err)
 	}
-	f.ConfigFile = configFile
+	f.ConfigFile = g.configFile
+	if g.noInput || f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
+		f.IOStreams.SetNeverPrompt(true)
+	}
 	err = dispatch(ctx, f, rest)
 	warnLegacyFiles(f)
 	var configErr *config.Error
-	if configFile != "" && errors.As(err, &configErr) {
-		err = &configFlagError{err: err, path: configFile}
+	if g.configFile != "" && errors.As(err, &configErr) {
+		err = &configFlagError{err: err, path: g.configFile}
 	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&

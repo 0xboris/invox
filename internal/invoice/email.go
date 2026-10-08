@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 type EmailDraftResult struct {
@@ -209,7 +211,11 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, 
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
-	if err := writeFileAtomic(outputPath, message, 0o644); err != nil {
+	write := fsutil.WriteNewFile
+	if overwrite {
+		write = fsutil.WriteFile
+	}
+	if err := write(outputPath, message, fsutil.Public); err != nil {
 		return EmailDraftResult{}, err
 	}
 

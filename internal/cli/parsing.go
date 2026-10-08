@@ -184,8 +184,8 @@ func bindCommandFlags(fs *flag.FlagSet, opts *invoice.Options, spec commandSpec)
 		fs.BoolVar(&opts.FromLastInvoice, "from-last", opts.FromLastInvoice, "use the latest archived invoice for this customer as the source document")
 	}
 	if spec.SupportsEditFlag {
-		fs.BoolVar(&opts.EditNewInvoice, "e", opts.EditNewInvoice, "open the created invoice in the default shell editor")
-		fs.BoolVar(&opts.EditNewInvoice, "edit", opts.EditNewInvoice, "open the created invoice in the default shell editor")
+		fs.BoolVar(&opts.EditNewInvoice, "e", opts.EditNewInvoice, "open the created invoice in your editor")
+		fs.BoolVar(&opts.EditNewInvoice, "edit", opts.EditNewInvoice, "open the created invoice in your editor")
 	}
 	if spec.SupportsEmailToFlag {
 		fs.StringVar(&opts.EmailTo, "to", opts.EmailTo, "recipient email override")

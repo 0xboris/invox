@@ -1,0 +1,83 @@
+# new and increment warn on stderr about archived invoices of the customer
+# whose numbers no longer match numbering.pattern. The next number comes from
+# the matching invoice; stdout and the exit code do not change.
+exec invox increment -i invoice.yaml
+cmp stdout want-increment-stdout.txt
+scrubpaths stderr got.txt
+cmp got.txt want-increment.txt
+grep '^  number: CUST-001-005$' invoice.yaml
+
+exec invox new CUST-001
+cmp stdout want-new-stdout.txt
+scrubpaths stderr got.txt
+cmp got.txt want-new.txt
+grep '^  number: CUST-001-006$' CUST-001-006.yaml
+
+# Another customer's invoices never warn.
+exec invox new CUST-002
+cmp stdout want-other-stdout.txt
+cmp stderr want-other.txt
+
+-- want-increment-stdout.txt --
+invoice.yaml
+-- want-increment.txt --
+warning: numbering ignored 1 archived invoice(s) for CUST-001 that do not match numbering.pattern: home/.config/invox/archive/2025/old-format.yaml
+If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.CUST-001.numbering.start) to the next number.
+Incremented invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-005
+-- want-new-stdout.txt --
+CUST-001-006.yaml
+-- want-new.txt --
+warning: numbering ignored 1 archived invoice(s) for CUST-001 that do not match numbering.pattern: home/.config/invox/archive/2025/old-format.yaml
+If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.CUST-001.numbering.start) to the next number.
+Created CUST-001-006.yaml for CUST-001 (CUST-001-006)
+-- want-other-stdout.txt --
+CUST-002-001.yaml
+-- want-other.txt --
+Created CUST-002-001.yaml for CUST-002 (CUST-002-001)
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/archive/2026/CUST-001-004.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-004
+  issue_date: 2026-01-10
+-- home/.config/invox/archive/2025/old-format.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001/0009
+  issue_date: 2025-11-10
+-- home/.config/invox/archive/notes.pdf --
+not an invoice
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+CUST-002:
+  name: Second Customer OG
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+payment:
+  due_days: 30
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    unit_price: 100
+    quantity: 1
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  status: draft

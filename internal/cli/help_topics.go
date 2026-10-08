@@ -38,13 +38,18 @@ var environmentVariables = []environmentVariable{
 	}},
 	{"VISUAL", []string{
 		"Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.",
+		"The value is split into words like a shell would and run directly, with the",
+		"file as the last argument. A value with shell syntax ($, |, ; and the like)",
+		"runs through sh -c, where an unquoted # starts a comment that drops the file.",
+		"On Windows it is always split and run directly.",
 	}},
 	{"EDITOR", []string{
-		"Editor used when VISUAL is unset. Without either: vi, or notepad on Windows.",
+		"Editor used when VISUAL is unset, read the same way. Without either: vi, or",
+		"notepad on Windows.",
 	}},
-	{"SHELL", []string{
-		"Shell that runs the editor command on macOS, Linux and other Unix systems.",
-		"Default: /bin/sh. On Windows the editor runs through cmd /c.",
+	{"INVOX_PROMPT_DISABLED", []string{
+		"Any non-empty value works like --no-input. With either, invox never prompts or",
+		"opens an editor, and a step that needs one fails with exit 2.",
 	}},
 	{"INVOX_FORCE_TTY", []string{
 		"Testing aid: any non-empty value makes invox treat stdout as a terminal.",
@@ -118,10 +123,12 @@ func printExitCodesHelp(w io.Writer) {
 	fmt.Fprintf(w, "       a failed build or a failed external program.\n")
 	fmt.Fprintf(w, "  2    Usage error: unknown command, topic or flag, or a missing or extra\n")
 	fmt.Fprintf(w, "       argument. Also used when a confirmation was declined, or was needed\n")
-	fmt.Fprintf(w, "       without a terminal to ask on and without --yes. The step that needed\n")
-	fmt.Fprintf(w, "       confirmation was not done. Ctrl-C at a confirmation prompt also\n")
-	fmt.Fprintf(w, "       exits 2.\n")
+	fmt.Fprintf(w, "       without a terminal to ask on and without --yes, and when an editor was\n")
+	fmt.Fprintf(w, "       needed without a terminal or with --no-input. The step that needed\n")
+	fmt.Fprintf(w, "       confirmation or the editor was not done. Ctrl-C at a confirmation\n")
+	fmt.Fprintf(w, "       prompt also exits 2.\n")
 	fmt.Fprintf(w, "  130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped\n")
-	fmt.Fprintf(w, "       and its temporary files are removed.\n")
+	fmt.Fprintf(w, "       and its temporary files are removed. While an editor runs, Ctrl-C\n")
+	fmt.Fprintf(w, "       goes to the editor alone and invox keeps waiting for it.\n")
 	fmt.Fprintf(w, "  143  Stopped by SIGTERM, with the same cleanup as 130.\n")
 }

@@ -1,4 +1,4 @@
-package invoice
+package fsutil
 
 // syncDir does nothing on Windows, which cannot sync a directory.
 func syncDir(string) error {

@@ -35,7 +35,6 @@ var updateScripts = flag.Bool("update", false, "rewrite cmp golden blocks in tes
 // Environment variables that make the fake programs fail.
 const (
 	fakeTectonicFailEnv = "FAKE_TECTONIC_FAIL"
-	fakeEditorFailEnv   = "FAKE_EDITOR_FAIL"
 	fakeOpenFailEnv     = "FAKE_OPEN_FAIL"
 )
 
@@ -55,18 +54,12 @@ func TestMain(m *testing.M) {
 			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())
 			os.Exit(cli.Main(os.Args[1:], f))
 		},
-		"tectonic":    func() { os.Exit(fakeTectonic(os.Args[1:])) },
-		"fake-editor": func() { os.Exit(fakeEditor(os.Args[1:])) },
-		"open":        func() { os.Exit(fakeOpen(os.Args[1:])) },
-		"xdg-open":    func() { os.Exit(fakeOpen(os.Args[1:])) },
-		"osascript":   func() { os.Exit(fakeOsascript(os.Args[1:])) },
-		// On Unix invox runs the editor as `$SHELL -lc 'eval "$INVOX_EDITOR" ...'`.
-		// A real login shell would source the host's /etc/profile, so $SHELL
-		// points here instead.
-		"fake-shell": func() { os.Exit(fakeShell(os.Args[1:])) },
-		// On Windows invox runs the editor as `cmd /c EDITOR FILE` and opens
-		// documents with `cmd /c start "" FILE`. PATH holds only the fakes, so
-		// this `cmd` is the one it finds.
+		"tectonic":  func() { os.Exit(fakeTectonic(os.Args[1:])) },
+		"open":      func() { os.Exit(fakeOpen(os.Args[1:])) },
+		"xdg-open":  func() { os.Exit(fakeOpen(os.Args[1:])) },
+		"osascript": func() { os.Exit(fakeOsascript(os.Args[1:])) },
+		// On Windows invox opens documents with `cmd /c start "" FILE`. PATH
+		// holds only the fakes, so this `cmd` is the one it finds.
 		"cmd": func() { os.Exit(fakeCmd(os.Args[1:])) },
 	})
 }
@@ -119,9 +112,6 @@ func setupSandbox(env *testscript.Env) error {
 	// $BIN lets a script run invox with a PATH that lacks the fakes.
 	env.Setenv("BIN", binDir)
 
-	env.Setenv("SHELL", filepath.Join(binDir, "fake-shell"))
-	env.Setenv("VISUAL", "fake-editor")
-	env.Setenv("EDITOR", "fake-editor")
 	return nil
 }
 
@@ -215,21 +205,6 @@ func fakeTectonic(args []string) int {
 	return 0
 }
 
-// fakeEditor prints the name of the file it was asked to edit, or fails when
-// FAKE_EDITOR_FAIL is set.
-func fakeEditor(args []string) int {
-	if os.Getenv(fakeEditorFailEnv) != "" {
-		fmt.Fprintln(os.Stderr, "fake editor: forced failure")
-		return 1
-	}
-	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "fake editor: want one file, got %q\n", args)
-		return 2
-	}
-	fmt.Printf("fake editor: %s\n", filepath.Base(args[0]))
-	return 0
-}
-
 // fakeOpen stands in for open (macOS), xdg-open (Linux) and `cmd /c start`
 // (Windows). It prints the name of the file it was asked to open, or fails
 // when FAKE_OPEN_FAIL is set.
@@ -265,57 +240,16 @@ func fakeOsascript(args []string) int {
 	return 2
 }
 
-// fakeShell stands in for the login shell invox runs the editor with:
-//
-//	$SHELL -lc 'eval "$INVOX_EDITOR" '"$1"'' invox FILE
-//
-// It runs $INVOX_EDITOR, split on spaces, with FILE appended.
-func fakeShell(args []string) int {
-	if len(args) != 4 || args[0] != "-lc" || args[2] != "invox" {
-		fmt.Fprintf(os.Stderr, "fake shell: unexpected arguments %q\n", args)
-		return 2
-	}
-	editor := strings.Fields(os.Getenv("INVOX_EDITOR"))
-	if len(editor) == 0 {
-		fmt.Fprintln(os.Stderr, "fake shell: INVOX_EDITOR is empty")
-		return 2
-	}
-	return runPassthrough(editor[0], append(editor[1:], args[3])...)
-}
-
-// runPassthrough runs a program with this process's standard streams and
-// returns its exit code.
-func runPassthrough(name string, args ...string) int {
-	cmd := exec.Command(name, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return exitErr.ExitCode()
-		}
-		fmt.Fprintf(os.Stderr, "%s: %v\n", filepath.Base(os.Args[0]), err)
-		return 1
-	}
-	return 0
-}
-
-// fakeCmd handles the two ways invox uses cmd.exe on Windows:
-//
-//	cmd /c start "" FILE    open a document
-//	cmd /c EDITOR FILE      run the editor
+// fakeCmd stands in for `cmd /c start "" FILE`, which opens a document on
+// Windows.
 func fakeCmd(args []string) int {
-	if len(args) < 2 || !strings.EqualFold(args[0], "/c") {
+	if len(args) < 2 || !strings.EqualFold(args[0], "/c") || args[1] != "start" {
 		fmt.Fprintf(os.Stderr, "fake cmd: unexpected arguments %q\n", args)
 		return 2
 	}
-	if args[1] == "start" {
-		rest := args[2:]
-		if len(rest) > 0 && rest[0] == "" {
-			rest = rest[1:]
-		}
-		return fakeOpen(rest)
+	rest := args[2:]
+	if len(rest) > 0 && rest[0] == "" {
+		rest = rest[1:]
 	}
-	return runPassthrough(args[1], args[2:]...)
+	return fakeOpen(rest)
 }

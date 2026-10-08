@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 const (
@@ -64,23 +67,31 @@ func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
 	return payment, nil
 }
 
-func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
+type NewInvoice struct {
+	Number string
+	Path   string
+	// SkippedArchiveFiles are archived invoices of the customer whose numbers
+	// do not match numbering.pattern, so they did not count towards Number.
+	SkippedArchiveFiles []string
+}
+
+func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (NewInvoice, error) {
 	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
-		return "", "", &OutputExistsError{Path: outputPath}
+		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 
 	customer, err := LoadCustomer(customersPath, customerID)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	issuerPayment, err := LoadIssuerPayment(issuerPath)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	document, sourceLabel, err := h.loadNewInvoiceDocument(defaultsPath, customerID, fromLast)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	now = now.In(time.Local)
@@ -88,21 +99,21 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	draftDirs := draftSearchDirs(workDir, outputPath)
 	draftCounter, err := h.highestDraftCounter(draftDirs, customerID, issueDate, customer)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
-	invoiceNumber, _, err := h.NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
+	invoiceNumber, skipped, err := h.NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	if strings.TrimSpace(outputPath) == "" {
 		outputPath = filepath.Join(workDir, invoiceNumber+".yaml")
 	}
 	if fileExists(outputPath) {
-		return "", "", &OutputExistsError{Path: outputPath}
+		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	deleteMappingKey(root, internalMetadataKey)
 
@@ -111,7 +122,7 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	invoiceNode := getOrCreateMappingNode(root, "invoice")
 	dueDays, err := issuerDueDays(issuerPath, issuerPayment)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	setMappingString(invoiceNode, "number", invoiceNumber)
@@ -129,11 +140,18 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	if findMappingValue(root, "positions") == nil {
 		setMappingSequence(root, "positions", []*yaml.Node{})
 	}
-	if err := writeYAMLDocument(outputPath, document); err != nil {
-		return "", "", err
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return NewInvoice{}, err
+	}
+	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return NewInvoice{}, &OutputExistsError{Path: outputPath}
+		}
+		return NewInvoice{}, err
 	}
 
-	return invoiceNumber, outputPath, nil
+	return NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}, nil
 }
 
 // draftSearchDirs returns the directories whose drafts `new` takes into
@@ -180,30 +198,44 @@ func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast b
 	return document, archivePath, nil
 }
 
-func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (string, string, string, error) {
+type IncrementedInvoice struct {
+	CustomerID string
+	OldNumber  string
+	NewNumber  string
+	// SkippedArchiveFiles are archived invoices of the customer whose numbers
+	// do not match numbering.pattern, so they did not count towards NewNumber.
+	SkippedArchiveFiles []string
+}
+
+func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (IncrementedInvoice, error) {
 	customerID, issueDate, oldInvoiceNumber, err := invoiceIdentity(invoicePath)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
 	customer, err := LoadCustomer(customersPath, customerID)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
 	currentCounter, err := h.CounterFromInvoiceNumber(oldInvoiceNumber, customerID, issueDate, customer)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
-	newInvoiceNumber, _, err := h.NextInvoiceNumber(customerID, issueDate, customer, currentCounter)
+	newInvoiceNumber, skipped, err := h.NextInvoiceNumber(customerID, issueDate, customer, currentCounter)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 	if err := writeInvoiceNumber(invoicePath, newInvoiceNumber); err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
-	return customerID, oldInvoiceNumber, newInvoiceNumber, nil
+	return IncrementedInvoice{
+		CustomerID:          customerID,
+		OldNumber:           oldInvoiceNumber,
+		NewNumber:           newInvoiceNumber,
+		SkippedArchiveFiles: skipped,
+	}, nil
 }
 
 func SetInvoiceStatus(invoicePath, status string) error {
@@ -251,7 +283,14 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	setMappingString(invoiceNode, "status", "editing")
 	setArchiveMetadata(root, archiveTargetPath, archiveReplacePath)
 
-	if err := writeYAMLDocument(outputPath, document); err != nil {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return "", "", err
+	}
+	if err := fsutil.WriteNewFile(outputPath, data, fsutil.Public); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
+		}
 		return "", "", err
 	}
 	return outputPath, archivePath, nil
@@ -350,6 +389,9 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 			HistoryDir:  filepath.Join(archiveDir, archiveHistoryDirName),
 		}
 	}
+	if err := fsutil.MkdirAll(archiveDir, fsutil.Private); err != nil {
+		return ArchiveResult{}, err
+	}
 	backups, err := backupArchivedFiles(archiveDir, replaced, now)
 	if err != nil {
 		return ArchiveResult{}, err
@@ -357,7 +399,16 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 
 	setMappingString(invoiceNode, "status", "archived")
 	clearArchiveMetadata(root)
-	if err := writeYAMLDocument(archivePath, document); err != nil {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return ArchiveResult{}, err
+	}
+	if editingArchive {
+		err = fsutil.WriteFile(archivePath, data, fsutil.Private)
+	} else if err = fsutil.WriteNewFile(archivePath, data, fsutil.Private); errors.Is(err, fs.ErrExist) {
+		return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
+	}
+	if err != nil {
 		return ArchiveResult{}, err
 	}
 	if replacePath != "" {
@@ -488,18 +539,27 @@ func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) e
 	return errors.New(strings.Join(validationErrors, "\n"))
 }
 
+// writeYAMLDocument replaces path with document, keeping the file's mode.
 func writeYAMLDocument(path string, document *yaml.Node) error {
+	data, err := encodeYAMLDocument(document)
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFile(path, data, fsutil.Public)
+}
+
+func encodeYAMLDocument(document *yaml.Node) ([]byte, error) {
 	clearYAMLMergeTags(document)
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(document); err != nil {
-		return err
+		return nil, err
 	}
 	if err := encoder.Close(); err != nil {
-		return err
+		return nil, err
 	}
-	return writeFileAtomic(path, buffer.Bytes(), 0o644)
+	return buffer.Bytes(), nil
 }
 
 func writeInvoiceStringField(path, key, value string) error {

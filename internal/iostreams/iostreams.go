@@ -56,6 +56,9 @@ func (s *IOStreams) SetStderrTTY(isTTY bool) { s.stderrIsTTY = isTTY }
 
 func (s *IOStreams) SetNeverPrompt(never bool) { s.neverPrompt = never }
 
+// PromptDisabled reports whether SetNeverPrompt turned prompting off.
+func (s *IOStreams) PromptDisabled() bool { return s.neverPrompt }
+
 // CanPrompt reports whether the user can answer a prompt: prompting is not
 // disabled, answers come from a terminal and the question shows on one.
 func (s *IOStreams) CanPrompt() bool {
