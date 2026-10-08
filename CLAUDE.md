@@ -1,7 +1,7 @@
 # invox
 
 Go CLI for YAML- and LaTeX-driven invoices: `new`, `validate`, `render`, `build` (via
-`tectonic`), `email`, `archive`. One dependency (`gopkg.in/yaml.v3`).
+`tectonic`), `email`, `archive`. Dependencies: `gopkg.in/yaml.v3`, and `spf13/cobra` with its `pflag`.
 
 ## Commands
 
