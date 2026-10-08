@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -29,8 +30,21 @@ type ConfigOptions struct {
 func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *ConfigOptions) error) *cobra.Command {
 	opts := &ConfigOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Open customers.yaml in your editor",
+		Use:               "config",
+		Short:             "Open customers.yaml in your editor",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Long: `Open customers.yaml in your editor.
+
+Default lookup:
+` +
+			helptext.LookupCustomers +
+			"\n" +
+			helptext.CustomerFieldReference() +
+			"\n" +
+			helptext.CustomerYAMLExample(),
+		Example: `$ invox customer config
+$ invox customer config -c customers.yaml
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("customer config", "unexpected arguments: %s", strings.Join(args, " "))
@@ -45,6 +59,7 @@ func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *ConfigOptions)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	return cmd
 }
 

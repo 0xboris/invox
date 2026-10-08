@@ -96,9 +96,6 @@ exec invox help completion
 scrubpaths stdout got.txt
 cmp got.txt want-completion.txt
 ! stderr .
-exec invox help completion zsh
-scrubpaths stdout got.txt
-cmp got.txt want-completion.txt
 exec invox completion --help
 scrubpaths stdout got.txt
 cmp got.txt want-completion.txt
@@ -185,53 +182,6 @@ cmp got.txt want-version.txt
 -- want-root.txt --
 invox generates LaTeX and PDF invoices from YAML data.
 
-Usage:
-  invox <subcommand> [options]
-  invox help [subcommand]
-
-Subcommands:
-  customer       Customer-related commands
-  config         Open config.yaml in your editor
-  init           Create starter support files in the global config directory
-  template       Template-related commands
-  completion     Generate shell completion scripts
-  new            Create a new invoice YAML file with a generated number
-  increment      Increment the invoice number in an existing invoice YAML file
-  validate       Validate invoice YAML against customers and issuer data
-  render         Render a LaTeX invoice file
-  email          Create and open an email draft with the invoice PDF attached
-  build          Render and compile an invoice PDF with Tectonic
-  archive        Archive invoices and manage archived invoices
-  version        Show the invox version
-
-Required inputs by command:
-  new        CUSTOMER_ID
-  increment  -i, --input
-  validate   -i, --input
-  render     -i, --input
-  email      INVOICE.yaml, INVOICE.pdf, or -i, --input
-  build      INVOICE.yaml or -i, --input
-  archive    INVOICE.yaml or -i, --input
-
-Optional flags:
-  -h, --help              Show help
-  --version               Show the invox version
-  --no-input              Never prompt or open an editor; fail with exit 2 instead
-  --config PATH           Read this config file instead of config.yaml (any command)
-  -c, --customers PATH    Path to customers.yaml
-  -o, --output PATH       Output file path (defaults vary by command)
-  -p, --pdf PATH          Path to the invoice PDF (email)
-  --archive               Archive after a successful PDF build (build)
-  --yes                   Replace an archived invoice without asking (archive, build --archive)
-  --from-last             Use the latest archived invoice for CUSTOMER_ID (new)
-  -e, --edit              Open the created invoice in your editor (new)
-  --to EMAIL              Recipient email override (email)
-  --subject TEXT          Email subject override, supports placeholders (email)
-  --force                 Overwrite an existing -o draft file (email); copy legacy config files (init)
-  -s, --source PATH       Path to invoice_defaults.yaml (new)
-  -u, --issuer PATH       Path to issuer.yaml
-  -t, --template PATH     Path to invoice_template.tex (render/build)
-
 Defaults:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
   issuer.yaml: upward project search, then $WORK/home/.config/invox/issuer.yaml
@@ -242,33 +192,56 @@ Defaults:
   email draft path: <input name>.eml in a new temporary directory, removed after 24 hours
   build output: input path with .pdf extension
 
-Documentation topics:
-  invox help config       config.yaml keys, precedence, and email placeholders
-  invox help customers    customers.yaml fields, aliases, and example
-  invox help issuer       issuer.yaml fields, validation rules, and example
-  invox help defaults     invoice_defaults.yaml shape and new-command behavior
-  invox help template     template placeholders and authoring rules
-  invox help environment  environment variables, default directories, and precedence
-  invox help exit-codes   what each exit status means
+Usage:
+  invox <command> [flags]
+
+Invoice commands:
+  archive    Archive a built or edited invoice YAML file into the configured archive directory
+  build      Render and compile an invoice PDF with Tectonic
+  email      Create an email draft and open it in the default mail app
+  increment  Increment the invoice number in an existing invoice YAML file
+  new        Create a new invoice YAML file with a generated number and prefilled defaults
+  render     Render a LaTeX invoice file from YAML data
+  validate   Validate invoice YAML against customers and issuer data
+
+Setup commands:
+  config    Open config.yaml in your editor
+  customer  Customer-related commands
+  init      Create starter support files in the global config directory
+  template  Template-related commands
+
+Additional commands:
+  completion  Generate shell completion scripts
+  version     Show the invox version
+
+Help topics:
+  config       config.yaml keys, precedence, and email placeholders
+  customers    customers.yaml fields, aliases, and example
+  issuer       issuer.yaml fields, validation rules, and example
+  defaults     invoice_defaults.yaml shape and new-command behavior
+  template     template placeholders and authoring rules
+  environment  environment variables, default directories, and precedence
+  exit-codes   what each exit status means
+
+Flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+      --version         Show the invox version
 
 Examples:
-  invox customer list
-  invox config
-  invox init
-  invox template list
-  invox completion zsh
-  invox new CUST-001
-  invox new CUST-001 -e
-  invox new CUST-001 --from-last
-  invox new CUST-001 -u issuer.yaml
-  invox increment -i invoice.yaml
-  invox validate -i invoice.yaml
-  invox render -i invoice.yaml
-  invox email invoice.pdf
-  invox build invoice.yaml
-  invox archive invoice.yaml
-  invox archive edit 2026-03-06.yaml
-  invox archive list
+  $ invox init
+  $ invox customer list
+  $ invox new CUST-001 -e
+  $ invox new CUST-001 --from-last
+  $ invox validate -i 2026-0001.yaml
+  $ invox build 2026-0001.yaml --archive
+  $ invox email 2026-0001.pdf
+  $ invox archive edit 2026-0001.yaml
+
+Learn more:
+  Run `invox help <command>` for more information about a command.
+  Run `invox help <topic>` to read a help topic.
 -- want-customers.txt --
 customers.yaml reference.
 
@@ -516,13 +489,6 @@ Description:
   Author and discover the LaTeX templates used by render and build.
   Templates are regular .tex files with literal @@PLACEHOLDER@@ tokens.
 
-Usage:
-  invox template <subcommand> [options]
-  invox help template [subcommand]
-
-Subcommands:
-  list          List available invoice templates
-
 Important rules:
   Placeholder names are case-sensitive and must match exactly.
   Unknown placeholders are left unchanged in the rendered TeX.
@@ -605,18 +571,24 @@ Available .tex placeholders:
     @@EPC_QR_LABEL@@                 EPC QR label text
     @@EPC_QR_CODE@@                  EPC QR code placeholder
 
+Usage:
+  invox template <subcommand> [flags]
+
+Commands:
+  list  List available invoice templates
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox template list
-  invox template list --names
-  invox render -i invoice.yaml -t multi_vat.tex
-  invox build invoice.yaml -t multi_vat.tex
+  $ invox template list
+  $ invox template list --names
+  $ invox render -i invoice.yaml -t multi_vat.tex
+  $ invox build invoice.yaml -t multi_vat.tex
 -- want-config.txt --
 Open config.yaml in your editor.
-
-Usage:
-  invox config
-  invox config paths
-  invox help config
 
 Behavior:
   Opens the resolved config.yaml in your editor, or the file given with
@@ -741,23 +713,24 @@ Template:
 #     Regards,
 #     {issuer_name}
 
+Usage:
+  invox config [flags]
+  invox config <subcommand> [flags]
+
+Commands:
+  paths  Show where each config and support file is read from
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox config
-  invox help config
+  $ invox config
+  $ invox config paths
+  $ invox help config
 -- want-customer.txt --
 Customer-related commands.
-
-Usage:
-  invox customer <subcommand> [options]
-  invox help customer [subcommand]
-
-Subcommands:
-  list          List all customers
-  config        Open customers.yaml in your editor
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -793,12 +766,6 @@ Alternate supported paths:
   <customer>.billing.email_greeting   Alternate path for the email greeting
   <customer>.currency                 Alternate path for billing.currency
 
-
-Examples:
-  invox customer list
-  invox customer list -c customers.yaml
-  invox customer config
-
 customers.yaml example:
 CUST-001:
   name: Appsters GmbH
@@ -825,36 +792,46 @@ CUST-001:
     start: 100
   # legal_company_name: Appsters GmbH
   # currency: EUR
--- want-customer-list.txt --
-List all customers from customers.yaml.
 
 Usage:
-  invox customer list [-c CUSTOMERS.yaml]
+  invox customer <subcommand> [flags]
 
-Required inputs:
+Commands:
+  config  Open customers.yaml in your editor
+  list    List all customers from customers.yaml
 
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox customer list
+  $ invox customer list -c customers.yaml
+  $ invox customer config
+-- want-customer-list.txt --
+List all customers from customers.yaml.
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
   schema/docs: run `invox help customers`
 
+Usage:
+  invox customer list [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox customer list
-  invox customer list -c customers.yaml
+  $ invox customer list
+  $ invox customer list -c customers.yaml
 -- want-customer-config.txt --
 Open customers.yaml in your editor.
-
-Usage:
-  invox customer config [-c CUSTOMERS.yaml]
-
-Required inputs:
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -888,10 +865,6 @@ Alternate supported paths:
   <customer>.billing.email_greeting   Alternate path for the email greeting
   <customer>.currency                 Alternate path for billing.currency
 
-Examples:
-  invox customer config
-  invox customer config -c customers.yaml
-
 customers.yaml example:
 CUST-001:
   name: Appsters GmbH
@@ -918,12 +891,23 @@ CUST-001:
     start: 100
   # legal_company_name: Appsters GmbH
   # currency: EUR
--- want-init.txt --
-Create starter support files in the global config directory.
 
 Usage:
-  invox init [--force]
-  invox help init
+  invox customer config [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox customer config
+  $ invox customer config -c customers.yaml
+-- want-init.txt --
+Create starter support files in the global config directory.
 
 Behavior:
   Creates the global config directory if it does not exist yet.
@@ -934,23 +918,25 @@ Behavior:
   lacks, asks first, then copies them in before writing the starter files.
   Nothing is replaced, and the invoice-tool directory is left in place.
 
-Optional flags:
-  --force                 Copy the invoice-tool files without asking (required without a terminal)
-
 Config directory:
   $WORK/home/.config/invox
 
+Usage:
+  invox init [flags]
+
+Flags:
+      --force   Copy files from the deprecated config directory without asking
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox init
+  $ invox init
+  $ invox init --force
 -- want-template-list.txt --
 List available LaTeX invoice templates from the same directory as the resolved default template.
-
-Usage:
-  invox template list [--names]
-
-Optional flags:
-  -h, --help              Show this help page
-  --names                 Print only template names
 
 Output:
   Default: NAME<TAB>ABSOLUTE_PATH
@@ -961,56 +947,74 @@ Lookup:
   The directory is derived from the resolved default template path.
   Name-only -t/--template values are resolved in that same directory.
 
+Usage:
+  invox template list [flags]
+
+Flags:
+      --names   Print only template names
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox template list
-  invox template list --names
-  invox build invoice.yaml -t multi_vat.tex
+  $ invox template list
+  $ invox template list --names
+  $ invox build invoice.yaml -t multi_vat.tex
 -- want-completion.txt --
 Generate shell completion scripts.
 
-Usage:
-  invox completion zsh
-
 Supported shells:
-  zsh
+  bash, zsh, fish, powershell
 
 Notes:
-  The generated Zsh completion script completes subcommands and template names for render/build.
-  Template-name completion is backed by `invox template list --names`.
+  The script completes commands and flags, customer IDs for new, template
+  names for -t/--template, archived invoices for archive edit, and file names.
+  It asks invox for the values each time, so they follow your files. When a
+  file is missing or broken, the values from it are not completed.
 
-Quick start:
+Bash:
+  source <(invox completion bash)
+  Persistent install, with the bash-completion package:
+    invox completion bash > $DATA_HOME_TILDE/bash-completion/completions/invox
+
+Zsh:
   source <(invox completion zsh)
-
-Persistent Zsh install:
-  mkdir -p ~/.zsh/completions
-  invox completion zsh > ~/.zsh/completions/_invox
+  Persistent install:
+    mkdir -p ~/.zsh/completions
+    invox completion zsh > ~/.zsh/completions/_invox
   Add this before compinit in ~/.zshrc:
     fpath=(~/.zsh/completions $fpath)
     autoload -Uz compinit
     compinit
 
-Example:
-  invox completion zsh
--- want-new.txt --
-Create a new invoice YAML file with a generated number and prefilled defaults.
+Fish:
+  invox completion fish > ~/.config/fish/completions/invox.fish
+
+PowerShell:
+  invox completion powershell | Out-String | Invoke-Expression
+  Add that line to your $PROFILE to load it in every session.
 
 Usage:
-  invox new CUSTOMER_ID [-o OUTPUT.yaml] [-s SOURCE.yaml] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-e] [--from-last]
+  invox completion <shell> [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox completion zsh
+  $ invox completion bash > $DATA_HOME_TILDE/bash-completion/completions/invox
+-- want-new.txt --
+Create a new invoice YAML file with a generated number and prefilled defaults.
 
 Required inputs:
   CUSTOMER_ID                  Required positional argument
 
 Default output:
   <invoice.number>.yaml in the current directory
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
-  -u, --issuer PATH       Path to issuer.yaml
-  -s, --source PATH       Path to invoice_defaults.yaml
-  -o, --output PATH       Output file path (must end with .yaml)
-  --from-last             Use the latest archived invoice for CUSTOMER_ID as the source document
-  -e, --edit              Open the created invoice in your editor
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1021,44 +1025,57 @@ Default lookup:
   schema/docs: run `invox help defaults`
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
 
+Usage:
+  invox new CUSTOMER_ID [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+  -e, --edit               Open the created invoice in your editor
+      --from-last          Use the latest archived invoice for this customer as the source document
+  -u, --issuer string      Path to issuer.yaml
+  -o, --output string      Output YAML path
+  -s, --source string      Path to invoice_defaults.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox new CUST-001
-  invox new CUST-001 -e
-  invox new CUST-001 --from-last
-  invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
+  $ invox new CUST-001
+  $ invox new CUST-001 -e
+  $ invox new CUST-001 --from-last
+  $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 -- want-increment.txt --
 Increment the invoice number in an existing invoice YAML file.
 
-Usage:
-  invox increment -i INVOICE.yaml [-c CUSTOMERS.yaml]
-
 Required inputs:
   -i, --input PATH        Path to the invoice YAML file
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
   schema/docs: run `invox help customers`
 
+Usage:
+  invox increment -i INVOICE.yaml [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+  -i, --input string       Input invoice YAML file
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox increment -i invoice.yaml
-  invox increment -i invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment -i invoice.yaml
+  $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
 -- want-validate.txt --
 Validate invoice YAML against customers and issuer data.
 
-Usage:
-  invox validate -i INVOICE.yaml [-c CUSTOMERS.yaml] [-u ISSUER.yaml]
-
 Required inputs:
   -i, --input PATH        Path to the invoice YAML file
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
-  -u, --issuer PATH       Path to issuer.yaml
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1066,27 +1083,30 @@ Default lookup:
   issuer.yaml: upward project search, then $WORK/home/.config/invox/issuer.yaml
   schema/docs: run `invox help issuer`
 
+Usage:
+  invox validate -i INVOICE.yaml [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+  -i, --input string       Input invoice YAML file
+  -u, --issuer string      Path to issuer.yaml
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox validate -i invoice.yaml
-  invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+  $ invox validate -i invoice.yaml
+  $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
 -- want-render.txt --
 Render a LaTeX invoice file from YAML data.
-
-Usage:
-  invox render -i INVOICE.yaml [-o OUTPUT.tex] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex]
 
 Required inputs:
   -i, --input PATH        Path to the invoice YAML file
 
 Default output:
   invoice.tex in the current directory
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
-  -u, --issuer PATH       Path to issuer.yaml
-  -o, --output PATH       Output file path (must end with .tex)
-  -t, --template PATH     Path to invoice_template.tex
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1095,30 +1115,32 @@ Default lookup:
   schema/docs: run `invox help issuer`
   template.tex: upward project search, then $WORK/home/.config/invox/template.tex
 
+Usage:
+  invox render -i INVOICE.yaml [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+  -i, --input string       Input invoice YAML file
+  -u, --issuer string      Path to issuer.yaml
+  -o, --output string      Output TeX path (default invoice.tex)
+  -t, --template string    Template path or name
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox render -i invoice.yaml
-  invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t invoice_template.tex
+  $ invox render -i invoice.yaml
+  $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
 -- want-email.txt --
 Create an email draft and open it in the default mail app.
-
-Usage:
-  invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT) [-p INVOICE.pdf] [-o OUTPUT.eml [--force]] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [--to EMAIL] [--subject TEXT]
 
 Required inputs:
   INVOICE.yaml, INVOICE.pdf, or -i, --input PATH  Path to the invoice YAML or built PDF file
 
 Default output:
   <input name>.eml in a new temporary directory, removed after 24 hours
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
-  -u, --issuer PATH       Path to issuer.yaml
-  -p, --pdf PATH          Path to the invoice PDF
-  -o, --output PATH       Output file path (must end with .eml)
-  --to EMAIL              Recipient email override
-  --subject TEXT          Email subject override, supports placeholders
-  --force                 Overwrite an existing output file
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1138,31 +1160,40 @@ Behavior:
   With -o, the draft is kept. An existing -o file is not replaced unless --force is set.
   Does not send the email and does not change invoice.status.
 
+Usage:
+  invox email [INVOICE.yaml | INVOICE.pdf] [flags]
+
+Aliases:
+  invox send
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+      --force              Overwrite an existing output file
+  -i, --input string       Input invoice YAML or PDF file
+  -u, --issuer string      Path to issuer.yaml
+  -o, --output string      Write the draft to this .eml file instead of a temporary one
+  -p, --pdf string         Path to the invoice PDF (default: the input with .pdf)
+      --subject string     Email subject override
+      --to string          Recipient email override
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox email invoice.yaml
-  invox email invoice.pdf
-  invox email invoice.yaml --to billing@example.com
-  invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
+  $ invox email invoice.yaml
+  $ invox email invoice.pdf
+  $ invox email invoice.yaml --to billing@example.com
+  $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 -- want-build.txt --
 Render and compile an invoice PDF with Tectonic.
-
-Usage:
-  invox build (INVOICE.yaml | -i INVOICE.yaml) [-o OUTPUT.pdf] [-c CUSTOMERS.yaml] [-u ISSUER.yaml] [-t TEMPLATE.tex] [--archive [--yes]]
 
 Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default output:
   the input path with .pdf extension
-
-Optional flags:
-  -h, --help              Show this help page
-  -c, --customers PATH    Path to customers.yaml
-  -u, --issuer PATH       Path to issuer.yaml
-  -o, --output PATH       Output file path (must end with .pdf)
-  --archive               Archive the invoice after a successful PDF build
-  --yes                   Replace an archived invoice without asking (required without a terminal)
-  -t, --template PATH     Path to invoice_template.tex
 
 Default lookup:
   customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
@@ -1179,22 +1210,32 @@ Replacing an archived invoice:
   which archive list, numbering and the duplicate-number check ignore.
   --yes only answers the question; every other check still applies.
 
+Usage:
+  invox build [INVOICE.yaml] [flags]
+
+Flags:
+      --archive            Archive the invoice after a successful build
+  -c, --customers string   Path to customers.yaml
+  -i, --input string       Input invoice YAML file
+  -u, --issuer string      Path to issuer.yaml
+  -o, --output string      Output PDF path (default: the input with .pdf)
+  -t, --template string    Template path or name
+      --yes                Replace an archived invoice without asking
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox build invoice.yaml
-  invox build invoice.yaml --archive
-  invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t invoice_template.tex
+  $ invox build invoice.yaml
+  $ invox build invoice.yaml --archive
+  $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 -- want-archive.txt --
 Archive a built or edited invoice YAML file into the configured archive directory.
 
-Usage:
-  invox archive (INVOICE.yaml | -i INVOICE.yaml) [--yes]
-
 Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
-
-Optional flags:
-  -h, --help              Show this help page
-  --yes                   Replace an archived invoice without asking (required without a terminal)
 
 Default lookup:
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
@@ -1206,21 +1247,34 @@ Replacing an archived invoice:
   which archive list, numbering and the duplicate-number check ignore.
   --yes only answers the question; every other check still applies.
 
+Usage:
+  invox archive [INVOICE.yaml] [flags]
+  invox archive <subcommand> [flags]
+
+Commands:
+  edit  Copy an archived invoice into the current directory and mark it as editing
+  list  List archived invoices from the configured archive directory
+
+Flags:
+  -i, --input string   Input invoice YAML file
+      --yes            Replace an archived invoice without asking
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox archive invoice.yaml
-  invox archive invoices/2026-0021.yaml
-  invox archive 2026-03-06.yaml --yes
+  $ invox archive invoice.yaml
+  $ invox archive invoices/2026-0021.yaml
+  $ invox archive 2026-03-06.yaml --yes
+  $ invox archive edit 2026-03-06.yaml
+  $ invox archive list
 -- want-archive-edit.txt --
 Copy an archived invoice into the current directory and mark it as editing.
 
-Usage:
-  invox archive edit FILENAME
-
 Required inputs:
   FILENAME                  Required positional argument
-
-Optional flags:
-  -h, --help              Show this help page
 
 Default lookup:
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
@@ -1231,19 +1285,19 @@ Behavior:
   Re-running invox archive on that working copy replaces the archived invoice.
   It asks first, or needs --yes without a terminal, and keeps the previous version in archive.dir/.history.
 
+Usage:
+  invox archive edit FILENAME [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox archive edit 2026-03-06.yaml
-  invox archive edit customer-a/2026-03-06.yaml
+  $ invox archive edit 2026-03-06.yaml
+  $ invox archive edit customer-a/2026-03-06.yaml
 -- want-archive-list.txt --
 List archived invoices from the configured archive directory.
-
-Usage:
-  invox archive list
-
-Required inputs:
-
-Optional flags:
-  -h, --help              Show this help page
 
 Default lookup:
   archive.dir: config.yaml, then $DATA_HOME/invox/invoices
@@ -1252,13 +1306,29 @@ Output:
   One archived invoice per line as FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS
   On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
 
+Usage:
+  invox archive list [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
 Examples:
-  invox archive list
+  $ invox archive list
 -- want-version.txt --
 Show the invox version.
 
 Usage:
-  invox version
-  invox --version
+  invox version [flags]
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox version
+  $ invox --version
 -- want-help-warning.txt --
 warning: -help is deprecated; use --help

@@ -27,8 +27,26 @@ type InitOptions struct {
 func NewCmdInit(f *cmdutil.Factory, runF func(context.Context, *InitOptions) error) *cobra.Command {
 	opts := &InitOptions{IO: f.IOStreams, Host: f.Host}
 	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Create starter support files in the global config directory",
+		Use:               "init",
+		Short:             "Create starter support files in the global config directory",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Long: `Create starter support files in the global config directory.
+
+Behavior:
+  Creates the global config directory if it does not exist yet.
+  Writes starter versions of config.yaml, customers.yaml, issuer.yaml,
+  invoice_defaults.yaml, and template.tex.
+  Existing non-empty files are left unchanged.
+  When the deprecated invoice-tool directory has files the config directory
+  lacks, asks first, then copies them in before writing the starter files.
+  Nothing is replaced, and the invoice-tool directory is left in place.
+
+Config directory:
+  {{.ConfigDir}}
+`,
+		Example: `$ invox init
+$ invox init --force
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("init", "unexpected arguments: %s", strings.Join(args, " "))

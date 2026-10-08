@@ -20,8 +20,12 @@ type VersionOptions struct {
 func NewCmdVersion(f *cmdutil.Factory, runF func(*VersionOptions) error) *cobra.Command {
 	opts := &VersionOptions{IO: f.IOStreams}
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Show the invox version",
+		Use:               "version",
+		Short:             "Show the invox version",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Example: `$ invox version
+$ invox --version
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("version", "unexpected arguments for version: %s", strings.Join(args, " "))
