@@ -15,7 +15,8 @@ exits 2 invox validate -i invoice.yaml --bogus
 ! stdout .
 stderr '^error: flag provided but not defined: -bogus$'
 
-# Runtime errors: an invalid invoice lists every problem.
+# Runtime errors: an invalid invoice lists every malformed value, with its
+# line. validate_problems.txtar covers missing fields and unknown keys.
 exits 1 invox validate -i broken.yaml
 ! stdout .
 scrubpaths stderr got.txt
@@ -73,14 +74,8 @@ Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 error: missing required flags: -i, --input
 Run 'invox validate --help' for usage.
 -- want-broken.txt --
-error: broken.yaml: unknown customer_id `NOPE-1`
-invoice.due_date: missing value
-invoice.period: missing value
-invoice.issue_date: expected YYYY-MM-DD, got `not-a-date`
-positions[1].description: missing value
-positions[1].unit_price: expected a decimal number such as 12 or 12.50, got `lots`
-invoice.vat_percent: missing value
-Run 'invox customer list' to see the customer IDs.
+error: broken.yaml:4: invoice.issue_date: expected YYYY-MM-DD, got `not-a-date`
+broken.yaml:7: positions[1].unit_price: expected a decimal number such as 12 or 12.50, got `lots`
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

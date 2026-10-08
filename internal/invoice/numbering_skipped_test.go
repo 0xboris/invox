@@ -120,7 +120,7 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 				wantSkipped = append(wantSkipped, filepath.Join(archiveDir, name))
 			}
 
-			number, skipped, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", map[string]any{}, 0)
+			number, skipped, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", Customer{}, 0)
 			if err != nil {
 				t.Fatalf("NextInvoiceNumber returned error: %v", err)
 			}

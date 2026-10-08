@@ -22,8 +22,8 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	// Set notes instead of appending it, so editing an invoice that was
-	// already edited once still writes a single notes key.
+	// Set the period instead of appending a key, so editing an invoice that
+	// was already edited once still writes a single period key.
 	document, err := loadYAMLDocument(workingCopy)
 	if err != nil {
 		t.Fatalf("loadYAMLDocument returned error: %v", err)
@@ -32,7 +32,7 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	if err != nil {
 		t.Fatalf("documentRootMapping returned error: %v", err)
 	}
-	setMappingString(root, "notes", "edited")
+	setMappingString(findMappingValue(root, "invoice"), "period", "edited")
 	if err := writeYAMLDocument(workingCopy, document); err != nil {
 		t.Fatalf("writeYAMLDocument(%s) returned error: %v", workingCopy, err)
 	}
@@ -101,7 +101,7 @@ func TestArchiveInvoiceReplaceKeepsBackupInHistory(t *testing.T) {
 	if got := readTestFile(t, backupPath); got != original {
 		t.Fatalf("backup = %q, want the previous version %q", got, original)
 	}
-	if !strings.Contains(readTestFile(t, archivedPath), "notes: edited") {
+	if !strings.Contains(readTestFile(t, archivedPath), "period: edited") {
 		t.Fatalf("archived invoice was not replaced:\n%s", readTestFile(t, archivedPath))
 	}
 
@@ -196,7 +196,7 @@ func TestArchiveHistoryIsIgnoredByNumberingAndDuplicateCheck(t *testing.T) {
 	}
 	writeStatusInvoice(t, filepath.Join(historyDir, "old.20261005T123045Z.yaml"), "CUST-001-009", "archived")
 
-	invoiceNumber, _, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", map[string]any{}, 0)
+	invoiceNumber, _, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", Customer{}, 0)
 	if err != nil {
 		t.Fatalf("NextInvoiceNumber returned error: %v", err)
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestParseYAMLSourceKeepsSourceTextOfNumericScalars(t *testing.T) {
+func TestDecodeYAMLKeepsSourceTextOfNumericScalars(t *testing.T) {
 	tests := []struct {
 		name   string
 		source string
@@ -24,12 +24,10 @@ func TestParseYAMLSourceKeepsSourceTextOfNumericScalars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, err := parseYAMLSource([]byte(tt.source), "test.yaml")
-			if err != nil {
-				t.Fatalf("parseYAMLSource returned error: %v", err)
-			}
-			got := value.(map[string]any)["value"]
-			if got != tt.want {
+			got := decodeForTest[struct {
+				Value Text `yaml:"value"`
+			}](t, tt.source).Value
+			if got != Text(tt.want) {
 				t.Fatalf("value = %#v, want %q", got, tt.want)
 			}
 		})
@@ -45,10 +43,10 @@ func TestLoadContextKeepsLeadingZeroPostalCodeAndInvoiceNumber(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
-	if got := getPath(ctx.Customer, "address.postal_code"); got != "01067" {
+	if got := ctx.Customer.Address.PostalCode; got != "01067" {
 		t.Fatalf("customer postal_code = %#v, want %q", got, "01067")
 	}
-	if got := asString(ctx.Invoice["number"]); got != "0042" {
+	if got := ctx.Invoice.Number; got != "0042" {
 		t.Fatalf("invoice number = %q, want %q", got, "0042")
 	}
 }

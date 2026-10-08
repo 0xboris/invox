@@ -2774,9 +2774,9 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 		t.Fatal("CreateNewInvoice returned nil error for legacy default keys")
 	}
 	for _, want := range []string{
-		defaultsPath + ": invoice.period_label: unsupported key; use invoice.period",
-		defaultsPath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		defaultsPath + ": line_items: unsupported key; use positions",
+		defaultsPath + ":2: invoice.period_label: unsupported key; use invoice.period",
+		defaultsPath + ":3: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		defaultsPath + ":4: line_items: unsupported key; use positions",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
@@ -2972,9 +2972,9 @@ line_items:
 		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
 	}
 	for _, want := range []string{
-		archivePath + ": invoice.period_label: unsupported key; use invoice.period",
-		archivePath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		archivePath + ": line_items: unsupported key; use positions",
+		archivePath + ":7: invoice.period_label: unsupported key; use invoice.period",
+		archivePath + ":8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		archivePath + ":10: line_items: unsupported key; use positions",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
@@ -3124,9 +3124,9 @@ line_items:
 		t.Fatal("EditArchivedInvoice returned nil error for legacy keys")
 	}
 	for _, want := range []string{
-		archivePath + ": invoice.period_label: unsupported key; use invoice.period",
-		archivePath + ": invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		archivePath + ": line_items: unsupported key; use positions",
+		archivePath + ":7: invoice.period_label: unsupported key; use invoice.period",
+		archivePath + ":8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
+		archivePath + ":10: line_items: unsupported key; use positions",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)

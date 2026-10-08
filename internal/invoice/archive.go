@@ -136,54 +136,36 @@ func walkArchiveDir(archiveDir string, visit func(path string) error) error {
 	})
 }
 
-func archivedInvoiceValue(path string) (any, bool, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		value, err := loadYAML(path)
-		if err != nil {
-			return nil, false, err
-		}
-		return value, true, nil
-	case ".md", ".markdown":
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return nil, false, err
-		}
-		frontMatter, ok := markdownFrontMatter(source)
-		if !ok {
-			return nil, false, nil
-		}
-
-		value, err := parseYAMLSource(frontMatter, "front matter in "+path)
-		if err != nil {
-			return nil, false, err
-		}
-		return value, true, nil
-	default:
-		return nil, false, nil
+// archivedInvoiceIdentity reads what the archive lists of the invoice at
+// path. ok is false for a file that is not an invoice: Markdown without
+// front matter, or a document whose invoice fields cannot be read.
+func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
+	document, ok, err := loadArchivedInvoiceDocument(path)
+	if err != nil || !ok {
+		return invoiceIdentity{}, false, err
 	}
+	root, err := documentRootMapping(document, path)
+	if err != nil {
+		return invoiceIdentity{}, false, nil
+	}
+	var identity invoiceIdentity
+	if err := decodeYAMLNode(root, path, "", &identity, false); err != nil || identity.Invoice == nil {
+		return invoiceIdentity{}, false, nil
+	}
+	return identity, true, nil
 }
 
 func archivedInvoiceRecordFromPath(path, archiveDir string) (archivedInvoiceRecord, bool, error) {
-	value, ok, err := archivedInvoiceValue(path)
+	identity, ok, err := archivedInvoiceIdentity(path)
 	if err != nil || !ok {
 		return archivedInvoiceRecord{}, ok, err
-	}
-
-	root, ok := value.(map[string]any)
-	if !ok {
-		return archivedInvoiceRecord{}, false, nil
-	}
-	invoice, ok := root["invoice"].(map[string]any)
-	if !ok {
-		return archivedInvoiceRecord{}, false, nil
 	}
 
 	filename, err := filepath.Rel(archiveDir, path)
 	if err != nil {
 		filename = filepath.Base(path)
 	}
-	status := strings.TrimSpace(asString(invoice["status"]))
+	status := identity.Invoice.Status.Trim()
 	if status == "" {
 		status = "archived"
 	}
@@ -191,10 +173,10 @@ func archivedInvoiceRecordFromPath(path, archiveDir string) (archivedInvoiceReco
 	return archivedInvoiceRecord{
 		Path:          path,
 		Filename:      filename,
-		CustomerID:    strings.TrimSpace(asString(root["customer_id"])),
-		IssueDate:     strings.TrimSpace(asString(invoice["issue_date"])),
+		CustomerID:    identity.CustomerID.Trim(),
+		IssueDate:     identity.Invoice.IssueDate.Trim(),
 		Status:        status,
-		InvoiceNumber: strings.TrimSpace(asString(invoice["number"])),
+		InvoiceNumber: identity.Invoice.Number.Trim(),
 	}, true, nil
 }
 
@@ -324,7 +306,7 @@ func (h Host) CheckArchivedNumberUnique(invoicePath string) error {
 	if strings.TrimSpace(archiveDir) == "" {
 		return nil
 	}
-	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
+	invoiceNumber := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "number")))
 	return h.checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root)
 }
 

@@ -52,7 +52,7 @@ func (h Host) ResolveNumberingSettings() (NumberingSettings, error) {
 	return settings, nil
 }
 
-func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[string]any, minimumCounter int64) (string, []string, error) {
+func (h Host) NextInvoiceNumber(customerID, issueDate string, customer Customer, minimumCounter int64) (string, []string, error) {
 	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return "", nil, err
@@ -81,23 +81,17 @@ func (h Host) NextInvoiceNumber(customerID, issueDate string, customer map[strin
 	return invoiceNumber, skipped, nil
 }
 
-func effectiveNumberingStart(customerID string, customer map[string]any, globalStart int64) (int64, error) {
-	rawStart := strings.TrimSpace(asString(getPath(customer, "numbering.start")))
-	if rawStart == "" {
+func effectiveNumberingStart(customerID string, customer Customer, globalStart int64) (int64, error) {
+	if !customer.Numbering.Start.isSet() {
 		return globalStart, nil
 	}
-
-	start, err := strconv.ParseInt(rawStart, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("customers.%s.numbering.start: expected a positive integer, got %q", customerID, rawStart)
+	if start := customer.Numbering.Start.Int(); start > 0 {
+		return start, nil
 	}
-	if start <= 0 {
-		return 0, fmt.Errorf("customers.%s.numbering.start: must be >= 1", customerID)
-	}
-	return start, nil
+	return 0, fmt.Errorf("customers.%s.numbering.start: must be >= 1", customerID)
 }
 
-func (h Host) CounterFromInvoiceNumber(invoiceNumber, customerID, issueDate string, customer map[string]any) (int64, error) {
+func (h Host) CounterFromInvoiceNumber(invoiceNumber, customerID, issueDate string, customer Customer) (int64, error) {
 	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return 0, err
@@ -202,7 +196,7 @@ func validateCustomerCounterSeparator(pattern string) error {
 	return nil
 }
 
-func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer map[string]any) (int64, []string, error) {
+func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer Customer) (int64, []string, error) {
 	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return 0, nil, err
@@ -273,7 +267,7 @@ func inNumberingPeriod(pattern, date, issueDate string) bool {
 // (status draft or built) directly inside dirs, so that two drafts created
 // before either is archived do not get the same number. Files that cannot be
 // parsed, are not invoices, or do not match the numbering pattern are ignored.
-func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, customer map[string]any) (int64, error) {
+func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, customer Customer) (int64, error) {
 	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return 0, err
@@ -329,24 +323,16 @@ func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, c
 const maxDraftScanSize = 1 << 20
 
 func draftInvoiceNumber(path string) (string, bool) {
-	value, err := loadYAML(path)
-	if err != nil {
+	var identity invoiceIdentity
+	if err := decodeYAMLFile(path, &identity, false); err != nil || identity.Invoice == nil {
 		return "", false
 	}
-	root, ok := value.(map[string]any)
-	if !ok {
-		return "", false
-	}
-	invoice, ok := root["invoice"].(map[string]any)
-	if !ok {
-		return "", false
-	}
-	switch strings.TrimSpace(asString(invoice["status"])) {
+	switch identity.Invoice.Status.Trim() {
 	case "draft", "built":
 	default:
 		return "", false
 	}
-	invoiceNumber := strings.TrimSpace(asString(invoice["number"]))
+	invoiceNumber := identity.Invoice.Number.Trim()
 	return invoiceNumber, invoiceNumber != ""
 }
 
@@ -374,7 +360,7 @@ func markdownFrontMatter(source []byte) ([]byte, bool) {
 	return []byte("\n" + remainder[:end]), true
 }
 
-func formatInvoiceNumber(pattern, customerID string, customer map[string]any, issueDate string, counter int64) (string, error) {
+func formatInvoiceNumber(pattern, customerID string, customer Customer, issueDate string, counter int64) (string, error) {
 	issueTime, customerCode, err := numberingValues(customerID, customer, issueDate)
 	if err != nil {
 		return "", err
@@ -412,7 +398,7 @@ func formatInvoiceNumber(pattern, customerID string, customer map[string]any, is
 	return strings.TrimSpace(replaced), nil
 }
 
-func parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate string, customer map[string]any) (int64, error) {
+func parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate string, customer Customer) (int64, error) {
 	issueTime, customerCode, err := numberingValues(customerID, customer, issueDate)
 	if err != nil {
 		return 0, err
@@ -473,13 +459,13 @@ func parseInvoiceCounter(pattern, invoiceNumber, customerID, issueDate string, c
 	return counter, nil
 }
 
-func numberingValues(customerID string, customer map[string]any, issueDate string) (time.Time, string, error) {
+func numberingValues(customerID string, customer Customer, issueDate string) (time.Time, string, error) {
 	issueTime, err := time.Parse("2006-01-02", issueDate)
 	if err != nil {
 		return time.Time{}, "", fmt.Errorf("invoice.issue_date: expected YYYY-MM-DD, got %q", issueDate)
 	}
 
-	customerCode := strings.TrimSpace(asString(getPath(customer, "numbering.code")))
+	customerCode := customer.Numbering.Code.Trim()
 	if customerCode == "" {
 		customerCode = customerID
 	}

@@ -23,61 +23,69 @@ func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
 	}
 }
 
-func TestParseYAMLSourceMergeKeys(t *testing.T) {
+// mergeItem is the schema of `item` in the merge key cases. The `<<` field
+// reads a quoted "<<" key, which is a plain key and not a merge.
+type mergeItem struct {
+	A      Text        `yaml:"a"`
+	B      Text        `yaml:"b"`
+	C      Text        `yaml:"c"`
+	List   []mergeItem `yaml:"list"`
+	Quoted Text        `yaml:"<<"`
+}
+
+func TestDecodeYAMLMergeKeys(t *testing.T) {
 	tests := []struct {
 		name   string
 		source string
-		want   map[string]any
+		want   mergeItem
 	}{
 		{
 			name:   "single alias",
 			source: "base: &base {a: 1, b: x}\nitem:\n  <<: *base\n  c: y\n",
-			want:   map[string]any{"a": "1", "b": "x", "c": "y"},
+			want:   mergeItem{A: "1", B: "x", C: "y"},
 		},
 		{
 			name:   "explicit key wins over merged key after it",
 			source: "base: &base {a: 1, b: x}\nitem:\n  b: own\n  <<: *base\n",
-			want:   map[string]any{"a": "1", "b": "own"},
+			want:   mergeItem{A: "1", B: "own"},
 		},
 		{
 			name:   "explicit key wins over merged key before it",
 			source: "base: &base {a: 1, b: x}\nitem:\n  <<: *base\n  b: own\n",
-			want:   map[string]any{"a": "1", "b": "own"},
+			want:   mergeItem{A: "1", B: "own"},
 		},
 		{
 			name:   "list of aliases, earlier wins",
 			source: "one: &one {a: 1, b: one}\ntwo: &two {b: two, c: 3}\nitem:\n  <<: [*one, *two]\n",
-			want:   map[string]any{"a": "1", "b": "one", "c": "3"},
+			want:   mergeItem{A: "1", B: "one", C: "3"},
 		},
 		{
 			name:   "inline mapping",
 			source: "item:\n  <<: {a: 1}\n  b: 2\n",
-			want:   map[string]any{"a": "1", "b": "2"},
+			want:   mergeItem{A: "1", B: "2"},
 		},
 		{
 			name:   "nested merge",
 			source: "base: &base {a: 1}\nmid: &mid\n  <<: *base\n  b: 2\nitem:\n  <<: *mid\n  c: 3\n",
-			want:   map[string]any{"a": "1", "b": "2", "c": "3"},
+			want:   mergeItem{A: "1", B: "2", C: "3"},
 		},
 		{
 			name:   "merge inside a sequence item",
 			source: "base: &base {a: 1}\nitem:\n  <<: *base\n  list:\n    - <<: *base\n      b: 2\n",
-			want:   map[string]any{"a": "1", "list": []any{map[string]any{"a": "1", "b": "2"}}},
+			want:   mergeItem{A: "1", List: []mergeItem{{A: "1", B: "2"}}},
 		},
 		{
 			name:   "quoted << is a plain key",
 			source: "item:\n  \"<<\": text\n",
-			want:   map[string]any{"<<": "text"},
+			want:   mergeItem{Quoted: "text"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, err := parseYAMLSource([]byte(tt.source), "test.yaml")
-			if err != nil {
-				t.Fatalf("parseYAMLSource returned error: %v", err)
-			}
-			got := value.(map[string]any)["item"]
+			got := decodeForTest[struct {
+				Item mergeItem `yaml:"item"`
+			}](t, tt.source).Item
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("item = %#v, want %#v", got, tt.want)
 			}
@@ -85,7 +93,7 @@ func TestParseYAMLSourceMergeKeys(t *testing.T) {
 	}
 }
 
-func TestParseYAMLSourceRejectsInvalidMappings(t *testing.T) {
+func TestParseYAMLDocumentSourceRejectsInvalidMappings(t *testing.T) {
 	tests := []struct {
 		name    string
 		source  string
@@ -135,9 +143,9 @@ func TestParseYAMLSourceRejectsInvalidMappings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseYAMLSource([]byte(tt.source), "test.yaml")
+			_, err := parseYAMLDocumentSource([]byte(tt.source), "test.yaml")
 			if err == nil {
-				t.Fatalf("parseYAMLSource returned nil error, want %q", tt.wantErr)
+				t.Fatalf("parseYAMLDocumentSource returned nil error, want %q", tt.wantErr)
 			}
 			if err.Error() != tt.wantErr {
 				t.Fatalf("error = %q, want %q", err.Error(), tt.wantErr)
@@ -146,7 +154,12 @@ func TestParseYAMLSourceRejectsInvalidMappings(t *testing.T) {
 	}
 }
 
-func TestParseYAMLSourceKeepsAnchorsAndAliases(t *testing.T) {
+type anchorAddress struct {
+	Street Text `yaml:"street"`
+	City   Text `yaml:"city"`
+}
+
+func TestDecodeYAMLKeepsAnchorsAndAliases(t *testing.T) {
 	source := `
 address: &address
   street: Ring 1
@@ -160,20 +173,30 @@ customers:
       address: *address
       tags: *tags
 `
-	value, err := parseYAMLSource([]byte(source), "test.yaml")
-	if err != nil {
-		t.Fatalf("parseYAMLSource returned error: %v", err)
-	}
+	customers := decodeForTest[struct {
+		Address   anchorAddress `yaml:"address"`
+		Customers struct {
+			A struct {
+				Address anchorAddress `yaml:"address"`
+				Tags    []Text        `yaml:"tags"`
+			} `yaml:"A"`
+			B struct {
+				Nested struct {
+					Address anchorAddress `yaml:"address"`
+					Tags    []Text        `yaml:"tags"`
+				} `yaml:"nested"`
+			} `yaml:"B"`
+		} `yaml:"customers"`
+	}](t, source).Customers
 
-	address := map[string]any{"street": "Ring 1", "city": "Vienna"}
-	customers := value.(map[string]any)["customers"].(map[string]any)
-	if got := getPath(customers["A"].(map[string]any), "address"); !reflect.DeepEqual(got, address) {
+	address := anchorAddress{Street: "Ring 1", City: "Vienna"}
+	if got := customers.A.Address; got != address {
 		t.Fatalf("A.address = %#v, want %#v", got, address)
 	}
-	if got := getPath(customers["B"].(map[string]any), "nested.address"); !reflect.DeepEqual(got, address) {
+	if got := customers.B.Nested.Address; got != address {
 		t.Fatalf("B.nested.address = %#v, want %#v", got, address)
 	}
-	if got := getPath(customers["B"].(map[string]any), "nested.tags"); !reflect.DeepEqual(got, []any{"x", "y"}) {
+	if got := customers.B.Nested.Tags; !reflect.DeepEqual(got, []Text{"x", "y"}) {
 		t.Fatalf("B.nested.tags = %#v, want [x y]", got)
 	}
 }
@@ -206,16 +229,16 @@ func TestLoadContextRejectsDuplicateKeyInCustomers(t *testing.T) {
 	}
 }
 
-func TestArchivedInvoiceValueReportsMarkdownFileLines(t *testing.T) {
+func TestArchivedInvoiceIdentityReportsMarkdownFileLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "invoice.md")
 	source := "---\ninvoice:\n  number: A-1\n  number: A-2\n---\n# Invoice\n"
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
-	_, _, err := archivedInvoiceValue(path)
+	_, _, err := archivedInvoiceIdentity(path)
 	if err == nil {
-		t.Fatal("archivedInvoiceValue returned nil error, want duplicate key error")
+		t.Fatal("archivedInvoiceIdentity returned nil error, want duplicate key error")
 	}
 	if want := "front matter in " + path + `:4: duplicate key "number" (first defined on line 3)`; err.Error() != want {
 		t.Fatalf("error = %q, want %q", err.Error(), want)
@@ -249,12 +272,16 @@ func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
 			if strings.Contains(string(written), "!!merge") || !strings.Contains(string(written), "  <<: *d\n") {
 				t.Fatalf("written file does not keep `<<: *d`:\n%s", written)
 			}
-			value, err := loadYAML(path)
+			document, err := loadYAMLDocument(path)
 			if err != nil {
-				t.Fatalf("loadYAML returned error: %v", err)
+				t.Fatalf("loadYAMLDocument returned error: %v", err)
 			}
-			if got := getPath(value.(map[string]any), "invoice.currency"); got != "EUR" {
-				t.Fatalf("invoice.currency = %#v, want %q", got, "EUR")
+			root, err := documentRootMapping(document, path)
+			if err != nil {
+				t.Fatalf("documentRootMapping returned error: %v", err)
+			}
+			if got := mergedText(findMappingValue(root, "invoice"), "currency"); got != "EUR" {
+				t.Fatalf("invoice.currency = %q, want %q", got, "EUR")
 			}
 		})
 	}

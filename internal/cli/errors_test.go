@@ -142,7 +142,7 @@ func TestValidateReportsCustomerProblemsWithoutFieldNoise(t *testing.T) {
 			replace: "customer_id: CUST-001",
 			with:    "customer_id: CUST-SCALAR",
 			extra:   "\nCUST-SCALAR: just a string\n",
-			want:    "error: customers.yaml: customer `CUST-SCALAR` must be a mapping\n",
+			want:    "error: customers.yaml:15: customer `CUST-SCALAR` must be a mapping\n",
 		},
 	}
 	for _, tt := range tests {

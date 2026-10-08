@@ -125,7 +125,7 @@ func TestIsValidIBANRejectsOutOfRangeCheckDigits(t *testing.T) {
 
 func TestParseInvoiceCounterReturnsErrorForInvalidUTF8Pattern(t *testing.T) {
 	// regexp.MustCompile panicked on this pattern.
-	_, err := parseInvoiceCounter("\xff{customer_id}-{counter}", "\xffCUST-001-1", "CUST-001", "2026-03-06", nil)
+	_, err := parseInvoiceCounter("\xff{customer_id}-{counter}", "\xffCUST-001-1", "CUST-001", "2026-03-06", Customer{})
 	if err == nil || !strings.Contains(err.Error(), "invalid UTF-8") {
 		t.Fatalf("parseInvoiceCounter error = %v, want an invalid UTF-8 error", err)
 	}
@@ -167,11 +167,11 @@ func TestValidateNumberingSettingsRejectsPatternsThatDoNotRoundTrip(t *testing.T
 
 func TestParseInvoiceCounterTrimsPatternLikeFormat(t *testing.T) {
 	pattern := " {customer_id}-{counter:03} "
-	number, err := formatInvoiceNumber(pattern, "CUST-001", nil, "2026-03-06", 7)
+	number, err := formatInvoiceNumber(pattern, "CUST-001", Customer{}, "2026-03-06", 7)
 	if err != nil {
 		t.Fatalf("formatInvoiceNumber returned error: %v", err)
 	}
-	counter, err := parseInvoiceCounter(pattern, number, "CUST-001", "2026-03-06", nil)
+	counter, err := parseInvoiceCounter(pattern, number, "CUST-001", "2026-03-06", Customer{})
 	if err != nil {
 		t.Fatalf("parseInvoiceCounter(%q) returned error: %v", number, err)
 	}
@@ -199,12 +199,12 @@ func TestBuildEPCPayloadRejectsNonPositiveAmountAndInvalidUTF8(t *testing.T) {
 				Currency:         "EUR",
 				TotalCents:       tt.cents,
 				OutstandingCents: tt.cents,
-				IssuerPayment: map[string]any{
-					"iban":   "AT611904300234573201",
-					"bic":    "BKAUATWW",
-					"epc_qr": map[string]any{"name": tt.epcName},
+				Payment: Payment{
+					IBAN:  "AT611904300234573201",
+					BIC:   "BKAUATWW",
+					EPCQR: EPCQR{Name: Text(tt.epcName)},
 				},
-				Invoice: map[string]any{"number": "CUST-001-001"},
+				Invoice: InvoiceHeader{Number: "CUST-001-001"},
 			}
 			payload, err := buildEPCPayload(ctx)
 			if err == nil {

@@ -1,29 +1,12 @@
 package invoice
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"time"
+	"reflect"
 
 	yaml "gopkg.in/yaml.v3"
 )
-
-func loadYAML(path string) (any, error) {
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return parseYAMLSource(source, path)
-}
-
-func parseYAMLSource(source []byte, label string) (any, error) {
-	document, err := parseYAMLDocumentSource(source, label)
-	if err != nil {
-		return nil, err
-	}
-	return normalizeYAMLNode(document), nil
-}
 
 // maxYAMLAliasNodes caps how many nodes a document may reach through
 // aliases, counting every node inside each expansion. A real invoice reuses a
@@ -31,7 +14,7 @@ func parseYAMLSource(source []byte, label string) (any, error) {
 // few hundred bytes reaches hundreds of millions.
 const maxYAMLAliasNodes = 100_000
 
-// YAMLAliasError reports an alias that normalizeYAMLNode cannot expand: one
+// YAMLAliasError reports an alias that the decoder cannot expand: one
 // that refers to a node containing it, or one that takes the document past
 // maxYAMLAliasNodes nodes reached through aliases.
 type YAMLAliasError struct {
@@ -48,7 +31,7 @@ func (e *YAMLAliasError) Error() string {
 	return fmt.Sprintf("%s:%d: aliases expand to more than %d nodes", e.Label, e.Line, maxYAMLAliasNodes)
 }
 
-// checkYAMLMappings rejects what normalizeYAMLNode cannot represent
+// checkYAMLMappings rejects what the decoder cannot represent
 // faithfully: a key defined twice in one mapping, a merge key whose value is
 // not a mapping or a list of mappings, and aliases that recurse or expand
 // past maxYAMLAliasNodes.
@@ -95,7 +78,7 @@ func checkYAMLMappingKeys(node *yaml.Node, label string) error {
 	return nil
 }
 
-// checkYAMLAliases walks the document the way normalizeYAMLNode expands it,
+// checkYAMLAliases walks the document the way the decoder expands it,
 // keeping the nodes on the current path to catch an alias to one of them, and
 // stops once aliases have reached maxYAMLAliasNodes nodes. An error names the
 // outermost alias being expanded.
@@ -178,85 +161,182 @@ func clearYAMLMergeTags(node *yaml.Node) {
 	}
 }
 
-func normalizeYAMLNode(node *yaml.Node) any {
-	if node == nil {
-		return nil
-	}
+// DecodeError is a value in a YAML file that does not fit the schema: an
+// unknown key, a value of the wrong kind, or a malformed number or date.
+type DecodeError struct {
+	File string
+	Line int
+	// Path is the field, such as positions[2].unit_price. It is "" when
+	// Problem names the field itself.
+	Path    string
+	Problem string
+}
 
-	switch node.Kind {
-	case yaml.DocumentNode:
-		if len(node.Content) == 0 {
-			return nil
+func (e *DecodeError) Error() string {
+	if e.Path == "" {
+		return fmt.Sprintf("%s:%d: %s", e.File, e.Line, e.Problem)
+	}
+	return fmt.Sprintf("%s:%d: %s: %s", e.File, e.Line, e.Path, e.Problem)
+}
+
+// decodeYAMLFile reads the YAML file at path and decodes its root mapping
+// into out, a pointer to a schema struct. Problems with values come back as
+// *DecodeError values, several joined with errors.Join in file order.
+func decodeYAMLFile(path string, out any, strict bool) error {
+	document, err := loadYAMLDocument(path)
+	if err != nil {
+		return err
+	}
+	return decodeYAMLDocument(document, path, out, strict)
+}
+
+func decodeYAMLDocument(document *yaml.Node, label string, out any, strict bool) error {
+	root, err := documentRootMapping(document, label)
+	if err != nil {
+		return err
+	}
+	return decodeYAMLNode(root, label, "", out, strict)
+}
+
+// decodeYAMLNode decodes n, found at path in the file label, into out. A
+// strict decode rejects keys the schema does not define.
+func decodeYAMLNode(n *yaml.Node, label, path string, out any, strict bool) error {
+	d := &yamlDecoder{label: label, strict: strict}
+	d.decode(n, reflect.ValueOf(out).Elem(), path)
+	return errors.Join(d.errs...)
+}
+
+type yamlDecoder struct {
+	label  string
+	strict bool
+	errs   []error
+}
+
+func (d *yamlDecoder) fail(n *yaml.Node, path, problem string) {
+	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Path: path, Problem: problem})
+}
+
+// decode fills out from n. Schema structs map YAML keys to fields with yaml
+// tags, a pointer field stays nil when its key is missing or null, and a
+// scalarField decodes its own node.
+func (d *yamlDecoder) decode(n *yaml.Node, out reflect.Value, path string) {
+	n = resolveYAMLAlias(n)
+	if field, ok := out.Addr().Interface().(scalarField); ok {
+		if err := field.decodeScalar(n); err != nil {
+			d.fail(n, path, err.Error())
 		}
-		return normalizeYAMLNode(node.Content[0])
-	case yaml.MappingNode:
-		normalized := make(map[string]any, len(node.Content)/2)
-		// Merge keys follow YAML 1.1: the mapping's own keys win over merged
-		// ones, and in `<<: [*a, *b]` a key from *a wins over the same key
-		// from *b.
-		for index := 0; index+1 < len(node.Content); index += 2 {
-			if isYAMLMergeKey(node.Content[index]) {
-				mergeYAMLValue(normalized, node.Content[index+1])
-			}
+		return
+	}
+	if n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null" {
+		return
+	}
+	switch out.Kind() {
+	case reflect.Pointer:
+		value := reflect.New(out.Type().Elem())
+		d.decode(n, value.Elem(), path)
+		out.Set(value)
+	case reflect.Struct:
+		if n.Kind != yaml.MappingNode {
+			d.fail(n, "", fmt.Sprintf("%s must be a mapping, got %s", path, describeNode(n)))
+			return
 		}
-		for index := 0; index+1 < len(node.Content); index += 2 {
-			keyNode := node.Content[index]
-			if isYAMLMergeKey(keyNode) {
-				continue
-			}
-			normalized[keyNode.Value] = normalizeYAMLNode(node.Content[index+1])
+		d.decodeStruct(n, out, path)
+	case reflect.Slice:
+		if n.Kind != yaml.SequenceNode {
+			d.fail(n, "", fmt.Sprintf("%s must be a list, got %s", path, describeNode(n)))
+			return
 		}
-		return normalized
-	case yaml.SequenceNode:
-		normalized := make([]any, len(node.Content))
-		for index, child := range node.Content {
-			normalized[index] = normalizeYAMLNode(child)
+		items := reflect.MakeSlice(out.Type(), len(n.Content), len(n.Content))
+		for index, child := range n.Content {
+			d.decode(child, items.Index(index), fmt.Sprintf("%s[%d]", path, index+1))
 		}
-		return normalized
-	case yaml.AliasNode:
-		return normalizeYAMLNode(node.Alias)
-	case yaml.ScalarNode:
-		return normalizeYAMLScalar(node)
+		out.Set(items)
 	default:
-		return nil
+		panic(fmt.Sprintf("invoice: no YAML decoding for %s", out.Type()))
 	}
 }
 
-// mergeYAMLValue copies the keys of a merge key's value into target, keeping
-// keys target already has.
-func mergeYAMLValue(target map[string]any, value *yaml.Node) {
-	sources := []*yaml.Node{value}
-	if value.Kind == yaml.SequenceNode {
-		sources = value.Content
+// removedKey marks a key invox no longer reads. Its replacement tag names
+// the key that took its place.
+type removedKey struct{}
+
+var removedKeyType = reflect.TypeOf(removedKey{})
+
+func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string) {
+	fields := yamlFields(out.Type())
+	for _, pair := range mappingPairs(n) {
+		key := pair.key.Value
+		fieldPath := key
+		if path != "" {
+			fieldPath = path + "." + key
+		}
+		index, ok := fields[key]
+		switch {
+		case !ok:
+			// A key whose value defines an anchor holds a definition for
+			// aliases elsewhere, as in `reduced: &reduced {vat_percent: 10}`.
+			if d.strict && pair.value.Anchor == "" {
+				problem := fmt.Sprintf("unknown key %q", key)
+				if path != "" {
+					problem += " in " + path
+				}
+				d.fail(pair.key, "", problem)
+			}
+		case out.Type().Field(index).Type == removedKeyType:
+			d.fail(pair.key, fieldPath, "unsupported key; use "+out.Type().Field(index).Tag.Get("replacement"))
+		default:
+			d.decode(pair.value, out.Field(index), fieldPath)
+		}
 	}
-	for _, source := range sources {
-		merged, ok := normalizeYAMLNode(source).(map[string]any)
-		if !ok {
+}
+
+// yamlFields maps the yaml tag of each field of a schema struct to the
+// field's index.
+func yamlFields(t reflect.Type) map[string]int {
+	fields := make(map[string]int, t.NumField())
+	for index := range t.NumField() {
+		if name := t.Field(index).Tag.Get("yaml"); name != "" {
+			fields[name] = index
+		}
+	}
+	return fields
+}
+
+type yamlPair struct {
+	key, value *yaml.Node
+}
+
+// mappingPairs returns the entries of a mapping with its merge key applied
+// as YAML 1.1 defines it: the mapping's own keys win over merged ones, and
+// in `<<: [*a, *b]` a key from *a wins over the same key from *b.
+// checkYAMLMappings has already rejected merge values that are not
+// mappings.
+func mappingPairs(n *yaml.Node) []yamlPair {
+	var pairs []yamlPair
+	var merges []*yaml.Node
+	seen := make(map[string]bool, len(n.Content)/2)
+	for index := 0; index+1 < len(n.Content); index += 2 {
+		key, value := n.Content[index], n.Content[index+1]
+		if isYAMLMergeKey(key) {
+			merges = append(merges, value)
 			continue
 		}
-		for key, item := range merged {
-			if _, exists := target[key]; !exists {
-				target[key] = item
+		seen[key.Value] = true
+		pairs = append(pairs, yamlPair{key: key, value: value})
+	}
+	for _, merge := range merges {
+		sources := []*yaml.Node{merge}
+		if merge.Kind == yaml.SequenceNode {
+			sources = merge.Content
+		}
+		for _, source := range sources {
+			for _, pair := range mappingPairs(resolveYAMLAlias(source)) {
+				if !seen[pair.key.Value] {
+					seen[pair.key.Value] = true
+					pairs = append(pairs, pair)
+				}
 			}
 		}
 	}
-}
-
-func normalizeYAMLScalar(node *yaml.Node) any {
-	// Numbers keep their source text: yaml.v3 would read `01067` or `0042` as
-	// octal and `12.50` as 12.5. Fields that need a number parse the text with
-	// a strict decimal grammar instead.
-	switch node.ShortTag() {
-	case "!!int", "!!float":
-		return node.Value
-	}
-
-	var value any
-	if err := node.Decode(&value); err != nil {
-		return node.Value
-	}
-	if typed, ok := value.(time.Time); ok {
-		return typed.Format("2006-01-02")
-	}
-	return value
+	return pairs
 }

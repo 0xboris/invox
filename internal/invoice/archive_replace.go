@@ -150,14 +150,12 @@ func writeArchiveBackup(path, stamp string, data []byte) (string, error) {
 // build. An archived invoice keeps `archived`: rebuilding its PDF does not
 // take it out of the archive.
 func MarkInvoiceBuilt(invoicePath string) error {
-	value, err := loadYAML(invoicePath)
-	if err != nil {
+	var identity invoiceIdentity
+	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil && !isDecodeError(err) {
 		return err
 	}
-	if root, ok := value.(map[string]any); ok {
-		if invoice, ok := root["invoice"].(map[string]any); ok && strings.TrimSpace(asString(invoice["status"])) == "archived" {
-			return nil
-		}
+	if identity.Invoice != nil && identity.Invoice.Status.Trim() == "archived" {
+		return nil
 	}
 	return SetInvoiceStatus(invoicePath, "built")
 }

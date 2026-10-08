@@ -41,10 +41,7 @@ func FuzzInvoiceNumberRoundTrip(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, pattern, customerID, customerCode, issueDate string, counter int64) {
-		var customer map[string]any
-		if customerCode != "" {
-			customer = map[string]any{"numbering": map[string]any{"code": customerCode}}
-		}
+		customer := Customer{Numbering: CustomerNumbering{Code: Text(customerCode)}}
 
 		// Parsing never panics, whatever the pattern and number.
 		_, _ = parseInvoiceCounter(pattern, customerID, customerID, issueDate, customer)
@@ -416,13 +413,13 @@ func FuzzBuildEPCPayload(f *testing.F) {
 			Currency:         "EUR",
 			TotalCents:       cents,
 			OutstandingCents: cents,
-			IssuerCompany:    map[string]any{"legal_company_name": "Fallback Name"},
-			IssuerPayment: map[string]any{
-				"iban":   iban,
-				"bic":    bic,
-				"epc_qr": map[string]any{"name": name, "text": ref},
+			Company:          Company{LegalCompanyName: "Fallback Name"},
+			Payment: Payment{
+				IBAN:  Text(iban),
+				BIC:   Text(bic),
+				EPCQR: EPCQR{Name: Text(name), Text: Text(ref)},
 			},
-			Invoice: map[string]any{"number": "CUST-001-001"},
+			Invoice: InvoiceHeader{Number: "CUST-001-001"},
 		}
 		payload, err := buildEPCPayload(ctx)
 		if err != nil {

@@ -13,38 +13,37 @@ func TestLoadYAMLPreservesNumericLookingMappingKeys(t *testing.T) {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	value, err := loadYAML(path)
+	customers, err := loadCustomerTable(path)
 	if err != nil {
-		t.Fatalf("loadYAML returned error: %v", err)
+		t.Fatalf("loadCustomerTable returned error: %v", err)
+	}
+	if _, exists, _ := customers.customer("17", false); exists {
+		t.Fatalf("customers unexpectedly contains coerced key %q", "17")
+	}
+	customer, exists, err := customers.customer("0021", false)
+	if err != nil {
+		t.Fatalf("customer(0021) returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("customers does not contain key %q", "0021")
+	}
+	if got := customer.DisplayName(); got != "Appsters GmbH" {
+		t.Fatalf("customer name = %q, want %q", got, "Appsters GmbH")
 	}
 
-	root, ok := value.(map[string]any)
-	if !ok {
-		t.Fatalf("root type = %T, want map[string]any", value)
+	root := decodeForTest[struct {
+		Customer struct {
+			Name   Text `yaml:"name"`
+			Nested struct {
+				Key Text `yaml:"0007"`
+			} `yaml:"nested"`
+		} `yaml:"0021"`
+		IssuedOn Text `yaml:"issued_on"`
+	}](t, source)
+	if got := root.Customer.Nested.Key; got != "yes" {
+		t.Fatalf("nested[0007] = %q, want %q", got, "yes")
 	}
-	if _, exists := root["17"]; exists {
-		t.Fatalf("root unexpectedly contains coerced key %q", "17")
-	}
-
-	customer, ok := root["0021"].(map[string]any)
-	if !ok {
-		t.Fatalf("root[0021] type = %T, want map[string]any", root["0021"])
-	}
-	if customer["name"] != "Appsters GmbH" {
-		t.Fatalf("customer name = %#v, want %q", customer["name"], "Appsters GmbH")
-	}
-
-	nested, ok := customer["nested"].(map[string]any)
-	if !ok {
-		t.Fatalf("customer[nested] type = %T, want map[string]any", customer["nested"])
-	}
-	if _, exists := nested["7"]; exists {
-		t.Fatalf("nested unexpectedly contains coerced key %q", "7")
-	}
-	if nested["0007"] != "yes" {
-		t.Fatalf("nested[0007] = %#v, want %q", nested["0007"], "yes")
-	}
-	if root["issued_on"] != "2026-03-06" {
-		t.Fatalf("issued_on = %#v, want %q", root["issued_on"], "2026-03-06")
+	if got := root.IssuedOn; got != "2026-03-06" {
+		t.Fatalf("issued_on = %q, want %q", got, "2026-03-06")
 	}
 }

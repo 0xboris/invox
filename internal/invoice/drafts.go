@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,45 +25,29 @@ func (h Host) GlobalInvoiceDefaultsPath() string {
 	return filepath.Join(h.ConfigDir(), "invoice_defaults.yaml")
 }
 
-func LoadCustomer(customersPath, customerID string) (map[string]any, error) {
-	customersValue, err := loadYAML(customersPath)
+// LoadCustomer decodes the entry of customerID in customers.yaml.
+func LoadCustomer(customersPath, customerID string) (Customer, error) {
+	customers, err := loadCustomerTable(customersPath)
 	if err != nil {
-		return nil, err
+		return Customer{}, err
 	}
-
-	customers, ok := customersValue.(map[string]any)
+	customer, ok, err := customers.customer(customerID, true)
 	if !ok {
-		return nil, fmt.Errorf("%s: root value must be a mapping", customersPath)
+		return Customer{}, &UnknownCustomerError{Path: customersPath, CustomerID: customerID}
 	}
-
-	rawCustomer, ok := customers[customerID]
-	if !ok {
-		return nil, &UnknownCustomerError{Path: customersPath, CustomerID: customerID}
-	}
-
-	customer, ok := rawCustomer.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: customer `%s` must be a mapping", customersPath, customerID)
-	}
-	return customer, nil
+	return customer, err
 }
 
-func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
-	issuerValue, err := loadYAML(issuerPath)
-	if err != nil {
-		return nil, err
+// LoadIssuerPayment decodes issuer.yaml and returns its payment details.
+func LoadIssuerPayment(issuerPath string) (Payment, error) {
+	var issuer IssuerFile
+	if err := decodeYAMLFile(issuerPath, &issuer, true); err != nil {
+		return Payment{}, err
 	}
-
-	issuer, ok := issuerValue.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: root value must be a mapping", issuerPath)
+	if issuer.Payment == nil {
+		return Payment{}, fmt.Errorf("%s: missing `payment` mapping", issuerPath)
 	}
-
-	payment, ok := issuer["payment"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: missing `payment` mapping", issuerPath)
-	}
-	return payment, nil
+	return *issuer.Payment, nil
 }
 
 type NewInvoice struct {
@@ -131,14 +114,17 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	setMappingString(invoiceNode, "status", "draft")
 	setMappingString(invoiceNode, "paid_amount", "0")
 
-	if strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "vat_percent")))) == "" {
-		if vatRate := strings.TrimSuffix(strings.TrimSpace(asString(getPath(customer, "tax.default_vat_rate"))), "%"); vatRate != "" {
+	if strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "vat_percent"))) == "" {
+		if vatRate := strings.TrimSuffix(customer.Tax.DefaultVATRate.text, "%"); vatRate != "" {
 			setMappingString(invoiceNode, "vat_percent", vatRate)
 		}
 	}
 
 	if findMappingValue(root, "positions") == nil {
 		setMappingSequence(root, "positions", []*yaml.Node{})
+	}
+	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, true); err != nil {
+		return NewInvoice{}, err
 	}
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
@@ -171,9 +157,6 @@ func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast b
 		if err != nil {
 			return nil, "", err
 		}
-		if err := validateCanonicalInvoiceDocument(document, defaultsPath); err != nil {
-			return nil, "", err
-		}
 		return document, defaultsPath, nil
 	}
 
@@ -192,9 +175,6 @@ func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast b
 	if !ok {
 		return nil, "", fmt.Errorf("%s: archived invoice could not be loaded", archivePath)
 	}
-	if err := validateCanonicalInvoiceDocument(document, archivePath); err != nil {
-		return nil, "", err
-	}
 	return document, archivePath, nil
 }
 
@@ -208,7 +188,7 @@ type IncrementedInvoice struct {
 }
 
 func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (IncrementedInvoice, error) {
-	customerID, issueDate, oldInvoiceNumber, err := invoiceIdentity(invoicePath)
+	customerID, issueDate, oldInvoiceNumber, err := readInvoiceIdentity(invoicePath)
 	if err != nil {
 		return IncrementedInvoice{}, err
 	}
@@ -258,7 +238,7 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	if !ok {
 		return "", "", fmt.Errorf("%s: archived invoice could not be loaded", archivePath)
 	}
-	if err := validateCanonicalInvoiceDocument(document, archivePath); err != nil {
+	if err := decodeYAMLDocument(document, archivePath, &InvoiceFile{}, true); err != nil {
 		return "", "", err
 	}
 
@@ -320,7 +300,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, fmt.Errorf("%s: `invoice` must be a mapping", invoicePath)
 	}
 
-	status := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "status"))))
+	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
 	archiveDir, err := h.ResolveArchiveDir()
 	if err != nil {
 		return ArchiveResult{}, err
@@ -360,7 +340,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, fmt.Errorf("%s is already in the archive directory", invoicePath)
 	}
 
-	invoiceNumber := strings.TrimSpace(asString(nodeScalarValue(findMappingValue(invoiceNode, "number"))))
+	invoiceNumber := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "number")))
 	if err := h.checkArchivedNumberUnique(invoicePath, invoiceNumber, archiveDir, root); err != nil {
 		return ArchiveResult{}, err
 	}
@@ -422,28 +402,23 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	return ArchiveResult{Path: archivePath, Replaced: backups}, nil
 }
 
-func invoiceIdentity(invoicePath string) (string, string, string, error) {
-	invoiceValue, err := loadYAML(invoicePath)
-	if err != nil {
+// readInvoiceIdentity reads the customer, issue date and number that
+// numbering needs from the invoice at invoicePath.
+func readInvoiceIdentity(invoicePath string) (string, string, string, error) {
+	var identity invoiceIdentity
+	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil {
 		return "", "", "", err
 	}
 
-	root, ok := invoiceValue.(map[string]any)
-	if !ok {
-		return "", "", "", fmt.Errorf("%s: root value must be a mapping", invoicePath)
-	}
-
-	customerID := strings.TrimSpace(asString(root["customer_id"]))
+	customerID := identity.CustomerID.Trim()
 	if customerID == "" {
 		return "", "", "", fmt.Errorf("%s: missing `customer_id`", invoicePath)
 	}
-
-	invoiceNode, ok := root["invoice"].(map[string]any)
-	if !ok {
+	if identity.Invoice == nil {
 		return "", "", "", fmt.Errorf("%s: missing `invoice` mapping", invoicePath)
 	}
 
-	issueDate := strings.TrimSpace(asString(invoiceNode["issue_date"]))
+	issueDate := identity.Invoice.IssueDate.Trim()
 	if issueDate == "" {
 		return "", "", "", fmt.Errorf("%s: invoice.issue_date: missing value", invoicePath)
 	}
@@ -451,7 +426,7 @@ func invoiceIdentity(invoicePath string) (string, string, string, error) {
 		return "", "", "", fmt.Errorf("%s: invoice.issue_date: expected YYYY-MM-DD, got `%s`", invoicePath, issueDate)
 	}
 
-	invoiceNumber := strings.TrimSpace(asString(invoiceNode["number"]))
+	invoiceNumber := identity.Invoice.Number.Trim()
 	if invoiceNumber == "" {
 		return "", "", "", fmt.Errorf("%s: invoice.number: missing value", invoicePath)
 	}
@@ -459,19 +434,14 @@ func invoiceIdentity(invoicePath string) (string, string, string, error) {
 	return customerID, issueDate, invoiceNumber, nil
 }
 
-func issuerDueDays(issuerPath string, payment map[string]any) (int, error) {
-	raw := strings.TrimSpace(asString(payment["due_days"]))
-	if raw == "" {
+func issuerDueDays(issuerPath string, payment Payment) (int, error) {
+	if !payment.DueDays.isSet() {
 		return 0, fmt.Errorf("%s: payment.due_days: missing value", issuerPath)
 	}
-	days, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("%s: payment.due_days: expected a non-negative integer, got `%s`", issuerPath, raw)
-	}
-	if days < 0 {
+	if payment.DueDays.Int() < 0 {
 		return 0, fmt.Errorf("%s: payment.due_days: must be >= 0", issuerPath)
 	}
-	return days, nil
+	return int(payment.DueDays.Int()), nil
 }
 
 func loadYAMLDocument(path string) (*yaml.Node, error) {
@@ -521,24 +491,6 @@ func parseYAMLDocumentSource(source []byte, label string) (*yaml.Node, error) {
 	return &document, nil
 }
 
-func validateCanonicalInvoiceDocument(document *yaml.Node, sourceLabel string) error {
-	root, ok := normalizeYAMLNode(document).(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	var validationErrors []string
-	appendUnsupportedInvoiceKeyErrors(root, &validationErrors)
-	if len(validationErrors) == 0 {
-		return nil
-	}
-
-	for index, validationError := range validationErrors {
-		validationErrors[index] = fmt.Sprintf("%s: %s", sourceLabel, validationError)
-	}
-	return errors.New(strings.Join(validationErrors, "\n"))
-}
-
 // writeYAMLDocument replaces path with document, keeping the file's mode.
 func writeYAMLDocument(path string, document *yaml.Node) error {
 	data, err := encodeYAMLDocument(document)
@@ -585,11 +537,17 @@ func writeInvoiceStringField(path, key, value string) error {
 	return writeYAMLDocument(path, document)
 }
 
-func nodeScalarValue(node *yaml.Node) any {
+// nodeText is the text of a scalar node, "" for a missing node, a mapping
+// or a list.
+func nodeText(node *yaml.Node) string {
 	if node == nil {
-		return nil
+		return ""
 	}
-	return normalizeYAMLNode(node)
+	node = resolveYAMLAlias(node)
+	if node.Kind != yaml.ScalarNode {
+		return ""
+	}
+	return scalarText(node)
 }
 
 func documentRootMapping(document *yaml.Node, label string) (*yaml.Node, error) {
@@ -718,8 +676,8 @@ func archiveMetadata(root *yaml.Node) (string, string) {
 	if internalNode == nil || internalNode.Kind != yaml.MappingNode {
 		return "", ""
 	}
-	return filepath.FromSlash(strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchivePathKey))))),
-		filepath.FromSlash(strings.TrimSpace(asString(nodeScalarValue(findMappingValue(internalNode, internalArchiveReplaceKey)))))
+	return filepath.FromSlash(strings.TrimSpace(nodeText(findMappingValue(internalNode, internalArchivePathKey)))),
+		filepath.FromSlash(strings.TrimSpace(nodeText(findMappingValue(internalNode, internalArchiveReplaceKey))))
 }
 
 // setArchiveMetadata records archive-relative paths with forward slashes so
