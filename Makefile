@@ -3,6 +3,7 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 GO ?= go
+GORELEASER ?= goreleaser
 PACKAGE ?= ./cmd/invox
 BIN_DIR ?= bin
 BINARY_NAME ?= invox
@@ -13,15 +14,16 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
 BUILD_PKG := github.com/0xboris/invox/internal/build
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
-.PHONY: help build test fuzz vet lint vulncheck fmt tidy docs install clean
+.PHONY: help build test fuzz vet lint vulncheck fmt tidy docs install release-snapshot clean
 
 help: ## Show available targets.
 	@printf "Targets:\n"
-	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' "$(lastword $(MAKEFILE_LIST))"
+	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-17s %s\n", $$1, $$2}' "$(lastword $(MAKEFILE_LIST))"
 	@printf "\nVariables:\n"
 	@printf "  GO          Go toolchain to use (default: go)\n"
 	@printf "  BIN_DIR     Build output directory (default: bin)\n"
 	@printf "  VERSION     Version stamped into the binary (default: git describe)\n"
+	@printf "  GORELEASER  GoReleaser binary for release-snapshot (default: goreleaser)\n"
 	@printf "  FUZZTIME    How long make fuzz runs each fuzz target (default: 10s)\n"
 	@printf "  GOLANGCI_LINT  golangci-lint command (default: go run at the version CI uses)\n"
 
@@ -75,5 +77,8 @@ docs: ## Regenerate docs/cli and share/man/man1 from the command tree (Linux or 
 install: ## Install invox into GOBIN or GOPATH/bin for use from anywhere.
 	CGO_ENABLED=0 $(GO) install -trimpath -ldflags "$(LDFLAGS)" "$(PACKAGE)"
 
-clean: ## Remove the local build output directory.
-	rm -rf "$(BIN_DIR)"
+release-snapshot: ## Build every release archive into ./dist without publishing (needs goreleaser v2).
+	$(GORELEASER) release --snapshot --clean --skip=publish
+
+clean: ## Remove the build output: bin, dist and completions.
+	rm -rf "$(BIN_DIR)" dist completions
