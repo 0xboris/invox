@@ -20,6 +20,16 @@ type ListOptions struct {
 	Getwd func() (string, error)
 
 	CustomersPath string
+	Exporter      *cmdutil.Exporter
+}
+
+// customerJSON is a customer in --json output.
+type customerJSON struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Email    string `json:"email"`
+	Currency string `json:"currency"`
 }
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
@@ -36,6 +46,7 @@ Default lookup:
 			helptext.LookupCustomers,
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
+$ invox customer list --json id,email
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -52,6 +63,7 @@ $ invox customer list -c customers.yaml
 	}
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, customerJSON{})
 	return cmd
 }
 
@@ -69,6 +81,20 @@ func listRun(opts *ListOptions) error {
 	customers, err := invoice.ListCustomers(customersPath)
 	if err != nil {
 		return err
+	}
+
+	if opts.Exporter != nil {
+		items := make([]customerJSON, 0, len(customers))
+		for _, customer := range customers {
+			items = append(items, customerJSON{
+				ID:       customer.ID,
+				Name:     customer.LegalCompanyName,
+				Status:   customer.Status,
+				Email:    customer.Email,
+				Currency: customer.Currency,
+			})
+		}
+		return opts.Exporter.Write(opts.IO, items)
 	}
 
 	list := tableprinter.Table{

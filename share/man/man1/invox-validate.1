@@ -14,6 +14,11 @@ Default lookup:
   issuer.yaml: upward project search, then $HOME/.config/invox/issuer.yaml
   schema/docs: run `invox help issuer`
 
+JSON output:
+  --json prints one object, also when the invoice is invalid; invox then
+  exits 1. The invoice's fields are null when it is invalid, and errors
+  lists each problem with its file, line and field where they are known.
+
 Usage:
   invox validate -i INVOICE.yaml [flags]
 
@@ -21,15 +26,20 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  currency, customerId, errors, lineItems, number, total, valid
+
 Examples:
   $ invox validate -i invoice.yaml
   $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+  $ invox validate -i invoice.yaml --json valid,total,currency,errors
 .fi
 .SH SEE ALSO
 \fBinvox\fP(1)

@@ -22,13 +22,21 @@ type EditOptions struct {
 	Getwd func() (string, error)
 
 	Filename string
+	Exporter *cmdutil.Exporter
+}
+
+// editJSON is the --json output of archive edit: the working copy it wrote
+// and the archived invoice it copied.
+type editJSON struct {
+	Path         string `json:"path"`
+	ArchivedPath string `json:"archivedPath"`
 }
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
 func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
 		ValidArgsFunction: cmdutil.CompleteArchivedInvoices(f),
@@ -49,6 +57,7 @@ Behavior:
 `,
 		Example: `$ invox archive edit 2026-03-06.yaml
 $ invox archive edit customer-a/2026-03-06.yaml
+$ invox archive edit 2026-03-06.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
@@ -67,6 +76,8 @@ $ invox archive edit customer-a/2026-03-06.yaml
 			return editRun(opts)
 		},
 	}
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, editJSON{})
+	return cmd
 }
 
 func editRun(opts *EditOptions) error {
@@ -82,6 +93,9 @@ func editRun(opts *EditOptions) error {
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "Editing %s -> %s\n", invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
+	if opts.Exporter != nil {
+		return opts.Exporter.Write(opts.IO, editJSON{Path: outputPath, ArchivedPath: archivePath})
+	}
 	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(outputPath, baseDir))
 	return nil
 }

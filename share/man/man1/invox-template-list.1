@@ -8,6 +8,8 @@ List available LaTeX invoice templates from the same directory as the resolved d
 Output:
   Default: NAME<TAB>ABSOLUTE_PATH
   --names: TEMPLATE_NAME per line
+  --json: an array of the requested fields; default is true for the template
+    render and build use from the current directory without -t
   On a terminal, aligned columns under a header. Piped, \e, tab, CR and LF in a field are written as \e\e, \et, \er and \en.
 
 Lookup:
@@ -18,16 +20,21 @@ Usage:
   invox template list [flags]
 
 Flags:
-      --names   Print only template names
+      --json fields   Output JSON with the specified fields
+      --names         Print only template names
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  default, name, path
+
 Examples:
   $ invox template list
   $ invox template list --names
+  $ invox template list --json name,default
   $ invox build invoice.yaml -t multi_vat.tex
 .fi
 .SH SEE ALSO

@@ -166,7 +166,7 @@ func TestLoadContextDecodesOnlyTheInvoicesCustomer(t *testing.T) {
 
 func TestListCustomersIgnoresUnknownKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "customers.yaml")
-	source := "B:\n  legal_company_name: Bee KG\n  phone: 123\nA:\n  name: Ay GmbH\n  status: active\n"
+	source := "B:\n  legal_company_name: Bee KG\n  phone: 123\n  currency: USD\nA:\n  name: Ay GmbH\n  status: active\n  email: office@ay.example\n  billing:\n    email: billing@ay.example\n"
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestListCustomersIgnoresUnknownKeys(t *testing.T) {
 		t.Fatalf("ListCustomers returned error: %v", err)
 	}
 	got := fmt.Sprint(customers)
-	if want := "[{A Ay GmbH active} {B Bee KG }]"; got != want {
+	if want := "[{A Ay GmbH active billing@ay.example EUR} {B Bee KG   USD}]"; got != want {
 		t.Fatalf("customers = %s, want %s", got, want)
 	}
 }

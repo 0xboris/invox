@@ -25,6 +25,16 @@ type RenderOptions struct {
 	CustomersPath string
 	IssuerPath    string
 	TemplatePath  string
+	Exporter      *cmdutil.Exporter
+}
+
+// renderJSON is the --json output of render: the TeX file it wrote and the
+// invoice it rendered.
+type renderJSON struct {
+	Path       string `json:"path"`
+	Input      string `json:"input"`
+	Number     string `json:"number"`
+	CustomerID string `json:"customerId"`
 }
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
@@ -48,6 +58,7 @@ Default lookup:
 			helptext.LookupTemplate,
 		Example: `$ invox render -i invoice.yaml
 $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+$ invox render -i invoice.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -79,6 +90,7 @@ $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, renderJSON{})
 	return cmd
 }
 
@@ -117,6 +129,9 @@ func renderRun(opts *RenderOptions) error {
 
 	displayPath := invoice.DisplayPath(outputPath, baseDir)
 	fmt.Fprintf(opts.IO.ErrOut, "Rendered %s for %s (%s)\n", displayPath, ctx.CustomerID, ctx.InvoiceNumber)
+	if opts.Exporter != nil {
+		return opts.Exporter.Write(opts.IO, renderJSON{Path: outputPath, Input: invoicePath, Number: ctx.InvoiceNumber, CustomerID: ctx.CustomerID})
+	}
 	fmt.Fprintln(opts.IO.Out, displayPath)
 	return nil
 }

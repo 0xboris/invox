@@ -13,6 +13,7 @@ import (
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/money"
 )
 
 type ValidateOptions struct {
@@ -23,6 +24,7 @@ type ValidateOptions struct {
 	InvoicePath   string
 	CustomersPath string
 	IssuerPath    string
+	Exporter      *cmdutil.Exporter
 }
 
 // NewCmdValidate returns the validate command. runF replaces validateRun in
@@ -40,9 +42,16 @@ Required inputs:
 Default lookup:
 ` +
 			helptext.LookupCustomers +
-			helptext.LookupIssuer,
+			helptext.LookupIssuer +
+			`
+JSON output:
+  --json prints one object, also when the invoice is invalid; invox then
+  exits 1. The invoice's fields are null when it is invalid, and errors
+  lists each problem with its file, line and field where they are known.
+`,
 		Example: `$ invox validate -i invoice.yaml
 $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+$ invox validate -i invoice.yaml --json valid,total,currency,errors
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -67,6 +76,7 @@ $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, validationJSON{})
 	return cmd
 }
 
@@ -89,6 +99,11 @@ func validateRun(opts *ValidateOptions) error {
 
 	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
+		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
+			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {
+				return writeErr
+			}
+		}
 		return err
 	}
 
@@ -102,5 +117,18 @@ func validateRun(opts *ValidateOptions) error {
 		len(ctx.LineItems),
 		formatMoney(ctx.TotalCents, ctx.Currency),
 	)
+	if opts.Exporter != nil {
+		lineItems := len(ctx.LineItems)
+		total := money.DecimalString(ctx.TotalCents)
+		return opts.Exporter.Write(opts.IO, validationJSON{
+			Valid:      true,
+			Number:     &ctx.InvoiceNumber,
+			CustomerID: &ctx.CustomerID,
+			LineItems:  &lineItems,
+			Total:      &total,
+			Currency:   &ctx.Currency,
+			Errors:     []problemJSON{},
+		})
+	}
 	return nil
 }

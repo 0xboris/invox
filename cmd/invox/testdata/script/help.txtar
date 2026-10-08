@@ -820,15 +820,20 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+      --json fields        Output JSON with the specified fields
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  currency, email, id, name, status
+
 Examples:
   $ invox customer list
   $ invox customer list -c customers.yaml
+  $ invox customer list --json id,email
 -- want-customer-config.txt --
 Open customers.yaml in your editor.
 
@@ -940,6 +945,8 @@ List available LaTeX invoice templates from the same directory as the resolved d
 Output:
   Default: NAME<TAB>ABSOLUTE_PATH
   --names: TEMPLATE_NAME per line
+  --json: an array of the requested fields; default is true for the template
+    render and build use from the current directory without -t
   On a terminal, aligned columns under a header. Piped, \, tab, CR and LF in a field are written as \\, \t, \r and \n.
 
 Lookup:
@@ -950,16 +957,21 @@ Usage:
   invox template list [flags]
 
 Flags:
-      --names   Print only template names
+      --json fields   Output JSON with the specified fields
+      --names         Print only template names
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  default, name, path
+
 Examples:
   $ invox template list
   $ invox template list --names
+  $ invox template list --json name,default
   $ invox build invoice.yaml -t multi_vat.tex
 -- want-completion.txt --
 Generate shell completion scripts.
@@ -1032,6 +1044,7 @@ Flags:
   -e, --edit               Open the created invoice in your editor
       --from-last          Use the latest archived invoice for this customer as the source document
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
   -o, --output string      Output YAML path (must end with .yaml)
   -s, --source string      Path to invoice_defaults.yaml
 
@@ -1040,10 +1053,14 @@ Global flags:
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  customerId, number, path
+
 Examples:
   $ invox new CUST-001
   $ invox new CUST-001 -e
   $ invox new CUST-001 --from-last
+  $ invox new CUST-001 --json path,number
   $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 -- want-increment.txt --
 Increment the invoice number in an existing invoice YAML file.
@@ -1061,15 +1078,20 @@ Usage:
 Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
+      --json fields        Output JSON with the specified fields
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  customerId, number, path, previousNumber
+
 Examples:
   $ invox increment -i invoice.yaml
   $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment -i invoice.yaml --json number,previousNumber
 -- want-validate.txt --
 Validate invoice YAML against customers and issuer data.
 
@@ -1082,6 +1104,11 @@ Default lookup:
   issuer.yaml: upward project search, then $WORK/home/.config/invox/issuer.yaml
   schema/docs: run `invox help issuer`
 
+JSON output:
+  --json prints one object, also when the invoice is invalid; invox then
+  exits 1. The invoice's fields are null when it is invalid, and errors
+  lists each problem with its file, line and field where they are known.
+
 Usage:
   invox validate -i INVOICE.yaml [flags]
 
@@ -1089,15 +1116,20 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  currency, customerId, errors, lineItems, number, total, valid
+
 Examples:
   $ invox validate -i invoice.yaml
   $ invox validate -i invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
+  $ invox validate -i invoice.yaml --json valid,total,currency,errors
 -- want-render.txt --
 Render a LaTeX invoice file from YAML data.
 
@@ -1121,6 +1153,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
   -o, --output string      Output TeX path (must end with .tex; default invoice.tex)
   -t, --template string    Template path or name
 
@@ -1129,9 +1162,13 @@ Global flags:
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  customerId, input, number, path
+
 Examples:
   $ invox render -i invoice.yaml
   $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+  $ invox render -i invoice.yaml --json path
 -- want-email.txt --
 Create an email draft and open it in the default mail app.
 
@@ -1217,6 +1254,7 @@ Flags:
   -c, --customers string   Path to customers.yaml
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
   -o, --output string      Output PDF path (must end with .pdf; default: the input with .pdf)
   -t, --template string    Template path or name
       --yes                Replace an archived invoice without asking
@@ -1226,9 +1264,13 @@ Global flags:
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  archivedPath, customerId, input, number, path
+
 Examples:
   $ invox build invoice.yaml
   $ invox build invoice.yaml --archive
+  $ invox build invoice.yaml --json path,number
   $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 -- want-archive.txt --
 Archive a built or edited invoice YAML file into the configured archive directory.
@@ -1256,6 +1298,7 @@ Commands:
 
 Flags:
   -i, --input string   Input invoice YAML file
+      --json fields    Output JSON with the specified fields
       --yes            Replace an archived invoice without asking
 
 Global flags:
@@ -1263,10 +1306,14 @@ Global flags:
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  input, path, replaced
+
 Examples:
   $ invox archive invoice.yaml
   $ invox archive invoices/2026-0021.yaml
   $ invox archive 2026-03-06.yaml --yes
+  $ invox archive invoice.yaml --json path
   $ invox archive edit 2026-03-06.yaml
   $ invox archive list
 -- want-archive-edit.txt --
@@ -1287,14 +1334,21 @@ Behavior:
 Usage:
   invox archive edit FILENAME [flags]
 
+Flags:
+      --json fields   Output JSON with the specified fields
+
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  archivedPath, path
+
 Examples:
   $ invox archive edit 2026-03-06.yaml
   $ invox archive edit customer-a/2026-03-06.yaml
+  $ invox archive edit 2026-03-06.yaml --json path
 -- want-archive-list.txt --
 List archived invoices from the configured archive directory.
 
@@ -1308,13 +1362,20 @@ Output:
 Usage:
   invox archive list [flags]
 
+Flags:
+      --json fields   Output JSON with the specified fields
+
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  customerId, file, issueDate, number, path, status
+
 Examples:
   $ invox archive list
+  $ invox archive list --json file,customerId,number
 -- want-version.txt --
 Show the invox version.
 
