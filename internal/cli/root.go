@@ -156,10 +156,7 @@ func unknownSubcommand(root *cobra.Command, name string) error {
 	if cmd, _, err := root.Find([]string{name}); err == nil && cmd != root {
 		return cmdutil.FlagErrorf("", "unknown subcommand %q", "--")
 	}
-	message := fmt.Sprintf("unknown subcommand %q", name)
-	if suggestions := root.SuggestionsFor(name); len(suggestions) > 0 {
-		message += fmt.Sprintf("; did you mean %q?", strings.Join(suggestions, `" or "`))
-	}
+	message := fmt.Sprintf("unknown subcommand %q", name) + cmdutil.DidYouMean(root.SuggestionsFor(name))
 	return cmdutil.FlagErrorf("", "%s", message)
 }
 

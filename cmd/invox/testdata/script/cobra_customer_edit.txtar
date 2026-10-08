@@ -38,7 +38,7 @@ OTHER-1	Other Ltd	active
 error: unknown flag: --customer; did you mean --customers?
 Run 'invox customer list --help' for usage.
 -- want-subcommand.txt --
-error: unknown customer subcommand "lsit"; did you mean "list\" or \"edit"?
+error: unknown customer subcommand "lsit"; did you mean "list" or "edit"?
 Run 'invox customer --help' for usage.
 -- want-single-dash.txt --
 warning: -customers is deprecated; use --customers

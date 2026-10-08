@@ -51,10 +51,21 @@ func UnknownSubcommandError(cmd *cobra.Command, name string) error {
 		cmd.SuggestionsMinimumDistance = 2
 	}
 	message := fmt.Sprintf("unknown %s subcommand %q", CommandPath(cmd), name)
-	if suggestions := cmd.SuggestionsFor(name); len(suggestions) > 0 {
-		message += fmt.Sprintf("; did you mean %q?", strings.Join(suggestions, `" or "`))
-	}
+	message += DidYouMean(cmd.SuggestionsFor(name))
 	return FlagErrorf(CommandPath(cmd), "%s", message)
+}
+
+// DidYouMean returns `; did you mean "a" or "b"?` for the suggested names,
+// or "" when there are none.
+func DidYouMean(suggestions []string) string {
+	if len(suggestions) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(suggestions))
+	for i, s := range suggestions {
+		quoted[i] = fmt.Sprintf("%q", s)
+	}
+	return "; did you mean " + strings.Join(quoted, " or ") + "?"
 }
 
 // CommandPath is cmd's path without the root command, for example
