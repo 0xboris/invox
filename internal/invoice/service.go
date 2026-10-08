@@ -1441,25 +1441,6 @@ func getPath(source any, path string) any {
 	return value
 }
 
-func firstPresentPath(source map[string]any, paths ...string) any {
-	for _, path := range paths {
-		if value := getPath(source, path); value != nil {
-			return value
-		}
-	}
-	return nil
-}
-
-func firstNonEmptyPath(source map[string]any, paths ...string) any {
-	for _, path := range paths {
-		value := getPath(source, path)
-		if value != nil && strings.TrimSpace(asString(value)) != "" {
-			return value
-		}
-	}
-	return nil
-}
-
 func cloneMap(source map[string]any) map[string]any {
 	cloned := make(map[string]any, len(source))
 	for key, value := range source {
@@ -1807,10 +1788,6 @@ func firstExistingPath(paths ...string) string {
 		}
 	}
 	return ""
-}
-
-func prependPath(path string, paths []string) []string {
-	return append([]string{path}, paths...)
 }
 
 func fileExists(path string) bool {

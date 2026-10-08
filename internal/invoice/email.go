@@ -356,14 +356,6 @@ func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride str
 	return subject, nil
 }
 
-func (h Host) invoiceEmailBody(ctx *Context) (string, error) {
-	body, err := h.invoiceEmailBodyText(ctx)
-	if err != nil {
-		return "", err
-	}
-	return strings.ReplaceAll(body, "\n", "\r\n"), nil
-}
-
 func (h Host) invoiceEmailBodyText(ctx *Context) (string, error) {
 	cfg, err := h.Config()
 	if err != nil {
