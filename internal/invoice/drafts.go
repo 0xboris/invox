@@ -68,23 +68,31 @@ func LoadIssuerPayment(issuerPath string) (map[string]any, error) {
 	return payment, nil
 }
 
-func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (string, string, error) {
+type NewInvoice struct {
+	Number string
+	Path   string
+	// SkippedArchiveFiles are archived invoices of the customer whose numbers
+	// do not match numbering.pattern, so they did not count towards Number.
+	SkippedArchiveFiles []string
+}
+
+func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath, customersPath, issuerPath, customerID string, fromLast bool) (NewInvoice, error) {
 	if strings.TrimSpace(outputPath) != "" && fileExists(outputPath) {
-		return "", "", &OutputExistsError{Path: outputPath}
+		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 
 	customer, err := LoadCustomer(customersPath, customerID)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	issuerPayment, err := LoadIssuerPayment(issuerPath)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	document, sourceLabel, err := h.loadNewInvoiceDocument(defaultsPath, customerID, fromLast)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	now = now.In(time.Local)
@@ -92,21 +100,21 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	draftDirs := draftSearchDirs(workDir, outputPath)
 	draftCounter, err := h.highestDraftCounter(draftDirs, customerID, issueDate, customer)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
-	invoiceNumber, _, err := h.NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
+	invoiceNumber, skipped, err := h.NextInvoiceNumber(customerID, issueDate, customer, draftCounter)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	if strings.TrimSpace(outputPath) == "" {
 		outputPath = filepath.Join(workDir, invoiceNumber+".yaml")
 	}
 	if fileExists(outputPath) {
-		return "", "", &OutputExistsError{Path: outputPath}
+		return NewInvoice{}, &OutputExistsError{Path: outputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 	deleteMappingKey(root, internalMetadataKey)
 
@@ -115,7 +123,7 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	invoiceNode := getOrCreateMappingNode(root, "invoice")
 	dueDays, err := issuerDueDays(issuerPath, issuerPayment)
 	if err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
 	setMappingString(invoiceNode, "number", invoiceNumber)
@@ -134,10 +142,10 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 		setMappingSequence(root, "positions", []*yaml.Node{})
 	}
 	if err := writeYAMLDocument(outputPath, document); err != nil {
-		return "", "", err
+		return NewInvoice{}, err
 	}
 
-	return invoiceNumber, outputPath, nil
+	return NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}, nil
 }
 
 // draftSearchDirs returns the directories whose drafts `new` takes into
@@ -184,30 +192,44 @@ func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast b
 	return document, archivePath, nil
 }
 
-func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (string, string, string, error) {
+type IncrementedInvoice struct {
+	CustomerID string
+	OldNumber  string
+	NewNumber  string
+	// SkippedArchiveFiles are archived invoices of the customer whose numbers
+	// do not match numbering.pattern, so they did not count towards NewNumber.
+	SkippedArchiveFiles []string
+}
+
+func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string) (IncrementedInvoice, error) {
 	customerID, issueDate, oldInvoiceNumber, err := invoiceIdentity(invoicePath)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
 	customer, err := LoadCustomer(customersPath, customerID)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
 	currentCounter, err := h.CounterFromInvoiceNumber(oldInvoiceNumber, customerID, issueDate, customer)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 
-	newInvoiceNumber, _, err := h.NextInvoiceNumber(customerID, issueDate, customer, currentCounter)
+	newInvoiceNumber, skipped, err := h.NextInvoiceNumber(customerID, issueDate, customer, currentCounter)
 	if err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
 	if err := writeInvoiceNumber(invoicePath, newInvoiceNumber); err != nil {
-		return "", "", "", err
+		return IncrementedInvoice{}, err
 	}
-	return customerID, oldInvoiceNumber, newInvoiceNumber, nil
+	return IncrementedInvoice{
+		CustomerID:          customerID,
+		OldNumber:           oldInvoiceNumber,
+		NewNumber:           newInvoiceNumber,
+		SkippedArchiveFiles: skipped,
+	}, nil
 }
 
 func SetInvoiceStatus(invoicePath, status string) error {
