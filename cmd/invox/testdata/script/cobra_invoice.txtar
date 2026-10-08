@@ -1,0 +1,44 @@
+# new, increment, validate and render parse their flags with pflag. These are
+# the parser bugs #47 fixes: each case gave a misleading error before.
+
+# A dangling flag says which flag needs a value, instead of swallowing the
+# customer ID.
+exits 2 invox new CUST-001 -o
+! stdout .
+cmp stderr want-dangling.txt
+
+# A misspelt flag after the positional suggests the right one.
+exits 2 invox new CUST-001 --form-last
+! stdout .
+cmp stderr want-misspelt.txt
+
+# After `--`, a flag-like word is an argument, not a flag.
+exits 2 invox new CUST-001 -- --from-last
+! stdout .
+cmp stderr want-dashdash.txt
+! exists 2026-0001.yaml
+
+# A misspelt flag gets the same error on every invoice command.
+exits 2 invox validate --archiv
+! stdout .
+stderr '^error: unknown flag: --archiv$'
+stderr '^Run ''invox validate --help'' for usage\.$'
+
+# Single-dash long flags work and warn. The files don't exist, so validate
+# then fails at run time.
+exits 1 invox validate -input missing.yaml -customers missing.yaml -issuer missing.yaml
+! stdout .
+stderr 'missing\.yaml'
+stderr '^warning: -input is deprecated; use --input$'
+stderr '^warning: -customers is deprecated; use --customers$'
+stderr '^warning: -issuer is deprecated; use --issuer$'
+
+-- want-dangling.txt --
+error: flag needs an argument: -o
+Run 'invox new --help' for usage.
+-- want-misspelt.txt --
+error: unknown flag: --form-last; did you mean --from-last?
+Run 'invox new --help' for usage.
+-- want-dashdash.txt --
+error: unexpected arguments: --from-last
+Run 'invox new --help' for usage.
