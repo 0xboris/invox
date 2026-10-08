@@ -1,7 +1,7 @@
-// Package archtest asserts invox's import layering on the import graph that
-// go list reports. depguard in .golangci.yml states the same rules for each
-// file's direct imports; these also catch an import that arrives through
-// another package.
+// Package archtest asserts invox's import layering, the package table of
+// docs/design/target/README.md, on the import graph that go list reports.
+// depguard in .golangci.yml states the same rules for each file's direct
+// imports; these also catch an import that arrives through another package.
 package archtest
 
 import (
@@ -35,61 +35,101 @@ type rule struct {
 	only []string
 }
 
-// coreDeps is the core: the entities and the use cases.
-var coreDeps = []string{mod + "internal/invoice", mod + "internal/numbering", mod + "internal/epc", mod + "internal/money", mod + "internal/billing"}
+// The rings of docs/design/target/README.md. target_test.go checks the
+// target with its own copy of these lists; this file keeps the table once
+// the experiment is over.
+var (
+	ringCore      = []string{mod + "internal/invoice", mod + "internal/numbering", mod + "internal/epc", mod + "internal/money", mod + "internal/billing/..."}
+	ringDriven    = []string{mod + "internal/store/...", mod + "internal/archive", mod + "internal/render/...", mod + "internal/email", mod + "internal/adapters/tectonic", mod + "internal/adapters/applemail"}
+	ringDriving   = []string{mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/tableprinter", mod + "internal/adapters/editor", mod + "internal/adapters/opener"}
+	ringLibraries = []string{mod + "internal/config", mod + "internal/fsutil", mod + "internal/adapters/run", mod + "internal/iostreams", mod + "internal/env", mod + "internal/build"}
+	ringMain      = []string{mod + "internal/factory/...", mod + "cmd/...", mod + "internal/docs/..."}
+	frameworkPkgs = []string{"github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "gopkg.in/yaml.v3"}
+	diskPkgs      = []string{"os", "io/fs", "os/exec", "os/signal", "net/...", "syscall"}
+)
+
+func concat(lists ...[]string) []string { return slices.Concat(lists...) }
 
 var rules = []rule{
+	{
+		name:        "entities: invoice imports only money and touches no disk",
+		pkgs:        []string{mod + "internal/invoice"},
+		only:        []string{mod + "internal/money"},
+		denyImports: diskPkgs,
+	},
+	{
+		name:        "entities: numbering, epc and money import only the standard library and touch no disk",
+		pkgs:        []string{mod + "internal/numbering", mod + "internal/epc", mod + "internal/money"},
+		only:        []string{},
+		denyImports: diskPkgs,
+	},
+	{
+		name:        "use cases: billing imports only the entities and touches no disk",
+		pkgs:        []string{mod + "internal/billing/..."},
+		only:        ringCore,
+		denyImports: diskPkgs,
+	},
+	{
+		name: "the core depends on no adapter, library, framework, CLI or main package, even indirectly",
+		pkgs: ringCore,
+		deny: concat(ringDriven, ringDriving, ringLibraries, ringMain, frameworkPkgs),
+	},
+	{
+		name: "driven: store imports the core, config, fsutil and yaml.v3",
+		pkgs: []string{mod + "internal/store/..."},
+		only: concat(ringCore, []string{mod + "internal/store/...", mod + "internal/config", mod + "internal/fsutil", "gopkg.in/yaml.v3"}),
+	},
+	{
+		name: "driven: archive, render/latex and email import the core and fsutil",
+		pkgs: []string{mod + "internal/archive", mod + "internal/render/...", mod + "internal/email"},
+		only: concat(ringCore, []string{mod + "internal/fsutil"}),
+	},
+	{
+		name: "driven: tectonic and applemail import the core, run and iostreams",
+		pkgs: []string{mod + "internal/adapters/tectonic", mod + "internal/adapters/applemail"},
+		only: concat(ringCore, []string{mod + "internal/adapters/run", mod + "internal/iostreams"}),
+	},
+	{
+		name: "driving adapters import the core, each other, run, iostreams, env, build, cobra and pflag, never a driven adapter, config, fsutil or factory",
+		pkgs: ringDriving,
+		only: concat(ringCore, ringDriving, []string{mod + "internal/adapters/run", mod + "internal/iostreams", mod + "internal/env", mod + "internal/build", "github.com/spf13/cobra/...", "github.com/spf13/pflag/..."}),
+	},
+	{
+		name:        "main: factory builds everything but never imports the CLI root or a command",
+		pkgs:        []string{mod + "internal/factory/..."},
+		denyImports: []string{mod + "internal/cli", mod + "internal/cmd/..."},
+	},
+	{
+		name: "main: cmd/invox imports factory, cli and the process libraries",
+		pkgs: []string{mod + "cmd/invox"},
+		only: []string{mod + "internal/factory", mod + "internal/cli", mod + "internal/iostreams", mod + "internal/env", mod + "internal/adapters/run"},
+	},
+	{
+		name: "main: docs/gen imports factory, the CLI, cobra and the process libraries",
+		pkgs: []string{mod + "internal/docs/gen"},
+		only: []string{mod + "internal/factory", mod + "internal/cli", mod + "internal/cli/cmdutil", mod + "internal/cli/helptext", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/env", mod + "internal/adapters/run", "github.com/spf13/cobra"},
+	},
+	{
+		name: "libraries import no application package",
+		pkgs: ringLibraries,
+		only: []string{"gopkg.in/yaml.v3"},
+	},
 	{
 		name: "the release binary does not contain the docs generator",
 		pkgs: []string{mod + "cmd/invox"},
 		deny: []string{mod + "internal/docs/gen/..."},
 	},
 	{
-		name:   "nothing below the command layer depends on commands, the CLI or flag parsing",
+		name:   "only the CLI and main know about commands and flag parsing",
 		pkgs:   []string{mod + "..."},
-		except: []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/docs/gen/...", mod + "internal/factory/...", mod + "internal/archtest"},
+		except: concat(ringDriving, ringMain, []string{mod + "internal/archtest"}),
 		deny:   []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
-	},
-	{
-		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/archive", mod + "internal/billing", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/numbering", mod + "internal/render/...", mod + "internal/store/..."},
-		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
-	},
-	{
-		name: "adapters import only the core, run and iostreams",
-		pkgs: []string{mod + "internal/adapters/...", mod + "internal/tableprinter"},
-		only: append([]string{mod + "internal/adapters/run", mod + "internal/iostreams"}, coreDeps...),
 	},
 	{
 		name:        "only internal/adapters/run starts programs",
 		pkgs:        []string{mod + "..."},
 		except:      []string{mod + "internal/adapters/run"},
 		denyImports: []string{"os/exec"},
-	},
-	{
-		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/build", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money", mod + "internal/numbering"},
-		only: []string{},
-	},
-	{
-		name: "internal/invoice imports only money",
-		pkgs: []string{mod + "internal/invoice"},
-		only: []string{mod + "internal/money"},
-	},
-	{
-		name: "internal/billing imports only the coreDeps",
-		pkgs: []string{mod + "internal/billing"},
-		only: coreDeps,
-	},
-	{
-		name: "internal/store imports the coreDeps, config, fsutil and yaml.v3",
-		pkgs: []string{mod + "internal/store"},
-		only: append([]string{mod + "internal/config", mod + "internal/fsutil", "gopkg.in/yaml.v3"}, coreDeps...),
-	},
-	{
-		name: "internal/archive, internal/render/latex and internal/email import the coreDeps and fsutil",
-		pkgs: []string{mod + "internal/archive", mod + "internal/render/latex", mod + "internal/email"},
-		only: append([]string{mod + "internal/fsutil"}, coreDeps...),
 	},
 }
 

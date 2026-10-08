@@ -41,165 +41,200 @@ linters:
   settings:
     depguard:
       rules:
-        # Imports point down: main -> cli -> cmd -> cmdutil -> domain and
-        # adapters. Nothing below the command layer knows about commands,
-        # flags or the CLI.
-        below-commands:
+        # The package table of docs/design/target/README.md, one rule per row,
+        # for each file's direct imports. internal/archtest checks the same
+        # table on the transitive import graph. Tests may import anything.
+        #
+        # Entities: invoice imports only money; numbering, epc and money
+        # only the standard library. None of the core touches the disk.
+        entities-invoice:
+          list-mode: strict
           files:
-            - "**/internal/adapters/**"
-            - "**/internal/archive/**"
-            - "**/internal/billing/**"
-            - "**/internal/build/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
             - "**/internal/invoice/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/money
+        entities-leaves:
+          list-mode: strict
+          files:
             - "**/internal/numbering/**"
-            - "**/internal/render/**"
-            - "**/internal/store/**"
-            - "**/internal/tableprinter/**"
+            - "**/internal/epc/**"
+            - "**/internal/money/**"
+            - "!$test"
+          allow:
+            - $gostd
+        core-no-disk:
+          files:
+            - "**/internal/invoice/**"
+            - "**/internal/numbering/**"
+            - "**/internal/epc/**"
+            - "**/internal/money/**"
+            - "**/internal/billing/**"
+            - "!$test"
           deny:
-            - pkg: github.com/0xboris/invox/cmd
-              desc: imports point down only
-            - pkg: github.com/0xboris/invox/internal/cli
-              desc: the CLI layer (root, cmdutil, helptext) sits above this package
-            - pkg: github.com/0xboris/invox/internal/cmd
-              desc: commands sit above this package
-            - pkg: github.com/spf13/cobra
-              desc: only commands know about cobra
-            - pkg: github.com/spf13/pflag
-              desc: only commands know about flags
-        # Same layer, without tests: a test may define a flag such as -update.
-        below-commands-flag:
+            - pkg: os
+              desc: the core touches no disk; a port does
+            - pkg: io/fs
+              desc: the core touches no disk; a port does
+            - pkg: net
+              desc: the core touches no network
+            - pkg: syscall
+              desc: the core makes no system calls
+        # Use cases: billing imports only the entities.
+        use-cases:
+          list-mode: strict
           files:
-            - "**/internal/adapters/**"
-            - "**/internal/archive/**"
             - "**/internal/billing/**"
-            - "**/internal/build/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
-            - "**/internal/invoice/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
-            - "**/internal/numbering/**"
-            - "**/internal/render/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+        # Driven adapters implement billing's ports.
+        driven-store:
+          list-mode: strict
+          files:
             - "**/internal/store/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+            - github.com/0xboris/invox/internal/config
+            - github.com/0xboris/invox/internal/fsutil
+            - gopkg.in/yaml.v3
+        driven-files:
+          list-mode: strict
+          files:
+            - "**/internal/archive/**"
+            - "**/internal/render/**"
+            - "**/internal/email/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+            - github.com/0xboris/invox/internal/fsutil
+        driven-programs:
+          list-mode: strict
+          files:
+            - "**/internal/adapters/tectonic/**"
+            - "**/internal/adapters/applemail/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+            - github.com/0xboris/invox/internal/adapters/run
+            - github.com/0xboris/invox/internal/iostreams
+        # Driving adapters call the use cases and never reach a driven
+        # adapter, config, fsutil or the factory.
+        driving:
+          list-mode: strict
+          files:
+            - "**/internal/cli/**"
+            - "**/internal/cmd/**"
             - "**/internal/tableprinter/**"
+            - "**/internal/adapters/editor/**"
+            - "**/internal/adapters/opener/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+            - github.com/0xboris/invox/internal/cli
+            - github.com/0xboris/invox/internal/cmd
+            - github.com/0xboris/invox/internal/tableprinter
+            - github.com/0xboris/invox/internal/adapters/editor
+            - github.com/0xboris/invox/internal/adapters/opener
+            - github.com/0xboris/invox/internal/adapters/run
+            - github.com/0xboris/invox/internal/iostreams
+            - github.com/0xboris/invox/internal/env
+            - github.com/0xboris/invox/internal/build
+            - github.com/spf13/cobra
+            - github.com/spf13/pflag
+        # Main: factory builds everything, but never the CLI root or a
+        # command.
+        main-factory:
+          files:
+            - "**/internal/factory/**"
+          deny:
+            - pkg: github.com/0xboris/invox/internal/cli$
+              desc: the CLI root uses the Factory; the Factory does not use it
+            - pkg: github.com/0xboris/invox/internal/cmd
+              desc: commands use the Factory; the Factory does not use them
+        main-invox:
+          list-mode: strict
+          files:
+            - "**/cmd/invox/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/factory$
+            - github.com/0xboris/invox/internal/cli$
+            - github.com/0xboris/invox/internal/iostreams
+            - github.com/0xboris/invox/internal/env
+            - github.com/0xboris/invox/internal/adapters/run
+        main-docs-gen:
+          list-mode: strict
+          files:
+            - "**/internal/docs/gen/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/factory$
+            - github.com/0xboris/invox/internal/cli$
+            - github.com/0xboris/invox/internal/cli/cmdutil
+            - github.com/0xboris/invox/internal/cli/helptext
+            - github.com/0xboris/invox/internal/fsutil
+            - github.com/0xboris/invox/internal/iostreams
+            - github.com/0xboris/invox/internal/env
+            - github.com/0xboris/invox/internal/adapters/run
+            - github.com/spf13/cobra$
+        # Libraries import no application package.
+        libraries:
+          list-mode: strict
+          files:
+            - "**/internal/config/**"
+            - "**/internal/fsutil/**"
+            - "**/internal/adapters/run/**"
+            - "**/internal/iostreams/**"
+            - "**/internal/env/**"
+            - "**/internal/build/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - gopkg.in/yaml.v3
+        # Only the CLI knows about flags. A test may define a flag such as
+        # -update.
+        flags-in-the-cli:
+          files:
+            - $all
+            - "!**/cmd/invox/**"
+            - "!**/internal/cli/**"
+            - "!**/internal/cmd/**"
+            - "!**/internal/docs/gen/**"
+            - "!**/internal/factory/**"
             - "!$test"
           deny:
             - pkg: flag
               desc: only commands know about flags
-        # The domain returns data and typed errors. It neither writes to the
-        # terminal nor runs programs; the CLI layer does both.
-        domain:
-          files:
-            - "**/internal/archive/**"
-            - "**/internal/billing/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/epc/**"
-            - "**/internal/invoice/**"
-            - "**/internal/money/**"
-            - "**/internal/numbering/**"
-            - "**/internal/render/**"
-            - "**/internal/store/**"
-          deny:
-            - pkg: github.com/0xboris/invox/internal/iostreams
-              desc: return data; the command renders it
-            - pkg: github.com/0xboris/invox/internal/tableprinter
-              desc: return data; the command renders it
-            - pkg: github.com/0xboris/invox/internal/adapters
-              desc: the CLI layer runs programs; the domain takes their results
-        # Adapters wrap one program each on top of run.Runner and write to
-        # IOStreams; of invox they know only the core.
-        adapters:
-          list-mode: strict
-          files:
-            - "**/internal/adapters/**"
-            - "**/internal/tableprinter/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/adapters/run
-            - github.com/0xboris/invox/internal/iostreams
-            - github.com/0xboris/invox/internal/invoice
-            - github.com/0xboris/invox/internal/numbering
-            - github.com/0xboris/invox/internal/epc
-            - github.com/0xboris/invox/internal/money
-            - github.com/0xboris/invox/internal/billing
-        # Leaf packages. Each states the only module packages it may import.
-        stdlib-only:
-          list-mode: strict
-          files:
-            - "**/internal/build/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
-            - "**/internal/numbering/**"
-            - "!$test"
-          allow:
-            - $gostd
-        # Driven adapters: the core and fsutil.
-        driven:
-          list-mode: strict
-          files:
-            - "**/internal/archive/**"
-            - "**/internal/email/**"
-            - "**/internal/render/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/fsutil
-            - github.com/0xboris/invox/internal/invoice
-            - github.com/0xboris/invox/internal/numbering
-            - github.com/0xboris/invox/internal/epc
-            - github.com/0xboris/invox/internal/money
-            - github.com/0xboris/invox/internal/billing
-        store:
-          list-mode: strict
-          files:
-            - "**/internal/store/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/config
-            - github.com/0xboris/invox/internal/fsutil
-            - gopkg.in/yaml.v3
-            - github.com/0xboris/invox/internal/invoice
-            - github.com/0xboris/invox/internal/numbering
-            - github.com/0xboris/invox/internal/epc
-            - github.com/0xboris/invox/internal/money
-            - github.com/0xboris/invox/internal/billing
-        # The use cases import the entities only.
-        billing:
-          list-mode: strict
-          files:
-            - "**/internal/billing/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/invoice
-            - github.com/0xboris/invox/internal/numbering
-            - github.com/0xboris/invox/internal/epc
-            - github.com/0xboris/invox/internal/money
-            - github.com/0xboris/invox/internal/billing
-        invoice:
-          list-mode: strict
-          files:
-            - "**/internal/invoice/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/money
         # internal/adapters/run is the only package that starts programs.
         only-run-execs:
           files:

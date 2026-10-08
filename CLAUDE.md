@@ -21,42 +21,70 @@ Keep all of it green.
 
 ## Layout
 
-- `cmd/invox/main.go`: shim. It builds the `cmdutil.Factory` from `iostreams.System()`,
-  `run.Exec{}` and `env.System()`, then exits with `cli.Main(os.Args[1:], f)`.
-- `internal/iostreams`: stdin, stdout and stderr plus TTY detection. Only `iostreams.System()`
-  touches the process streams; everything else writes to the `IOStreams` it is given.
-- `internal/env`: `env.Env` holds `GOOS`, `Getenv`, `HomeDir`, `Getwd` and `Now`. `env.System()`
-  reads them from the process; everything else uses the `Env` it is given. `ambient_test.go`
-  fails on any other read, apart from a short allowlist of functions (`iostreams.newSystem`,
-  `cli.printError`, and `run.Exec.Run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
-- `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the single-dash flag
-  normaliser, help routing, help groups), exit codes (`exit.go`), signals, the help page
-  renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
-  `Long` and `Example`; a `Long` is a text/template filled in from the `invoice.Host`.
-  `helptext` holds the shared help content: the topic pages, reference tables and lookup lines.
-  `cmdutil` holds the `Factory`, the error types, `FlagErrorFunc` and helpers commands share
-  (support-file lookup, editor, prompt, completion funcs).
+The code follows the clean architecture of `docs/design/target/README.md`: source
+dependencies point inward, from main to the driving and driven adapters to the use cases
+(`billing`) to the entities. Its package table is the rule set.
+
+- `cmd/invox/main.go`: shim. It builds the `cmdutil.Factory` with `factory.New` from
+  `iostreams.System()`, `run.Exec{}` and `env.System()`, then exits with
+  `cli.Main(os.Args[1:], f)`.
+- `internal/factory`: the composition root. `factory.New` resolves the user directories from
+  the `env.Env`, builds `store`, `archive`, `render/latex`, the compiler and the mailer (Apple
+  Mail on macOS without `-o`, an .eml file otherwise) and wires them into `billing.Service`
+  behind `Factory.Service(cmdutil.Files)`. `factory/factorytest` builds the same Factory on
+  temporary directories for command tests.
+- Entities (standard library and `money` only, no disk): `internal/invoice` (the schema types
+  without YAML tags, the value types with `Parse*` constructors, `Status` and its transition
+  table, `Validate` returning `[]Problem`, VAT totals in `NewContext`), `internal/numbering`
+  (number patterns: `Format`, `Parse`, `Next`), `internal/epc` (EPC QR rules and payload) and
+  `internal/money` (decimals, cents, 1.234,56 formatting).
+- `internal/billing`: the use cases, one method each on `Service` (`New`, `Increment`,
+  `Validate`, `Render`, `Build`, `Archive`, `EditArchived`, `DraftEmail`, `ListCustomers`,
+  `ListArchive`, `Paths`, `Init`, `ListTemplates`, `EditablePath`), the six ports in `ports.go`
+  (`Invoices`, `Directory`, `Archive`, `Renderer`, `Compiler`, `Mailer`), the email subject and
+  body templates, and every error type the CLI words (`ConfigError`, `ToolMissingError`,
+  `FileNotFoundError`, `DecodeError`, `OutputExistsError` and so on). It imports only the
+  entities.
+- Driven adapters implement the ports. `internal/store` (`store.Store`: `Directory` and
+  `Invoices`) owns YAML decoding (strict decoder, alias limits, duplicate keys, the key table
+  in `schema.go`), comment-keeping writes (`Create`, `Update`), Markdown front matter, config
+  and support-file lookup, the legacy directory and the `init` starter files (`starter/`).
+  `internal/archive` (`archive.Archive`) owns the archive directory: walk, list, name
+  resolution, `.history` backups; it reads invoices through `store.ReadArchived`.
+  `internal/render/latex` (`latex.Renderer`) owns placeholders, escaping, line item blocks,
+  template checks and asset copying. `internal/email` (`email.Mailer`) owns the .eml MIME
+  layout and the temporary-draft policy. `internal/adapters/tectonic` and
+  `internal/adapters/applemail` implement `Compiler` and `Mailer` on a `run.Runner`.
+- Driving adapters: `internal/cli`, `internal/cmd/...`, `internal/tableprinter`,
+  `internal/adapters/editor` and `internal/adapters/opener`. They never import a driven
+  adapter, `config`, `fsutil` or `factory`.
+  - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the single-dash flag
+    normaliser, help routing, help groups), exit codes (`exit.go`), signals, the help page
+    renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
+    `Long` and `Example`; a `Long` is a text/template filled in from `billing.Locations`.
+    `helptext` holds the shared help content: the topic pages, reference tables and lookup
+    lines. `cmdutil` holds the `Factory`, `Files`, the error types, `UsageError` (which words
+    a missing support file or template as a usage error), `FlagErrorFunc`, the path display
+    helpers and what else commands share (editor, prompt, completion funcs).
+  - `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
+    `NewCmdX(f, runF)` and a run function that calls one `Service` method and prints its
+    result. Parse-only tests pass a `runF`. The invoice verbs live under
+    `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`.
 - `internal/docs/gen`: `go run ./internal/docs/gen` (or `make docs`) rewrites `docs/cli/*.md`
   and `share/man/man1/*.1` from the command tree. CI fails when they are stale, so regenerate
   them with any help change. The release binary doesn't import it.
-- `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
-  `NewCmdX(f, runF)` and a run function. Parse-only tests pass a `runF`. The invoice verbs
-  live under `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`.
-- `internal/adapters`: `run` is the only package that calls `os/exec`. `tectonic`, `editor`,
-  `opener` and `applemail` each wrap one program on top of a `run.Runner`.
-- `internal/invoice`: domain logic (loading and validation, VAT totals, numbering, and the
-  render, EPC, email and archive orchestration), one file per concept.
-- Leaf packages below `invoice`, none of which imports it: `internal/money` (decimals, cents,
-  1.234,56 formatting), `internal/epc` (EPC QR rules and payload) and `internal/email`
-  (subject and body templates, the .eml MIME layout) import only the standard library.
-  `internal/render/latex` (escaping, rows, line item blocks, template checks) imports only
-  `money`. `internal/archive` (the archive directory: walk, list, name resolution, `.history`
-  backups) imports only `fsutil`; `invoice` hands it a reader for the YAML.
-- `internal/invoice/starter`: files embedded for `invox init`.
-- The layering above is enforced. depguard and forbidigo in `.golangci.yml` check each file;
-  `internal/archtest` checks the transitive import graph with `go list`. A new package or
-  import that crosses a layer fails both; update the rules in the same PR when the layering
-  itself changes.
+- Libraries, which import no application package: `internal/config`, `internal/fsutil`,
+  `internal/adapters/run` (the only package that calls `os/exec`), `internal/iostreams`
+  (stdin, stdout and stderr plus TTY detection; only `iostreams.System()` touches the process
+  streams), `internal/env` and `internal/build`. `env.Env` holds `GOOS`, `Getenv`, `HomeDir`,
+  `Getwd` and `Now`; `env.System()` reads them from the process and everything else uses the
+  `Env` it is given. `ambient_test.go` fails on any other read, apart from a short allowlist of
+  functions (`iostreams.newSystem`, `cli.printError`, and `run.Exec.Run`, whose child
+  processes inherit the environment). `Factory.Env` carries the `Env`.
+- The layering is enforced. depguard and forbidigo in `.golangci.yml` check each file, one
+  depguard rule per row of the package table; `internal/archtest` checks the transitive import
+  graph with `go list`. A new package or import that crosses a ring fails both; update the
+  rules in the same PR when the layering itself changes.
 
 ## Quality roadmap
 
@@ -76,8 +104,9 @@ Settled decisions (#9):
 - Every bug fix comes with a regression test that fails without the fix.
 - Treat stdout/stderr content, exit codes, flag names and file formats as a contract. Change
   them only when the issue calls for it, and update the tests that pin them.
-- Domain code (`internal/invoice`) must not print, read env vars, call `os.Exit`, or mention
-  CLI flags in new code. Return typed errors; the CLI layer words them.
+- The core (`internal/invoice`, `internal/billing` and the other entities) must not print,
+  read env vars, call `os.Exit`, touch the disk, or mention CLI flags. Return typed errors; the
+  CLI layer words them.
 - Match the surrounding style: early returns, `fmt.Errorf("...: %w", err)`, table tests where
   several cases share a shape.
 
@@ -87,8 +116,10 @@ Settled decisions (#9):
   `Main` with `iostreams.Test()` buffers; `captureRunStreams` takes streams you set up (stdin input,
   TTY flags). Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
 - Never depend on the developer's real config: in CLI tests point `XDG_CONFIG_HOME` at
-  `t.TempDir()`; in `internal/invoice` build an `invoice.Host` with
-  `invoice.NewHost(invoice.HostInputs{...})` whose directories are under `t.TempDir()`.
+  `t.TempDir()`; in command tests build the Factory with `factorytest.New`; in `internal/store`
+  build a `store.Host` with `store.NewHost(store.HostInputs{...})` whose directories are under
+  `t.TempDir()`. The `store` tests reach the use cases through the test-only shim in
+  `store/legacy_api_test.go`.
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
