@@ -1,6 +1,11 @@
 package validate
 
-import "github.com/0xboris/invox/internal/invoice"
+import (
+	"errors"
+	"io/fs"
+
+	"github.com/0xboris/invox/internal/invoice"
+)
 
 // validationJSON is the --json output of validate. The invoice's fields are
 // null when it is invalid.
@@ -25,8 +30,9 @@ type problemJSON struct {
 
 // invalidInvoiceProblems returns the problems in err, an error from
 // invoice.LoadContext, and reports whether err is only problems with the
-// invoice's content. It reports false for any other error, such as a file
-// that could not be read.
+// invoice's content. It reports false when a file could not be read. An
+// error it has no structure for, such as malformed YAML or an amount too
+// large to total, is a problem with only a message.
 func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 	var problems []problemJSON
 	var walk func(error) bool
@@ -51,7 +57,11 @@ func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 				}
 			}
 		default:
-			return false
+			var pathErr *fs.PathError
+			if errors.As(err, &pathErr) {
+				return false
+			}
+			problems = append(problems, problemJSON{Message: err.Error()})
 		}
 		return true
 	}

@@ -181,8 +181,9 @@ func cmdScrubPaths(ts *testscript.TestScript, neg bool, args []string) {
 	ts.Check(os.WriteFile(ts.MkAbs(args[1]), []byte(text), 0o666))
 }
 
-// windowsPathToken matches a sandbox path up to the next whitespace.
-var windowsPathToken = regexp.MustCompile(`(\$WORK|\$DATA_HOME|\bhome)\\\S*`)
+// windowsPathToken matches a sandbox path up to the next whitespace or, in
+// JSON, the quote that ends it.
+var windowsPathToken = regexp.MustCompile(`(\$WORK|\$DATA_HOME|\bhome)\\[^\s"]*`)
 
 // fakeTectonic prints a progress line to stdout, as tectonic does, and writes
 // an empty PDF next to its single .tex argument, or fails when

@@ -49,6 +49,13 @@ scrubpaths -json stdout got.json
 cmp got.json want-invalid.json
 scrubpaths stderr got.txt
 cmp got.txt want-invalid-stderr.txt
+# Malformed YAML and a total too large to compute are invalid too; they are
+# problems with only a message.
+exits 1 invox validate -i malformed.yaml --json valid,errors
+scrubpaths -json stdout got.json
+cmp got.json want-malformed.json
+exits 1 invox validate -i huge.yaml --json valid,errors
+cmp stdout want-huge.json
 # A file that cannot be read is not an invalid invoice: no JSON.
 exits 1 invox validate -i missing.yaml --json valid
 ! stdout .
@@ -149,6 +156,25 @@ Created CUST-002-001.yaml for CUST-002 (CUST-002-001)
 [{"customerId":"CUST-001","file":"invoice.yaml","issueDate":"2026-03-06","number":"CUST-001-001","path":"$WORK/home/.config/invox/archive/invoice.yaml","status":"archived"},{"customerId":"CUST-001","file":"second.yaml","issueDate":"2026-03-07","number":"CUST-001-002","path":"$WORK/home/.config/invox/archive/second.yaml","status":"archived"}]
 -- want-edit.json --
 {"archivedPath":"$WORK/home/.config/invox/archive/invoice.yaml","path":"$WORK/invoice.yaml"}
+-- want-malformed.json --
+{"errors":[{"file":null,"line":null,"field":null,"message":"$WORK/malformed.yaml: yaml: line 1: did not find expected ',' or ']'"}],"valid":false}
+-- want-huge.json --
+{"errors":[{"file":null,"line":null,"field":null,"message":"positions[1]: unit_price × quantity exceeds the maximum amount of `10.000.000.000.000,00`"}],"valid":false}
+-- malformed.yaml --
+customer_id: [unclosed
+-- huge.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-099
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 9999999999
+    quantity: 9999999
 -- invalid.yaml --
 customer_id: NOPE-1
 invoice:
