@@ -1,4 +1,4 @@
-package cli
+package validate
 
 import "github.com/0xboris/invox/internal/money"
 

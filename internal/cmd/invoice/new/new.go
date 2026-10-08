@@ -1,0 +1,127 @@
+// Package newcmd is the `invox new` command. The package isn't named new,
+// which would hide Go's builtin in the files that import it.
+package newcmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cmd/invoice/shared"
+	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/iostreams"
+)
+
+type NewOptions struct {
+	IO     *iostreams.IOStreams
+	Editor *editor.Editor
+	Host   func() invoice.Host
+	Getwd  func() (string, error)
+	Now    func() time.Time
+
+	CustomerID    string
+	OutputPath    string
+	DefaultsPath  string
+	CustomersPath string
+	IssuerPath    string
+	FromLast      bool
+	Edit          bool
+}
+
+// NewCmdNew returns the new command. runF replaces newRun in tests.
+func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
+	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	cmd := &cobra.Command{
+		Use:   "new CUSTOMER_ID",
+		Short: "Create a new invoice YAML file with a generated number and prefilled defaults",
+		Args: func(cmd *cobra.Command, args []string) error {
+			switch {
+			case len(args) == 0:
+				return cmdutil.FlagErrorf("new", "missing required arguments: CUSTOMER_ID")
+			case len(args) > 1:
+				return cmdutil.FlagErrorf("new", "unexpected arguments: %s", strings.Join(args[1:], " "))
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.CustomerID = strings.TrimSpace(args[0])
+			if err := shared.RequireExtension("new", opts.OutputPath, ".yaml"); err != nil {
+				return err
+			}
+			if runF != nil {
+				return runF(cmd.Context(), opts)
+			}
+			return newRun(cmd.Context(), opts)
+		},
+	}
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path")
+	cmd.Flags().StringVarP(&opts.DefaultsPath, "source", "s", "", "Path to invoice_defaults.yaml")
+	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
+	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
+	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
+	return cmd
+}
+
+func newRun(ctx context.Context, opts *NewOptions) error {
+	cwd, err := opts.Getwd()
+	if err != nil {
+		return err
+	}
+	baseDir := filepath.Clean(cwd)
+	h := opts.Host()
+	customersPath, err := cmdutil.SupportPath(h, "new", invoice.Customers, opts.CustomersPath, baseDir)
+	if err != nil {
+		return err
+	}
+	issuerPath, err := cmdutil.SupportPath(h, "new", invoice.Issuer, opts.IssuerPath, baseDir)
+	if err != nil {
+		return err
+	}
+	defaultsPath, err := cmdutil.SupportPath(h, "new", invoice.Defaults, opts.DefaultsPath, baseDir)
+	var notFound *cmdutil.FlagError
+	if opts.FromLast && errors.As(err, &notFound) {
+		// --from-last copies the last archived invoice instead.
+		defaultsPath, err = "", nil
+	}
+	if err != nil {
+		return err
+	}
+	outputPath := ""
+	if strings.TrimSpace(opts.OutputPath) != "" {
+		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
+	}
+
+	created, err := h.CreateNewInvoice(opts.Now(), baseDir, defaultsPath, outputPath, customersPath, issuerPath, opts.CustomerID, opts.FromLast)
+	var exists *invoice.OutputExistsError
+	if errors.As(err, &exists) {
+		return fmt.Errorf("%s; choose a different -o/--output path", exists)
+	}
+	if err != nil {
+		return err
+	}
+	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.SkippedArchiveFiles, baseDir)
+	displayPath := invoice.DisplayPath(created.Path, baseDir)
+	if opts.Edit {
+		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
+		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)
+		var flagErr *cmdutil.FlagError
+		if errors.As(err, &flagErr) {
+			return &cmdutil.FlagError{Command: flagErr.Command, Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}
+		}
+		if err != nil {
+			return fmt.Errorf("created %s but failed to open it: %w", displayPath, err)
+		}
+	}
+
+	fmt.Fprintf(opts.IO.ErrOut, "Created %s for %s (%s)\n", displayPath, opts.CustomerID, created.Number)
+	fmt.Fprintln(opts.IO.Out, displayPath)
+	return nil
+}

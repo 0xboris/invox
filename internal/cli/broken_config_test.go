@@ -121,7 +121,7 @@ func TestBrokenConfigUsageErrorsExitTwo(t *testing.T) {
 		args       []string
 		wantStderr string
 	}{
-		{name: "unknown flag", args: []string{"new", "--bogus"}, wantStderr: "flag provided but not defined: -bogus"},
+		{name: "unknown flag", args: []string{"new", "--bogus"}, wantStderr: "unknown flag: --bogus"},
 		{name: "missing input", args: []string{"validate"}, wantStderr: "missing required flags: -i, --input"},
 	}
 	for _, tt := range tests {

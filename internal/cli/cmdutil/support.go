@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,6 +37,29 @@ func SupportPath(h invoice.Host, command string, kind invoice.SupportFile, flagV
 	if strings.TrimSpace(path) == "" {
 		s := supportFlags[kind]
 		return "", FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", s.label, s.flag, s.key, s.name, s.global(h))
+	}
+	return AbsPath(filepath.Clean(baseDir), path), nil
+}
+
+// TemplatePath returns the absolute path of the template that command
+// renders with: flagValue, a path or the name of a template in the catalog,
+// when it is set, else the template found from baseDir.
+func TemplatePath(h invoice.Host, command, flagValue, baseDir string) (string, error) {
+	reference := flagValue
+	if strings.TrimSpace(reference) == "" {
+		found, err := SupportPath(h, command, invoice.Template, "", baseDir)
+		if err != nil {
+			return "", err
+		}
+		reference = found
+	}
+	path, err := h.ResolveTemplateReference(baseDir, reference)
+	var notFound *invoice.TemplateNotFoundError
+	if errors.As(err, &notFound) {
+		return "", FlagErrorf(command, "%s; run 'invox template list' to see the templates", notFound)
+	}
+	if err != nil {
+		return "", &FlagError{Command: command, Err: err}
 	}
 	return AbsPath(filepath.Clean(baseDir), path), nil
 }

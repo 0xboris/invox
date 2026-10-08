@@ -14,6 +14,8 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
+// InitOptions is what init needs: its streams, the user directories and
+// the parsed flags.
 type InitOptions struct {
 	IO   *iostreams.IOStreams
 	Host func() invoice.Host

@@ -12,6 +12,12 @@ import (
 	configcmd "github.com/0xboris/invox/internal/cmd/config"
 	customercmd "github.com/0xboris/invox/internal/cmd/customer"
 	initcmd "github.com/0xboris/invox/internal/cmd/init"
+	buildcmd "github.com/0xboris/invox/internal/cmd/invoice/build"
+	emailcmd "github.com/0xboris/invox/internal/cmd/invoice/email"
+	incrementcmd "github.com/0xboris/invox/internal/cmd/invoice/increment"
+	newcmd "github.com/0xboris/invox/internal/cmd/invoice/new"
+	rendercmd "github.com/0xboris/invox/internal/cmd/invoice/render"
+	validatecmd "github.com/0xboris/invox/internal/cmd/invoice/validate"
 	templatecmd "github.com/0xboris/invox/internal/cmd/template"
 	versioncmd "github.com/0xboris/invox/internal/cmd/version"
 )
@@ -63,9 +69,15 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 
 	root.AddCommand(
 		configcmd.NewCmdConfig(f, nil),
+		buildcmd.NewCmdBuild(f, nil),
 		customercmd.NewCmdCustomer(f),
+		emailcmd.NewCmdEmail(f, nil),
+		incrementcmd.NewCmdIncrement(f, nil),
 		initcmd.NewCmdInit(f, nil),
+		newcmd.NewCmdNew(f, nil),
+		rendercmd.NewCmdRender(f, nil),
 		templatecmd.NewCmdTemplate(f),
+		validatecmd.NewCmdValidate(f, nil),
 		versioncmd.NewCmdVersion(f, nil),
 	)
 	return root
