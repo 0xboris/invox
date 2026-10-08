@@ -127,7 +127,7 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 		{
 			name:       "unknown shorthand",
 			args:       []string{"version", "-x"},
-			wantStderr: "error: unknown shorthand flag: 'x' in -x\nRun 'invox version --help' for usage.\n",
+			wantStderr: "error: unknown shorthand flag: -x\nRun 'invox version --help' for usage.\n",
 		},
 		{
 			name:       "empty config",

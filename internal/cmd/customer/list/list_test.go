@@ -25,7 +25,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		{name: "shorthand", args: []string{"-c", "c.yaml"}, wantCustomers: "c.yaml"},
 		{name: "long with equals", args: []string{"--customers=c.yaml"}, wantCustomers: "c.yaml"},
 		{name: "extra argument", args: []string{"extra"}, wantErr: "unexpected arguments: extra"},
-		{name: "dangling flag", args: []string{"-c"}, wantErr: "flag needs an argument: 'c' in -c"},
+		{name: "dangling flag", args: []string{"-c"}, wantErr: "flag needs an argument: -c"},
 		{name: "misspelt flag", args: []string{"--customer", "c.yaml"}, wantErr: "unknown flag: --customer; did you mean --customers?"},
 	}
 	for _, tc := range tests {

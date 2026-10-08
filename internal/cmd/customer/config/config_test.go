@@ -21,6 +21,7 @@ func TestNewCmdConfigParsing(t *testing.T) {
 	}{
 		{name: "no flags", args: []string{}},
 		{name: "shorthand", args: []string{"-c", "c.yaml"}, wantCustomers: "c.yaml"},
+		{name: "long", args: []string{"--customers", "c.yaml"}, wantCustomers: "c.yaml"},
 		{name: "extra argument", args: []string{"extra"}, wantErr: "unexpected arguments: extra"},
 	}
 	for _, tc := range tests {
