@@ -1,7 +1,6 @@
 package invoice
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,10 +9,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	yaml "gopkg.in/yaml.v3"
-
-	"github.com/0xboris/invox/internal/fsutil"
 )
 
 type NumberingSettings struct {
@@ -322,21 +317,6 @@ func draftInvoiceNumber(path string) (string, bool) {
 	return invoiceNumber, invoiceNumber != ""
 }
 
-func markdownFrontMatter(source []byte) ([]byte, bool) {
-	text := strings.ReplaceAll(string(source), "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return nil, false
-	}
-	remainder := text[len("---\n"):]
-	end := strings.Index(remainder, "\n---\n")
-	if end < 0 {
-		return nil, false
-	}
-	// The leading newline stands in for the opening `---`, so YAML line
-	// numbers in errors match the lines of the Markdown file.
-	return []byte("\n" + remainder[:end]), true
-}
-
 func formatInvoiceNumber(pattern, customerID string, customer Customer, issueDate string, counter int64) (string, error) {
 	issueTime, customerCode, err := numberingValues(customerID, customer, issueDate)
 	if err != nil {
@@ -447,65 +427,4 @@ func numberingValues(customerID string, customer Customer, issueDate string) (ti
 		customerCode = customerID
 	}
 	return issueTime, customerCode, nil
-}
-
-func writeInvoiceNumber(path, invoiceNumber string) error {
-	document, err := loadYAMLDocument(path)
-	if err != nil {
-		return err
-	}
-	root, err := documentRootMapping(document, path)
-	if err != nil {
-		return err
-	}
-
-	invoiceNode, err := invoiceMapping(root, path)
-	if err != nil {
-		return err
-	}
-
-	numberNode := findMappingValue(invoiceNode, "number")
-	if numberNode == nil {
-		appendMappingNode(invoiceNode, "number", scalarNode(invoiceNumber))
-	} else {
-		numberNode.Kind = yaml.ScalarNode
-		numberNode.Tag = "!!str"
-		numberNode.Value = invoiceNumber
-	}
-
-	clearYAMLMergeTags(document)
-	var buffer bytes.Buffer
-	encoder := yaml.NewEncoder(&buffer)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(document); err != nil {
-		return err
-	}
-	if err := encoder.Close(); err != nil {
-		return err
-	}
-	return fsutil.WriteFile(path, buffer.Bytes(), fsutil.Public)
-}
-
-func findMappingValue(node *yaml.Node, key string) *yaml.Node {
-	if node == nil || node.Kind != yaml.MappingNode {
-		return nil
-	}
-	for index := 0; index+1 < len(node.Content); index += 2 {
-		if node.Content[index].Value == key {
-			return node.Content[index+1]
-		}
-	}
-	return nil
-}
-
-func appendMappingNode(node *yaml.Node, key string, value *yaml.Node) {
-	node.Content = append(node.Content, scalarNode(key), value)
-}
-
-func scalarNode(value string) *yaml.Node {
-	return &yaml.Node{
-		Kind:  yaml.ScalarNode,
-		Tag:   "!!str",
-		Value: value,
-	}
 }

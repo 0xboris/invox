@@ -2,8 +2,12 @@ package invoice
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -143,4 +147,92 @@ func deleteMappingKey(parent *yaml.Node, key string) {
 			return
 		}
 	}
+}
+
+func markdownFrontMatter(source []byte) ([]byte, bool) {
+	text := strings.ReplaceAll(string(source), "\r\n", "\n")
+	if !strings.HasPrefix(text, "---\n") {
+		return nil, false
+	}
+	remainder := text[len("---\n"):]
+	end := strings.Index(remainder, "\n---\n")
+	if end < 0 {
+		return nil, false
+	}
+	// The leading newline stands in for the opening `---`, so YAML line
+	// numbers in errors match the lines of the Markdown file.
+	return []byte("\n" + remainder[:end]), true
+}
+
+func findMappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for index := 0; index+1 < len(node.Content); index += 2 {
+		if node.Content[index].Value == key {
+			return node.Content[index+1]
+		}
+	}
+	return nil
+}
+
+func appendMappingNode(node *yaml.Node, key string, value *yaml.Node) {
+	node.Content = append(node.Content, scalarNode(key), value)
+}
+
+func scalarNode(value string) *yaml.Node {
+	return &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!str",
+		Value: value,
+	}
+}
+
+func loadArchivedInvoiceDocument(path string) (*yaml.Node, bool, error) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml":
+		document, err := loadYAMLDocument(path)
+		if err != nil {
+			return nil, true, err
+		}
+		return document, true, nil
+	case ".md", ".markdown":
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return nil, false, err
+		}
+		frontMatter, ok := markdownFrontMatter(source)
+		if !ok {
+			return nil, false, nil
+		}
+		document, err := parseYAMLDocumentSource(frontMatter, "front matter in "+path)
+		if err != nil {
+			return nil, true, err
+		}
+		return document, true, nil
+	default:
+		return nil, false, nil
+	}
+}
+
+// decodeYAMLFile reads the YAML file at path and decodes its root mapping
+// into out, a pointer to a schema struct. Problems with values come back as
+// *DecodeError values, several joined with errors.Join in file order.
+func decodeYAMLFile(path string, out any, strict bool) error {
+	document, err := loadYAMLDocument(path)
+	if err != nil {
+		return err
+	}
+	return decodeYAMLDocument(document, path, out, strict)
+}
+
+func decodeYAMLDocument(document *yaml.Node, label string, out any, strict bool) error {
+	root, err := documentRootMapping(document, label)
+	if err != nil {
+		return err
+	}
+	d := newYAMLDecoder(label, out, strict)
+	d.root = root
+	d.decode(root, reflect.ValueOf(out).Elem(), d.rootPath())
+	return errors.Join(d.errs...)
 }

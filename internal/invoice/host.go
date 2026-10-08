@@ -167,11 +167,6 @@ func (e *ConfigDirNotFoundError) Error() string {
 	return fmt.Sprintf("config directory %s does not exist", e.Dir)
 }
 
-func pathExists(path string, isDir bool) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir() == isDir
-}
-
 // LegacyFilesUsed returns the files read from the legacy directory so far,
 // in the order first used.
 func (h Host) LegacyFilesUsed() []string {
@@ -199,3 +194,26 @@ func (l *legacyUse) files() []string {
 	defer l.mu.Unlock()
 	return append([]string(nil), l.paths...)
 }
+
+// Source says where a resolved path came from.
+type Source int
+
+type Resolved struct {
+	Path   string // "" only with SourceNone
+	Source Source
+}
+
+const (
+	configDirName       = "invox"
+	legacyConfigDirName = "invoice-tool"
+)
+
+const (
+	SourceNone     Source = iota // nothing found
+	SourceExplicit               // the config file the user named
+	SourceEnvDir                 // the config directory the user chose, or a file in it
+	SourceDefault                // the OS default directory, or a file in it
+	SourceLegacy                 // the deprecated invoice-tool directory, or a file in it
+	SourceProject                // found by the upward search from the working directory
+	SourceConfig                 // a paths.* or archive.dir setting in the config file
+)

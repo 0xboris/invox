@@ -3,17 +3,13 @@ package invoice
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/fsutil"
-)
-
-const (
-	configDirName       = "invox"
-	legacyConfigDirName = "invoice-tool"
 )
 
 func (h Host) GlobalCustomersPath() string {
@@ -172,37 +168,44 @@ func (h Host) DefaultArchiveDir() string {
 	return filepath.Join(baseDir, configDirName, "invoices")
 }
 
-func DisplayPath(path, baseDir string) string {
-	rel, err := filepath.Rel(baseDir, path)
-	if err == nil && !strings.HasPrefix(rel, "..") {
-		return rel
-	}
-	return path
-}
-
 func (h Host) expandHomePath(path string) string {
 	return config.ExpandHome(path, h.home)
 }
 
-// ReplaceExt returns path with its extension replaced by ext, or with ext
-// added when it has none. It returns "" for an empty path.
-func ReplaceExt(path, ext string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
+func (h Host) GlobalInvoiceDefaultsPath() string {
+	return filepath.Join(h.ConfigDir(), "invoice_defaults.yaml")
 }
 
-func firstExistingPath(paths ...string) string {
-	for _, path := range paths {
-		if path != "" && fileExists(path) {
-			return path
-		}
-	}
-	return ""
-}
-
-func fileExists(path string) bool {
+// ensureStarterFile writes content to path if path is missing or empty and
+// reports whether it did. A dangling symlink at path counts as missing, and
+// its target is written. A file created by someone else in the meantime is
+// left alone.
+func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, error) {
 	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
+	switch {
+	case err == nil && info.Size() > 0:
+		return false, nil
+	case err == nil:
+		if err := fsutil.WriteFile(path, content, perm); err != nil {
+			return false, err
+		}
+		return true, nil
+	case !errors.Is(err, os.ErrNotExist):
+		return false, err
+	}
+	if info, err := os.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		if err := fsutil.WriteFile(path, content, perm); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	err = fsutil.WriteNewFile(path, content, perm)
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

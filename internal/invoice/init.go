@@ -60,40 +60,6 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 	return configDir, results, nil
 }
 
-// ensureStarterFile writes content to path if path is missing or empty and
-// reports whether it did. A dangling symlink at path counts as missing, and
-// its target is written. A file created by someone else in the meantime is
-// left alone.
-func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, error) {
-	info, err := os.Stat(path)
-	switch {
-	case err == nil && info.Size() > 0:
-		return false, nil
-	case err == nil:
-		if err := fsutil.WriteFile(path, content, perm); err != nil {
-			return false, err
-		}
-		return true, nil
-	case !errors.Is(err, os.ErrNotExist):
-		return false, err
-	}
-	if info, err := os.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
-		if err := fsutil.WriteFile(path, content, perm); err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-
-	err = fsutil.WriteNewFile(path, content, perm)
-	if errors.Is(err, fs.ErrExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 // LegacyFilesToCopy returns the files in the legacy config directory, relative
 // to it, that the config directory does not have yet.
 func (h Host) LegacyFilesToCopy() ([]string, error) {

@@ -218,28 +218,6 @@ func (e *DecodeError) Error() string {
 	return fmt.Sprintf("%s:%d: %s: %s", e.File, e.Line, e.Path, e.Problem)
 }
 
-// decodeYAMLFile reads the YAML file at path and decodes its root mapping
-// into out, a pointer to a schema struct. Problems with values come back as
-// *DecodeError values, several joined with errors.Join in file order.
-func decodeYAMLFile(path string, out any, strict bool) error {
-	document, err := loadYAMLDocument(path)
-	if err != nil {
-		return err
-	}
-	return decodeYAMLDocument(document, path, out, strict)
-}
-
-func decodeYAMLDocument(document *yaml.Node, label string, out any, strict bool) error {
-	root, err := documentRootMapping(document, label)
-	if err != nil {
-		return err
-	}
-	d := newYAMLDecoder(label, out, strict)
-	d.root = root
-	d.decode(root, reflect.ValueOf(out).Elem(), d.rootPath())
-	return errors.Join(d.errs...)
-}
-
 // decodeYAMLNode decodes n, an entry inside the file label, into out. A
 // strict decode rejects keys the schema does not define.
 func decodeYAMLNode(n *yaml.Node, label string, out any, strict bool) error {
@@ -332,10 +310,6 @@ func (d *yamlDecoder) decode(n *yaml.Node, out reflect.Value, path string) {
 		panic(fmt.Sprintf("invoice: no YAML decoding for %s", out.Type()))
 	}
 }
-
-// removedKey marks a key invox no longer reads. Its replacement tag names
-// the key that took its place.
-type removedKey struct{}
 
 var removedKeyType = reflect.TypeOf(removedKey{})
 

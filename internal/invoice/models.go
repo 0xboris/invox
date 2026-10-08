@@ -288,3 +288,7 @@ func (p Position) validate(index int) []string {
 	}
 	return problems
 }
+
+// removedKey marks a key invox no longer reads. Its replacement tag names
+// the key that took its place.
+type removedKey struct{}

@@ -86,3 +86,28 @@ func (t customerTable) customer(customerID string, strict bool) (customer Custom
 	err = decodeYAMLNode(entry, t.path, &customer, strict)
 	return customer, true, err
 }
+
+// LoadCustomer decodes the entry of customerID in customers.yaml.
+func LoadCustomer(customersPath, customerID string) (Customer, error) {
+	customers, err := loadCustomerTable(customersPath)
+	if err != nil {
+		return Customer{}, err
+	}
+	customer, ok, err := customers.customer(customerID, true)
+	if !ok {
+		return Customer{}, &UnknownCustomerError{Path: customersPath, CustomerID: customerID}
+	}
+	return customer, err
+}
+
+// LoadIssuerPayment decodes issuer.yaml and returns its payment details.
+func LoadIssuerPayment(issuerPath string) (Payment, error) {
+	var issuer IssuerFile
+	if err := decodeYAMLFile(issuerPath, &issuer, true); err != nil {
+		return Payment{}, err
+	}
+	if issuer.Payment == nil {
+		return Payment{}, fmt.Errorf("%s: missing `payment` mapping", issuerPath)
+	}
+	return *issuer.Payment, nil
+}

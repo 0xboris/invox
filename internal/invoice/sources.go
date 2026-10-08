@@ -8,24 +8,6 @@ import (
 	"github.com/0xboris/invox/internal/config"
 )
 
-// Source says where a resolved path came from.
-type Source int
-
-const (
-	SourceNone     Source = iota // nothing found
-	SourceExplicit               // the config file the user named
-	SourceEnvDir                 // the config directory the user chose, or a file in it
-	SourceDefault                // the OS default directory, or a file in it
-	SourceLegacy                 // the deprecated invoice-tool directory, or a file in it
-	SourceProject                // found by the upward search from the working directory
-	SourceConfig                 // a paths.* or archive.dir setting in the config file
-)
-
-type Resolved struct {
-	Path   string // "" only with SourceNone
-	Source Source
-}
-
 // SupportFile is one of the files a command reads besides the invoice.
 type SupportFile int
 

@@ -2,7 +2,6 @@ package invoice
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/money"
@@ -37,15 +36,6 @@ type OutputIsDirError struct {
 
 func (e *OutputIsDirError) Error() string {
 	return e.Path + " is a directory"
-}
-
-// refuseDirOutput returns an OutputIsDirError when path is a directory or a
-// symlink to one.
-func refuseDirOutput(path string) error {
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		return &OutputIsDirError{Path: path}
-	}
-	return nil
 }
 
 // ArchivedOutputError reports that a command would overwrite a file in the
