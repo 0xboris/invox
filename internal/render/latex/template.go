@@ -11,16 +11,26 @@ import (
 // ValidateTemplate reports every unsupported placeholder and malformed line
 // item block in template, one per line.
 func ValidateTemplate(template string) error {
-	var validationErrors []string
-	for placeholder, replacement := range map[string]string{
-		"@@VAT_RATE@@":                      "@@VAT_SUMMARY_ROWS@@",
-		"@@VAT_AMOUNT@@":                    "@@VAT_SUMMARY_ROWS@@",
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@":   "@@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@": "@@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
+	type unsupportedPlaceholder struct {
+		placeholder, replacement string
+		index                    int
+	}
+	var found []unsupportedPlaceholder
+	for _, p := range []unsupportedPlaceholder{
+		{placeholder: "@@VAT_RATE@@", replacement: "@@VAT_SUMMARY_ROWS@@"},
+		{placeholder: "@@VAT_AMOUNT@@", replacement: "@@VAT_SUMMARY_ROWS@@"},
+		{placeholder: "@@ISSUER_CITY_AND_POSTAL_CODE@@", replacement: "@@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@"},
+		{placeholder: "@@CUSTOMER_CITY_AND_POSTAL_CODE@@", replacement: "@@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@"},
 	} {
-		if strings.Contains(template, placeholder) {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))
+		if p.index = strings.Index(template, p.placeholder); p.index >= 0 {
+			found = append(found, p)
 		}
+	}
+	// Report in template order so the first error points at the first problem.
+	sort.Slice(found, func(i, j int) bool { return found[i].index < found[j].index })
+	var validationErrors []string
+	for _, p := range found {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", p.placeholder, p.replacement))
 	}
 	if validateLineItemBlockPlaceholders(template, &validationErrors) {
 		validateLineItemPlaceholdersOutsideBlocks(template, &validationErrors)
