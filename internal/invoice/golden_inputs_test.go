@@ -77,7 +77,7 @@ func TestGoldenInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			var email string
-			message, err := h.PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, "", "")
+			message, err := h.PrepareInvoiceEmail(EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath})
 			if err != nil {
 				email = "error: " + strings.ReplaceAll(err.Error(), dir+string(filepath.Separator), "") + "\n"
 			} else {

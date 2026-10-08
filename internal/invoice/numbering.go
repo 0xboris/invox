@@ -454,21 +454,14 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 	if err != nil {
 		return err
 	}
-	if len(document.Content) == 0 {
-		return fmt.Errorf("%s: root value must be a mapping", path)
+	root, err := documentRootMapping(document, path)
+	if err != nil {
+		return err
 	}
 
-	root := document.Content[0]
-	if root.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: root value must be a mapping", path)
-	}
-
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return fmt.Errorf("%s: missing `invoice` mapping", path)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: `invoice` must be a mapping", path)
+	invoiceNode, err := invoiceMapping(root, path)
+	if err != nil {
+		return err
 	}
 
 	numberNode := findMappingValue(invoiceNode, "number")

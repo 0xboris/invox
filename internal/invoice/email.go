@@ -60,14 +60,14 @@ func (h Host) ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (Ema
 	case ".yaml", ".yml":
 		paths.InvoicePath = inputPath
 		if paths.PDFPath == "" {
-			paths.PDFPath = replaceFileExtension(inputPath, ".pdf")
+			paths.PDFPath = ReplaceExt(inputPath, ".pdf")
 		}
 	default:
 		return EmailDraftPaths{}, fmt.Errorf("%s: input must end with .yaml, .yml, or .pdf", inputPath)
 	}
 
 	if paths.OutputPath == "" {
-		paths.OutputPath = replaceFileExtension(inputPath, ".eml")
+		paths.OutputPath = ReplaceExt(inputPath, ".eml")
 	}
 
 	return paths, nil
@@ -140,25 +140,21 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	return "", fmt.Errorf(
 		"%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s",
 		store.Dir,
-		filepath.Base(replaceFileExtension(pdfPath, ".yaml")),
+		filepath.Base(ReplaceExt(pdfPath, ".yaml")),
 		strings.Join(matches, ", "),
 	)
 }
 
-// CreateInvoiceEmailDraft writes the draft to outputPath. Unless overwrite is set, an
-// existing outputPath is left untouched and the returned error matches fs.ErrExist.
-func (h Host) CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, invoicePath, pdfPath, outputPath string, overwrite bool, recipientOverride, subjectOverride string) (EmailDraftResult, error) {
+// CreateInvoiceEmailDraft writes emailMessage, as PrepareInvoiceEmail made it,
+// to outputPath as an .eml draft. Unless overwrite is set, an existing
+// outputPath is left untouched and the returned error matches fs.ErrExist.
+func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, outputPath string, overwrite bool) (EmailDraftResult, error) {
 	if !overwrite {
 		if _, err := os.Lstat(outputPath); err == nil {
 			return EmailDraftResult{}, &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
 		} else if !errors.Is(err, fs.ErrNotExist) {
 			return EmailDraftResult{}, err
 		}
-	}
-
-	emailMessage, err := h.PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride)
-	if err != nil {
-		return EmailDraftResult{}, err
 	}
 
 	pdfBytes, err := os.ReadFile(emailMessage.AttachmentPath)
@@ -187,8 +183,22 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, customersPath, issuerPath, 
 	}, nil
 }
 
-func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPath, recipientOverride, subjectOverride string) (EmailMessage, error) {
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+// EmailParams names the files an invoice email is made from, and the
+// recipient and subject that replace the defaults when set.
+type EmailParams struct {
+	CustomersPath string
+	IssuerPath    string
+	InvoicePath   string
+	PDFPath       string
+	Recipient     string
+	Subject       string
+}
+
+// PrepareInvoiceEmail loads the invoice once and returns the email for it:
+// recipient, subject, body and the PDF to attach. The invoice must be built
+// or archived.
+func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
+	ctx, err := LoadContext(p.CustomersPath, p.IssuerPath, p.InvoicePath)
 	if err != nil {
 		return EmailMessage{}, err
 	}
@@ -196,23 +206,23 @@ func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPat
 	status := ctx.Invoice.Status.Trim()
 	if status != "built" && status != "archived" {
 		if status == "" {
-			return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)
+			return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", p.InvoicePath)
 		}
-		return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", invoicePath, status)
+		return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", p.InvoicePath, status)
 	}
-	if _, err := os.Stat(pdfPath); err != nil {
-		return EmailMessage{}, fmt.Errorf("read %s: %w", pdfPath, err)
+	if _, err := os.Stat(p.PDFPath); err != nil {
+		return EmailMessage{}, fmt.Errorf("read %s: %w", p.PDFPath, err)
 	}
 
-	recipient := strings.TrimSpace(recipientOverride)
+	recipient := strings.TrimSpace(p.Recipient)
 	if recipient == "" {
 		recipient = strings.TrimSpace(ctx.CustomerEmail)
 	}
 	if recipient == "" {
-		return EmailMessage{}, fmt.Errorf("%s: recipient email is unavailable", invoicePath)
+		return EmailMessage{}, fmt.Errorf("%s: recipient email is unavailable", p.InvoicePath)
 	}
 
-	subject, err := h.invoiceEmailSubject(ctx, invoicePath, subjectOverride)
+	subject, err := h.invoiceEmailSubject(ctx, p.InvoicePath, p.Subject)
 	if err != nil {
 		return EmailMessage{}, err
 	}
@@ -228,7 +238,7 @@ func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPat
 			Body:           body,
 			SenderName:     ctx.Company.LegalCompanyName.Trim(),
 			SenderAddress:  ctx.Company.Email.Trim(),
-			AttachmentPath: pdfPath,
+			AttachmentPath: p.PDFPath,
 		},
 		CustomerID:    ctx.CustomerID,
 		InvoiceNumber: ctx.InvoiceNumber,

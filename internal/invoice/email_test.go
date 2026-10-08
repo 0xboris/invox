@@ -30,7 +30,7 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -128,7 +128,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	if _, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", ""); err != nil {
+	if _, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -178,7 +178,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -218,17 +218,7 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := h.CreateInvoiceEmailDraft(
-		time.Now(),
-		customersPath,
-		issuerPath,
-		invoicePath,
-		pdfPath,
-		outputPath,
-		false,
-		"",
-		"Invoice {invoice_number} for {contact_person}",
-	)
+	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath, Subject: "Invoice {invoice_number} for {contact_person}"}, outputPath, false)
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -248,17 +238,7 @@ func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	_, err := h.CreateInvoiceEmailDraft(
-		time.Now(),
-		customersPath,
-		issuerPath,
-		invoicePath,
-		pdfPath,
-		filepath.Join(t.TempDir(), "invoice.eml"),
-		false,
-		"",
-		"",
-	)
+	_, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, filepath.Join(t.TempDir(), "invoice.eml"), false)
 	if err == nil {
 		t.Fatal("CreateInvoiceEmailDraft returned nil error for non-built invoice")
 	}

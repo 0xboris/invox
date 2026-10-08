@@ -32,7 +32,7 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 			if _, _, err := host.InitializeConfigDir(); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := host.CreateNewInvoice(time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), work, host.GlobalInvoiceDefaultsPath(), filepath.Join(work, "inv.yaml"), host.GlobalCustomersPath(), host.GlobalIssuerPath(), "CUST-001", false); err != nil {
+			if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.MkdirAll(filepath.Join(work, "out"), 0o755); err != nil {

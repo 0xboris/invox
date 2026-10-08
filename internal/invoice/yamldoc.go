@@ -77,6 +77,19 @@ func documentRootMapping(document *yaml.Node, label string) (*yaml.Node, error) 
 	return root, nil
 }
 
+// invoiceMapping returns the `invoice` mapping of root. label starts the
+// error, which says whether the key is missing or holds something else.
+func invoiceMapping(root *yaml.Node, label string) (*yaml.Node, error) {
+	invoiceNode := findMappingValue(root, "invoice")
+	if invoiceNode == nil {
+		return nil, fmt.Errorf("%s: missing `invoice` mapping", label)
+	}
+	if invoiceNode.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s: `invoice` must be a mapping", label)
+	}
+	return invoiceNode, nil
+}
+
 func getOrCreateMappingNode(parent *yaml.Node, key string) *yaml.Node {
 	if existing := findMappingValue(parent, key); existing != nil {
 		if existing.Kind == yaml.MappingNode {

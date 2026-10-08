@@ -233,6 +233,8 @@ func ValidPurpose(purpose string) bool {
 	return purposePattern.MatchString(purpose)
 }
 
+// CompactIdentifier upper-cases an IBAN or BIC and drops every Unicode space,
+// so "at61 1904 3002 3457 3201" compares as "AT611904300234573201".
 func CompactIdentifier(value string) string {
 	value = strings.ToUpper(value)
 	var compact strings.Builder
@@ -246,6 +248,9 @@ func CompactIdentifier(value string) string {
 	return compact.String()
 }
 
+// ValidIBAN reports whether value, in compact form, is an IBAN: a known
+// country code, that country's length, check digits 02 to 98, and the ISO
+// 13616 mod-97 checksum.
 func ValidIBAN(value string) bool {
 	if len(value) < 15 || len(value) > 34 {
 		return false
@@ -288,6 +293,8 @@ func ValidIBAN(value string) bool {
 	return remainder == 1
 }
 
+// SEPASchemeIBAN reports whether the IBAN's country code is in the SEPA
+// credit transfer scheme, so an EPC QR code can carry it.
 func SEPASchemeIBAN(value string) bool {
 	if len(value) < 2 {
 		return false

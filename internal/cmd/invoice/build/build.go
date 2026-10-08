@@ -118,7 +118,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return err
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
-	outputPath := shared.ReplaceExt(invoicePath, ".pdf")
+	outputPath := invoice.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
 		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
