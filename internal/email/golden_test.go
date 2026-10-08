@@ -1,4 +1,4 @@
-package invoice
+package email
 
 import (
 	"os"
@@ -15,7 +15,7 @@ var (
 func TestBuildInvoiceEmailDraftMatchesGolden(t *testing.T) {
 	t.Parallel()
 
-	eml, err := buildInvoiceEmailDraft(EmailMessage{
+	eml, err := Build(Draft{
 		Recipient:      "office@example.com",
 		Subject:        "Rechnung 2026-0001 für März",
 		Body:           "Sehr geehrte Frau Müller,\n\nanbei die Rechnung.\n\nGrüße,\nJürgen\n",
@@ -24,10 +24,10 @@ func TestBuildInvoiceEmailDraftMatchesGolden(t *testing.T) {
 		AttachmentPath: filepath.Join("out", "2026-0001.pdf"),
 	}, []byte("%PDF-1.4\nfake pdf bytes\n"), draftTime, draftBoundary)
 	if err != nil {
-		t.Fatalf("buildInvoiceEmailDraft returned error: %v", err)
+		t.Fatalf("Build returned error: %v", err)
 	}
 
-	want, err := os.ReadFile(filepath.Join("testdata", "email", "draft.eml"))
+	want, err := os.ReadFile(filepath.Join("testdata", "draft.eml"))
 	if err != nil {
 		t.Fatalf("read golden: %v", err)
 	}
