@@ -1,0 +1,23 @@
+# An unknown subcommand suggests the closest ones, each quoted on its own.
+exits 2 invox nit
+! stdout .
+cmp stderr want-root.txt
+
+exits 2 invox customer lsit
+! stdout .
+cmp stderr want-customer.txt
+
+# One candidate.
+exits 2 invox template lsit
+! stdout .
+cmp stderr want-template.txt
+
+-- want-root.txt --
+error: unknown subcommand "nit"; did you mean "init" or "new"?
+Run 'invox --help' for usage.
+-- want-customer.txt --
+error: unknown customer subcommand "lsit"; did you mean "list" or "edit"?
+Run 'invox customer --help' for usage.
+-- want-template.txt --
+error: unknown template subcommand "lsit"; did you mean "list"?
+Run 'invox template --help' for usage.
