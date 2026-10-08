@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: invox
+
+before:
+  hooks:
+    - go mod tidy -diff
+    # The man pages in share/man/man1 are committed, and CI fails when they
+    # drift from the command tree. Completions are not committed.
+    - sh -c 'mkdir -p completions && for shell in bash zsh fish powershell; do go run ./cmd/invox completion "$shell" > "completions/invox.$shell"; done'
+
+builds:
+  - id: invox
+    main: ./cmd/invox
+    binary: invox
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/0xboris/invox/internal/build.Version={{ .Version }}
+      - -X github.com/0xboris/invox/internal/build.Date={{ slice .CommitDate 0 10 }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: invox
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - share/man/man1/*.1
+      - completions/*
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
+
+release:
+  draft: true
+  replace_existing_draft: true
+  footer: |
+    See [CHANGELOG.md](https://github.com/0xboris/invox/blob/{{ .Tag }}/CHANGELOG.md) for the changes in this release.
+
+# A cask, not a formula: GoReleaser v2.10 deprecated `brews` for prebuilt
+# binaries. The cask installs on macOS and Linux.
+homebrew_casks:
+  - name: invox
+    repository:
+      owner: 0xboris
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    directory: Casks
+    homepage: https://github.com/0xboris/invox
+    description: YAML- and LaTeX-driven invoices from the command line
+    # Without the token the release still publishes; only the tap update is skipped.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    binaries: [invox]
+    manpages:
+      - share/man/man1/*.1
+    completions:
+      bash: completions/invox.bash
+      zsh: completions/invox.zsh
+      fish: completions/invox.fish
+    dependencies:
+      - formula: tectonic
+    # The binaries are not signed or notarized, so Gatekeeper would block them.
+    hooks:
+      post:
+        install: |
+          if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/invox"]
+          end
