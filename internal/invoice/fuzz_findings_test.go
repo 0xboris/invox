@@ -106,63 +106,6 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 	}
 }
 
-func TestParseInvoiceCounterReturnsErrorForInvalidUTF8Pattern(t *testing.T) {
-	// regexp.MustCompile panicked on this pattern.
-	_, err := parseInvoiceCounter("\xff{customer_id}-{counter}", "\xffCUST-001-1", "CUST-001", "2026-03-06", Customer{})
-	if err == nil || !strings.Contains(err.Error(), "invalid UTF-8") {
-		t.Fatalf("parseInvoiceCounter error = %v, want an invalid UTF-8 error", err)
-	}
-}
-
-func TestValidateNumberingSettingsRejectsPatternsThatDoNotRoundTrip(t *testing.T) {
-	tests := []struct {
-		pattern string
-		wantErr string
-	}{
-		{pattern: " {customer_id}-{counter}", wantErr: "must not start or end with whitespace"},
-		{pattern: "{customer_id}-{counter}\t", wantErr: "must not start or end with whitespace"},
-		{pattern: "{customer_id}-{counter:03}/{counter}", wantErr: "must contain {counter} only once"},
-		{pattern: "{customer_code}{counter:03}", wantErr: `numbering.pattern "{customer_code}{counter:03}" needs a separator between {customer_code} and {counter}, such as "{customer_code}-{counter:03}"`},
-		{pattern: "RE-{customer_code}{counter:04}", wantErr: "set numbering.start (or customers.<id>.numbering.start) to continue the sequence"},
-		{pattern: "{counter}{customer_id}", wantErr: "needs a separator between {customer_id} and {counter}"},
-		{pattern: "{customer_id}-{counter:21}", wantErr: "uses an invalid width; use at most 20"},
-		{pattern: "\xff{customer_id}-{counter}", wantErr: "must be valid UTF-8"},
-		{pattern: defaultNumberingPattern},
-		{pattern: "{customer_id}-{year}-{counter:04}"},
-		{pattern: "{customer_code}{year}{counter:20}"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pattern, func(t *testing.T) {
-			err := validateNumberingSettings(NumberingSettings{Pattern: tt.pattern, Start: 1})
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("validateNumberingSettings returned error: %v", err)
-				}
-				return
-			}
-			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Fatalf("validateNumberingSettings error = %v, want %q", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestParseInvoiceCounterTrimsPatternLikeFormat(t *testing.T) {
-	pattern := " {customer_id}-{counter:03} "
-	number, err := formatInvoiceNumber(pattern, "CUST-001", Customer{}, "2026-03-06", 7)
-	if err != nil {
-		t.Fatalf("formatInvoiceNumber returned error: %v", err)
-	}
-	counter, err := parseInvoiceCounter(pattern, number, "CUST-001", "2026-03-06", Customer{})
-	if err != nil {
-		t.Fatalf("parseInvoiceCounter(%q) returned error: %v", number, err)
-	}
-	if counter != 7 {
-		t.Fatalf("parseInvoiceCounter(%q) = %d, want 7", number, counter)
-	}
-}
-
 func TestBuildEPCPayloadRejectsNonPositiveAmountAndInvalidUTF8(t *testing.T) {
 	tests := []struct {
 		name    string

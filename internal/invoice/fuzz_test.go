@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/0xboris/invox/internal/epc"
@@ -19,68 +18,6 @@ import (
 //	go test -run='^$' -fuzz='^FuzzLoadContext$' -fuzztime=60s ./internal/invoice
 //
 // or all of them with `make fuzz`.
-
-func FuzzInvoiceNumberRoundTrip(f *testing.F) {
-	for _, seed := range []struct {
-		pattern, customerID, customerCode, issueDate string
-		counter                                      int64
-	}{
-		{"{customer_id}-{counter:03}", "CUST-001", "", "2026-03-06", 1},
-		{"{customer_code}-{counter:03}", "CUST-001", "APP", "2026-03-06", 7},
-		{"{customer_id}-{year}-{counter:04}", "CUST-001", "", "2026-12-31", 12345},
-		{"{year}{month}{day}/{customer_code}/{counter}", "1001", "", "2026-01-02", 0},
-		{"{counter}.{customer_id}", "A1", "", "2026-03-06", 9223372036854775807},
-		// #17: patterns that formatted but did not parse back.
-		{" {customer_id}-{counter}", "CUST-001", "", "2026-03-06", 1},
-		{"{customer_id}-{counter:03}/{counter}", "CUST-001", "", "2026-03-06", 1},
-		{"{customer_code}{counter:03}", "A", "", "2026-03-06", 7},
-		// #17: invalid UTF-8 made parseInvoiceCounter's regexp.MustCompile panic.
-		{"\xff{customer_id}-{counter}", "CUST-001", "", "2026-03-06", 1},
-		{"{customer_id}-{counter:999999999}", "CUST-001", "", "2026-03-06", 1},
-	} {
-		f.Add(seed.pattern, seed.customerID, seed.customerCode, seed.issueDate, seed.counter)
-	}
-
-	f.Fuzz(func(t *testing.T, pattern, customerID, customerCode, issueDate string, counter int64) {
-		customer := Customer{Numbering: CustomerNumbering{Code: Text(customerCode)}}
-
-		// Parsing never panics, whatever the pattern and number.
-		_, _ = parseInvoiceCounter(pattern, customerID, customerID, issueDate, customer)
-
-		// ResolveNumberingSettings trims the configured pattern, then
-		// validates it; only patterns that pass are ever formatted.
-		pattern = strings.TrimSpace(pattern)
-		if err := validateNumberingSettings(NumberingSettings{Pattern: pattern, Start: 1}); err != nil {
-			return
-		}
-		// Customer IDs and codes come from YAML, which is valid UTF-8, and
-		// IDs are trimmed when an invoice is loaded. Counters are never
-		// negative.
-		customerID = strings.TrimSpace(customerID)
-		if customerID == "" || !utf8.ValidString(customerID) || !utf8.ValidString(customerCode) || counter < 0 {
-			return
-		}
-
-		number, err := formatInvoiceNumber(pattern, customerID, customer, issueDate, counter)
-		if _, dateErr := time.Parse("2006-01-02", issueDate); dateErr != nil {
-			if err == nil {
-				t.Fatalf("formatInvoiceNumber accepted invalid issue date %q", issueDate)
-			}
-			return
-		}
-		if err != nil {
-			t.Fatalf("formatInvoiceNumber(%q, %q, %q, %d) returned error: %v", pattern, customerID, issueDate, counter, err)
-		}
-
-		got, err := parseInvoiceCounter(pattern, number, customerID, issueDate, customer)
-		if err != nil {
-			t.Fatalf("pattern %q formatted counter %d as %q, which does not parse back: %v", pattern, counter, number, err)
-		}
-		if got != counter {
-			t.Fatalf("pattern %q formatted counter %d as %q, which parses back as %d", pattern, counter, number, got)
-		}
-	})
-}
 
 func FuzzBuildEPCPayload(f *testing.F) {
 	for _, seed := range []struct {

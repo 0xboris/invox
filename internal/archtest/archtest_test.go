@@ -49,7 +49,7 @@ var rules = []rule{
 	},
 	{
 		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/archive", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/render/..."},
+		pkgs: []string{mod + "internal/archive", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/numbering", mod + "internal/render/..."},
 		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
 	},
 	{
@@ -65,7 +65,7 @@ var rules = []rule{
 	},
 	{
 		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/build", mod + "internal/email", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money"},
+		pkgs: []string{mod + "internal/build", mod + "internal/email", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money", mod + "internal/numbering"},
 		only: []string{},
 	},
 	{
