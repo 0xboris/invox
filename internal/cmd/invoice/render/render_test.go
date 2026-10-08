@@ -24,6 +24,8 @@ func TestNewCmdRenderParsing(t *testing.T) {
 		{name: "short", args: []string{"-i", "x.yaml", "-o", "o.tex", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "plain"}},
 		{name: "long", args: []string{"--input", "x.yaml", "--output", "o.tex", "--customers", "c.yaml", "--issuer", "u.yaml", "--template", "t.tex"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "t.tex"}},
 		{name: "wrong output extension", args: []string{"-i", "x.yaml", "-o", "o.pdf"}, wantErr: "-o, --output must end with .tex"},
+		{name: "upper-case output extension", args: []string{"-i", "x.yaml", "-o", "OUT.TEX"}, wantErr: "-o, --output must end with .tex"},
+		{name: "blank output", args: []string{"-i", "x.yaml", "-o", " "}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: " "}},
 		{name: "no input", args: []string{}, wantErr: "missing required flags: -i, --input"},
 		{name: "positional input", args: []string{"x.yaml"}, wantErr: "unexpected arguments: x.yaml"},
 		{name: "misspelt flag", args: []string{"-i", "x.yaml", "--inptu", "y"}, wantErr: "unknown flag: --inptu; did you mean --input?"},
