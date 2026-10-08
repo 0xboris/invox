@@ -28,7 +28,7 @@ func TestSignalAtReplacePrompt(t *testing.T) {
 			e := setupEditedArchive(t)
 			ios := promptStreams(true, "")
 			stdin, unanswered := io.Pipe()
-			t.Cleanup(func() { unanswered.Close() })
+			t.Cleanup(func() { _ = unanswered.Close() })
 			ios.In = stdin
 			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
 			ctx, cancel := context.WithCancelCause(context.Background())

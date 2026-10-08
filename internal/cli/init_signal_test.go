@@ -33,7 +33,7 @@ func TestSignalAtInitLegacyPrompt(t *testing.T) {
 			writeTestFile(t, filepath.Join(l.legacyDir, "customers.yaml"), "legacy\n")
 			ios := promptStreams(true, "")
 			stdin, unanswered := io.Pipe()
-			t.Cleanup(func() { unanswered.Close() })
+			t.Cleanup(func() { _ = unanswered.Close() })
 			ios.In = stdin
 			isolateUserDirs(t)
 			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
