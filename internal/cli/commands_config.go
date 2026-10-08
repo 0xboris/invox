@@ -29,10 +29,6 @@ func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	if err := f.Editor.Edit(ctx, configPath); err != nil {
-		return fmt.Errorf("failed to open %s: %w", configPath, err)
-	}
-
 	baseDir, err := e.Getwd()
 	if err != nil {
 		return err
@@ -41,7 +37,12 @@ func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	if err != nil {
 		return err
 	}
+	displayPath := invoice.DisplayPath(configPath, baseDir)
 
-	fmt.Fprintf(ios.ErrOut, "Opened %s\n", invoice.DisplayPath(configPath, baseDir))
+	if err := openInEditor(ctx, f, spec.Name, configPath, "edit "+displayPath+" directly"); err != nil {
+		return fmt.Errorf("failed to open %s: %w", configPath, err)
+	}
+
+	fmt.Fprintf(ios.ErrOut, "Opened %s\n", displayPath)
 	return nil
 }

@@ -50,11 +50,16 @@ Environment variables:
       Default: %USERPROFILE%\AppData\Roaming. Not used elsewhere.
   VISUAL
       Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.
+      The value is split into words like a shell would and run directly, with the
+      file as the last argument. A value with shell syntax ($, |, ; and the like)
+      runs through sh -c, where an unquoted # starts a comment that drops the file.
+      On Windows it is always split and run directly.
   EDITOR
-      Editor used when VISUAL is unset. Without either: vi, or notepad on Windows.
-  SHELL
-      Shell that runs the editor command on macOS, Linux and other Unix systems.
-      Default: /bin/sh. On Windows the editor runs through cmd /c.
+      Editor used when VISUAL is unset, read the same way. Without either: vi, or
+      notepad on Windows.
+  INVOX_PROMPT_DISABLED
+      Any non-empty value works like --no-input. With either, invox never prompts or
+      opens an editor, and a step that needs one fails with exit 2.
   INVOX_FORCE_TTY
       Testing aid: any non-empty value makes invox treat stdout as a terminal.
 
@@ -100,9 +105,11 @@ Exit codes:
        a failed build or a failed external program.
   2    Usage error: unknown command, topic or flag, or a missing or extra
        argument. Also used when a confirmation was declined, or was needed
-       without a terminal to ask on and without --yes. The step that needed
-       confirmation was not done. Ctrl-C at a confirmation prompt also
-       exits 2.
+       without a terminal to ask on and without --yes, and when an editor was
+       needed without a terminal or with --no-input. The step that needed
+       confirmation or the editor was not done. Ctrl-C at a confirmation
+       prompt also exits 2.
   130  Interrupted by Ctrl-C (SIGINT). Programs invox started are stopped
-       and its temporary files are removed.
+       and its temporary files are removed. While an editor runs, Ctrl-C
+       goes to the editor alone and invox keeps waiting for it.
   143  Stopped by SIGTERM, with the same cleanup as 130.

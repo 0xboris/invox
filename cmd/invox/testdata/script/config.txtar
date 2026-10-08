@@ -1,38 +1,47 @@
-# config creates config.yaml from its template if needed and opens it in
-# $VISUAL (the fake editor prints the file name it was given).
-exec invox config
+# config creates config.yaml from its template if needed and opens it in an
+# editor. The script's stdin is not a terminal, so no editor opens and config
+# fails with a usage error after creating the file.
+exits 2 invox config
 ! stdout .
 scrubpaths stderr got.txt
-cmp got.txt want-opened.txt
+cmp got.txt want-no-terminal.txt
 scrubpaths home/.config/invox/config.yaml got.yaml
 cmp got.yaml want-config.yaml
 
-# An existing config.yaml is opened unchanged.
+# An existing config.yaml is left unchanged.
 cp custom.yaml home/.config/invox/config.yaml
-exec invox config
+exits 2 invox config
 ! stdout .
 scrubpaths stderr got.txt
-cmp got.txt want-opened.txt
+cmp got.txt want-no-terminal.txt
 cmp home/.config/invox/config.yaml custom.yaml
+
+# --no-input and INVOX_PROMPT_DISABLED say why no editor opens.
+exits 2 invox --no-input config
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-disabled.txt
+env INVOX_PROMPT_DISABLED=1
+exits 2 invox config
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-disabled.txt
+env INVOX_PROMPT_DISABLED=
 
 # Usage error: config takes no arguments.
 exits 2 invox config extra
 ! stdout .
 cmp stderr want-usage.txt
 
-# Runtime error: the editor fails.
-env FAKE_EDITOR_FAIL=1
-exits 1 invox config
-! stdout .
-scrubpaths stderr got.txt
-cmp got.txt want-editor-failed.txt
-
 -- custom.yaml --
 archive:
   dir: archive
--- want-opened.txt --
-fake editor: config.yaml
-Opened home/.config/invox/config.yaml
+-- want-no-terminal.txt --
+error: cannot open an editor: stdin is not a terminal; edit home/.config/invox/config.yaml directly
+Run 'invox config --help' for usage.
+-- want-disabled.txt --
+error: cannot open an editor: prompts are disabled (--no-input or INVOX_PROMPT_DISABLED); edit home/.config/invox/config.yaml directly
+Run 'invox config --help' for usage.
 -- want-config.yaml --
 # Invox user configuration.
 #
@@ -104,6 +113,3 @@ Opened home/.config/invox/config.yaml
 -- want-usage.txt --
 error: unexpected arguments: extra
 Run 'invox config --help' for usage.
--- want-editor-failed.txt --
-fake editor: forced failure
-error: failed to open home/.config/invox/config.yaml: exit status 1

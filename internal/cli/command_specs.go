@@ -49,7 +49,7 @@ func customerListSpec() commandSpec {
 func customerConfigSpec() commandSpec {
 	return commandSpec{
 		Name:           "customer config",
-		Summary:        "Open customers.yaml in the default shell editor.",
+		Summary:        "Open customers.yaml in your editor.",
 		Usage:          "customer config [-c CUSTOMERS.yaml]",
 		NeedsCustomers: true,
 		Examples: []string{
@@ -62,7 +62,7 @@ func customerConfigSpec() commandSpec {
 func configSpec() commandSpec {
 	return commandSpec{
 		Name:    "config",
-		Summary: "Open config.yaml in the default shell editor.",
+		Summary: "Open config.yaml in your editor.",
 		Usage:   "config",
 		Examples: []string{
 			commandExample("config"),

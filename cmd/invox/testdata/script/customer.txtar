@@ -14,8 +14,8 @@ exec invox customer list -c escapes.yaml
 cmp stdout want-list-escapes.tsv
 ! stderr .
 
-# customer config opens customers.yaml in $VISUAL.
-exec invox customer config
+# customer config opens customers.yaml in an editor, which needs a terminal.
+exits 2 invox customer config
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-config.txt
@@ -44,11 +44,6 @@ exits 1 invox customer list -c missing.yaml
 ! stdout .
 stderr 'missing\.yaml'
 ! stderr 'for usage'
-env FAKE_EDITOR_FAIL=1
-exits 1 invox customer config
-! stdout .
-scrubpaths stderr got.txt
-cmp got.txt want-editor-failed.txt
 
 -- other.yaml --
 OTHER-1:
@@ -67,14 +62,11 @@ CUST-003	Third Customer KG	active
 -- want-list-other.tsv --
 OTHER-1	Other Ltd	active
 -- want-config.txt --
-fake editor: customers.yaml
-Opened home/.config/invox/customers.yaml
+error: cannot open an editor: stdin is not a terminal; edit home/.config/invox/customers.yaml directly
+Run 'invox customer config --help' for usage.
 -- want-list-extra.txt --
 error: unexpected arguments: extra
 Run 'invox customer list --help' for usage.
--- want-editor-failed.txt --
-fake editor: forced failure
-error: failed to open home/.config/invox/customers.yaml: exit status 1
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

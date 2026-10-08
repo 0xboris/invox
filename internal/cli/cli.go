@@ -36,6 +36,10 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
+	args, noInput := removeNoInput(args)
+	if noInput || f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
+		ios.SetNeverPrompt(true)
+	}
 	if len(args) == 0 {
 		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
@@ -85,6 +89,24 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	default:
 		return cmdutil.FlagErrorf("", "unknown subcommand %q", args[0])
 	}
+}
+
+// removeNoInput returns args without the global --no-input flag, which any
+// command accepts anywhere before a "--" terminator, and whether it was there.
+func removeNoInput(args []string) ([]string, bool) {
+	kept := make([]string, 0, len(args))
+	found := false
+	for i, arg := range args {
+		if arg == "--" {
+			return append(kept, args[i:]...), found
+		}
+		if arg == "--no-input" {
+			found = true
+			continue
+		}
+		kept = append(kept, arg)
+	}
+	return kept, found
 }
 
 func runHelp(f *cmdutil.Factory, args []string) error {
