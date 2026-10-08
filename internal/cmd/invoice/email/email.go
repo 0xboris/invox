@@ -16,6 +16,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -49,6 +50,36 @@ func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) e
 		Use:     "email [INVOICE.yaml | INVOICE.pdf]",
 		Aliases: []string{"send"},
 		Short:   "Create an email draft and open it in the default mail app",
+		Long: `Create an email draft and open it in the default mail app.
+
+Required inputs:
+  INVOICE.yaml, INVOICE.pdf, or -i, --input PATH  Path to the invoice YAML or built PDF file
+
+Default output:
+  <input name>.eml in a new temporary directory, removed after 24 hours
+
+Default lookup:
+` +
+			helptext.LookupCustomers +
+			helptext.LookupIssuer +
+			`  invoice PDF: input path with .pdf extension by default, or the input itself when the input is a PDF
+
+Behavior:
+  Accepts either the invoice YAML file or the built PDF as input.
+  When the input is a PDF, the matching YAML file is resolved from the same basename.
+  The PDF lookup checks next to the PDF first, then archive.dir.
+  Requires invoice.status to be built or archived and the PDF attachment to exist.
+  On macOS, opens an editable compose window in Apple Mail with the PDF attached.
+  If -o is set, or on non-macOS platforms, writes a .eml draft file and opens it.
+  Without -o, the draft is written to a new temporary directory. A later run removes it after 24 hours.
+  With -o, the draft is kept. An existing -o file is not replaced unless --force is set.
+  Does not send the email and does not change invoice.status.
+`,
+		Example: `$ invox email invoice.yaml
+$ invox email invoice.pdf
+$ invox email invoice.yaml --to billing@example.com
+$ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if rest := shared.TakeInput(&opts.InvoicePath, args); len(rest) > 0 {
 				return cmdutil.FlagErrorf("email", "unexpected arguments: %s", strings.Join(rest, " "))
@@ -67,12 +98,20 @@ func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) e
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML or PDF file")
 	cmd.Flags().StringVarP(&opts.PDFPath, "pdf", "p", "", "Path to the invoice PDF (default: the input with .pdf)")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Write the draft to this .eml file instead of a temporary one")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Write the draft to this .eml file instead of a temporary one (must end with .eml)")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVar(&opts.To, "to", "", "Recipient email override")
-	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override")
+	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override, supports placeholders")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml", "pdf")
+	_ = cmd.MarkFlagFilename("input", "yaml", "yml", "pdf")
+	_ = cmd.MarkFlagFilename("pdf", "pdf")
+	_ = cmd.MarkFlagFilename("output", "eml")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
+	_ = cmd.RegisterFlagCompletionFunc("to", cobra.NoFileCompletions)
+	_ = cmd.RegisterFlagCompletionFunc("subject", cobra.NoFileCompletions)
 	return cmd
 }
 

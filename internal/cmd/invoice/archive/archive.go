@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/archive/edit"
 	"github.com/0xboris/invox/internal/cmd/invoice/archive/list"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
@@ -38,6 +39,22 @@ func NewCmdArchive(f *cmdutil.Factory, runF func(context.Context, *ArchiveOption
 	cmd := &cobra.Command{
 		Use:   "archive [INVOICE.yaml]",
 		Short: "Archive a built or edited invoice YAML file into the configured archive directory",
+		Long: `Archive a built or edited invoice YAML file into the configured archive directory.
+
+Required inputs:
+  INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
+
+Default lookup:
+` +
+			helptext.LookupArchive +
+			"\n" +
+			helptext.ReplacingArchived(false),
+		Example: `$ invox archive invoice.yaml
+$ invox archive invoices/2026-0021.yaml
+$ invox archive 2026-03-06.yaml --yes
+$ invox archive edit 2026-03-06.yaml
+$ invox archive list
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if rest := shared.TakeInput(&opts.InvoicePath, args); len(rest) > 0 {
 				return cmdutil.FlagErrorf("archive", "unexpected arguments: %s", strings.Join(rest, " "))
@@ -57,6 +74,8 @@ func NewCmdArchive(f *cmdutil.Factory, runF func(context.Context, *ArchiveOption
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
 	cmd.AddCommand(edit.NewCmdEdit(f, nil), list.NewCmdList(f, nil))
+	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	return cmd
 }
 

@@ -1,0 +1,149 @@
+.TH "INVOX-CONFIG" 1 "" "invox" "invox manual"
+.SH NAME
+invox-config \- Open config.yaml in your editor
+.SH DESCRIPTION
+.nf
+Open config.yaml in your editor.
+
+Behavior:
+  Opens the resolved config.yaml in your editor, or the file given with
+  --config.
+  If config.yaml does not exist yet, creates it from the template below.
+  Existing config.yaml files are left unchanged.
+
+Config paths:
+  preferred: $HOME/.config/invox/config.yaml
+  legacy fallback: $HOME/.config/invoice-tool/config.yaml
+  --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
+  `invox config paths` shows the config file and the support files in use.
+
+Formatting:
+  Top-level keys must start at column 1 with no leading spaces.
+
+Supported settings:
+  paths.customers    Override the default customers.yaml lookup path
+  paths.issuer       Override the default issuer.yaml lookup path
+  paths.defaults     Override the default invoice_defaults.yaml lookup path
+  paths.template     Override the default template.tex lookup path
+  numbering.pattern  Override the invoice-number pattern
+  numbering.start    Global starting counter when no archived invoice matches
+  archive.dir        Override the archive directory for archived invoice files
+  email.subject      Override the draft email subject template for the email command
+  email.body         Override the plain-text body template for the email command
+
+Invoice numbers:
+  `new` uses the next counter after the highest one found in archive.dir and in
+  draft or built invoice YAML files in the current directory and the output directory.
+  `archive` refuses an invoice whose number is already archived under another file;
+  `validate` warns about it. Run `invox increment -i FILE` to give it the next free number.
+
+email template placeholders:
+  {customer_name}        Customer display name
+  {email_greeting}       Customer-specific greeting, defaults to Hello,
+  {contact_person}       Customer contact person
+  {customer_id}          Customer ID from the invoice
+  {invoice_number}       Invoice number
+  {issue_date}           Invoice issue date
+  {due_date}             Invoice due date
+  {total_amount}         Invoice total with currency
+  {outstanding_amount}   Outstanding amount with currency
+  {payment_terms_text}   issuer.payment.payment_terms_text
+  {issuer_name}          issuer.company.legal_company_name
+
+Customer overrides:
+  customers.<CUSTOMER_ID>.numbering.start  Override numbering.start for one customer
+
+Support file precedence:
+  1. explicit CLI flag
+  2. upward project search
+  3. paths.* in config.yaml
+  4. conventional files in $HOME/.config/invox
+
+Template:
+# Invox user configuration.
+#
+# Uncomment a setting and change it to override the default.
+#
+# Supported settings:
+#   paths.customers
+#   paths.issuer
+#   paths.defaults
+#   paths.template
+#   numbering.pattern
+#   numbering.start
+#   archive.dir
+#     Directory where archived invoice files are stored.
+#   email.subject
+#     Subject template for the email command.
+#   email.body
+#     Plain-text body template for the email command.
+#     Supported placeholders for email.subject and email.body:
+#       {customer_name}
+#       {email_greeting}
+#       {contact_person}
+#       {customer_id}
+#       {invoice_number}
+#       {issue_date}
+#       {due_date}
+#       {total_amount}
+#       {outstanding_amount}
+#       {payment_terms_text}
+#       {issuer_name}
+#
+# Notes:
+# - Top-level keys must not be indented.
+# - Relative paths are resolved relative to this file.
+# - "~/" expands to your home directory.
+# - Per-customer numbering overrides live in customers.yaml at:
+#   <customer>.numbering.start
+# - Support file resolution order is:
+#   1. explicit CLI flag
+#   2. upward project search
+#   3. paths.* in this file
+#   4. conventional files in this config directory
+#
+# paths:
+#   customers: 'customers.yaml'
+#   issuer: 'issuer.yaml'
+#   defaults: 'invoice_defaults.yaml'
+#   template: 'template.tex'
+#
+# numbering:
+#   pattern: '{customer_code}-{counter:03}'
+#   start: 1
+#
+# archive:
+#   dir: '~/.local/share/invox/invoices'
+#
+# email:
+#   subject: 'Invoice {invoice_number}'
+#   body: |
+#     {email_greeting}
+#     
+#     Please find attached invoice {invoice_number}.
+#     Issue date: {issue_date}
+#     Due date: {due_date}
+#     Outstanding amount: {outstanding_amount}
+#     
+#     Regards,
+#     {issuer_name}
+
+Usage:
+  invox config [flags]
+  invox config <subcommand> [flags]
+
+Commands:
+  paths  Show where each config and support file is read from
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox config
+  $ invox config paths
+  $ invox help config
+.fi
+.SH SEE ALSO
+\fBinvox\fP(1), \fBinvox-config-paths\fP(1)

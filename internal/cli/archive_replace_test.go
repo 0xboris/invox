@@ -310,19 +310,11 @@ func TestYesFlagIsDocumented(t *testing.T) {
 	}{
 		{
 			args: []string{"archive", "-h"},
-			want: []string{"--yes                   Replace an archived invoice without asking", "archive.dir/.history/<path>.<UTC timestamp>.<ext>"},
+			want: []string{"      --yes            Replace an archived invoice without asking\n", "archive.dir/.history/<path>.<UTC timestamp>.<ext>"},
 		},
 		{
 			args: []string{"build", "-h"},
-			want: []string{"[--archive [--yes]]", "--yes                   Replace an archived invoice without asking", "keeps that status when its PDF is rebuilt"},
-		},
-		{
-			args: []string{"-h"},
-			want: []string{"--yes                   Replace an archived invoice without asking (archive, build --archive)"},
-		},
-		{
-			args: []string{"completion", "zsh"},
-			want: []string{"    archive)\n", "'--yes[replace an archived invoice without asking]'"},
+			want: []string{"      --yes                Replace an archived invoice without asking\n", "keeps that status when its PDF is rebuilt"},
 		},
 	} {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {

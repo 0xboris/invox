@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -28,8 +29,19 @@ type IncrementOptions struct {
 func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
 	opts := &IncrementOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "increment",
+		Use:   "increment -i INVOICE.yaml",
 		Short: "Increment the invoice number in an existing invoice YAML file",
+		Long: `Increment the invoice number in an existing invoice YAML file.
+
+Required inputs:
+  -i, --input PATH        Path to the invoice YAML file
+
+Default lookup:
+` +
+			helptext.LookupCustomers,
+		Example: `$ invox increment -i invoice.yaml
+$ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("increment", "unexpected arguments: %s", strings.Join(args, " "))
@@ -48,6 +60,9 @@ func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *co
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	return cmd
 }
 

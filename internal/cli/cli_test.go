@@ -38,10 +38,9 @@ func TestCustomerHelpShowsCustomerSubcommands(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"invox customer <subcommand> [options]",
-		"list          List all customers",
-		"config        Open customers.yaml in your editor",
-		"-c, --customers PATH",
+		"invox customer <subcommand> [flags]",
+		"  list    List all customers from customers.yaml\n",
+		"  config  Open customers.yaml in your editor\n",
 		"Customer fields:",
 		"<customer>.tax.default_vat_rate",
 		"<customer>.billing.send_invoice_to",
@@ -65,12 +64,14 @@ func TestRootHelpShowsDocumentationTopics(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"Documentation topics:",
-		"invox help config",
-		"invox help customers",
-		"invox help issuer",
-		"invox help defaults",
-		"invox help template",
+		"Help topics:\n",
+		"  config       config.yaml keys, precedence, and email placeholders\n",
+		"  customers    customers.yaml fields, aliases, and example\n",
+		"  issuer       issuer.yaml fields, validation rules, and example\n",
+		"  defaults     invoice_defaults.yaml shape and new-command behavior\n",
+		"  template     template placeholders and authoring rules\n",
+		"  environment  environment variables, default directories, and precedence\n",
+		"  exit-codes   what each exit status means\n",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
@@ -440,8 +441,8 @@ func TestCustomerConfigHelpShowsConfigUsage(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Open customers.yaml in your editor.",
-		"invox customer config [-c CUSTOMERS.yaml]",
-		"-c, --customers PATH",
+		"invox customer config [flags]",
+		"-c, --customers string",
 		"<customer>.name",
 		"<customer>.email",
 		"<customer>.billing.send_invoice_to",
@@ -537,8 +538,8 @@ func TestTemplateHelpShowsTemplateSubcommands(t *testing.T) {
 	for _, want := range []string{
 		"Description:",
 		"Author and discover the LaTeX templates used by render and build.",
-		"invox template <subcommand> [options]",
-		"list          List available invoice templates",
+		"invox template <subcommand> [flags]",
+		"  list  List available invoice templates\n",
 		"Important rules:",
 		"Placeholder names are case-sensitive and must match exactly.",
 		"Structured placeholders:",
@@ -698,30 +699,22 @@ Customer @@CUSTOMER_NAME@@
 	}
 }
 
-func TestCompletionZshOutputsTemplateAutocomplete(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"completion", "zsh"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	for _, want := range []string{
-		"#compdef invox",
-		"template list --names",
-		"_invox_template_values",
-		"_invox_invoice_files()",
-		"_invox_shift_words()",
-		"_invox_shift_words 1",
-		"_invox_shift_words 2",
-		"if (( CURRENT == 3 )) && [[ ${words[3]:-} != -* ]]; then",
-		"{-t+,--template=}",
-		"(-i --input)1::invoice:_files",
-		"compdef _invox invox",
+func TestCompletionPrintsAScriptForEachShell(t *testing.T) {
+	for shell, want := range map[string]string{
+		"bash":       "complete -o default -F __start_invox invox",
+		"zsh":        "compdef _invox invox",
+		"fish":       "complete -c invox ",
+		"powershell": "Register-ArgumentCompleter -CommandName 'invox'",
 	} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout %q does not contain %q", stdout, want)
-		}
+		t.Run(shell, func(t *testing.T) {
+			exitCode, stdout, stderr := captureRun(t, []string{"completion", shell})
+			if exitCode != 0 || stderr != "" {
+				t.Fatalf("exitCode = %d, stderr = %q, want 0 and empty", exitCode, stderr)
+			}
+			if !strings.Contains(stdout, want) || !strings.Contains(stdout, "__complete") {
+				t.Fatalf("stdout does not contain %q and __complete:\n%s", want, stdout)
+			}
+		})
 	}
 }
 
@@ -735,10 +728,10 @@ func TestNewHelpShowsShortFlags(t *testing.T) {
 	}
 	for _, want := range []string{
 		"CUSTOMER_ID",
-		"-c, --customers PATH",
-		"-u, --issuer PATH",
-		"-s, --source PATH",
-		"-o, --output PATH",
+		"-c, --customers string",
+		"-u, --issuer string",
+		"-s, --source string",
+		"-o, --output string",
 		"-e, --edit",
 		"--from-last",
 		"<invoice.number>.yaml in the current directory",
@@ -1025,10 +1018,10 @@ func TestRenderHelpShowsShortFlags(t *testing.T) {
 	}
 	for _, want := range []string{
 		"-i, --input PATH",
-		"-o, --output PATH",
-		"-c, --customers PATH",
-		"-u, --issuer PATH",
-		"-t, --template PATH",
+		"-o, --output string",
+		"-c, --customers string",
+		"-u, --issuer string",
+		"-t, --template string",
 		"schema/docs: run `invox help customers`",
 		"schema/docs: run `invox help issuer`",
 		"invoice.tex in the current directory",
@@ -1048,9 +1041,9 @@ func TestNewHelpShowsSupportFileDocumentationHints(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"-c, --customers PATH",
-		"-u, --issuer PATH",
-		"-s, --source PATH",
+		"-c, --customers string",
+		"-u, --issuer string",
+		"-s, --source string",
 		"schema/docs: run `invox help customers`",
 		"schema/docs: run `invox help issuer`",
 		"schema/docs: run `invox help defaults`",
@@ -1071,10 +1064,10 @@ func TestEmailHelpShowsDraftOutputAndFlags(t *testing.T) {
 	}
 	for _, want := range []string{
 		"INVOICE.yaml, INVOICE.pdf, or -i, --input PATH",
-		"-p, --pdf PATH",
-		"-o, --output PATH",
-		"--to EMAIL",
-		"--subject TEXT",
+		"-p, --pdf string",
+		"-o, --output string",
+		"--to string",
+		"--subject string",
 		"--force",
 		"<input name>.eml in a new temporary directory, removed after 24 hours",
 		"Accepts either the invoice YAML file or the built PDF as input.",
@@ -1276,7 +1269,8 @@ func TestSendAliasUsesEmailCommand(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	for _, want := range []string{
-		"invox email (INVOICE.yaml | INVOICE.pdf | -i INPUT)",
+		"invox email [INVOICE.yaml | INVOICE.pdf] [flags]",
+		"Aliases:\n  invox send\n",
 		"On macOS, opens an editable compose window in Apple Mail with the PDF attached.",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -1360,11 +1354,11 @@ func TestBuildHelpShowsInputBasedDefaultOutput(t *testing.T) {
 	}
 	for _, want := range []string{
 		"INVOICE.yaml or -i, --input PATH",
-		"-o, --output PATH",
+		"-o, --output string",
 		"--archive",
-		"-c, --customers PATH",
-		"-u, --issuer PATH",
-		"-t, --template PATH",
+		"-c, --customers string",
+		"-u, --issuer string",
+		"-t, --template string",
 		"the input path with .pdf extension",
 	} {
 		if !strings.Contains(stdout, want) {
@@ -1396,8 +1390,8 @@ func TestArchiveHelpShowsShortFlags(t *testing.T) {
 	}
 	for _, want := range []string{
 		"INVOICE.yaml or -i, --input PATH",
-		"invox archive (INVOICE.yaml | -i INVOICE.yaml)",
-		"invox archive invoice.yaml",
+		"invox archive [INVOICE.yaml] [flags]",
+		"$ invox archive invoice.yaml",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)

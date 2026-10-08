@@ -1,0 +1,32 @@
+# invox increment
+
+```text
+Increment the invoice number in an existing invoice YAML file.
+
+Required inputs:
+  -i, --input PATH        Path to the invoice YAML file
+
+Default lookup:
+  customers.yaml: upward project search, then $HOME/.config/invox/customers.yaml
+  schema/docs: run `invox help customers`
+
+Usage:
+  invox increment -i INVOICE.yaml [flags]
+
+Flags:
+  -c, --customers string   Path to customers.yaml
+  -i, --input string       Input invoice YAML file
+
+Global flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+
+Examples:
+  $ invox increment -i invoice.yaml
+  $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+```
+
+## See also
+
+- [invox](invox.md): Generate LaTeX and PDF invoices from YAML data

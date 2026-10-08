@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -30,8 +31,24 @@ type RenderOptions struct {
 func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Command {
 	opts := &RenderOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:   "render",
+		Use:   "render -i INVOICE.yaml",
 		Short: "Render a LaTeX invoice file from YAML data",
+		Long: `Render a LaTeX invoice file from YAML data.
+
+Required inputs:
+  -i, --input PATH        Path to the invoice YAML file
+
+Default output:
+  invoice.tex in the current directory
+
+Default lookup:
+` +
+			helptext.LookupCustomers +
+			helptext.LookupIssuer +
+			helptext.LookupTemplate,
+		Example: `$ invox render -i invoice.yaml
+$ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("render", "unexpected arguments: %s", strings.Join(args, " "))
@@ -52,10 +69,16 @@ func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Co
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output TeX path (default invoice.tex)")
+	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output TeX path (must end with .tex; default invoice.tex)")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
+	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("output", "tex")
+	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
+	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
 	return cmd
 }
 

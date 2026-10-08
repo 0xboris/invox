@@ -10,6 +10,8 @@ exits 2 invox help customer bogus
 stderr '^error: unknown help topic "customer bogus"$'
 exits 2 invox help template bogus
 stderr '^error: unknown help topic "template bogus"$'
+exits 2 invox help completion zsh
+stderr '^error: unknown help topic "completion zsh"$'
 exits 2 invox help completion bash
 stderr '^error: unknown help topic "completion bash"$'
 exits 2 invox help customers extra

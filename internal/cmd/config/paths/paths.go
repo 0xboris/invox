@@ -23,8 +23,29 @@ type PathsOptions struct {
 func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
 	opts := &PathsOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	return &cobra.Command{
-		Use:   "paths",
-		Short: "Show where each config and support file is read from",
+		Use:               "paths",
+		Short:             "Show where each config and support file is read from",
+		ValidArgsFunction: cobra.NoFileCompletions,
+		Long: `Show where each config and support file is read from.
+
+Output:
+  One row per path with the columns NAME, PATH and SOURCE, in this order:
+  config-dir, config, customers, issuer, defaults, template, archive.
+  The support files are looked up from the current directory, as a command
+  run here would. PATH is empty when nothing is found. On a terminal the
+  rows are aligned under a header; piped, they are tab-separated.
+
+Sources:
+  flag     the --config option
+  env      INVOX_CONFIG_DIR
+  default  the default config or archive directory
+  legacy   the deprecated invoice-tool directory
+  project  the upward search from the current directory
+  config   a paths.* or archive.dir setting in config.yaml
+  none     not found
+`,
+		Example: `$ invox config paths
+`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return cmdutil.FlagErrorf("config paths", "unexpected arguments: %s", strings.Join(args, " "))

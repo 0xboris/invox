@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	customerconfig "github.com/0xboris/invox/internal/cmd/customer/config"
 	"github.com/0xboris/invox/internal/cmd/customer/list"
 )
@@ -15,7 +16,23 @@ func NewCmdCustomer(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "customer <subcommand>",
 		Short: "Customer-related commands",
-		Args:  cobra.ArbitraryArgs,
+		Long: `Customer-related commands.
+
+Default lookup:
+  customers.yaml: upward project search, then {{.GlobalCustomersPath}}
+
+Documentation:
+  Run ` + "`" + `invox help customers` + "`" + ` for the customers.yaml schema reference.
+
+` +
+			helptext.CustomerFieldReference() +
+			"\n" +
+			helptext.CustomerYAMLExample(),
+		Example: `$ invox customer list
+$ invox customer list -c customers.yaml
+$ invox customer config
+`,
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

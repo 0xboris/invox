@@ -1,0 +1,70 @@
+.TH "INVOX" 1 "" "invox" "invox manual"
+.SH NAME
+invox \- Generate LaTeX and PDF invoices from YAML data
+.SH DESCRIPTION
+.nf
+invox generates LaTeX and PDF invoices from YAML data.
+
+Defaults:
+  customers.yaml: upward project search, then $HOME/.config/invox/customers.yaml
+  issuer.yaml: upward project search, then $HOME/.config/invox/issuer.yaml
+  invoice_defaults.yaml: upward project search, then $HOME/.config/invox/invoice_defaults.yaml
+  template.tex: upward project search, then $HOME/.config/invox/template.tex
+  new output: ./<invoice.number>.yaml
+  render output: ./invoice.tex
+  email draft path: <input name>.eml in a new temporary directory, removed after 24 hours
+  build output: input path with .pdf extension
+
+Usage:
+  invox <command> [flags]
+
+Invoice commands:
+  archive    Archive a built or edited invoice YAML file into the configured archive directory
+  build      Render and compile an invoice PDF with Tectonic
+  email      Create an email draft and open it in the default mail app
+  increment  Increment the invoice number in an existing invoice YAML file
+  new        Create a new invoice YAML file with a generated number and prefilled defaults
+  render     Render a LaTeX invoice file from YAML data
+  validate   Validate invoice YAML against customers and issuer data
+
+Setup commands:
+  config    Open config.yaml in your editor
+  customer  Customer-related commands
+  init      Create starter support files in the global config directory
+  template  Template-related commands
+
+Additional commands:
+  completion  Generate shell completion scripts
+  version     Show the invox version
+
+Help topics:
+  config       config.yaml keys, precedence, and email placeholders
+  customers    customers.yaml fields, aliases, and example
+  issuer       issuer.yaml fields, validation rules, and example
+  defaults     invoice_defaults.yaml shape and new-command behavior
+  template     template placeholders and authoring rules
+  environment  environment variables, default directories, and precedence
+  exit-codes   what each exit status means
+
+Flags:
+      --config string   Read this config file instead of config.yaml
+  -h, --help            Show help for a command
+      --no-input        Never prompt or open an editor; fail with exit 2 instead
+      --version         Show the invox version
+
+Examples:
+  $ invox init
+  $ invox customer list
+  $ invox new CUST-001 -e
+  $ invox new CUST-001 --from-last
+  $ invox validate -i 2026-0001.yaml
+  $ invox build 2026-0001.yaml --archive
+  $ invox email 2026-0001.pdf
+  $ invox archive edit 2026-0001.yaml
+
+Learn more:
+  Run `invox help <command>` for more information about a command.
+  Run `invox help <topic>` to read a help topic.
+.fi
+.SH SEE ALSO
+\fBinvox-archive\fP(1), \fBinvox-build\fP(1), \fBinvox-completion\fP(1), \fBinvox-config\fP(1), \fBinvox-customer\fP(1), \fBinvox-email\fP(1), \fBinvox-increment\fP(1), \fBinvox-init\fP(1), \fBinvox-new\fP(1), \fBinvox-render\fP(1), \fBinvox-template\fP(1), \fBinvox-validate\fP(1), \fBinvox-version\fP(1), \fBinvox-help-customers\fP(1), \fBinvox-help-issuer\fP(1), \fBinvox-help-defaults\fP(1), \fBinvox-help-environment\fP(1), \fBinvox-help-exit-codes\fP(1)

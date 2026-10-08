@@ -52,6 +52,15 @@ jobs:
             exit 1
           fi
       - run: go vet ./...
+      - name: generated docs are current
+        run: |
+          go run ./internal/docs/gen
+          if [ -n "$(git status --porcelain -- docs/cli share/man)" ]; then
+            git status --short -- docs/cli share/man
+            git diff -- docs/cli share/man
+            echo "docs/cli or share/man is stale; run: make docs" >&2
+            exit 1
+          fi
 
   fuzz:
     runs-on: ubuntu-latest

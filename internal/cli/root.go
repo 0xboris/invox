@@ -32,7 +32,29 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 	var helpErr error
 	var root *cobra.Command
 	root = &cobra.Command{
-		Use:               "invox",
+		Use:   "invox",
+		Short: "Generate LaTeX and PDF invoices from YAML data",
+		Long: `invox generates LaTeX and PDF invoices from YAML data.
+
+Defaults:
+  customers.yaml: upward project search, then {{.GlobalCustomersPath}}
+  issuer.yaml: upward project search, then {{.GlobalIssuerPath}}
+  invoice_defaults.yaml: upward project search, then {{.GlobalInvoiceDefaultsPath}}
+  template.tex: upward project search, then {{.GlobalTemplatePath}}
+  new output: ./<invoice.number>.yaml
+  render output: ./invoice.tex
+  email draft path: <input name>.eml in a new temporary directory, removed after 24 hours
+  build output: input path with .pdf extension
+`,
+		Example: `$ invox init
+$ invox customer list
+$ invox new CUST-001 -e
+$ invox new CUST-001 --from-last
+$ invox validate -i 2026-0001.yaml
+$ invox build 2026-0001.yaml --archive
+$ invox email 2026-0001.pdf
+$ invox archive edit 2026-0001.yaml
+`,
 		Args:              cobra.ArbitraryArgs,
 		SilenceErrors:     true,
 		SilenceUsage:      true,
@@ -48,7 +70,6 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 		},
 	}
 	root.Flags().Bool("version", false, "Show the invox version")
-	_ = root.Flags().MarkHidden("version")
 	root.SuggestionsMinimumDistance = 2
 	root.SetIn(ios.In)
 	root.SetOut(ios.Out)
@@ -56,10 +77,21 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 	root.SetFlagErrorFunc(cmdutil.FlagErrorFunc)
 
 	root.PersistentFlags().String("config", "", "Read this config file instead of config.yaml")
-	root.PersistentFlags().Bool("no-input", false, "Never prompt or open an editor")
+	root.PersistentFlags().Bool("no-input", false, "Never prompt or open an editor; fail with exit 2 instead")
 
-	// Until help is generated from the command tree (#48), every help request
-	// prints the hand-written page for the command.
+	root.PersistentFlags().BoolP("help", "h", false, "Show help for a command")
+
+	help := &cobra.Command{
+		Use:    "help [command | topic]",
+		Hidden: true,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			return helpCompletions(root, args), cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return helpTopic(cmd.OutOrStdout(), root, f.Host(), args)
+		},
+	}
+	root.SetHelpCommand(help)
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		// `invox nope --help` is still an unknown subcommand.
 		if cmd == root {
@@ -68,27 +100,24 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 				return
 			}
 		}
-		var topic []string
-		if cmd.Name() != "help" {
-			topic = strings.Fields(cmdutil.CommandPath(cmd))
+		// `invox help --help` is the root help.
+		if cmd == help {
+			cmd = root
 		}
-		if err := runHelp(f, topic); err != nil {
-			fmt.Fprintf(ios.ErrOut, "error: %s\n", err)
+		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Host()); err != nil {
+			helpErr = err
 		}
-	})
-	root.SetHelpCommand(&cobra.Command{
-		Use:    "help [topic]",
-		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runHelp(f, args)
-		},
 	})
 
+	root.AddGroup(
+		&cobra.Group{ID: "invoice", Title: "Invoice commands"},
+		&cobra.Group{ID: "setup", Title: "Setup commands"},
+	)
 	root.AddCommand(
 		archivecmd.NewCmdArchive(f, nil),
 		configcmd.NewCmdConfig(f, nil),
 		buildcmd.NewCmdBuild(f, nil),
-		newCmdCompletion(f),
+		newCmdCompletion(),
 		customercmd.NewCmdCustomer(f),
 		emailcmd.NewCmdEmail(f, nil),
 		incrementcmd.NewCmdIncrement(f, nil),
@@ -99,7 +128,26 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 		validatecmd.NewCmdValidate(f, nil),
 		versioncmd.NewCmdVersion(f, nil),
 	)
+	for _, cmd := range root.Commands() {
+		cmd.GroupID = commandGroups[cmd.Name()]
+	}
 	return root, func() error { return helpErr }
+}
+
+// commandGroups puts the root's commands into the groups its help lists.
+// A command with no entry is listed under "Additional commands".
+var commandGroups = map[string]string{
+	"new":       "invoice",
+	"increment": "invoice",
+	"validate":  "invoice",
+	"render":    "invoice",
+	"build":     "invoice",
+	"email":     "invoice",
+	"archive":   "invoice",
+	"init":      "setup",
+	"config":    "setup",
+	"customer":  "setup",
+	"template":  "setup",
 }
 
 // unknownSubcommand is the usage error for name on the root, with the closest
@@ -207,4 +255,11 @@ func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []strin
 
 func isLetter(b byte) bool {
 	return 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
+}
+
+// NewRootCmd returns the invox command tree for f, the one Main runs. The
+// docs generator walks it.
+func NewRootCmd(f *cmdutil.Factory) *cobra.Command {
+	root, _ := newRootCmd(f)
+	return root
 }
