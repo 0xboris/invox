@@ -1,0 +1,249 @@
+# validate reports a malformed value, an unknown key or a value of the wrong
+# kind with the file, line and field. Once every value decodes, it lists every
+# missing field and an unknown customer_id together.
+exits 1 invox validate -i fields.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-fields.txt
+
+# Unknown keys, removed keys and wrong kinds, in every file at once.
+exits 1 invox validate -i unknown.yaml -c customers-unknown.yaml -u issuer-unknown.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-unknown.txt
+
+# A key whose value defines an anchor holds a definition for aliases, so it
+# is not an unknown key.
+exec invox validate -i anchors.yaml
+! stdout .
+cmp stderr want-anchors.txt
+
+# A numeric customer_id is the customer's ID, not a missing value (#17).
+exec invox validate -i numeric-id.yaml
+! stdout .
+cmp stderr want-numeric-id.txt
+
+# A mapping where text belongs is an error, never "map[first:Appsters]" (#17).
+exits 1 invox validate -i numeric-id.yaml -c customers-mapping-name.yaml
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-mapping-name.txt
+
+# A problem in another customer's entry does not stop this invoice.
+exec invox validate -i numeric-id.yaml -c customers-mapping-name-other.yaml
+! stdout .
+cmp stderr want-numeric-id.txt
+
+-- fields.yaml --
+customer_id: NOPE-1
+invoice:
+  number: NOPE-1-001
+  issue_date: 2026-03-06
+positions:
+  - name: Development
+    unit_price: 10
+    quantity: 0
+-- want-fields.txt --
+error: fields.yaml: unknown customer_id `NOPE-1`
+invoice.due_date: missing value
+invoice.period: missing value
+positions[1].description: missing value
+positions[1].quantity: must be > 0
+invoice.vat_percent: missing value
+Run 'invox customer list' to see the customer IDs.
+-- unknown.yaml --
+customer_id: CUST-001
+line_items: []
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_rate_percent: 20
+  notes: call first
+positions:
+  - name: Development
+    description: [Sprint, work]
+    unit_price: 100
+    quantity: 1
+  - just a string
+-- customers-unknown.yaml --
+CUST-001:
+  name: Appsters GmbH
+  email: office@appsters.example
+  phone: "+43 1 234"
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+    floor: 3
+  tax:
+    vat_tax_id: ATU12345678
+-- issuer-unknown.yaml --
+company: Boris Consulting
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: thirty
+  payment_terms_text: Pay within 30 days
+-- want-unknown.txt --
+error: customers-unknown.yaml:4: unknown key "phone" in CUST-001
+customers-unknown.yaml:10: unknown key "floor" in CUST-001.address
+issuer-unknown.yaml:1: company must be a mapping, got a string
+issuer-unknown.yaml:6: payment.due_days: expected an integer, got `thirty`
+unknown.yaml:2: line_items: unsupported key; use positions
+unknown.yaml:8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent
+unknown.yaml:9: unknown key "notes" in invoice
+unknown.yaml:12: positions[1].description: expected a string, got a list
+unknown.yaml:15: positions[2] must be a mapping, got a string
+-- anchors.yaml --
+customer_id: CUST-001
+reduced: &reduced
+  vat_percent: 10
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - <<: *reduced
+    name: Book
+    description: Reference
+    unit_price: 10
+    quantity: 1
+-- want-anchors.txt --
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 251,00 €
+-- numeric-id.yaml --
+customer_id: 1001
+invoice:
+  number: 1001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 1
+-- want-numeric-id.txt --
+Validation OK: 1001-001 for 1001, 1 line item(s), total 120,00 €
+-- customers-mapping-name.yaml --
+1001:
+  name: {first: Appsters}
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+-- want-mapping-name.txt --
+error: customers-mapping-name.yaml:2: 1001.name: expected a string, got a mapping
+-- customers-mapping-name-other.yaml --
+1001:
+  name: Appsters GmbH
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+2002:
+  name: {first: Other}
+  phone: unknown key in another customer
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+1001:
+  name: Numeric GmbH
+  email: numeric@example.com
+  address:
+    street: Zahlenweg 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU11111111
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
