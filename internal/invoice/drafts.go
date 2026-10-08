@@ -143,6 +143,9 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	if err != nil {
 		return NewInvoice{}, err
 	}
+	if err := h.refuseArchivedOverwrite(outputPath, opts.Overwrite); err != nil {
+		return NewInvoice{}, err
+	}
 	created := NewInvoice{Number: invoiceNumber, Path: outputPath, SkippedArchiveFiles: skipped}
 	if opts.DryRun {
 		return created, nil
@@ -306,6 +309,9 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 	if err != nil {
 		return "", "", err
 	}
+	if err := h.refuseArchivedOverwrite(outputPath, opts.Overwrite); err != nil {
+		return "", "", err
+	}
 	if opts.DryRun {
 		return outputPath, archivePath, nil
 	}
@@ -458,6 +464,40 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, fmt.Errorf("remove %s: %w", sourcePath, err)
 	}
 	return ArchiveResult{Path: archivePath, Replaced: backups, HistoryDir: store.HistoryDir()}, nil
+}
+
+// refuseArchivedOverwrite returns an *ArchivedOutputError when overwrite
+// would replace an existing file inside the archive directory: an archived
+// invoice is replaced only by re-archiving, which keeps a backup.
+func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
+	if !overwrite || !fileExists(outputPath) {
+		return nil
+	}
+	store, err := h.archiveStore()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(store.Dir) == "" {
+		return nil
+	}
+	if pathWithin(resolvedPath(outputPath), resolvedPath(store.Dir)) {
+		return &ArchivedOutputError{Path: outputPath}
+	}
+	return nil
+}
+
+// resolvedPath is path with its symlinks resolved, or path itself when they
+// cannot be.
+func resolvedPath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return filepath.Clean(path)
+}
+
+func pathWithin(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // readInvoiceIdentity reads the customer, issue date and number that

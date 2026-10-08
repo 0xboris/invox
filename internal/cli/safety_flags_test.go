@@ -273,6 +273,22 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			chdirForTest(t, workDir)
 			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", "mine.yaml"}, []string{workDir}
 		}, wantStderr: "error: mine.yaml already exists; pass --force to replace it or choose a different -o/--output path\n"},
+		{name: "new --force over an archived invoice", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
+			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+			archiveDir := t.TempDir()
+			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
+			workDir := t.TempDir()
+			chdirForTest(t, workDir)
+			return []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", archivedPath, "--force"}, []string{workDir, archiveDir}
+		}, wantStderr: "first.yaml is in the archive directory and is never overwritten"},
+		{name: "archive edit --force inside the archive", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
+			archiveDir := t.TempDir()
+			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
+			chdirForTest(t, archiveDir)
+			return []string{"archive", "edit", "first.yaml", "--force"}, []string{archiveDir}
+		}, wantStderr: "first.yaml is in the archive directory and is never overwritten"},
 		{name: "render with a broken template", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 			if err := os.WriteFile(templatePath, []byte("@@ISSUER_CITY_AND_POSTAL_CODE@@\n"), 0o644); err != nil {
