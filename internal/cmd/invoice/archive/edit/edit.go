@@ -9,18 +9,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // EditOptions is what archive edit needs: its streams, the user directories
 // and the archived file to copy.
 type EditOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	Filename string
 	Force    bool
@@ -38,7 +38,7 @@ type editJSON struct {
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
 func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
-	opts := &EditOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &EditOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
@@ -93,15 +93,16 @@ func editRun(opts *EditOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 
-	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir, store.EditArchiveOptions{
+	edited, err := opts.Service(cmdutil.Files{}).EditArchived(opts.Filename, baseDir, billing.EditOptions{
 		Overwrite: opts.Force,
 		DryRun:    opts.DryRun,
 	})
-	var exists *store.OutputExistsError
+	outputPath, archivePath := edited.Path, edited.Archived
+	var exists *billing.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
 	}
-	var isDir *store.OutputIsDirError
+	var isDir *billing.OutputIsDirError
 	if errors.As(err, &isDir) {
 		return fmt.Errorf("%s; choose a different working directory", isDir)
 	}
@@ -113,10 +114,10 @@ func editRun(opts *EditOptions) error {
 	if opts.DryRun {
 		verb = "Would copy"
 	}
-	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, store.DisplayPath(archivePath, baseDir), store.DisplayPath(outputPath, baseDir))
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, cmdutil.DisplayPath(archivePath, baseDir), cmdutil.DisplayPath(outputPath, baseDir))
 	if opts.Exporter != nil {
 		return opts.Exporter.Write(opts.IO, editJSON{Path: outputPath, ArchivedPath: archivePath})
 	}
-	fmt.Fprintln(opts.IO.Out, store.DisplayPath(outputPath, baseDir))
+	fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(outputPath, baseDir))
 	return nil
 }

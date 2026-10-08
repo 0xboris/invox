@@ -5,25 +5,23 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // AddOptions is what archive add needs: its streams, the user directories,
 // the clock and the parsed flags. Command names the command in its messages.
 type AddOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
-	Now   func() time.Time
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	Command     string
 	InvoicePath string
@@ -78,7 +76,7 @@ $ invox archive add invoice.yaml --json path
 // help and completion leave out its flags and files, and it warns before it
 // archives.
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *AddOptions) error, deprecated bool) {
-	opts := &AddOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &AddOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		return shared.TakeInput(cmdutil.CommandPath(cmd), opts.Getwd, &opts.InvoicePath, args)
 	}
@@ -113,22 +111,23 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	svc := opts.Service(cmdutil.Files{})
 
-	var result store.ArchiveResult
+	var result billing.ArchiveResult
 	if opts.DryRun {
-		result, err = opts.Host().ArchiveInvoice(opts.Now(), invoicePath, store.ArchiveOptions{Replace: true, DryRun: true})
+		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: true, DryRun: true})
 		if err != nil {
 			return err
 		}
 		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
 	} else {
-		result, err = shared.ArchiveWithConfirmation(ctx, opts.IO, opts.Host(), opts.Now, opts.Command, invoicePath, baseDir, opts.Yes, "")
+		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, opts.Command, invoicePath, baseDir, "")})
 		if err != nil {
 			return err
 		}
 		shared.PrintArchiveReplacements(opts.IO, result, baseDir)
-		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", store.DisplayPath(invoicePath, baseDir), store.DisplayPath(result.Path, baseDir))
+		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", cmdutil.DisplayPath(invoicePath, baseDir), cmdutil.DisplayPath(result.Path, baseDir))
 	}
 	if opts.Exporter != nil {
 		replaced := make([]replacedJSON, 0, len(result.Replaced))
@@ -137,6 +136,6 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		}
 		return opts.Exporter.Write(opts.IO, addJSON{Path: result.Path, Input: invoicePath, Replaced: replaced})
 	}
-	fmt.Fprintln(opts.IO.Out, store.DisplayPath(result.Path, baseDir))
+	fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(result.Path, baseDir))
 	return nil
 }

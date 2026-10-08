@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/archive"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -98,7 +98,7 @@ func TestArchiveInvoiceReplaceKeepsBackupInHistory(t *testing.T) {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
 	backupPath := filepath.Join(archiveDir, ".history", "first.20261005T123045Z.yaml")
-	if want := []archive.Backup{{Path: archivedPath, BackupPath: backupPath}}; len(result.Replaced) != 1 || result.Replaced[0] != want[0] {
+	if want := []billing.Backup{{Path: archivedPath, BackupPath: backupPath}}; len(result.Replaced) != 1 || result.Replaced[0] != want[0] {
 		t.Fatalf("Replaced = %+v, want %+v", result.Replaced, want)
 	}
 	if got := readTestFile(t, backupPath); got != original {
@@ -148,7 +148,7 @@ func TestArchiveInvoiceReplaceBacksUpMarkdownOriginalInSubdirectory(t *testing.T
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
 	backupPath := filepath.Join(archiveDir, ".history", "customer-a", "first.20261005T123045Z.md")
-	if len(result.Replaced) != 1 || result.Replaced[0] != (archive.Backup{Path: markdownPath, BackupPath: backupPath}) {
+	if len(result.Replaced) != 1 || result.Replaced[0] != (billing.Backup{Path: markdownPath, BackupPath: backupPath}) {
 		t.Fatalf("Replaced = %+v, want %s backed up to %s", result.Replaced, markdownPath, backupPath)
 	}
 	if got := readTestFile(t, backupPath); got != original {

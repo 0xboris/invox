@@ -6,18 +6,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 // ListOptions is what archive list needs: its streams and the user
 // directories.
 type ListOptions struct {
-	IO   *iostreams.IOStreams
-	Host func() store.Host
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
 
 	Exporter *cmdutil.Exporter
 }
@@ -36,7 +36,7 @@ type archivedJSON struct {
 // NewCmdList returns the archive list command. runF replaces listRun in
 // tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List archived invoices from the configured archive directory",
@@ -72,15 +72,11 @@ $ invox archive list --json file,customerId,number
 }
 
 func listRun(opts *ListOptions) error {
-	h := opts.Host()
-	archivedInvoices, err := h.ListArchivedInvoices()
+	list, err := opts.Service(cmdutil.Files{}).ListArchive()
 	if err != nil {
 		return err
 	}
-	archiveDir, err := h.ResolveArchiveDir()
-	if err != nil {
-		return err
-	}
+	archivedInvoices, archiveDir := list.Entries, list.Dir
 
 	if opts.Exporter != nil {
 		items := make([]archivedJSON, 0, len(archivedInvoices))
@@ -97,16 +93,16 @@ func listRun(opts *ListOptions) error {
 		return opts.Exporter.Write(opts.IO, items)
 	}
 
-	list := tableprinter.Table{
+	table := tableprinter.Table{
 		Columns:   []tableprinter.Column{{Header: "FILE"}, {Header: "CUSTOMER"}, {Header: "ISSUE DATE"}, {Header: "STATUS"}},
 		EmptyHint: "No archived invoices found in " + archiveDir,
 	}
 	if archiveDir == "" {
-		list.EmptyHint = "No archived invoices found"
+		table.EmptyHint = "No archived invoices found"
 	}
 	for _, archived := range archivedInvoices {
-		list.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, archived.Status)
+		table.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, archived.Status)
 	}
-	list.Print(opts.IO)
+	table.Print(opts.IO)
 	return nil
 }

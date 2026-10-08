@@ -7,17 +7,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 type IncrementOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	InvoicePath   string
 	CustomersPath string
@@ -37,7 +37,7 @@ type incrementJSON struct {
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
 // in tests.
 func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
-	opts := &IncrementOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &IncrementOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "increment [INVOICE.yaml]",
 		Short: "Increment the invoice number in an existing invoice YAML file",
@@ -83,20 +83,16 @@ func incrementRun(opts *IncrementOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "increment", store.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath, opts.DryRun)
+	incremented, err := svc.Increment(invoicePath, opts.DryRun)
 	if err != nil {
-		return err
+		return cmdutil.UsageError("increment", err)
 	}
-	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.SkippedArchiveFiles, baseDir)
+	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.Skipped, baseDir)
 
-	displayPath := store.DisplayPath(invoicePath, baseDir)
+	displayPath := cmdutil.DisplayPath(invoicePath, baseDir)
 	verb := "Incremented"
 	if opts.DryRun {
 		verb = "Would increment"

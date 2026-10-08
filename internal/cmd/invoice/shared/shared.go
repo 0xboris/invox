@@ -11,7 +11,6 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // RequireInput is the usage error of command when no invoice was given as
@@ -44,7 +43,7 @@ func WarnSkippedArchiveFiles(ios *iostreams.IOStreams, customerID string, paths 
 	}
 	listed := make([]string, 0, maxListedSkippedArchiveFiles)
 	for _, path := range paths[:min(len(paths), maxListedSkippedArchiveFiles)] {
-		listed = append(listed, store.DisplayPath(path, baseDir))
+		listed = append(listed, cmdutil.DisplayPath(path, baseDir))
 	}
 	list := strings.Join(listed, ", ")
 	if more := len(paths) - len(listed); more > 0 {
@@ -54,10 +53,10 @@ func WarnSkippedArchiveFiles(ios *iostreams.IOStreams, customerID string, paths 
 	fmt.Fprintf(ios.ErrOut, "If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.%s.numbering.start) to the next number.\n", customerID)
 }
 
-// WarnArchivedDuplicate warns on stderr when the invoice's number is already
-// used by an archived invoice. It never fails validation.
-func WarnArchivedDuplicate(ios *iostreams.IOStreams, h store.Host, invoicePath, baseDir string) {
-	err := h.CheckArchivedNumberUnique(invoicePath)
+// WarnArchivedDuplicate warns on stderr when err, the duplicate check of
+// billing.ValidateResult, found the invoice's number on an archived invoice
+// or could not check. It never fails validation.
+func WarnArchivedDuplicate(ios *iostreams.IOStreams, err error, invoicePath, baseDir string) {
 	if err == nil {
 		return
 	}
@@ -70,8 +69,8 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, h store.Host, invoicePath, 
 		ios.ErrOut,
 		"warning: invoice number %s is already used by archived invoice %s; run 'invox increment -i %s' before archiving\n",
 		duplicate.InvoiceNumber,
-		store.DisplayPath(duplicate.ArchivedPath, baseDir),
-		store.DisplayPath(invoicePath, baseDir),
+		cmdutil.DisplayPath(duplicate.ArchivedPath, baseDir),
+		cmdutil.DisplayPath(invoicePath, baseDir),
 	)
 }
 
@@ -90,7 +89,7 @@ func TakeInput(command string, getwd func() (string, error), invoicePath *string
 		if err != nil {
 			return err
 		}
-		if store.AbsPath(cwd, args[0]) != store.AbsPath(cwd, *invoicePath) {
+		if cmdutil.AbsPath(cwd, args[0]) != cmdutil.AbsPath(cwd, *invoicePath) {
 			return cmdutil.FlagErrorf(command, "the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
 		}
 	}

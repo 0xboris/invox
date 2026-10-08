@@ -7,28 +7,29 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // The invoice, its PDF and -o are relative to the working directory invox
 // was given, which need not be the process's own.
 func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
-	if _, _, err := host.InitializeConfigDir(); err != nil {
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkInvoiceBuilt(filepath.Join(work, "inv.yaml")); err != nil {
+	if err := factorytest.SetStatus(filepath.Join(work, "inv.yaml"), invoice.Built); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(work, "inv.pdf"), []byte("%PDF\n"), 0o644); err != nil {
@@ -45,9 +46,8 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	opts := &EmailOptions{
 		IO:          ios,
 		Opener:      opener.New(stub, ios, "linux"),
-		Host:        func() store.Host { return host },
+		Service:     f.Service,
 		Getwd:       func() (string, error) { return work, nil },
-		Now:         time.Now,
 		InvoicePath: "inv.yaml",
 		OutputPath:  "draft.eml",
 	}
@@ -70,11 +70,12 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 // compose anything.
 func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 	work := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "darwin", Home: t.TempDir(), ConfigDir: t.TempDir()})
-	if _, _, err := host.InitializeConfigDir(); err != nil {
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "darwin", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(work, "inv.pdf"), []byte("%PDF\n"), 0o644); err != nil {
@@ -82,15 +83,14 @@ func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 	}
 
 	ios, _, out, _ := iostreams.Test()
-	// Nothing is registered, so a Compose call would fail the test.
+	// The Factory's runner has nothing registered, so a Compose call would
+	// fail the test.
 	stub := run.NewStub(t)
 	opts := &EmailOptions{
 		IO:          ios,
-		Mailer:      applemail.New(stub, ios),
 		Opener:      opener.New(stub, ios, "darwin"),
-		Host:        func() store.Host { return host },
+		Service:     f.Service,
 		Getwd:       func() (string, error) { return work, nil },
-		Now:         time.Now,
 		InvoicePath: "inv.yaml",
 	}
 	err := emailRun(context.Background(), opts, false)

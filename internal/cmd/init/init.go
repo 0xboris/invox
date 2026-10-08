@@ -9,23 +9,23 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // InitOptions is what init needs: its streams, the user directories and
 // the parsed flags.
 type InitOptions struct {
-	IO   *iostreams.IOStreams
-	Host func() store.Host
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
 
 	Force bool
 }
 
 // NewCmdInit returns the init command. runF replaces initRun in tests.
 func NewCmdInit(f *cmdutil.Factory, runF func(context.Context, *InitOptions) error) *cobra.Command {
-	opts := &InitOptions{IO: f.IOStreams, Host: f.Host}
+	opts := &InitOptions{IO: f.IOStreams, Service: f.Service}
 	cmd := &cobra.Command{
 		Use:               "init",
 		Short:             "Create starter support files in the global config directory",
@@ -65,35 +65,37 @@ $ invox init --force
 }
 
 func initRun(ctx context.Context, opts *InitOptions) error {
-	h := opts.Host()
-	if err := copyLegacyFiles(ctx, opts.IO, h, opts.Force); err != nil {
+	svc := opts.Service(cmdutil.Files{})
+	if err := copyLegacyFiles(ctx, opts.IO, svc, opts.Force); err != nil {
 		return err
 	}
 
-	configDir, results, err := h.InitializeConfigDir()
+	initialized, err := svc.Init()
 	if err != nil {
 		return err
 	}
+	configDir := initialized.ConfigDir
 
 	fmt.Fprintf(opts.IO.ErrOut, "Initialized %s\n", configDir)
-	for _, result := range results {
+	for _, result := range initialized.Files {
 		status := "exists"
 		if result.Created {
 			status = "created"
 		}
-		fmt.Fprintf(opts.IO.ErrOut, "%s %s\n", status, store.DisplayPath(result.Path, configDir))
+		fmt.Fprintf(opts.IO.ErrOut, "%s %s\n", status, cmdutil.DisplayPath(result.Path, configDir))
 	}
 	return nil
 }
 
 // copyLegacyFiles copies the files of the deprecated config directory that
 // the config directory lacks, after asking, unless force is set.
-func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, h store.Host, force bool) error {
-	missing, err := h.LegacyFilesToCopy()
+func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, svc *billing.Service, force bool) error {
+	missing, err := svc.LegacyFiles()
 	if err != nil || len(missing) == 0 {
 		return err
 	}
-	legacyDir, configDir := h.LegacyConfigDir(), h.ConfigDir()
+	locations := svc.Locations()
+	legacyDir, configDir := locations.LegacyDir, locations.ConfigDir
 	if !force {
 		if !ios.CanPrompt() {
 			return cmdutil.FlagErrorf("init", "the deprecated config directory %s has files that %s lacks; pass --force to copy them (no terminal to ask on)", legacyDir, configDir)
@@ -108,7 +110,7 @@ func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, h store.Host
 		}
 	}
 
-	copied, err := h.CopyLegacyFiles()
+	copied, err := svc.CopyLegacyFiles()
 	for _, rel := range copied {
 		fmt.Fprintf(ios.ErrOut, "copied %s from %s\n", rel, legacyDir)
 	}

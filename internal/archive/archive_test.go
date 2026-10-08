@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -67,7 +69,7 @@ func TestWalkOrderDiffersFromListOrder(t *testing.T) {
 		t.Fatalf("Walk visited %q, want %q", got, want)
 	}
 
-	entries, err := Store{Dir: dir}.List(func(string) (Identity, bool, error) { return Identity{}, true, nil })
+	entries, err := Store{Dir: dir}.List(func(string) (billing.ArchiveEntry, bool, error) { return billing.ArchiveEntry{}, true, nil })
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}
@@ -124,48 +126,25 @@ func TestListSortsByFilenameAndSkipsWhatTheReaderRejects(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a", "c.yaml"), "C")
 	writeFile(t, filepath.Join(dir, "a-d.yaml"), "")
 
-	entries, err := Store{Dir: dir}.List(func(path string) (Identity, bool, error) {
+	entries, err := Store{Dir: dir}.List(func(path string) (billing.ArchiveEntry, bool, error) {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return Identity{}, false, err
+			return billing.ArchiveEntry{}, false, err
 		}
 		if len(data) == 0 {
-			return Identity{}, false, nil
+			return billing.ArchiveEntry{}, false, nil
 		}
-		return Identity{InvoiceNumber: string(data)}, true, nil
+		return billing.ArchiveEntry{Number: string(data)}, true, nil
 	})
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}
-	want := []Entry{
-		{Path: filepath.Join(dir, "a", "c.yaml"), Filename: filepath.Join("a", "c.yaml"), Identity: Identity{InvoiceNumber: "C"}},
-		{Path: filepath.Join(dir, "b.yaml"), Filename: "b.yaml", Identity: Identity{InvoiceNumber: "B"}},
+	want := []billing.ArchiveEntry{
+		{Path: filepath.Join(dir, "a", "c.yaml"), Filename: filepath.Join("a", "c.yaml"), Number: "C"},
+		{Path: filepath.Join(dir, "b.yaml"), Filename: "b.yaml", Number: "B"},
 	}
 	if !reflect.DeepEqual(entries, want) {
 		t.Fatalf("List = %+v, want %+v", entries, want)
-	}
-}
-
-func TestEntryNewer(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		left, right Entry
-		want        bool
-	}{
-		{name: "later issue date", left: Entry{Identity: Identity{IssueDate: "2026-03-07"}}, right: Entry{Identity: Identity{IssueDate: "2026-03-06"}}, want: true},
-		{name: "earlier issue date", left: Entry{Identity: Identity{IssueDate: "2026-03-05"}}, right: Entry{Identity: Identity{IssueDate: "2026-03-06"}}, want: false},
-		{name: "a date beats no date", left: Entry{Identity: Identity{IssueDate: "2026-03-05"}}, right: Entry{Identity: Identity{IssueDate: "soon"}}, want: true},
-		{name: "same date, higher number", left: Entry{Identity: Identity{IssueDate: "2026-03-06", InvoiceNumber: "A-002"}}, right: Entry{Identity: Identity{IssueDate: "2026-03-06", InvoiceNumber: "A-001"}}, want: true},
-		{name: "same number, later filename", left: Entry{Filename: "b.yaml"}, right: Entry{Filename: "a.yaml"}, want: true},
-		{name: "same filename, later path", left: Entry{Path: "/y/a.yaml"}, right: Entry{Path: "/x/a.yaml"}, want: true},
-		{name: "equal", left: Entry{}, right: Entry{}, want: false},
-	}
-	for _, tt := range tests {
-		if got := tt.left.Newer(tt.right); got != tt.want {
-			t.Errorf("%s: Newer = %v, want %v", tt.name, got, tt.want)
-		}
 	}
 }
 
@@ -257,7 +236,7 @@ func TestBackupKeepsEveryVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Backup returned error: %v", err)
 	}
-	want := []Backup{{Path: path, BackupPath: filepath.Join(dir, ".history", "customer-a", "first.20261005T123045Z.md")}}
+	want := []billing.Backup{{Path: path, BackupPath: filepath.Join(dir, ".history", "customer-a", "first.20261005T123045Z.md")}}
 	if !reflect.DeepEqual(first, want) {
 		t.Fatalf("Backup = %+v, want %+v", first, want)
 	}

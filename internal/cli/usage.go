@@ -7,22 +7,22 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // writeHelp writes the help page of cmd, all of it generated from the
 // command tree: the Long text (or the Short one), then usage, subcommands,
 // flags and examples. Command aliases are deprecated names, so it leaves
 // them out. The root page also lists the help topics.
-func writeHelp(w io.Writer, cmd *cobra.Command, h store.Host) error {
+func writeHelp(w io.Writer, cmd *cobra.Command, l billing.Locations) error {
 	description := cmd.Long
 	if description == "" {
 		description = cmd.Short + "."
 	}
 	var page strings.Builder
-	if err := helptext.Render(&page, description, h); err != nil {
+	if err := helptext.Render(&page, description, l); err != nil {
 		return fmt.Errorf("help for %s: %w", cmd.CommandPath(), err)
 	}
 	text := strings.TrimRight(page.String(), "\n") + "\n"
@@ -120,19 +120,19 @@ func indent(text string) string {
 // helpTopic writes the page `invox help ARGS` names: a topic, or the help of
 // a command, including a hidden deprecated name such as `customer config`.
 // Anything else, including `help` itself, is an unknown topic.
-func helpTopic(w io.Writer, root *cobra.Command, h store.Host, args []string) error {
+func helpTopic(w io.Writer, root *cobra.Command, l billing.Locations, args []string) error {
 	if len(args) == 0 {
-		return writeHelp(w, root, h)
+		return writeHelp(w, root, l)
 	}
 	if topic, ok := helptext.LookupTopic(args[0]); ok && len(args) == 1 && topic.Print != nil {
-		topic.Print(w, h)
+		topic.Print(w, l)
 		return nil
 	}
 	cmd, rest, err := root.Find(args)
 	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() && !cmd.Hidden {
 		return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
 	}
-	return writeHelp(w, cmd, h)
+	return writeHelp(w, cmd, l)
 }
 
 // helpCompletions completes `invox help ARGS`: the subcommands of the

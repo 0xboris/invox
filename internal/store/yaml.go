@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -163,62 +163,6 @@ func clearYAMLMergeTags(node *yaml.Node) {
 	}
 }
 
-// DecodeError is a value in a YAML file that does not fit the schema: an
-// unknown key, a value of the wrong kind, or a malformed number or date.
-type DecodeError struct {
-	File string
-	Line int
-	// Path is the field, such as positions[2].unit_price. It is "" when
-	// Problem names the field itself.
-	Path    string
-	Problem string
-	// Field is the field that did not decode, which validation then
-	// skips. It is "" for an unknown or removed key.
-	Field string
-	// UnknownKey is set when the problem is a key the schema does not
-	// define. Schema then names the kind of file: "customers", "issuer" or
-	// "invoice".
-	UnknownKey bool
-	Schema     string
-}
-
-// failedFields returns the Field of every *DecodeError in err.
-func failedFields(err error) map[string]bool {
-	failed := map[string]bool{}
-	var walk func(error)
-	walk = func(err error) {
-		switch e := err.(type) {
-		case *DecodeError:
-			if e.Field != "" {
-				failed[e.Field] = true
-			}
-		case interface{ Unwrap() []error }:
-			for _, inner := range e.Unwrap() {
-				walk(inner)
-			}
-		}
-	}
-	walk(err)
-	return failed
-}
-
-// within reports whether path is one of fields or lies inside one of them.
-func within(path string, fields map[string]bool) bool {
-	for field := range fields {
-		if path == field || strings.HasPrefix(path, field+".") || strings.HasPrefix(path, field+"[") {
-			return true
-		}
-	}
-	return false
-}
-
-func (e *DecodeError) Error() string {
-	if e.Path == "" {
-		return fmt.Sprintf("%s:%d: %s", e.File, e.Line, e.Problem)
-	}
-	return fmt.Sprintf("%s:%d: %s: %s", e.File, e.Line, e.Path, e.Problem)
-}
-
 // decodeYAMLNode decodes n, an entry inside the file label, into out. A
 // strict decode rejects keys the schema does not define.
 func decodeYAMLNode(n *yaml.Node, label string, out any, strict bool) error {
@@ -263,13 +207,13 @@ func (d *yamlDecoder) rootPath() string {
 }
 
 func (d *yamlDecoder) fail(n *yaml.Node, path, problem string) {
-	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Path: path, Problem: problem, Field: path})
+	d.errs = append(d.errs, &billing.DecodeError{File: d.label, Line: n.Line, Path: path, Problem: problem, Field: path})
 }
 
 // failShape reports a value of the wrong kind for the struct or list at
 // path; problem names the path itself.
 func (d *yamlDecoder) failShape(n *yaml.Node, path, problem string) {
-	d.errs = append(d.errs, &DecodeError{File: d.label, Line: n.Line, Problem: problem, Field: path})
+	d.errs = append(d.errs, &billing.DecodeError{File: d.label, Line: n.Line, Problem: problem, Field: path})
 }
 
 // decode fills out from n. Schema structs map YAML keys to fields with yaml
@@ -325,7 +269,7 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 		case ok:
 			d.decode(pair.value, out.Field(index), fieldPath)
 		case replacement != "":
-			d.errs = append(d.errs, &DecodeError{File: d.label, Line: pair.key.Line, Path: fieldPath, Problem: "unsupported key; use " + replacement})
+			d.errs = append(d.errs, &billing.DecodeError{File: d.label, Line: pair.key.Line, Path: fieldPath, Problem: "unsupported key; use " + replacement})
 		// A top-level key whose value defines an anchor holds a definition
 		// for aliases elsewhere, as in `reduced: &reduced {vat_percent: 10}`.
 		case d.strict && !(n == d.root && pair.value.Anchor != ""):
@@ -333,7 +277,7 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 			if path != "" {
 				problem += " in " + path
 			}
-			d.errs = append(d.errs, &DecodeError{File: d.label, Line: pair.key.Line, Problem: problem, UnknownKey: true, Schema: d.schema})
+			d.errs = append(d.errs, &billing.DecodeError{File: d.label, Line: pair.key.Line, Problem: problem, UnknownKey: true, Schema: d.schema})
 		}
 	}
 }

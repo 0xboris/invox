@@ -10,26 +10,39 @@ import (
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/archive"
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/email"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/render/latex"
 	"github.com/0xboris/invox/internal/store"
 )
 
+// Files are the files a command names on its command line, as typed: the
+// support files, "" to look them up, and whether -o names the email draft.
+type Files struct {
+	Customers string
+	Issuer    string
+	Defaults  string
+	// EmailOutput is set when the email draft goes to a file the user
+	// named, which rules out the mail app.
+	EmailOutput bool
+}
+
 // Factory holds what commands use to reach outside invox: the standard
-// streams, the process environment and the external programs.
+// streams, the process environment, the programs the user interacts with
+// and the use cases.
 type Factory struct {
 	IOStreams *iostreams.IOStreams
 	Env       env.Env
-	Compiler  *tectonic.Compiler
 	Editor    *editor.Editor
 	Opener    *opener.Opener
-	// Mailer is nil where Apple Mail is not available.
-	Mailer *applemail.Composer
 	// ConfigFile is the --config value as typed, "" when not given. Main
-	// sets it before anything calls Host.
+	// sets it before anything calls Service.
 	ConfigFile string
-
-	host func() store.Host
+	// Service returns the use cases for a command that names files.
+	Service func(Files) *billing.Service
 }
 
 // NewFactory returns a Factory whose adapters run programs with runner on the
@@ -38,21 +51,36 @@ func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory
 	f := &Factory{
 		IOStreams: ios,
 		Env:       e,
-		Compiler:  tectonic.New(runner, ios, e.GOOS),
 		Editor:    editor.New(runner, ios, e.GOOS, e.Getenv),
 		Opener:    opener.New(runner, ios, e.GOOS),
 	}
-	f.host = sync.OnceValue(func() store.Host { return newHost(e, f.ConfigFile) })
+	// The user directories are resolved on the first call, so that a test
+	// can set up its environment after building the Factory.
+	host := sync.OnceValue(func() store.Host { return newHost(e, f.ConfigFile) })
+	compiler := tectonic.New(runner, ios, e.GOOS)
+	var mailApp *applemail.Composer
 	if e.GOOS == "darwin" {
-		f.Mailer = applemail.New(runner, ios)
+		mailApp = applemail.New(runner, ios)
+	}
+	f.Service = func(files Files) *billing.Service {
+		h := host()
+		var mailer billing.Mailer = email.Mailer{}
+		if mailApp != nil && !files.EmailOutput {
+			mailer = mailApp
+		}
+		st := &store.Store{Host: h, Getwd: e.Getwd, Files: store.Files{Customers: files.Customers, Issuer: files.Issuer, Defaults: files.Defaults}}
+		return &billing.Service{
+			Invoices:  st,
+			Directory: st,
+			Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived},
+			Renderer:  latex.Renderer{},
+			Compiler:  compiler,
+			Mailer:    mailer,
+			Settings:  h.Settings,
+			Now:       e.Now,
+		}
 	}
 	return f
-}
-
-// Host returns the user directories, resolved from Env on the first call so
-// that a test can set up its environment after building the Factory.
-func (f *Factory) Host() store.Host {
-	return f.host()
 }
 
 // newHost resolves the user directories. Relative directory values are

@@ -7,28 +7,24 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
-// BuildOptions is what build needs: its streams, the compiler, the user
-// directories and the parsed flags.
+// BuildOptions is what build needs: its streams, the use cases and the
+// parsed flags.
 type BuildOptions struct {
-	IO       *iostreams.IOStreams
-	Compiler *tectonic.Compiler
-	Host     func() store.Host
-	Getwd    func() (string, error)
-	Now      func() time.Time
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	InvoicePath   string
 	OutputPath    string
@@ -53,7 +49,7 @@ type buildJSON struct {
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
 func NewCmdBuild(f *cmdutil.Factory, runF func(context.Context, *BuildOptions) error) *cobra.Command {
-	opts := &BuildOptions{IO: f.IOStreams, Compiler: f.Compiler, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &BuildOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "build [INVOICE.yaml]",
 		Short: "Render and compile an invoice PDF with Tectonic",
@@ -118,31 +114,45 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "build", store.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	issuerPath, err := cmdutil.SupportPath(h, "build", store.Issuer, opts.IssuerPath, baseDir)
-	if err != nil {
-		return err
-	}
-	templatePath, err := cmdutil.TemplatePath(h, "build", opts.TemplatePath, baseDir)
-	if err != nil {
-		return err
-	}
-	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
-	outputPath := store.ReplaceExt(invoicePath, ".pdf")
+	svc := opts.Service(cmdutil.Files{
+		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
+		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
+	})
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	outputPath := cmdutil.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = store.AbsPath(baseDir, opts.OutputPath)
+		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
 	}
-	outputDisplay := store.DisplayPath(outputPath, baseDir)
-	invoiceDisplay := store.DisplayPath(invoicePath, baseDir)
+	outputDisplay := cmdutil.DisplayPath(outputPath, baseDir)
+	invoiceDisplay := cmdutil.DisplayPath(invoicePath, baseDir)
 
-	inv, err := store.LoadContext(customersPath, issuerPath, invoicePath)
-	if err != nil {
-		return err
+	result, err := svc.Build(ctx, billing.BuildRequest{
+		Invoice:  invoicePath,
+		Template: opts.TemplatePath,
+		Output:   outputPath,
+		Archive:  opts.Archive,
+		Replace:  opts.Yes,
+		Confirm:  shared.ConfirmReplace(ctx, opts.IO, "build", invoicePath, baseDir, fmt.Sprintf("built %s but ", outputDisplay)),
+		DryRun:   opts.DryRun,
+	})
+	var stepErr *billing.StepError
+	var execErr *run.ExecError
+	switch {
+	case errors.As(err, &stepErr) && opts.DryRun:
+		return fmt.Errorf("cannot archive %s: %w", invoiceDisplay, stepErr.Err)
+	case errors.As(err, &stepErr) && stepErr.Step == billing.StepMark:
+		return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, stepErr.Err)
+	case errors.As(err, &stepErr):
+		// Main prints only a usage error's inner message and stays silent
+		// for CancelError, so the wrap adds nothing to them.
+		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, stepErr.Err)
+	case errors.As(err, &execErr):
+		return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
+	case err != nil:
+		return cmdutil.UsageError("build", err)
 	}
+	inv := result.Context
+
 	// printResult prints the PDF's path, or with --json the build's result.
 	printResult := func(archivedPath *string) error {
 		if opts.Exporter != nil {
@@ -152,31 +162,22 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return nil
 	}
 	if opts.DryRun {
-		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir, printResult)
-	}
-	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
-		var execErr *run.ExecError
-		if errors.As(err, &execErr) {
-			return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
+		fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
+		status := invoice.Status(inv.Header.Status.Trim())
+		if next, _ := status.Apply(invoice.Building); next != status {
+			fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", next, invoiceDisplay)
 		}
-		return err
+		if result.Archived == nil {
+			return printResult(nil)
+		}
+		shared.PrintArchivePreview(opts.IO, *result.Archived, invoicePath, baseDir)
+		return printResult(&result.Archived.Path)
 	}
-	if err := store.MarkInvoiceBuilt(invoicePath); err != nil {
-		return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, err)
-	}
-	if !opts.Archive {
+	if result.Archived == nil {
 		fmt.Fprintf(opts.IO.ErrOut, "Built %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
 		return printResult(nil)
 	}
-
-	errorPrefix := fmt.Sprintf("built %s but ", outputDisplay)
-	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, h, opts.Now, "build", invoicePath, baseDir, opts.Yes, errorPrefix)
-	// Main prints only a usage error's inner message and stays silent for
-	// CancelError, so the wrap adds nothing to them.
-	if err != nil {
-		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, err)
-	}
-	shared.PrintArchiveReplacements(opts.IO, result, baseDir)
+	shared.PrintArchiveReplacements(opts.IO, *result.Archived, baseDir)
 	fmt.Fprintf(
 		opts.IO.ErrOut,
 		"Built %s for %s (%s)\nArchived %s -> %s\n",
@@ -184,36 +185,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		inv.CustomerID,
 		inv.InvoiceNumber,
 		invoiceDisplay,
-		store.DisplayPath(result.Path, baseDir),
+		cmdutil.DisplayPath(result.Archived.Path, baseDir),
 	)
-	return printResult(&result.Path)
-}
-
-// buildDryRun runs the checks of a build, and of the archive step with
-// --archive, and prints what the build would do. It neither runs Tectonic
-// nor writes anything.
-func buildDryRun(opts *BuildOptions, h store.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
-	if _, err := store.RenderTeX(templatePath, inv); err != nil {
-		return err
-	}
-	var archived store.ArchiveResult
-	if opts.Archive {
-		var err error
-		archived, err = h.ArchiveInvoice(opts.Now(), invoicePath, store.ArchiveOptions{Replace: true, DryRun: true, AssumeBuilt: true})
-		if err != nil {
-			return fmt.Errorf("cannot archive %s: %w", store.DisplayPath(invoicePath, baseDir), err)
-		}
-	}
-
-	outputDisplay := store.DisplayPath(outputPath, baseDir)
-	fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-	status := invoice.Status(inv.Header.Status.Trim())
-	if next, _ := status.Apply(invoice.Building); next != status {
-		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", next, store.DisplayPath(invoicePath, baseDir))
-	}
-	if !opts.Archive {
-		return printResult(nil)
-	}
-	shared.PrintArchivePreview(opts.IO, archived, invoicePath, baseDir)
-	return printResult(&archived.Path)
+	return printResult(&result.Archived.Path)
 }

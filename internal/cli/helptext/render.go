@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/0xboris/invox/internal/store"
+	"github.com/0xboris/invox/internal/billing"
 )
 
 // The lines of a command's "Default lookup:" section. Like every Long, they
@@ -38,22 +38,30 @@ func ReplacingArchived(withArchiveFlag bool) string {
 }
 
 // Render writes text, a command's Long, with its {{...}} actions filled in
-// from h. They can call the methods of store.Host and of data.
-func Render(w io.Writer, text string, h store.Host) error {
+// from l. They can read the fields of billing.Locations and call the
+// methods of data.
+func Render(w io.Writer, text string, l billing.Locations) error {
 	tmpl, err := template.New("").Option("missingkey=error").Parse(text)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, data{h})
+	return tmpl.Execute(w, data{l})
 }
 
 type data struct {
-	store.Host
+	billing.Locations
 }
+
+func (d data) GlobalConfigPath() string          { return d.ConfigFile }
+func (d data) GlobalCustomersPath() string       { return d.Customers }
+func (d data) GlobalIssuerPath() string          { return d.Issuer }
+func (d data) GlobalInvoiceDefaultsPath() string { return d.Defaults }
+func (d data) GlobalTemplatePath() string        { return d.Template }
+func (d data) DefaultArchiveDir() string         { return d.ArchiveDir }
 
 // LegacyConfigFile is config.yaml in the legacy directory, or "none".
 func (d data) LegacyConfigFile() string {
-	if dir := d.LegacyConfigDir(); dir != "" {
+	if dir := d.LegacyDir; dir != "" {
 		return filepath.Join(dir, "config.yaml")
 	}
 	return "none"

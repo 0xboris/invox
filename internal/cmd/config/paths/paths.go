@@ -6,22 +6,22 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type PathsOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 }
 
 // NewCmdPaths returns the config paths command. runF replaces pathsRun in
 // tests.
 func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
-	opts := &PathsOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &PathsOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	return &cobra.Command{
 		Use:               "paths",
 		Short:             "Show where each config and support file is read from",
@@ -66,7 +66,7 @@ func pathsRun(opts *PathsOptions) error {
 	if err != nil {
 		return err
 	}
-	reports, err := opts.Host().Paths(cwd)
+	reports, err := opts.Service(cmdutil.Files{}).Paths(cwd)
 	if err != nil {
 		return err
 	}
@@ -79,12 +79,12 @@ func pathsRun(opts *PathsOptions) error {
 }
 
 // sourceWords are the SOURCE column.
-var sourceWords = map[store.Source]string{
-	store.SourceNone:     "none",
-	store.SourceExplicit: "flag",
-	store.SourceEnvDir:   "env",
-	store.SourceDefault:  "default",
-	store.SourceLegacy:   "legacy",
-	store.SourceProject:  "project",
-	store.SourceConfig:   "config",
+var sourceWords = map[billing.Source]string{
+	billing.SourceNone:     "none",
+	billing.SourceExplicit: "flag",
+	billing.SourceEnvDir:   "env",
+	billing.SourceDefault:  "default",
+	billing.SourceLegacy:   "legacy",
+	billing.SourceProject:  "project",
+	billing.SourceConfig:   "config",
 }

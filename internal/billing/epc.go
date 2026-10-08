@@ -1,4 +1,4 @@
-package store
+package billing
 
 import (
 	"errors"
@@ -14,7 +14,9 @@ func epcQRCodeEligible(ctx *invoice.Context) bool {
 	return ctx != nil && ctx.OutstandingCents > 0 && strings.TrimSpace(ctx.Currency) == "EUR"
 }
 
-func buildEPCPayload(ctx *invoice.Context) ([]byte, error) {
+// EPCPayload returns the EPC QR code content for ctx, or why the payment
+// details make no valid one.
+func EPCPayload(ctx *invoice.Context) ([]byte, error) {
 	if strings.TrimSpace(ctx.Currency) != "EUR" {
 		return nil, fmt.Errorf("EPC QR code requires billing.currency EUR, got `%s`", ctx.Currency)
 	}
@@ -84,4 +86,23 @@ func buildEPCPayload(ctx *invoice.Context) ([]byte, error) {
 		Text:        text,
 		Information: information,
 	}.Encode()
+}
+
+// defaultEPCQRLabel is the text shown with the code when the issuer sets
+// none.
+const defaultEPCQRLabel = "Pay via EPC-QR"
+
+// EPCFor returns what the EPC QR code placeholders need for ctx: a payload
+// when the invoice qualifies for an EPC transfer (an outstanding amount in
+// EUR), or why its payment details make no valid one.
+func EPCFor(ctx *invoice.Context) EPC {
+	code := EPC{Label: defaultEPCQRLabel}
+	if configured := ctx.Payment.EPCQR.Label.Trim(); configured != "" {
+		code.Label = configured
+	}
+	if !epcQRCodeEligible(ctx) {
+		return code
+	}
+	code.Payload, code.Err = EPCPayload(ctx)
+	return code
 }

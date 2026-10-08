@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -83,15 +84,15 @@ func TestBuildReportsMissingTectonicWithAnInstallHint(t *testing.T) {
 
 			err := tectonic.New(stub, ios, tc.goos).Build(context.Background(), "invoice.tex")
 
-			var notInstalled *tectonic.NotInstalledError
+			var notInstalled *billing.ToolMissingError
 			if !errors.As(err, &notInstalled) {
-				t.Fatalf("Build error = %v, want *NotInstalledError", err)
+				t.Fatalf("Build error = %v, want *billing.ToolMissingError", err)
 			}
 			if got, want := err.Error(), "tectonic not found in PATH"; got != want {
 				t.Fatalf("Error() = %q, want %q", got, want)
 			}
-			if got := notInstalled.InstallHint(); got != tc.hint {
-				t.Fatalf("InstallHint() = %q, want %q", got, tc.hint)
+			if got := notInstalled.Hint; got != tc.hint {
+				t.Fatalf("Hint = %q, want %q", got, tc.hint)
 			}
 		})
 	}

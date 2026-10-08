@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/0xboris/invox/internal/store"
+	"github.com/0xboris/invox/internal/billing"
 )
 
 // Topic is a page of `invox help NAME`. Print is nil for a topic that is the
@@ -13,7 +13,7 @@ type Topic struct {
 	Name    string
 	Aliases []string
 	Short   string
-	Print   func(w io.Writer, h store.Host)
+	Print   func(w io.Writer, l billing.Locations)
 }
 
 // Topics lists the help topics in the order the root help shows them.
@@ -24,7 +24,7 @@ var Topics = []Topic{
 	{Name: "defaults", Aliases: []string{"invoice-defaults", "invoice_defaults"}, Short: "invoice_defaults.yaml shape and new-command behavior", Print: printDefaultsHelp},
 	{Name: "template", Short: "template placeholders and authoring rules"},
 	{Name: "environment", Short: "environment variables, default directories, and precedence", Print: printEnvironmentHelp},
-	{Name: "exit-codes", Short: "what each exit status means", Print: func(w io.Writer, _ store.Host) { printExitCodesHelp(w) }},
+	{Name: "exit-codes", Short: "what each exit status means", Print: func(w io.Writer, _ billing.Locations) { printExitCodesHelp(w) }},
 }
 
 // LookupTopic returns the topic called name or one of its aliases.
@@ -46,7 +46,7 @@ func commandExample(args string) string {
 	return commandName + " " + args
 }
 
-func printCustomersHelp(w io.Writer, h store.Host) {
+func printCustomersHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "customers.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help customers\n\n", commandName)
@@ -63,7 +63,7 @@ func printCustomersHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "  billing.currency defaults to EUR.\n")
 	fmt.Fprintf(w, "  numbering.code feeds {customer_code}; numbering.start overrides config.numbering.start for one customer.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", h.GlobalCustomersPath())
+	fmt.Fprintf(w, "  customers.yaml: upward project search, then %s\n\n", l.Customers)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help customers"))
 	fmt.Fprintf(w, "  %s\n", commandExample("customer edit"))
@@ -71,7 +71,7 @@ func printCustomersHelp(w io.Writer, h store.Host) {
 	printCustomerYAMLExample(w)
 }
 
-func printIssuerHelp(w io.Writer, h store.Host) {
+func printIssuerHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "issuer.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help issuer\n\n", commandName)
@@ -89,14 +89,14 @@ func printIssuerHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "  payment.epc_qr.label defaults to Pay via EPC-QR.\n")
 	fmt.Fprintf(w, "  EPC QR generation requires a valid SEPA-scope payment.iban.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n\n", h.GlobalIssuerPath())
+	fmt.Fprintf(w, "  issuer.yaml: upward project search, then %s\n\n", l.Issuer)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help issuer"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 -u issuer.yaml"))
 	printIssuerYAMLExample(w)
 }
 
-func printDefaultsHelp(w io.Writer, h store.Host) {
+func printDefaultsHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "invoice_defaults.yaml reference.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help defaults\n", commandName)
@@ -114,7 +114,7 @@ func printDefaultsHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "  The final invoice used by validate/render/build/email still needs a non-empty positions list.\n")
 	fmt.Fprintf(w, "  Canonical keys are positions, invoice.period, and invoice.vat_percent.\n\n")
 	fmt.Fprintf(w, "Lookup:\n")
-	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", h.GlobalInvoiceDefaultsPath())
+	fmt.Fprintf(w, "  invoice_defaults.yaml: upward project search, then %s\n\n", l.Defaults)
 	fmt.Fprintf(w, "Examples:\n")
 	fmt.Fprintf(w, "  %s\n", commandExample("help defaults"))
 	fmt.Fprintf(w, "  %s\n\n", commandExample("new CUST-001 --defaults invoice_defaults.yaml"))
@@ -170,7 +170,7 @@ var environmentVariables = []environmentVariable{
 	}},
 }
 
-func printEnvironmentHelp(w io.Writer, h store.Host) {
+func printEnvironmentHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "Environment variables and default directories.\n\n")
 	fmt.Fprintf(w, "Usage:\n")
 	fmt.Fprintf(w, "  %s help environment\n\n", commandName)
@@ -186,7 +186,7 @@ func printEnvironmentHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "  macOS:     $XDG_CONFIG_HOME/invox, else $HOME/.config/invox\n")
 	fmt.Fprintf(w, "  Windows:   %%XDG_CONFIG_HOME%%\\invox, else %%USERPROFILE%%\\.config\\invox\n")
 	fmt.Fprintf(w, "  INVOX_CONFIG_DIR replaces it on every OS.\n")
-	fmt.Fprintf(w, "  here:      %s\n\n", h.ConfigDir())
+	fmt.Fprintf(w, "  here:      %s\n\n", l.ConfigDir)
 	fmt.Fprintf(w, "Legacy config directory (deprecated):\n")
 	fmt.Fprintf(w, "  invoice-tool next to the invox directory, such as $HOME/.config/invoice-tool.\n")
 	fmt.Fprintf(w, "  A file missing from the invox directory is still read from here, and invox\n")
@@ -196,7 +196,7 @@ func printEnvironmentHelp(w io.Writer, h store.Host) {
 	fmt.Fprintf(w, "  Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices\n")
 	fmt.Fprintf(w, "  macOS:     $XDG_DATA_HOME/invox/invoices, else $HOME/Library/Application Support/invox/invoices\n")
 	fmt.Fprintf(w, "  Windows:   %%APPDATA%%\\invox\\invoices, else %%USERPROFILE%%\\AppData\\Roaming\\invox\\invoices\n")
-	fmt.Fprintf(w, "  here:      %s\n\n", h.DefaultArchiveDir())
+	fmt.Fprintf(w, "  here:      %s\n\n", l.ArchiveDir)
 	fmt.Fprintf(w, "Config file:\n")
 	fmt.Fprintf(w, "  1. --config PATH\n")
 	fmt.Fprintf(w, "  2. config.yaml in INVOX_CONFIG_DIR\n")

@@ -2,35 +2,37 @@ package cmdutil
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/0xboris/invox/internal/store"
+	"github.com/0xboris/invox/internal/billing"
 )
 
 func TestSupportPath(t *testing.T) {
 	work := t.TempDir()
-	configDir := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
-
-	got, err := SupportPath(host, "customer list", store.Customers, filepath.Join("sub", "c.yaml"), work)
-	if err != nil || got != filepath.Join(work, "sub", "c.yaml") {
-		t.Errorf("flag value: got %q, %v; want %q", got, err, filepath.Join(work, "sub", "c.yaml"))
+	if got, want := AbsFlag(work, filepath.Join("sub", "c.yaml")), filepath.Join(work, "sub", "c.yaml"); got != want {
+		t.Errorf("flag value: got %q, want %q", got, want)
+	}
+	if got := AbsFlag(work, " "); got != "" {
+		t.Errorf("blank flag value: got %q, want \"\"", got)
 	}
 
-	_, err = SupportPath(host, "customer list", store.Customers, "", work)
+	global := filepath.Join(t.TempDir(), "customers.yaml")
+	err := UsageError("customer list", &billing.FileNotFoundError{File: billing.CustomersFile, Default: global})
 	var flagErr *FlagError
-	want := "customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at " + filepath.Join(configDir, "customers.yaml")
+	want := "customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at " + global
 	if !errors.As(err, &flagErr) || flagErr.Command != "customer list" || err.Error() != want {
 		t.Errorf("nothing found: got %#v, want FlagError for customer list: %q", err, want)
 	}
 
-	if err := os.WriteFile(filepath.Join(configDir, "issuer.yaml"), []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
+	err = UsageError("render", &billing.TemplateLookupError{Err: &billing.TemplateNotFoundError{Name: "fancy.tex"}})
+	want = `template "fancy.tex" not found; run 'invox template list' to see the templates`
+	if !errors.As(err, &flagErr) || flagErr.Command != "render" || err.Error() != want {
+		t.Errorf("unknown template: got %#v, want FlagError for render: %q", err, want)
 	}
-	got, err = SupportPath(host, "validate", store.Issuer, " ", work)
-	if err != nil || got != filepath.Join(configDir, "issuer.yaml") {
-		t.Errorf("found in config dir: got %q, %v; want %q", got, err, filepath.Join(configDir, "issuer.yaml"))
+
+	other := errors.New("broken")
+	if got := UsageError("validate", other); got != other {
+		t.Errorf("other error: got %#v, want it unchanged", got)
 	}
 }

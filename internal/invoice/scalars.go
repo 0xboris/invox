@@ -26,12 +26,17 @@ func (t Text) IsSet() bool { return t.Trim() != "" }
 // decimal. An empty value leaves it unset.
 type Decimal struct {
 	value *big.Rat
+	// text is the value as written.
+	text string
 }
 
 func (d Decimal) IsSet() bool { return d.value != nil }
 
 // Rat returns the value, or nil when it is unset.
 func (d Decimal) Rat() *big.Rat { return d.value }
+
+// String returns the decimal as written, or "" when it is unset.
+func (d Decimal) String() string { return d.text }
 
 // Rate is a VAT rate in percent, written as a decimal with an optional
 // trailing %, such as 20, 7.7 or "19%". An empty value leaves it unset.
@@ -91,7 +96,7 @@ func ParseDecimal(text string) (Decimal, error) {
 	if !ok {
 		return Decimal{}, fmt.Errorf("expected a decimal number such as 12 or 12.50, got `%s`", text)
 	}
-	return Decimal{value: value}, nil
+	return Decimal{value: value, text: text}, nil
 }
 
 // ParseRate reads a Rate from its text. Empty text leaves it unset.

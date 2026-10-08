@@ -35,6 +35,9 @@ type rule struct {
 	only []string
 }
 
+// coreDeps is the core: the entities and the use cases.
+var coreDeps = []string{mod + "internal/invoice", mod + "internal/numbering", mod + "internal/epc", mod + "internal/money", mod + "internal/billing"}
+
 var rules = []rule{
 	{
 		name: "the release binary does not contain the docs generator",
@@ -44,18 +47,18 @@ var rules = []rule{
 	{
 		name:   "nothing below the command layer depends on commands, the CLI or flag parsing",
 		pkgs:   []string{mod + "..."},
-		except: []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/docs/gen/...", mod + "internal/archtest"},
+		except: []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/docs/gen/...", mod + "internal/factory/...", mod + "internal/archtest"},
 		deny:   []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
 	},
 	{
 		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/archive", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/numbering", mod + "internal/render/...", mod + "internal/store/..."},
+		pkgs: []string{mod + "internal/archive", mod + "internal/billing", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/numbering", mod + "internal/render/...", mod + "internal/store/..."},
 		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
 	},
 	{
-		name: "adapters import only run and iostreams",
+		name: "adapters import only the core, run and iostreams",
 		pkgs: []string{mod + "internal/adapters/...", mod + "internal/tableprinter"},
-		only: []string{mod + "internal/adapters/run", mod + "internal/iostreams"},
+		only: append([]string{mod + "internal/adapters/run", mod + "internal/iostreams"}, coreDeps...),
 	},
 	{
 		name:        "only internal/adapters/run starts programs",
@@ -65,18 +68,28 @@ var rules = []rule{
 	},
 	{
 		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/build", mod + "internal/email", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money", mod + "internal/numbering"},
+		pkgs: []string{mod + "internal/build", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money", mod + "internal/numbering"},
 		only: []string{},
 	},
 	{
-		name: "internal/render/latex imports only money",
-		pkgs: []string{mod + "internal/render/latex"},
+		name: "internal/invoice imports only money",
+		pkgs: []string{mod + "internal/invoice"},
 		only: []string{mod + "internal/money"},
 	},
 	{
-		name: "internal/archive imports only fsutil",
-		pkgs: []string{mod + "internal/archive"},
-		only: []string{mod + "internal/fsutil"},
+		name: "internal/billing imports only the coreDeps",
+		pkgs: []string{mod + "internal/billing"},
+		only: coreDeps,
+	},
+	{
+		name: "internal/store imports the coreDeps, config, fsutil and yaml.v3",
+		pkgs: []string{mod + "internal/store"},
+		only: append([]string{mod + "internal/config", mod + "internal/fsutil", "gopkg.in/yaml.v3"}, coreDeps...),
+	},
+	{
+		name: "internal/archive, internal/render/latex and internal/email import the coreDeps and fsutil",
+		pkgs: []string{mod + "internal/archive", mod + "internal/render/latex", mod + "internal/email"},
+		only: append([]string{mod + "internal/fsutil"}, coreDeps...),
 	},
 }
 

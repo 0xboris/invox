@@ -11,20 +11,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // EditOptions is what customer edit needs: its streams, the editor, the user
 // directories and the parsed flags. Command names the command in its
 // messages.
 type EditOptions struct {
-	IO     *iostreams.IOStreams
-	Editor *editor.Editor
-	Host   func() store.Host
-	Getwd  func() (string, error)
+	IO      *iostreams.IOStreams
+	Editor  *editor.Editor
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	Command       string
 	CustomersPath string
@@ -50,7 +50,7 @@ func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *EditOptions) e
 }
 
 func newCmd(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error, name string) *cobra.Command {
-	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Command: "customer " + name}
+	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd, Command: "customer " + name}
 	cmd := &cobra.Command{
 		Use:               name,
 		Short:             "Open customers.yaml in your editor",
@@ -91,12 +91,13 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), opts.Command, store.Customers, opts.CustomersPath, baseDir)
+	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	customersPath, err := svc.EditablePath(billing.CustomersFile)
 	if err != nil {
-		return err
+		return cmdutil.UsageError(opts.Command, err)
 	}
 
-	displayPath := store.DisplayPath(customersPath, baseDir)
+	displayPath := cmdutil.DisplayPath(customersPath, baseDir)
 	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, customersPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", customersPath, err)
 	}

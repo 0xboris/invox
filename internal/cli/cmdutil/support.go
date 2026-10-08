@@ -2,63 +2,36 @@ package cmdutil
 
 import (
 	"errors"
-	"path/filepath"
-	"strings"
 
-	"github.com/0xboris/invox/internal/store"
+	"github.com/0xboris/invox/internal/billing"
 )
 
 // supportFlags names, for each support file, the flag that sets it, its
-// config key, its file name and where invox looks for it by default.
-var supportFlags = map[store.SupportFile]struct {
-	label, flag, key, name string
-	global                 func(store.Host) string
-}{
-	store.Customers: {"customers", "-c/--customers", "paths.customers", "customers.yaml", store.Host.GlobalCustomersPath},
-	store.Issuer:    {"issuer", "-u/--issuer", "paths.issuer", "issuer.yaml", store.Host.GlobalIssuerPath},
-	store.Defaults:  {"defaults", "--defaults", "paths.defaults", "invoice_defaults.yaml", store.Host.GlobalInvoiceDefaultsPath},
-	store.Template:  {"template", "-t/--template", "paths.template", "template.tex", store.Host.GlobalTemplatePath},
+// config key and its file name.
+var supportFlags = map[billing.File]struct{ flag, key, name string }{
+	billing.CustomersFile: {"-c/--customers", "paths.customers", "customers.yaml"},
+	billing.IssuerFile:    {"-u/--issuer", "paths.issuer", "issuer.yaml"},
+	billing.DefaultsFile:  {"--defaults", "paths.defaults", "invoice_defaults.yaml"},
+	billing.TemplateFile:  {"-t/--template", "paths.template", "template.tex"},
 }
 
-// SupportPath returns the absolute path of the support file kind that
-// command reads: flagValue made absolute against baseDir when it is set,
-// else the file found from baseDir. Finding none is a usage error that names
-// the ways to provide it.
-func SupportPath(h store.Host, command string, kind store.SupportFile, flagValue, baseDir string) (string, error) {
-	path := flagValue
-	if strings.TrimSpace(path) == "" {
-		found, err := h.ResolveSupportFile(kind, baseDir)
-		if err != nil {
-			return "", err
-		}
-		path = found.Path
-	}
-	if strings.TrimSpace(path) == "" {
-		s := supportFlags[kind]
-		return "", FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", s.label, s.flag, s.key, s.name, s.global(h))
-	}
-	return store.AbsPath(filepath.Clean(baseDir), path), nil
-}
-
-// TemplatePath returns the absolute path of the template that command
-// renders with: flagValue, a path or the name of a template in the catalog,
-// when it is set, else the template found from baseDir.
-func TemplatePath(h store.Host, command, flagValue, baseDir string) (string, error) {
-	reference := flagValue
-	if strings.TrimSpace(reference) == "" {
-		found, err := SupportPath(h, command, store.Template, "", baseDir)
-		if err != nil {
-			return "", err
-		}
-		reference = found
-	}
-	path, err := h.ResolveTemplateReference(baseDir, reference)
-	var notFound *store.TemplateNotFoundError
+// UsageError returns err as the usage error of command when it is about a
+// file the command line can name: a support file that was not found, which
+// names the ways to provide it, or a template reference that resolves to
+// nothing. Any other err comes back as it is.
+func UsageError(command string, err error) error {
+	var notFound *billing.FileNotFoundError
 	if errors.As(err, &notFound) {
-		return "", FlagErrorf(command, "%s; run 'invox template list' to see the templates", notFound)
+		s := supportFlags[notFound.File]
+		return FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", notFound.File, s.flag, s.key, s.name, notFound.Default)
 	}
-	if err != nil {
-		return "", &FlagError{Command: command, Err: err}
+	var lookup *billing.TemplateLookupError
+	if !errors.As(err, &lookup) {
+		return err
 	}
-	return store.AbsPath(filepath.Clean(baseDir), path), nil
+	var missing *billing.TemplateNotFoundError
+	if errors.As(lookup.Err, &missing) {
+		return FlagErrorf(command, "%s; run 'invox template list' to see the templates", missing)
+	}
+	return &FlagError{Command: command, Err: lookup.Err}
 }

@@ -10,12 +10,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // exitCode reports err on ios.ErrOut and returns the code invox exits with.
@@ -62,9 +60,9 @@ func printError(w io.Writer, message string) {
 // errorHint returns the next step that fixes err, or "" when there is none.
 func errorHint(err error) string {
 	var unknownCustomer *invoice.UnknownCustomerError
-	var configErr *config.Error
+	var configErr *billing.ConfigError
 	var duplicate *invoice.DuplicateInvoiceNumberError
-	var noTectonic *tectonic.NotInstalledError
+	var toolMissing *billing.ToolMissingError
 	var configFlag *configFlagError
 	switch {
 	case errors.As(err, &configFlag):
@@ -81,8 +79,8 @@ func errorHint(err error) string {
 		return fmt.Sprintf("Run '%s config' to open and fix the config file.", commandName)
 	case errors.As(err, &duplicate):
 		return fmt.Sprintf("Run '%s increment -i %s' to give it the next free number, then archive it again.", commandName, duplicate.InvoicePath)
-	case errors.As(err, &noTectonic):
-		return noTectonic.InstallHint()
+	case errors.As(err, &toolMissing):
+		return toolMissing.Hint
 	}
 	return ""
 }
@@ -106,7 +104,7 @@ func unknownKeyHelpTopics(err error) []string {
 	var walk func(error)
 	walk = func(err error) {
 		switch e := err.(type) {
-		case *store.DecodeError:
+		case *billing.DecodeError:
 			if topic := topicOf[e.Schema]; e.UnknownKey && topic != "" && !seen[topic] {
 				seen[topic] = true
 				topics = append(topics, topic)

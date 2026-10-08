@@ -19,10 +19,10 @@ func TestLoadYAMLPreservesNumericLookingMappingKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadCustomerTable returned error: %v", err)
 	}
-	if _, exists, _ := customers.customer("17", false); exists {
+	if _, exists, _ := customers.Lookup("17", false); exists {
 		t.Fatalf("customers unexpectedly contains coerced key %q", "17")
 	}
-	customer, exists, err := customers.customer("0021", false)
+	customer, exists, err := customers.Lookup("0021", false)
 	if err != nil {
 		t.Fatalf("customer(0021) returned error: %v", err)
 	}

@@ -8,24 +8,22 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 type NewOptions struct {
-	IO     *iostreams.IOStreams
-	Editor *editor.Editor
-	Host   func() store.Host
-	Getwd  func() (string, error)
-	Now    func() time.Time
+	IO      *iostreams.IOStreams
+	Editor  *editor.Editor
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	CustomerID    string
 	OutputPath    string
@@ -48,7 +46,7 @@ type newJSON struct {
 
 // NewCmdNew returns the new command. runF replaces newRun in tests.
 func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
-	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "new CUSTOMER_ID",
 		Short: "Create a new invoice YAML file with a generated number and prefilled defaults",
@@ -121,54 +119,37 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "new", store.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	issuerPath, err := cmdutil.SupportPath(h, "new", store.Issuer, opts.IssuerPath, baseDir)
-	if err != nil {
-		return err
-	}
-	defaultsPath, err := cmdutil.SupportPath(h, "new", store.Defaults, opts.DefaultsPath, baseDir)
-	var notFound *cmdutil.FlagError
-	if opts.FromLast && errors.As(err, &notFound) {
-		// --from-last copies the last archived invoice instead.
-		defaultsPath, err = "", nil
-	}
-	if err != nil {
-		return err
-	}
+	svc := opts.Service(cmdutil.Files{
+		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
+		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
+		Defaults:  cmdutil.AbsFlag(baseDir, opts.DefaultsPath),
+	})
 	outputPath := ""
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = store.AbsPath(baseDir, opts.OutputPath)
+		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
 	}
 
-	created, err := h.CreateNewInvoice(store.NewInvoiceParams{
-		Now:           opts.Now(),
-		WorkDir:       baseDir,
-		DefaultsPath:  defaultsPath,
-		OutputPath:    outputPath,
-		CustomersPath: customersPath,
-		IssuerPath:    issuerPath,
-		CustomerID:    opts.CustomerID,
-		FromLast:      opts.FromLast,
-		Overwrite:     opts.Force,
-		DryRun:        opts.DryRun,
+	created, err := svc.New(billing.NewRequest{
+		CustomerID: opts.CustomerID,
+		WorkDir:    baseDir,
+		Output:     outputPath,
+		FromLast:   opts.FromLast,
+		Overwrite:  opts.Force,
+		DryRun:     opts.DryRun,
 	})
-	var exists *store.OutputExistsError
+	var exists *billing.OutputExistsError
 	if errors.As(err, &exists) {
 		return fmt.Errorf("%s; pass --force to replace it or choose a different -o/--output path", exists)
 	}
-	var isDir *store.OutputIsDirError
+	var isDir *billing.OutputIsDirError
 	if errors.As(err, &isDir) {
 		return fmt.Errorf("%s; choose a different -o/--output path", isDir)
 	}
 	if err != nil {
-		return err
+		return cmdutil.UsageError("new", err)
 	}
-	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.SkippedArchiveFiles, baseDir)
-	displayPath := store.DisplayPath(created.Path, baseDir)
+	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.Skipped, baseDir)
+	displayPath := cmdutil.DisplayPath(created.Path, baseDir)
 	if opts.Edit && !opts.DryRun {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
 		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)

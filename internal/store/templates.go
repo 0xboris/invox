@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 type TemplateSummary struct {
@@ -77,7 +79,7 @@ func (h Host) ResolveTemplateReference(start, reference string) (string, error) 
 
 	switch len(matches) {
 	case 0:
-		return "", &TemplateNotFoundError{Name: reference}
+		return "", &billing.TemplateNotFoundError{Name: reference}
 	case 1:
 		return matches[0].Path, nil
 	default:

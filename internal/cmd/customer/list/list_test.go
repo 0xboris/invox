@@ -10,8 +10,8 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 func TestNewCmdListParsing(t *testing.T) {
@@ -67,12 +67,12 @@ func TestListRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(work, "c.yaml"), []byte("B-1:\n  name: Beta\n  status: inactive\nA-1:\n  name: Alpha\n  status: active\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	f := factorytest.New(t, nil, factorytest.Options{ConfigDir: t.TempDir(), Getwd: func() (string, error) { return work, nil }})
 
 	ios, _, out, errOut := iostreams.Test()
 	opts := &ListOptions{
 		IO:            ios,
-		Host:          func() store.Host { return host },
+		Service:       f.Service,
 		Getwd:         func() (string, error) { return work, nil },
 		CustomersPath: "c.yaml",
 	}

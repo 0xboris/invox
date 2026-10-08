@@ -7,17 +7,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	CustomersPath string
 	Exporter      *cmdutil.Exporter
@@ -34,7 +34,7 @@ type customerJSON struct {
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List all customers from customers.yaml",
@@ -73,22 +73,19 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), "customer list", store.Customers, opts.CustomersPath, baseDir)
+	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	list, err := svc.ListCustomers()
 	if err != nil {
-		return err
+		return cmdutil.UsageError("customer list", err)
 	}
-
-	customers, err := store.ListCustomers(customersPath)
-	if err != nil {
-		return err
-	}
+	customers, customersPath := list.Customers, list.File
 
 	if opts.Exporter != nil {
 		items := make([]customerJSON, 0, len(customers))
 		for _, customer := range customers {
 			items = append(items, customerJSON{
 				ID:       customer.ID,
-				Name:     customer.LegalCompanyName,
+				Name:     customer.Name,
 				Status:   customer.Status,
 				Email:    customer.Email,
 				Currency: customer.Currency,
@@ -97,13 +94,13 @@ func listRun(opts *ListOptions) error {
 		return opts.Exporter.Write(opts.IO, items)
 	}
 
-	list := tableprinter.Table{
+	table := tableprinter.Table{
 		Columns:   []tableprinter.Column{{Header: "ID"}, {Header: "NAME", MaxWidth: 40}, {Header: "STATUS"}},
-		EmptyHint: "No customers found in " + store.DisplayPath(customersPath, baseDir),
+		EmptyHint: "No customers found in " + cmdutil.DisplayPath(customersPath, baseDir),
 	}
 	for _, customer := range customers {
-		list.AddRow(customer.ID, customer.LegalCompanyName, customer.Status)
+		table.AddRow(customer.ID, customer.Name, customer.Status)
 	}
-	list.Print(opts.IO)
+	table.Print(opts.IO)
 	return nil
 }

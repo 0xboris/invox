@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
@@ -84,39 +85,15 @@ func (s Store) walk(visit func(path, rel string) error) error {
 	})
 }
 
-// Identity is what the archive lists of an archived invoice.
-type Identity struct {
-	CustomerID    string
-	IssueDate     string
-	Status        string
-	InvoiceNumber string
-}
-
-// Reader reads the Identity of the archived invoice at path. ok is false
-// for a file that is not an invoice, which List leaves out.
-type Reader func(path string) (Identity, bool, error)
-
-// Entry is an archived invoice: where it is and what it says about itself.
-type Entry struct {
-	// Path is the file, below Store.Dir as configured.
-	Path string
-	// Filename is Path relative to the root, as `archive list` prints it.
-	Filename string
-	Identity
-}
+// Reader reads what the archived invoice at path says about itself. ok is
+// false for a file that is not an invoice, which List leaves out. List sets
+// Path and Filename.
+type Reader func(path string) (entry billing.ArchiveEntry, ok bool, err error)
 
 // List reads every archived invoice with read and returns them sorted by
 // Filename.
-func (s Store) List(read Reader) ([]Entry, error) {
-	entries := make([]Entry, 0)
-	err := s.walk(func(path, rel string) error {
-		identity, ok, err := read(path)
-		if err != nil || !ok {
-			return err
-		}
-		entries = append(entries, Entry{Path: path, Filename: rel, Identity: identity})
-		return nil
-	})
+func (s Store) List(read Reader) ([]billing.ArchiveEntry, error) {
+	entries, err := s.entries(read)
 	if err != nil {
 		return nil, err
 	}
@@ -126,42 +103,22 @@ func (s Store) List(read Reader) ([]Entry, error) {
 	return entries, nil
 }
 
-// Newer reports whether e was issued after other: by issue date, where a
-// date that parses beats one that does not, then by invoice number,
-// Filename and Path.
-func (e Entry) Newer(other Entry) bool {
-	leftDate, leftOK := parseIssueDate(e.IssueDate)
-	rightDate, rightOK := parseIssueDate(other.IssueDate)
-
-	switch {
-	case leftOK && !rightOK:
-		return true
-	case !leftOK && rightOK:
-		return false
-	case leftOK && rightOK && !leftDate.Equal(rightDate):
-		return leftDate.After(rightDate)
-	}
-
-	switch {
-	case e.InvoiceNumber != other.InvoiceNumber:
-		return e.InvoiceNumber > other.InvoiceNumber
-	case e.Filename != other.Filename:
-		return e.Filename > other.Filename
-	default:
-		return e.Path > other.Path
-	}
-}
-
-func parseIssueDate(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false
-	}
-	parsed, err := time.Parse("2006-01-02", value)
+// entries reads every archived invoice with read, in the order of Walk.
+func (s Store) entries(read Reader) ([]billing.ArchiveEntry, error) {
+	entries := make([]billing.ArchiveEntry, 0)
+	err := s.walk(func(path, rel string) error {
+		entry, ok, err := read(path)
+		if err != nil || !ok {
+			return err
+		}
+		entry.Path, entry.Filename = path, rel
+		entries = append(entries, entry)
+		return nil
+	})
 	if err != nil {
-		return time.Time{}, false
+		return nil, err
 	}
-	return parsed, true
+	return entries, nil
 }
 
 // Target is a file inside the archive, named relative to the root.
@@ -239,22 +196,15 @@ func (t Target) Edit() Edit {
 	return Edit{Filename: filepath.Base(rel), Target: rel}
 }
 
-// Backup records an archived file that re-archiving replaced and where its
-// previous version was kept.
-type Backup struct {
-	Path       string
-	BackupPath string
-}
-
 // Backup copies each archived file to
 // <Dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its directory
 // below the root. An existing backup is never replaced: a second backup in
 // the same second gets a counter.
-func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
+func (s Store) Backup(paths []string, now time.Time) ([]billing.Backup, error) {
 	dir := filepath.Clean(s.Dir)
 	stamp := now.UTC().Format(backupTimeFormat)
 
-	backups := make([]Backup, 0, len(paths))
+	backups := make([]billing.Backup, 0, len(paths))
 	for _, path := range paths {
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
@@ -268,7 +218,7 @@ func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
 		if err != nil {
 			return nil, fmt.Errorf("back up %s: %w", path, err)
 		}
-		backups = append(backups, Backup{Path: path, BackupPath: backupPath})
+		backups = append(backups, billing.Backup{Path: path, BackupPath: backupPath})
 	}
 	return backups, nil
 }

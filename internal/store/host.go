@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/config"
 )
 
@@ -98,6 +99,10 @@ func (h Host) loadConfig() (*config.Config, error) {
 	if file.Source == SourceExplicit && errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("config file %s does not exist", file.Path)
 	}
+	var configErr *config.Error
+	if errors.As(err, &configErr) {
+		return nil, &billing.ConfigError{Err: err}
+	}
 	return c, err
 }
 
@@ -132,7 +137,7 @@ func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
 	dir := h.configDir
 	if dir.Source == SourceEnvDir {
 		if info, err := os.Stat(dir.Path); err != nil || !info.IsDir() {
-			return Resolved{}, &ConfigDirNotFoundError{Dir: dir.Path}
+			return Resolved{}, &billing.ConfigDirNotFoundError{Dir: dir.Path}
 		}
 	}
 	dirs := []Resolved{dir}
@@ -155,16 +160,6 @@ func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
 		}
 	}
 	return Resolved{}, nil
-}
-
-// ConfigDirNotFoundError reports a config directory chosen by the user that
-// does not exist.
-type ConfigDirNotFoundError struct {
-	Dir string
-}
-
-func (e *ConfigDirNotFoundError) Error() string {
-	return fmt.Sprintf("config directory %s does not exist", e.Dir)
 }
 
 // LegacyFilesUsed returns the files read from the legacy directory so far,
@@ -196,7 +191,17 @@ func (l *legacyUse) files() []string {
 }
 
 // Source says where a resolved path came from.
-type Source int
+type Source = billing.Source
+
+const (
+	SourceNone     = billing.SourceNone
+	SourceExplicit = billing.SourceExplicit
+	SourceEnvDir   = billing.SourceEnvDir
+	SourceDefault  = billing.SourceDefault
+	SourceLegacy   = billing.SourceLegacy
+	SourceProject  = billing.SourceProject
+	SourceConfig   = billing.SourceConfig
+)
 
 type Resolved struct {
 	Path   string // "" only with SourceNone
@@ -206,14 +211,4 @@ type Resolved struct {
 const (
 	configDirName       = "invox"
 	legacyConfigDirName = "invoice-tool"
-)
-
-const (
-	SourceNone     Source = iota // nothing found
-	SourceExplicit               // the config file the user named
-	SourceEnvDir                 // the config directory the user chose, or a file in it
-	SourceDefault                // the OS default directory, or a file in it
-	SourceLegacy                 // the deprecated invoice-tool directory, or a file in it
-	SourceProject                // found by the upward search from the working directory
-	SourceConfig                 // a paths.* or archive.dir setting in the config file
 )

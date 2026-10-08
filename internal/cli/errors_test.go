@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -116,7 +116,7 @@ func TestRuntimeErrorShowsPathsRelativeToWorkingDir(t *testing.T) {
 func TestMissingTectonicPrintsInstallHint(t *testing.T) {
 	ios, _, _, stderr := iostreams.Test()
 
-	exitCode(ios, fmt.Errorf("build: %w", &tectonic.NotInstalledError{GOOS: "darwin"}))
+	exitCode(ios, fmt.Errorf("build: %w", &billing.ToolMissingError{Tool: "tectonic", Hint: "Install it with 'brew install tectonic', then rerun this command."}))
 
 	if want := "error: build: tectonic not found in PATH\nInstall it with 'brew install tectonic', then rerun this command.\n"; stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)

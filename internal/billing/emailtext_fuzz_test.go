@@ -1,4 +1,4 @@
-package email
+package billing
 
 import (
 	"strings"
@@ -19,7 +19,7 @@ func FuzzRenderEmailTemplate(f *testing.F) {
 
 	// The values contain no braces, so every placeholder is replaced and none
 	// can be formed by a replacement.
-	fields := Fields{
+	fields := EmailFields{
 		CustomerName:      "Example GmbH",
 		Greeting:          "Hello,",
 		ContactPerson:     "Erika Mustermann",

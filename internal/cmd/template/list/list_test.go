@@ -11,8 +11,8 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 func TestNewCmdListParsing(t *testing.T) {
@@ -78,7 +78,7 @@ func TestListRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
+	f := factorytest.New(t, nil, factorytest.Options{ConfigDir: configDir})
 
 	tests := []struct {
 		name      string
@@ -95,7 +95,7 @@ func TestListRun(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, out, errOut := iostreams.Test()
-			opts := &ListOptions{IO: ios, Host: func() store.Host { return host }, NamesOnly: tc.namesOnly}
+			opts := &ListOptions{IO: ios, Service: f.Service, NamesOnly: tc.namesOnly}
 			if err := listRun(opts); err != nil {
 				t.Fatalf("listRun returned error: %v", err)
 			}

@@ -7,18 +7,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/money"
-	"github.com/0xboris/invox/internal/store"
 )
 
 type ValidateOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	InvoicePath   string
 	CustomersPath string
@@ -29,7 +29,7 @@ type ValidateOptions struct {
 // NewCmdValidate returns the validate command. runF replaces validateRun in
 // tests.
 func NewCmdValidate(f *cmdutil.Factory, runF func(*ValidateOptions) error) *cobra.Command {
-	opts := &ValidateOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &ValidateOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "validate [INVOICE.yaml]",
 		Short: "Validate invoice YAML against customers and issuer data",
@@ -82,19 +82,15 @@ func validateRun(opts *ValidateOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "validate", store.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	issuerPath, err := cmdutil.SupportPath(h, "validate", store.Issuer, opts.IssuerPath, baseDir)
-	if err != nil {
-		return err
-	}
-	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	svc := opts.Service(cmdutil.Files{
+		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
+		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
+	})
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := store.LoadContext(customersPath, issuerPath, invoicePath)
+	result, err := svc.Validate(invoicePath)
 	if err != nil {
+		err = cmdutil.UsageError("validate", err)
 		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
 			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {
 				return writeErr
@@ -102,8 +98,9 @@ func validateRun(opts *ValidateOptions) error {
 		}
 		return err
 	}
+	ctx := result.Context
 
-	shared.WarnArchivedDuplicate(opts.IO, h, invoicePath, baseDir)
+	shared.WarnArchivedDuplicate(opts.IO, result.Duplicate, invoicePath, baseDir)
 
 	fmt.Fprintf(
 		opts.IO.ErrOut,

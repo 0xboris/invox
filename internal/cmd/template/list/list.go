@@ -7,16 +7,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	NamesOnly bool
 	Exporter  *cmdutil.Exporter
@@ -32,7 +32,7 @@ type templateJSON struct {
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List available invoice templates",
@@ -77,18 +77,15 @@ $ invox build invoice.yaml -t multi_vat.tex
 }
 
 func listRun(opts *ListOptions) error {
-	h := opts.Host()
-	templates, err := h.ListTemplates()
+	svc := opts.Service(cmdutil.Files{})
+	catalog, err := svc.ListTemplates()
 	if err != nil {
 		return err
 	}
-	templateDir, err := h.TemplateCatalogDir()
-	if err != nil {
-		return err
-	}
+	templates, templateDir := catalog.Templates, catalog.Dir
 
 	if opts.Exporter != nil {
-		return exportTemplates(opts, h, templates)
+		return exportTemplates(opts, svc, templates)
 	}
 
 	list := tableprinter.Table{
@@ -109,12 +106,11 @@ func listRun(opts *ListOptions) error {
 	return nil
 }
 
-func exportTemplates(opts *ListOptions, h store.Host, templates []store.TemplateSummary) error {
-	cwd, err := opts.Getwd()
-	if err != nil {
+func exportTemplates(opts *ListOptions, svc *billing.Service, templates []billing.Template) error {
+	if _, err := opts.Getwd(); err != nil {
 		return err
 	}
-	defaultTemplate, err := h.ResolveSupportFile(store.Template, filepath.Clean(cwd))
+	defaultTemplate, err := svc.DefaultTemplate()
 	if err != nil {
 		return err
 	}
@@ -123,7 +119,7 @@ func exportTemplates(opts *ListOptions, h store.Host, templates []store.Template
 		items = append(items, templateJSON{
 			Name:    template.Name,
 			Path:    template.Path,
-			Default: defaultTemplate.Path != "" && filepath.Clean(defaultTemplate.Path) == filepath.Clean(template.Path),
+			Default: defaultTemplate != "" && filepath.Clean(defaultTemplate) == filepath.Clean(template.Path),
 		})
 	}
 	return opts.Exporter.Write(opts.IO, items)

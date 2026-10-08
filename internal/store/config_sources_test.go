@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/0xboris/invox/internal/invoice"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -42,10 +40,11 @@ func TestConfigIsReadOncePerHost(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveNumberingSettings returned error: %v", err)
 		}
-		subject, err := h.invoiceEmailSubject(&invoice.Context{InvoiceNumber: "C-01"}, "invoice.yaml", "")
+		settings, err := h.Settings()
 		if err != nil {
-			t.Fatalf("invoiceEmailSubject returned error: %v", err)
+			t.Fatalf("Settings returned error: %v", err)
 		}
+		subject := strings.ReplaceAll(settings.EmailSubject, "{invoice_number}", "C-01")
 		customers, err := h.ResolveSupportFile(Customers, t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveSupportFile returned error: %v", err)

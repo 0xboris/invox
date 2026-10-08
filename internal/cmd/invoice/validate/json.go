@@ -4,8 +4,8 @@ import (
 	"errors"
 	"io/fs"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // validationJSON is the --json output of validate. The invoice's fields are
@@ -30,7 +30,7 @@ type problemJSON struct {
 }
 
 // invalidInvoiceProblems returns the problems in err, an error from
-// store.LoadContext, and reports whether err is only problems with the
+// billing.Service.Validate, and reports whether err is only problems with the
 // invoice's content. It reports false when a file could not be read. An
 // error it has no structure for, such as malformed YAML or an amount too
 // large to total, is a problem with only a message.
@@ -39,7 +39,7 @@ func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 	var walk func(error) bool
 	walk = func(err error) bool {
 		switch e := err.(type) {
-		case *store.DecodeError:
+		case *billing.DecodeError:
 			field := e.Path
 			if field == "" {
 				field = e.Field

@@ -10,18 +10,18 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // EditOptions is what config edit needs: its streams, the editor and the
 // user directories. Command names the command in its messages.
 type EditOptions struct {
-	IO     *iostreams.IOStreams
-	Editor *editor.Editor
-	Host   func() store.Host
-	Getwd  func() (string, error)
+	IO      *iostreams.IOStreams
+	Editor  *editor.Editor
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	Command string
 }
@@ -47,7 +47,7 @@ $ invox --config ./config.yaml config edit
 // Configure gives cmd the arguments and run of config edit. The config
 // command, which config edit is the default of, uses it too.
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) {
-	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
@@ -65,7 +65,7 @@ func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context
 }
 
 func editRun(ctx context.Context, opts *EditOptions) error {
-	configPath, err := opts.Host().EditableConfigPath()
+	configPath, err := opts.Service(cmdutil.Files{}).EditablePath(billing.ConfigFile)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	if err != nil {
 		return err
 	}
-	displayPath := store.DisplayPath(configPath, baseDir)
+	displayPath := cmdutil.DisplayPath(configPath, baseDir)
 
 	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, configPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/fsutil"
 )
@@ -36,7 +37,7 @@ func (h Host) EditableConfigPath() (string, error) {
 	path := h.configFile
 	if path == "" {
 		found, err := h.findInConfigDir(false, "config.yaml")
-		var missingDir *ConfigDirNotFoundError
+		var missingDir *billing.ConfigDirNotFoundError
 		if err != nil && !errors.As(err, &missingDir) {
 			return "", err
 		}

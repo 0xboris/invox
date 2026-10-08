@@ -1312,8 +1312,8 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	f, stub := testFactory(t)
-	f.Mailer = applemail.New(stub, f.IOStreams)
+	// Apple Mail drafts the email on macOS.
+	f, stub := testFactoryOn(t, "darwin", nil)
 	var opened applemail.Message
 	stub.Register("osascript", func(cmd run.Cmd) error {
 		message := cmd.Args[slices.Index(cmd.Args, "--")+1:]

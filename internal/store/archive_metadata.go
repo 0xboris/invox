@@ -33,7 +33,3 @@ func setArchiveMetadata(root *yaml.Node, archivePath, archiveReplacePath string)
 		setMappingString(internalNode, internalArchiveReplaceKey, filepath.ToSlash(archiveReplacePath))
 	}
 }
-
-func clearArchiveMetadata(root *yaml.Node) {
-	deleteMappingKey(root, internalMetadataKey)
-}

@@ -8,17 +8,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 type RenderOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() store.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	InvoicePath   string
 	OutputPath    string
@@ -40,7 +40,7 @@ type renderJSON struct {
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
 func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Command {
-	opts := &RenderOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &RenderOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "render [INVOICE.yaml]",
 		Short: "Render a LaTeX invoice file from YAML data",
@@ -100,38 +100,24 @@ func renderRun(opts *RenderOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "render", store.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	issuerPath, err := cmdutil.SupportPath(h, "render", store.Issuer, opts.IssuerPath, baseDir)
-	if err != nil {
-		return err
-	}
-	templatePath, err := cmdutil.TemplatePath(h, "render", opts.TemplatePath, baseDir)
-	if err != nil {
-		return err
-	}
+	svc := opts.Service(cmdutil.Files{
+		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
+		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
+	})
 	outputPath := filepath.Join(baseDir, "invoice.tex")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = store.AbsPath(baseDir, opts.OutputPath)
+		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
 	}
-	invoicePath := store.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := store.LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := svc.Render(billing.RenderRequest{Invoice: invoicePath, Template: opts.TemplatePath, Output: outputPath, DryRun: opts.DryRun})
 	if err != nil {
-		return err
+		return cmdutil.UsageError("render", err)
 	}
-	displayPath := store.DisplayPath(outputPath, baseDir)
+	displayPath := cmdutil.DisplayPath(outputPath, baseDir)
 	verb := "Rendered"
 	if opts.DryRun {
 		verb = "Would render"
-		if _, err := store.RenderTeX(templatePath, ctx); err != nil {
-			return err
-		}
-	} else if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
-		return err
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s (%s)\n", verb, displayPath, ctx.CustomerID, ctx.InvoiceNumber)

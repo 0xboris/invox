@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // archive edit copies into the working directory invox was given, which
@@ -15,18 +17,19 @@ import (
 func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	work := t.TempDir()
 	draft := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
-	if _, _, err := host.InitializeConfigDir(); err != nil {
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"XDG_DATA_HOME": t.TempDir(), "INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
 	}
 	invoicePath := filepath.Join(draft, "inv.yaml")
-	if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: draft, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: invoicePath, CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: draft, Output: invoicePath}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkInvoiceBuilt(invoicePath); err != nil {
+	if err := factorytest.SetStatus(invoicePath, invoice.Built); err != nil {
 		t.Fatal(err)
 	}
-	result, err := host.ArchiveInvoice(time.Now(), invoicePath, store.ArchiveOptions{})
+	result, err := svc.Archive(invoicePath, billing.ArchiveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +37,7 @@ func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	opts := &EditOptions{
 		IO:       ios,
-		Host:     func() store.Host { return host },
+		Service:  f.Service,
 		Getwd:    func() (string, error) { return work, nil },
 		Filename: filepath.Base(result.Path),
 	}

@@ -48,6 +48,7 @@ linters:
           files:
             - "**/internal/adapters/**"
             - "**/internal/archive/**"
+            - "**/internal/billing/**"
             - "**/internal/build/**"
             - "**/internal/config/**"
             - "**/internal/email/**"
@@ -77,6 +78,7 @@ linters:
           files:
             - "**/internal/adapters/**"
             - "**/internal/archive/**"
+            - "**/internal/billing/**"
             - "**/internal/build/**"
             - "**/internal/config/**"
             - "**/internal/email/**"
@@ -99,6 +101,7 @@ linters:
         domain:
           files:
             - "**/internal/archive/**"
+            - "**/internal/billing/**"
             - "**/internal/config/**"
             - "**/internal/email/**"
             - "**/internal/epc/**"
@@ -115,7 +118,7 @@ linters:
             - pkg: github.com/0xboris/invox/internal/adapters
               desc: the CLI layer runs programs; the domain takes their results
         # Adapters wrap one program each on top of run.Runner and write to
-        # IOStreams; they know nothing about the domain.
+        # IOStreams; of invox they know only the core.
         adapters:
           list-mode: strict
           files:
@@ -126,12 +129,16 @@ linters:
             - $gostd
             - github.com/0xboris/invox/internal/adapters/run
             - github.com/0xboris/invox/internal/iostreams
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
         # Leaf packages. Each states the only module packages it may import.
         stdlib-only:
           list-mode: strict
           files:
             - "**/internal/build/**"
-            - "**/internal/email/**"
             - "**/internal/env/**"
             - "**/internal/epc/**"
             - "**/internal/fsutil/**"
@@ -141,22 +148,58 @@ linters:
             - "!$test"
           allow:
             - $gostd
-        render-latex:
-          list-mode: strict
-          files:
-            - "**/internal/render/latex/**"
-            - "!$test"
-          allow:
-            - $gostd
-            - github.com/0xboris/invox/internal/money
-        archive:
+        # Driven adapters: the core and fsutil.
+        driven:
           list-mode: strict
           files:
             - "**/internal/archive/**"
+            - "**/internal/email/**"
+            - "**/internal/render/**"
             - "!$test"
           allow:
             - $gostd
             - github.com/0xboris/invox/internal/fsutil
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+        store:
+          list-mode: strict
+          files:
+            - "**/internal/store/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/config
+            - github.com/0xboris/invox/internal/fsutil
+            - gopkg.in/yaml.v3
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+        # The use cases import the entities only.
+        billing:
+          list-mode: strict
+          files:
+            - "**/internal/billing/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/invoice
+            - github.com/0xboris/invox/internal/numbering
+            - github.com/0xboris/invox/internal/epc
+            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/billing
+        invoice:
+          list-mode: strict
+          files:
+            - "**/internal/invoice/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/money
         # internal/adapters/run is the only package that starts programs.
         only-run-execs:
           files:

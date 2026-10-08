@@ -27,11 +27,17 @@ func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
 // testFactoryEnv is testFactory with the variables in vars set.
 func testFactoryEnv(t *testing.T, vars map[string]string) (*cmdutil.Factory, *run.Stub) {
 	t.Helper()
+	return testFactoryOn(t, testGOOS, vars)
+}
+
+// testFactoryOn is testFactoryEnv on the OS goos.
+func testFactoryOn(t *testing.T, goos string, vars map[string]string) (*cmdutil.Factory, *run.Stub) {
+	t.Helper()
 
 	ios, _, _, _ := iostreams.Test()
 	stub := run.NewStub(t)
 	e := env.System()
-	e.GOOS = testGOOS
+	e.GOOS = goos
 	e.Getenv = func(key string) string {
 		if value, ok := vars[key]; ok {
 			return value

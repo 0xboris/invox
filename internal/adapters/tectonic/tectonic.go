@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -24,7 +26,7 @@ func New(runner run.Runner, ios *iostreams.IOStreams, goos string) *Compiler {
 }
 
 // Build compiles texPath into a PDF next to it. It returns a
-// *NotInstalledError when tectonic is not on PATH, and a *run.ExecError when
+// *billing.ToolMissingError when tectonic is not on PATH, and a *run.ExecError when
 // tectonic fails.
 func (c *Compiler) Build(ctx context.Context, texPath string) error {
 	err := c.runner.Run(ctx, run.Cmd{
@@ -36,22 +38,23 @@ func (c *Compiler) Build(ctx context.Context, texPath string) error {
 		Stderr: c.ios.ErrOut,
 	})
 	if errors.Is(err, run.ErrNotFound) {
-		return &NotInstalledError{GOOS: c.goos}
+		return &billing.ToolMissingError{Tool: "tectonic", Hint: installHint(c.goos)}
 	}
 	return err
 }
 
-// NotInstalledError means tectonic is not on PATH. GOOS selects the install
-// hint.
-type NotInstalledError struct {
-	GOOS string
+// Compile compiles sourcePath and returns the PDF next to it. It
+// implements billing.Compiler.
+func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, error) {
+	if err := c.Build(ctx, sourcePath); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(sourcePath, filepath.Ext(sourcePath)) + ".pdf", nil
 }
 
-func (e *NotInstalledError) Error() string { return "tectonic not found in PATH" }
-
-// InstallHint tells the user how to install tectonic on their OS.
-func (e *NotInstalledError) InstallHint() string {
-	if e.GOOS == "darwin" {
+// installHint tells the user how to install tectonic on the OS goos.
+func installHint(goos string) string {
+	if goos == "darwin" {
 		return "Install it with 'brew install tectonic', then rerun this command."
 	}
 	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."

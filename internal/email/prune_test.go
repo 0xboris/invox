@@ -41,8 +41,8 @@ func TestPruneEmailDraftsRemovesOnlyStaleDraftDirectories(t *testing.T) {
 		want = append(want, "invox-email-link")
 	}
 
-	pruneEmailDrafts(dir, now.Add(-draftMaxAge))
-	pruneEmailDrafts(dir, now.Add(-draftMaxAge))
+	pruneDrafts(dir, now.Add(-draftMaxAge))
+	pruneDrafts(dir, now.Add(-draftMaxAge))
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {

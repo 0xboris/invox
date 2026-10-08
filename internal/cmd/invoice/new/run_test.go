@@ -6,28 +6,27 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // The output path is relative to the working directory invox was given,
 // which need not be the process's own.
 func TestNewRunWritesOutputRelativeToGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
-	if _, _, err := host.InitializeConfigDir(); err != nil {
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
 	}
 
 	ios, _, out, _ := iostreams.Test()
 	opts := &NewOptions{
 		IO:         ios,
-		Host:       func() store.Host { return host },
+		Service:    f.Service,
 		Getwd:      func() (string, error) { return work, nil },
-		Now:        func() time.Time { return time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC) },
 		CustomerID: "CUST-001",
 		OutputPath: "out.yaml",
 	}
@@ -47,8 +46,9 @@ func TestNewRunWritesOutputRelativeToGetwd(t *testing.T) {
 func TestNewRunWithoutDefaultsIsAUsageError(t *testing.T) {
 	work := t.TempDir()
 	configDir := t.TempDir()
-	host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
-	if _, _, err := host.InitializeConfigDir(); err != nil {
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": configDir}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(filepath.Join(configDir, "invoice_defaults.yaml")); err != nil {
@@ -58,9 +58,8 @@ func TestNewRunWithoutDefaultsIsAUsageError(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	opts := &NewOptions{
 		IO:         ios,
-		Host:       func() store.Host { return host },
+		Service:    f.Service,
 		Getwd:      func() (string, error) { return work, nil },
-		Now:        func() time.Time { return time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC) },
 		CustomerID: "CUST-001",
 	}
 	err := newRun(context.Background(), opts)

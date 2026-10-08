@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
-	"github.com/0xboris/invox/internal/store"
 )
 
 // Relative paths are relative to the working directory invox was given,
@@ -28,29 +28,32 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
-			host := store.NewHost(store.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
-			if _, _, err := host.InitializeConfigDir(); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := host.CreateNewInvoice(store.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(filepath.Join(work, "out"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-
 			ios, _, out, _ := iostreams.Test()
 			stub := run.NewStub(t)
 			stub.Register("tectonic", func(cmd run.Cmd) error {
 				pdf := strings.TrimSuffix(cmd.Args[0], ".tex") + ".pdf"
 				return os.WriteFile(filepath.Join(cmd.Dir, pdf), []byte("%PDF\n"), 0o644)
 			})
+			f := factorytest.New(t, ios, factorytest.Options{
+				Vars:   map[string]string{"INVOX_CONFIG_DIR": t.TempDir()},
+				Getwd:  func() (string, error) { return work, nil },
+				Runner: stub,
+			})
+			svc := f.Service(cmdutil.Files{})
+			if _, err := svc.Init(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(work, "out"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
 			opts := &BuildOptions{
 				IO:          ios,
-				Compiler:    tectonic.New(stub, ios, "linux"),
-				Host:        func() store.Host { return host },
+				Service:     f.Service,
 				Getwd:       func() (string, error) { return work, nil },
-				Now:         time.Now,
 				InvoicePath: "inv.yaml",
 				OutputPath:  tc.outputPath,
 			}
