@@ -1,0 +1,45 @@
+# The root command is cobra's too: unknown subcommands suggest the closest
+# one, unknown flags say so, and `help -h` prints the root help.
+
+exits 2 invox custmer
+! stdout .
+cmp stderr want-subcommand.txt
+
+exits 2 invox --bogus
+! stdout .
+cmp stderr want-flag.txt
+
+exec invox help -h
+stdout '^invox generates LaTeX and PDF invoices from YAML data\.$'
+! stderr .
+
+# --help after an unknown subcommand doesn't hide it.
+exits 2 invox nope --help
+! stdout .
+cmp stderr want-nope.txt
+
+# After --, a subcommand name isn't read as a subcommand, and it isn't
+# suggested to itself.
+exits 2 invox -- customer list
+! stdout .
+cmp stderr want-dashdash.txt
+
+# -version works and warns like every other single-dash long flag.
+exec invox -version
+stdout '^invox version DEV$'
+cmp stderr want-version-warning.txt
+
+-- want-subcommand.txt --
+error: unknown subcommand "custmer"; did you mean "customer"?
+Run 'invox --help' for usage.
+-- want-flag.txt --
+error: unknown flag: --bogus
+Run 'invox --help' for usage.
+-- want-nope.txt --
+error: unknown subcommand "nope"
+Run 'invox --help' for usage.
+-- want-dashdash.txt --
+error: unknown subcommand "--"
+Run 'invox --help' for usage.
+-- want-version-warning.txt --
+warning: -version is deprecated; use --version

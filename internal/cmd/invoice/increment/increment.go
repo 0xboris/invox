@@ -62,7 +62,7 @@ func incrementRun(opts *IncrementOptions) error {
 	if err != nil {
 		return err
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
 	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath)
 	if err != nil {

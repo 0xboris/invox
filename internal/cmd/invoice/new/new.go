@@ -96,7 +96,7 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	}
 	outputPath := ""
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
+		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
 
 	created, err := h.CreateNewInvoice(opts.Now(), baseDir, defaultsPath, outputPath, customersPath, issuerPath, opts.CustomerID, opts.FromLast)

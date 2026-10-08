@@ -60,21 +60,17 @@ func TestNormalizeLongFlags(t *testing.T) {
 			want: []string{"template", "list", "-hx", "-5"},
 		},
 		{
-			name: "legacy command",
-			args: []string{"completion", "-zsh"},
-			want: []string{"completion", "-zsh"},
-		},
-		{
-			name: "help command",
+			name: "unknown word on the help command",
 			args: []string{"help", "-names"},
-			want: []string{"help", "-names"},
+			want: []string{"help", "--names"},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			f, _ := testFactory(t)
 			var warn bytes.Buffer
-			got := normalizeLongFlags(newRootCmd(f), tc.args, &warn)
+			root, _ := newRootCmd(f)
+			got := normalizeLongFlags(root, tc.args, &warn)
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("args = %q, want %q", got, tc.want)
 			}

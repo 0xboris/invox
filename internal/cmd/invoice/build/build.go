@@ -91,10 +91,10 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 	outputPath := shared.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
+		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
 	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
 	invoiceDisplay := invoice.DisplayPath(invoicePath, baseDir)
@@ -121,8 +121,8 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 
 	errorPrefix := fmt.Sprintf("built %s but ", outputDisplay)
 	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, h, opts.Now, "build", invoicePath, baseDir, opts.Yes, errorPrefix)
-	// A usage error or a declined prompt already starts with errorPrefix,
-	// and Main prints only the inner message of a wrapped one.
+	// Main prints only a usage error's inner message and stays silent for
+	// CancelError, so the wrap adds nothing to them.
 	if err != nil {
 		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, err)
 	}

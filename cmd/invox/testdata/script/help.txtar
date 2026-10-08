@@ -17,7 +17,7 @@ cmp got.txt want-root.txt
 exec invox -help
 scrubpaths stdout got.txt
 cmp got.txt want-root.txt
-! stderr .
+cmp stderr want-help-warning.txt
 
 # Documentation topics.
 exec invox help customers
@@ -1260,3 +1260,5 @@ Show the invox version.
 Usage:
   invox version
   invox --version
+-- want-help-warning.txt --
+warning: -help is deprecated; use --help

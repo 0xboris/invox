@@ -68,7 +68,7 @@ func validateRun(opts *ValidateOptions) error {
 	if err != nil {
 		return err
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
 	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {

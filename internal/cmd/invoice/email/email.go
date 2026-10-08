@@ -117,9 +117,9 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	if err != nil {
 		return err
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
-	pdfPath := cmdutil.AbsPath(baseDir, orDefault(opts.PDFPath, shared.ReplaceExt(opts.InvoicePath, ".pdf")))
-	outputPath := cmdutil.AbsPath(baseDir, orDefault(opts.OutputPath, shared.ReplaceExt(opts.InvoicePath, ".eml")))
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	pdfPath := invoice.AbsPath(baseDir, orDefault(opts.PDFPath, shared.ReplaceExt(opts.InvoicePath, ".pdf")))
+	outputPath := invoice.AbsPath(baseDir, orDefault(opts.OutputPath, shared.ReplaceExt(opts.InvoicePath, ".eml")))
 
 	paths, err := h.ResolveEmailDraftPaths(invoicePath, pdfPath, outputPath)
 	if err != nil {

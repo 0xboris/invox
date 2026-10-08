@@ -148,7 +148,7 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 func draftSearchDirs(workDir, outputPath string) []string {
 	dirs := []string{workDir}
 	if strings.TrimSpace(outputPath) != "" {
-		dirs = append(dirs, filepath.Dir(absPath(workDir, outputPath)))
+		dirs = append(dirs, filepath.Dir(AbsPath(workDir, outputPath)))
 	}
 	return dirs
 }

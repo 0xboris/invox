@@ -4,25 +4,30 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-func runCompletion(ios *iostreams.IOStreams, args []string) error {
-	if len(args) == 0 || wantsHelp(args) {
-		printCompletionHelp(ios.Out)
-		return nil
-	}
-	if len(args) != 1 {
-		return cmdutil.FlagErrorf(completionSpec().Name, "unexpected arguments: %s", strings.Join(args, " "))
-	}
-
-	switch args[0] {
-	case "zsh":
-		fmt.Fprint(ios.Out, zshCompletionScript())
-		return nil
-	default:
-		return cmdutil.FlagErrorf(completionSpec().Name, "unsupported shell %q", args[0])
+// newCmdCompletion returns the completion command. Without a shell it
+// prints its help. #48 replaces it with cobra's generated completion.
+func newCmdCompletion(f *cmdutil.Factory) *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion zsh",
+		Short: "Generate shell completion scripts",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch {
+			case len(args) == 0:
+				return cmd.Help()
+			case len(args) > 1:
+				return cmdutil.FlagErrorf("completion", "unexpected arguments: %s", strings.Join(args, " "))
+			case args[0] != "zsh":
+				return cmdutil.FlagErrorf("completion", "unsupported shell %q", args[0])
+			}
+			fmt.Fprint(f.IOStreams.Out, zshCompletionScript())
+			return nil
+		},
 	}
 }
 
