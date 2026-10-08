@@ -121,23 +121,12 @@ func invoiceYAMLCandidatesForPDF(pdfPath string) []string {
 }
 
 func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
-	archiveDir, err := h.ResolveArchiveDir()
+	store, err := h.archiveStore()
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(archiveDir) == "" {
+	if strings.TrimSpace(store.Dir) == "" {
 		return "", nil
-	}
-
-	info, err := os.Stat(archiveDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%s: archive.dir must point to a directory", archiveDir)
 	}
 
 	basenames := make([]string, 0, 2)
@@ -145,20 +134,14 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 		basenames = append(basenames, filepath.Base(path))
 	}
 	if path := firstExistingPath(
-		filepath.Join(archiveDir, basenames[0]),
-		filepath.Join(archiveDir, basenames[1]),
+		filepath.Join(store.Dir, basenames[0]),
+		filepath.Join(store.Dir, basenames[1]),
 	); path != "" {
 		return path, nil
 	}
 
 	matches := make([]string, 0, 1)
-	err = filepath.WalkDir(archiveDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
+	err = store.Walk(func(path string) error {
 		name := filepath.Base(path)
 		for _, basename := range basenames {
 			if name == basename {
@@ -181,7 +164,7 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	sort.Strings(matches)
 	return "", fmt.Errorf(
 		"%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s",
-		archiveDir,
+		store.Dir,
 		filepath.Base(replaceFileExtension(pdfPath, ".yaml")),
 		strings.Join(matches, ", "),
 	)
