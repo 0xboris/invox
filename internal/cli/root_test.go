@@ -69,7 +69,8 @@ func TestNormalizeLongFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f, _ := testFactory(t)
 			var warn bytes.Buffer
-			got := normalizeLongFlags(newRootCmd(f), tc.args, &warn)
+			root, _ := newRootCmd(f)
+			got := normalizeLongFlags(root, tc.args, &warn)
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("args = %q, want %q", got, tc.want)
 			}

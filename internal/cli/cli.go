@@ -36,9 +36,12 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	if f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
 		f.IOStreams.SetNeverPrompt(true)
 	}
-	root := newRootCmd(f)
-	root.SetArgs(normalizeLongFlags(root, versionFlagToCommand(args), f.IOStreams.ErrOut))
+	root, helpErr := newRootCmd(f)
+	root.SetArgs(versionFlagToCommand(normalizeLongFlags(root, args, f.IOStreams.ErrOut)))
 	_, err := root.ExecuteContextC(ctx)
+	if err == nil {
+		err = helpErr()
+	}
 	warnLegacyFiles(f)
 	var configErr *config.Error
 	if f.ConfigFile != "" && errors.As(err, &configErr) {

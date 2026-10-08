@@ -23,11 +23,15 @@ import (
 	versioncmd "github.com/0xboris/invox/internal/cmd/version"
 )
 
-// newRootCmd returns the invox command tree. Main prints errors and picks
-// exit codes, so cobra prints neither errors nor usage.
-func newRootCmd(f *cmdutil.Factory) *cobra.Command {
+// newRootCmd returns the invox command tree, and a func that returns the
+// usage error a help request on the root found, since cobra's help funcs
+// can't return one. Main prints errors and picks exit codes, so cobra prints
+// neither errors nor usage.
+func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 	ios := f.IOStreams
-	root := &cobra.Command{
+	var helpErr error
+	var root *cobra.Command
+	root = &cobra.Command{
 		Use:               "invox",
 		Args:              cobra.ArbitraryArgs,
 		SilenceErrors:     true,
@@ -40,13 +44,11 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 			if len(args) == 0 {
 				return cmdutil.FlagErrorf("", "missing subcommand")
 			}
-			message := fmt.Sprintf("unknown subcommand %q", args[0])
-			if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
-				message += fmt.Sprintf("; did you mean %q?", strings.Join(suggestions, `" or "`))
-			}
-			return cmdutil.FlagErrorf("", "%s", message)
+			return unknownSubcommand(cmd, args[0])
 		},
 	}
+	root.Flags().Bool("version", false, "Show the invox version")
+	_ = root.Flags().MarkHidden("version")
 	root.SuggestionsMinimumDistance = 2
 	root.SetIn(ios.In)
 	root.SetOut(ios.Out)
@@ -59,6 +61,13 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	// Until help is generated from the command tree (#48), every help request
 	// prints the hand-written page for the command.
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		// `invox nope --help` is still an unknown subcommand.
+		if cmd == root {
+			if rest := cmd.Flags().Args(); len(rest) > 0 {
+				helpErr = unknownSubcommand(cmd, rest[0])
+				return
+			}
+		}
 		var topic []string
 		if cmd.Name() != "help" {
 			topic = strings.Fields(cmdutil.CommandPath(cmd))
@@ -90,7 +99,21 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 		validatecmd.NewCmdValidate(f, nil),
 		versioncmd.NewCmdVersion(f, nil),
 	)
-	return root
+	return root, func() error { return helpErr }
+}
+
+// unknownSubcommand is the usage error for name on the root, with the closest
+// subcommands as a suggestion. A real subcommand only reaches the root after
+// `--`, which the user typed where the subcommand belongs.
+func unknownSubcommand(root *cobra.Command, name string) error {
+	if cmd, _, err := root.Find([]string{name}); err == nil && cmd != root {
+		return cmdutil.FlagErrorf("", "unknown subcommand %q", "--")
+	}
+	message := fmt.Sprintf("unknown subcommand %q", name)
+	if suggestions := root.SuggestionsFor(name); len(suggestions) > 0 {
+		message += fmt.Sprintf("; did you mean %q?", strings.Join(suggestions, `" or "`))
+	}
+	return cmdutil.FlagErrorf("", "%s", message)
 }
 
 // applyGlobalFlags copies the global flags cmd parsed into f.
@@ -128,13 +151,11 @@ func versionFlagToCommand(args []string) []string {
 	return args
 }
 
-// normalizeLongFlags rewrites the single-dash long flags of a cobra command,
-// such as -names, to their double-dash form, and warns about each on w. The
-// legacy dispatcher's flag package accepts both forms, so its arguments are
-// left alone.
+// normalizeLongFlags rewrites the single-dash long flags of the command args
+// run, such as -names, to their double-dash form, and warns about each on w.
 func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []string {
 	cmd, _, err := root.Find(args)
-	if err != nil || cmd.DisableFlagParsing {
+	if err != nil {
 		return args
 	}
 	cmd.InitDefaultHelpFlag()

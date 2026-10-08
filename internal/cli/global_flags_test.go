@@ -18,6 +18,7 @@ func TestNoInputAnywhereBeforeDoubleDash(t *testing.T) {
 		{name: "after the command", args: []string{"config", "--no-input"}, wantPrefix: disabled},
 		{name: "twice", args: []string{"--no-input", "config", "--no-input"}, wantPrefix: disabled},
 		{name: "after --", args: []string{"config", "--", "--no-input"}, wantPrefix: "error: unexpected arguments: --no-input"},
+		{name: "before and after --", args: []string{"--no-input", "config", "--", "--no-input"}, wantPrefix: "error: unexpected arguments: --no-input"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -26,5 +27,21 @@ func TestNoInputAnywhereBeforeDoubleDash(t *testing.T) {
 				t.Fatalf("exit %d, stdout %q, stderr %q; want exit 2, no stdout, stderr starting %q", exitCode, stdout, stderr, tc.wantPrefix)
 			}
 		})
+	}
+}
+
+// --no-input after the command's own flags still keeps new -e from opening
+// an editor, after it created the invoice.
+func TestNoInputAfterNewEdit(t *testing.T) {
+	isolateUserDirs(t)
+	if exitCode, _, stderr := captureRun(t, []string{"init"}); exitCode != 0 {
+		t.Fatalf("init: exit %d, stderr %q", exitCode, stderr)
+	}
+	chdirForTest(t, t.TempDir())
+
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-e", "--no-input"})
+	const want = "but cannot open an editor: prompts are disabled (--no-input or INVOX_PROMPT_DISABLED)"
+	if exitCode != 2 || stdout != "" || !strings.HasPrefix(stderr, "error: created ") || !strings.Contains(stderr, want) {
+		t.Fatalf("exit %d, stdout %q, stderr %q; want exit 2, no stdout, an error that the invoice was created %s", exitCode, stdout, stderr, want)
 	}
 }
