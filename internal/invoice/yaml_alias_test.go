@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,23 +17,22 @@ const (
 	aliasFileEnv   = "INVOX_TEST_YAML_ALIAS_FILE"
 )
 
-// aliasLoaders are the entry points every YAML file goes through: plain
-// values (invoices, customers, issuer, config), node documents (drafts,
+// aliasLoaders are the entry points every YAML file goes through: typed
+// decoding (invoices, customers, issuer, config), node documents (drafts,
 // defaults, numbering), and front matter of archived Markdown invoices.
 var aliasLoaders = map[string]struct {
 	markdown bool
 	load     func(path string) error
 }{
-	"loadYAML": {load: func(path string) error {
-		_, err := loadYAML(path)
-		return err
+	"decodeYAMLFile": {load: func(path string) error {
+		return decodeYAMLFile(path, &invoiceIdentity{}, false)
 	}},
 	"loadYAMLDocument": {load: func(path string) error {
 		_, err := loadYAMLDocument(path)
 		return err
 	}},
-	"archivedInvoiceValue": {markdown: true, load: func(path string) error {
-		_, _, err := archivedInvoiceValue(path)
+	"archivedInvoiceIdentity": {markdown: true, load: func(path string) error {
+		_, _, err := archivedInvoiceIdentity(path)
 		return err
 	}},
 	"loadArchivedInvoiceDocument": {markdown: true, load: func(path string) error {
@@ -153,8 +151,8 @@ func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
 	}
 }
 
-func TestParseYAMLSourceAliasErrorIsTyped(t *testing.T) {
-	_, err := parseYAMLSource([]byte("positions: &p [*p]\n"), "invoice.yaml")
+func TestParseYAMLDocumentSourceAliasErrorIsTyped(t *testing.T) {
+	_, err := parseYAMLDocumentSource([]byte("positions: &p [*p]\n"), "invoice.yaml")
 
 	var aliasErr *YAMLAliasError
 	if !errors.As(err, &aliasErr) {
@@ -166,7 +164,20 @@ func TestParseYAMLSourceAliasErrorIsTyped(t *testing.T) {
 	}
 }
 
-func TestParseYAMLSourceExpandsSharedAliases(t *testing.T) {
+type sharedAliasPosition struct {
+	Name       Text `yaml:"name"`
+	Unit       Text `yaml:"unit"`
+	Quantity   Text `yaml:"quantity"`
+	UnitPrice  Text `yaml:"unit_price"`
+	VATPercent Text `yaml:"vat_percent"`
+	A          Text `yaml:"a"`
+	B          Text `yaml:"b"`
+	C          Text `yaml:"c"`
+	D          Text `yaml:"d"`
+	E          Text `yaml:"e"`
+}
+
+func TestDecodeYAMLExpandsSharedAliases(t *testing.T) {
 	// One anchor of 10 fields reused by 1,000 positions reaches 21,000 nodes
 	// through aliases, more than a real invoice needs.
 	var source strings.Builder
@@ -175,28 +186,25 @@ func TestParseYAMLSourceExpandsSharedAliases(t *testing.T) {
 		source.WriteString("  - *line\n")
 	}
 
-	value, err := parseYAMLSource([]byte(source.String()), "invoice.yaml")
-	if err != nil {
-		t.Fatalf("parseYAMLSource returned error: %v", err)
-	}
-	positions := value.(map[string]any)["positions"].([]any)
+	positions := decodeForTest[struct {
+		Positions []sharedAliasPosition `yaml:"positions"`
+	}](t, source.String()).Positions
 	if len(positions) != 1000 {
 		t.Fatalf("len(positions) = %d, want 1000", len(positions))
 	}
-	want := map[string]any{"name": "Work", "unit": "h", "quantity": "1", "unit_price": "100", "vat_percent": "20", "a": "1", "b": "2", "c": "3", "d": "4", "e": "5"}
-	if !reflect.DeepEqual(positions[999], want) {
+	want := sharedAliasPosition{Name: "Work", Unit: "h", Quantity: "1", UnitPrice: "100", VATPercent: "20", A: "1", B: "2", C: "3", D: "4", E: "5"}
+	if positions[999] != want {
 		t.Fatalf("positions[999] = %#v, want %#v", positions[999], want)
 	}
 }
 
-func TestParseYAMLSourceAcceptsLargeDocumentWithoutAliases(t *testing.T) {
+func TestDecodeYAMLAcceptsLargeDocumentWithoutAliases(t *testing.T) {
 	source := "items: [" + strings.Repeat("x, ", 200_000) + "x]\n"
 
-	value, err := parseYAMLSource([]byte(source), "invoice.yaml")
-	if err != nil {
-		t.Fatalf("parseYAMLSource returned error: %v", err)
-	}
-	if got := len(value.(map[string]any)["items"].([]any)); got != 200_001 {
+	items := decodeForTest[struct {
+		Items []Text `yaml:"items"`
+	}](t, source).Items
+	if got := len(items); got != 200_001 {
 		t.Fatalf("len(items) = %d, want 200001", got)
 	}
 }

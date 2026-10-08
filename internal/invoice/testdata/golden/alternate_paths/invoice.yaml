@@ -1,0 +1,17 @@
+customer_id: CH-1
+invoice:
+  number: CH-1-001
+  issue_date: 2026-12-31
+  due_date: 2026-12-31
+  status: archived
+  period: Q4
+positions:
+  - name: Beratung
+    description: Workshop
+    unit_price: 1500
+    quantity: 2
+  - name: Spesen
+    description: Reise
+    unit_price: 230.40
+    quantity: 1
+    vat_percent: 0

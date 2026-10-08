@@ -1,0 +1,10 @@
+customer_id=CH-1
+number=CH-1-001
+currency=CHF
+email=rechnung@schweizer.example
+items=2
+subtotal=323040
+vat=23100
+total=346140
+paid=0
+outstanding=346140

@@ -1,0 +1,34 @@
+# A realistic invoice with every invoice field.
+customer_id: ACME-7
+reduced: &reduced
+  vat_percent: 7
+invoice:
+  number: ACM-2026-0100
+  issue_date: 2026-03-06
+  due_date: 2026-03-20T12:00:00Z
+  status: built
+  period: "Leistungszeitraum: 1.–28. Februar 2026 #Q1"
+  vat_percent: 20
+  paid_amount: 100.5
+positions:
+  - name: Development
+    description: Sprint work_1 $x^2$
+    unit_price: 1234.5
+    quantity: 3
+  - <<: *reduced
+    name: Book
+    description: "\\LaTeX{} Companion"
+    unit_price: 0.125
+    quantity: 8
+  - name: Hosting
+    description: Server {monthly}
+    unit_price: 19.9999
+    quantity: 1.5
+    vat_percent: 0
+  - name: Licence
+    description: Per seat
+    unit_price: 007.50
+    quantity: 010
+    vat_percent: "20 %"
+_invox:
+  archive_path: 2026/ACM-2026-0100.yaml

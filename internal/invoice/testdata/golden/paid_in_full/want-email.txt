@@ -1,0 +1,11 @@
+to=office@appsters.example
+from=Boris Consulting <hello@example.com>
+subject=Invoice CUST-001-007 for CUST-001 (110,00 EUR)
+
+Dear Jane Doe,
+name=Appsters GmbH contact=Jane Doe id=CUST-001
+number=CUST-001-007 issued=2026-01-15 due=2026-02-14
+total=110,00 EUR outstanding=0,00 EUR
+terms=Pay within 30 days
+Boris Consulting
+

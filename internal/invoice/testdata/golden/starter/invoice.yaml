@@ -1,0 +1,14 @@
+invoice:
+  number: CUST-001-001
+  issue_date: "2026-03-06"
+  due_date: "2026-04-05"
+  status: draft
+  period: "Leistungszeitraum: "
+  vat_percent: "20"
+  paid_amount: "0"
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+customer_id: CUST-001

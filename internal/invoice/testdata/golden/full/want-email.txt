@@ -1,0 +1,11 @@
+to=accounting@acme.example
+from=Boris ~Consulting~ e.U. <hello@example.com>
+subject=Invoice ACM-2026-0100 for ACME-7 (4.565,27 EUR)
+
+Dear Accounts Team,
+name=ACME_Industries 100% {GmbH} & Co. KG contact=Max Billing id=ACME-7
+number=ACM-2026-0100 issued=2026-03-06 due=2026-03-20
+total=4.565,27 EUR outstanding=4.464,77 EUR
+terms=Zahlbar binnen 14 Tagen ohne Abzug. 2% Skonto bei Zahlung in 7 Tagen.
+Boris ~Consulting~ e.U.
+

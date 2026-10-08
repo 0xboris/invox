@@ -1,0 +1,10 @@
+customer_id=CUST-001
+number=CUST-001-007
+currency=EUR
+email=office@appsters.example
+items=1
+subtotal=10000
+vat=1000
+total=11000
+paid=11000
+outstanding=0

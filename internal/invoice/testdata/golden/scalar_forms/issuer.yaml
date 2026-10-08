@@ -1,0 +1,18 @@
+company:
+  legal_company_name: 'Quoted ''Name'''
+  company_registration_number: 00123
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address: {street: Ring 1, postal_code: 1010, city: Vienna, country: Austria}
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: "30"
+  payment_terms_text: >
+    Folded
+    terms text
+  vat_label: "  "
+  epc_qr:
+    label: ""

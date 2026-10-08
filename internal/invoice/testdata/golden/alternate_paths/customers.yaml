@@ -1,0 +1,16 @@
+CH-1:
+  legal_company_name: Schweizer AG
+  status: inactive
+  currency: CHF
+  address:
+    street: Bahnhofstrasse 10
+    postal_code: 8001
+    city: Zürich
+    country: Schweiz
+  tax:
+    vat_tax_id: CHE-123.456.789 MWST
+    default_vat_rate: 7.7
+  billing:
+    email: rechnung@schweizer.example
+    contact_person: Hans Muster
+    email_greeting: Grüezi Herr Muster,

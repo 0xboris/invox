@@ -234,7 +234,7 @@ func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPat
 		return EmailMessage{}, err
 	}
 
-	status := strings.TrimSpace(asString(ctx.Invoice["status"]))
+	status := ctx.Invoice.Status.Trim()
 	if status != "built" && status != "archived" {
 		if status == "" {
 			return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)
@@ -266,8 +266,8 @@ func (h Host) PrepareInvoiceEmail(customersPath, issuerPath, invoicePath, pdfPat
 		Recipient:      recipient,
 		Subject:        subject,
 		Body:           body,
-		SenderName:     strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"])),
-		SenderAddress:  strings.TrimSpace(asString(ctx.IssuerCompany["email"])),
+		SenderName:     ctx.Company.LegalCompanyName.Trim(),
+		SenderAddress:  ctx.Company.Email.Trim(),
 		AttachmentPath: pdfPath,
 		CustomerID:     ctx.CustomerID,
 		InvoiceNumber:  ctx.InvoiceNumber,
@@ -356,14 +356,6 @@ func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride str
 	return subject, nil
 }
 
-func (h Host) invoiceEmailBody(ctx *Context) (string, error) {
-	body, err := h.invoiceEmailBodyText(ctx)
-	if err != nil {
-		return "", err
-	}
-	return strings.ReplaceAll(body, "\n", "\r\n"), nil
-}
-
 func (h Host) invoiceEmailBodyText(ctx *Context) (string, error) {
 	cfg, err := h.Config()
 	if err != nil {
@@ -387,17 +379,17 @@ func renderEmailTemplate(template string, ctx *Context) string {
 
 func emailTemplateReplacer(ctx *Context) *strings.Replacer {
 	return strings.NewReplacer(
-		"{customer_name}", customerName(ctx.Customer),
-		"{email_greeting}", customerEmailGreeting(ctx.Customer),
-		"{contact_person}", customerContactPerson(ctx.Customer),
+		"{customer_name}", ctx.Customer.DisplayName(),
+		"{email_greeting}", ctx.Customer.emailGreeting(),
+		"{contact_person}", ctx.Customer.contactPerson(),
 		"{customer_id}", ctx.CustomerID,
 		"{invoice_number}", ctx.InvoiceNumber,
-		"{issue_date}", asString(ctx.Invoice["issue_date"]),
-		"{due_date}", asString(ctx.Invoice["due_date"]),
+		"{issue_date}", ctx.Invoice.IssueDate.String(),
+		"{due_date}", ctx.Invoice.DueDate.String(),
 		"{total_amount}", emailMoney(ctx.TotalCents, ctx.Currency),
 		"{outstanding_amount}", emailMoney(ctx.OutstandingCents, ctx.Currency),
-		"{payment_terms_text}", strings.TrimSpace(asString(ctx.IssuerPayment["payment_terms_text"])),
-		"{issuer_name}", strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"])),
+		"{payment_terms_text}", ctx.Payment.PaymentTermsText.Trim(),
+		"{issuer_name}", ctx.Company.LegalCompanyName.Trim(),
 	)
 }
 

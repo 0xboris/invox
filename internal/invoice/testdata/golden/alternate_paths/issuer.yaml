@@ -1,0 +1,17 @@
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: CH9300762011623852957
+  bic: POFICHBEXXX
+  due_days: 0
+  payment_terms_text: Due on receipt

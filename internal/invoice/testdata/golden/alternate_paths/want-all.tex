@@ -1,0 +1,35 @@
+\documentclass{article}
+% Issuer
+Boris Consulting|FN 123456a|ATU87654321|https://example.com|hello@example.com
+Ring 1|1010|Vienna|Austria
+% Customer
+Schweizer AG|Bahnhofstrasse 10|8001|Zürich|Schweiz
+CHE-123.456.789 MWST|rechnung@schweizer.example
+% Invoice
+CH-1-001|31.12.2026|31.12.2026|Q4
+% Rows
+\begin{tabular}{lllll}
+    Beratung & Workshop & 1.500,00 CHF & 2 & 3.000,00 CHF\\
+    \specialrule{0.2pt}{0pt}{0pt}
+    Spesen & Reise & 230,40 CHF & 1 & 230,40 CHF\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{tabular}
+\begin{tabular}{llllll}
+    Beratung & Workshop & 1.500,00 CHF & 2 & 7,7\% & 3.000,00 CHF\\
+    \specialrule{0.2pt}{0pt}{0pt}
+    Spesen & Reise & 230,40 CHF & 1 & 0\% & 230,40 CHF\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{tabular}
+Beratung & Workshop & 1.500,00 CHF & 2 & 7,7\% & 3.000,00 CHF (CH-1-001)\\
+\specialrule{0.2pt}{0pt}{0pt}
+Spesen & Reise & 230,40 CHF & 1 & 0\% & 230,40 CHF (CH-1-001)\\
+\specialrule{0.4pt}{0pt}{0pt}
+% Totals
+3.230,40 CHF|3.461,40 CHF|3.461,40 CHF|0,00 CHF|3.461,40 CHF|3.461,40 CHF
+VAT (0\%): & 0,00 CHF\\
+VAT (7,7\%): & 231,00 CHF\\
+VAT
+% Payment
+Due on receipt|Test Bank|CH9300762011623852957|POFICHBEXXX
+0|
+

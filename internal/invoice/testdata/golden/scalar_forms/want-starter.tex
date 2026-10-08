@@ -1,0 +1,210 @@
+\documentclass[11pt,a4paper]{article}
+% fontspec loads Latin Modern as OpenType, which covers accented Latin text.
+\usepackage{fontspec}
+% Fail the build when a character has no glyph instead of dropping it.
+\tracinglostchars=3
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{eurosym}
+\usepackage{qrcode}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\qrset{height=2.2cm}
+
+\begin{document}
+
+{\LARGE \textbf{Invoice}} \hfill {\large 0042}
+
+\vspace{1cm}
+\textbf{Issuer}\\
+Quoted 'Name'\\
+Ring 1\\
+1010 Vienna\\
+Austria\\
+UID: ATU87654321\\
+FN: 00123\\
+https://example.com\\
+hello@example.com
+
+\vspace{0.8cm}
+\textbf{Bill To}\\
+true\\
+yes\\
+0x1F 2026-01-02\\
+1e3\\
+UID: 012345\\
+x@example.com
+
+\vspace{0.8cm}
+Issue date: 06.03.2026\\
+Due date: 05.04.2026\\
+2026-03-01
+
+\vspace{0.8cm}
+\begin{longtable}{p{3cm}p{5.5cm}r r r}
+\toprule
+Item & Description & Unit Price & Qty & Total\\
+\midrule
+\endhead
+    Flow & inline, mapping & 100,00 \euro & 2 & 200,00 \euro\\
+    \specialrule{0.2pt}{0pt}{0pt}
+    12.50 & Literal
+block
+ & 0,00 \euro & 1 & 0,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{longtable}
+
+\vspace{0.8cm}
+\begin{tabular}{lr}
+Subtotal: & 200,00 \euro\\
+VAT (20\%): & 40,00 \euro\\
+Total: & 240,00 \euro\\
+Paid: & 0,00 \euro\\
+Outstanding: & 240,00 \euro\\
+\end{tabular}
+\ifnum1=1
+\vspace{0.5cm}
+Pay via EPC-QR\\
+{%
+\catcode`\^^80=12\relax
+\catcode`\^^81=12\relax
+\catcode`\^^82=12\relax
+\catcode`\^^83=12\relax
+\catcode`\^^84=12\relax
+\catcode`\^^85=12\relax
+\catcode`\^^86=12\relax
+\catcode`\^^87=12\relax
+\catcode`\^^88=12\relax
+\catcode`\^^89=12\relax
+\catcode`\^^8a=12\relax
+\catcode`\^^8b=12\relax
+\catcode`\^^8c=12\relax
+\catcode`\^^8d=12\relax
+\catcode`\^^8e=12\relax
+\catcode`\^^8f=12\relax
+\catcode`\^^90=12\relax
+\catcode`\^^91=12\relax
+\catcode`\^^92=12\relax
+\catcode`\^^93=12\relax
+\catcode`\^^94=12\relax
+\catcode`\^^95=12\relax
+\catcode`\^^96=12\relax
+\catcode`\^^97=12\relax
+\catcode`\^^98=12\relax
+\catcode`\^^99=12\relax
+\catcode`\^^9a=12\relax
+\catcode`\^^9b=12\relax
+\catcode`\^^9c=12\relax
+\catcode`\^^9d=12\relax
+\catcode`\^^9e=12\relax
+\catcode`\^^9f=12\relax
+\catcode`\^^a0=12\relax
+\catcode`\^^a1=12\relax
+\catcode`\^^a2=12\relax
+\catcode`\^^a3=12\relax
+\catcode`\^^a4=12\relax
+\catcode`\^^a5=12\relax
+\catcode`\^^a6=12\relax
+\catcode`\^^a7=12\relax
+\catcode`\^^a8=12\relax
+\catcode`\^^a9=12\relax
+\catcode`\^^aa=12\relax
+\catcode`\^^ab=12\relax
+\catcode`\^^ac=12\relax
+\catcode`\^^ad=12\relax
+\catcode`\^^ae=12\relax
+\catcode`\^^af=12\relax
+\catcode`\^^b0=12\relax
+\catcode`\^^b1=12\relax
+\catcode`\^^b2=12\relax
+\catcode`\^^b3=12\relax
+\catcode`\^^b4=12\relax
+\catcode`\^^b5=12\relax
+\catcode`\^^b6=12\relax
+\catcode`\^^b7=12\relax
+\catcode`\^^b8=12\relax
+\catcode`\^^b9=12\relax
+\catcode`\^^ba=12\relax
+\catcode`\^^bb=12\relax
+\catcode`\^^bc=12\relax
+\catcode`\^^bd=12\relax
+\catcode`\^^be=12\relax
+\catcode`\^^bf=12\relax
+\catcode`\^^c0=12\relax
+\catcode`\^^c1=12\relax
+\catcode`\^^c2=12\relax
+\catcode`\^^c3=12\relax
+\catcode`\^^c4=12\relax
+\catcode`\^^c5=12\relax
+\catcode`\^^c6=12\relax
+\catcode`\^^c7=12\relax
+\catcode`\^^c8=12\relax
+\catcode`\^^c9=12\relax
+\catcode`\^^ca=12\relax
+\catcode`\^^cb=12\relax
+\catcode`\^^cc=12\relax
+\catcode`\^^cd=12\relax
+\catcode`\^^ce=12\relax
+\catcode`\^^cf=12\relax
+\catcode`\^^d0=12\relax
+\catcode`\^^d1=12\relax
+\catcode`\^^d2=12\relax
+\catcode`\^^d3=12\relax
+\catcode`\^^d4=12\relax
+\catcode`\^^d5=12\relax
+\catcode`\^^d6=12\relax
+\catcode`\^^d7=12\relax
+\catcode`\^^d8=12\relax
+\catcode`\^^d9=12\relax
+\catcode`\^^da=12\relax
+\catcode`\^^db=12\relax
+\catcode`\^^dc=12\relax
+\catcode`\^^dd=12\relax
+\catcode`\^^de=12\relax
+\catcode`\^^df=12\relax
+\catcode`\^^e0=12\relax
+\catcode`\^^e1=12\relax
+\catcode`\^^e2=12\relax
+\catcode`\^^e3=12\relax
+\catcode`\^^e4=12\relax
+\catcode`\^^e5=12\relax
+\catcode`\^^e6=12\relax
+\catcode`\^^e7=12\relax
+\catcode`\^^e8=12\relax
+\catcode`\^^e9=12\relax
+\catcode`\^^ea=12\relax
+\catcode`\^^eb=12\relax
+\catcode`\^^ec=12\relax
+\catcode`\^^ed=12\relax
+\catcode`\^^ee=12\relax
+\catcode`\^^ef=12\relax
+\catcode`\^^f0=12\relax
+\catcode`\^^f1=12\relax
+\catcode`\^^f2=12\relax
+\catcode`\^^f3=12\relax
+\catcode`\^^f4=12\relax
+\catcode`\^^f5=12\relax
+\catcode`\^^f6=12\relax
+\catcode`\^^f7=12\relax
+\catcode`\^^f8=12\relax
+\catcode`\^^f9=12\relax
+\catcode`\^^fa=12\relax
+\catcode`\^^fb=12\relax
+\catcode`\^^fc=12\relax
+\catcode`\^^fd=12\relax
+\catcode`\^^fe=12\relax
+\catcode`\^^ff=12\relax
+\edef\invoxqrcodepayload{BCD\noexpand\?002\noexpand\?1\noexpand\?SCT\noexpand\?BKAUATWW\noexpand\?Quoted\noexpand\ 'Name'\noexpand\?AT611904300234573201\noexpand\?EUR240.00\noexpand\?\noexpand\?\noexpand\?0042}%
+\qrcode{\invoxqrcodepayload}}
+\fi
+
+\vfill
+Folded terms text
+
+
+Bank: Test Bank\\
+IBAN: AT611904300234573201\\
+BIC: BKAUATWW
+
+\end{document}

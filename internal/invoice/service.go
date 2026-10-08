@@ -9,9 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -37,12 +35,14 @@ type Options struct {
 	EditNewInvoice    bool
 }
 
+// Context is an invoice with its customer and issuer, validated, with its
+// totals computed.
 type Context struct {
 	CustomerID       string
-	Customer         map[string]any
-	IssuerCompany    map[string]any
-	IssuerPayment    map[string]any
-	Invoice          map[string]any
+	Customer         Customer
+	Company          Company
+	Payment          Payment
+	Invoice          InvoiceHeader
 	LineItems        []LineItem
 	Currency         string
 	VATBreakdowns    []VATBreakdown
@@ -68,11 +68,6 @@ type VATBreakdown struct {
 	RatePercent    *big.Rat
 	NetCents       int64
 	VATAmountCents int64
-}
-
-type vatRateField struct {
-	Present bool
-	Value   *big.Rat
 }
 
 const (
@@ -437,191 +432,161 @@ func (h Host) DefaultArchiveDir() string {
 	return filepath.Join(baseDir, configDirName, "invoices")
 }
 
+// LoadContext decodes the three files, validates them together and computes
+// the invoice totals. It reports every problem at once: values that do not
+// decode (*DecodeError, with file and line), then an unknown customer_id
+// and the fields that are missing or out of range. Validation skips the
+// fields that did not decode.
 func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error) {
-	customersValue, err := loadYAML(customersPath)
+	customers, err := loadCustomerTable(customersPath)
 	if err != nil {
 		return nil, err
 	}
-	issuerValue, err := loadYAML(issuerPath)
-	if err != nil {
-		return nil, err
+	var issuer IssuerFile
+	issuerErr := decodeYAMLFile(issuerPath, &issuer, true)
+	if issuerErr != nil && !isDecodeError(issuerErr) {
+		return nil, issuerErr
 	}
-	invoiceValue, err := loadYAML(invoicePath)
-	if err != nil {
-		return nil, err
+	var invoiceFile InvoiceFile
+	invoiceErr := decodeYAMLFile(invoicePath, &invoiceFile, true)
+	if invoiceErr != nil && !isDecodeError(invoiceErr) {
+		return nil, invoiceErr
 	}
 
-	customers, ok := customersValue.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: root value must be a mapping", customersPath)
-	}
-	issuerData, ok := issuerValue.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: root value must be a mapping", issuerPath)
-	}
-	invoiceData, ok := invoiceValue.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: root value must be a mapping", invoicePath)
-	}
-
-	var validationErrors []string
+	var problems []string
 	var unknownCustomer error
-
-	customerID, _ := invoiceData["customer_id"].(string)
-	customerID = strings.TrimSpace(customerID)
+	customerID := invoiceFile.CustomerID.Trim()
 	// customer stays nil when the invoice names no usable customer, so its
 	// fields are not reported missing one by one.
-	var customer map[string]any
+	var customer *Customer
+	var customerErr error
 	if customerID == "" {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
+		if !within("customer_id", failedFields(invoiceErr)) {
+			problems = append(problems, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
+		}
+	} else if found, ok, err := customers.customer(customerID, true); !ok {
+		unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
 	} else {
-		rawCustomer, ok := customers[customerID]
-		if !ok {
-			unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
-		} else if customer, ok = rawCustomer.(map[string]any); !ok {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: customer `%s` must be a mapping", customersPath, customerID))
-		}
+		customer, customerErr = &found, err
 	}
+	decodeErr := errors.Join(customerErr, issuerErr, invoiceErr)
+	failed := failedFields(decodeErr)
 
-	invoiceBlock, ok := invoiceData["invoice"].(map[string]any)
-	if !ok {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `invoice` mapping", invoicePath))
-		invoiceBlock = map[string]any{}
+	header := invoiceFile.Invoice
+	if header == nil {
+		problems = append(problems, fmt.Sprintf("%s: missing `invoice` mapping", invoicePath))
+		header = &InvoiceHeader{}
 	}
-	issuerCompany, ok := issuerData["company"].(map[string]any)
-	if !ok {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `company` mapping", issuerPath))
-		issuerCompany = map[string]any{}
+	company := issuer.Company
+	if company == nil {
+		problems = append(problems, fmt.Sprintf("%s: missing `company` mapping", issuerPath))
+		company = &Company{}
 	}
-	issuerPayment, ok := issuerData["payment"].(map[string]any)
-	if !ok {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
-		issuerPayment = map[string]any{}
+	payment := issuer.Payment
+	if payment == nil {
+		problems = append(problems, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
+		payment = &Payment{}
 	}
-	appendUnsupportedInvoiceKeyErrors(invoiceData, &validationErrors)
-
-	rawLineItems, ok := invoiceData["positions"].([]any)
-	if !ok || len(rawLineItems) == 0 {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
-		rawLineItems = nil
+	if len(invoiceFile.Positions) == 0 && !within("positions", failed) {
+		problems = append(problems, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
 	}
-
+	var fieldProblems []string
 	if customer != nil {
-		if customerName(customer) == "" {
-			validationErrors = append(validationErrors, "customer.name: missing value")
-		}
-		if customerEmail(customer) == "" {
-			validationErrors = append(validationErrors, "customer.email: missing value")
-		}
-		requirePaths(customer, "customer", []string{
-			"address.street",
-			"address.postal_code",
-			"address.city",
-			"address.country",
-			"tax.vat_tax_id",
-		}, &validationErrors)
+		fieldProblems = append(fieldProblems, customer.validate()...)
 	}
-	requirePaths(issuerCompany, "issuer.company", []string{
-		"legal_company_name",
-		"company_registration_number",
-		"vat_tax_id",
-		"website",
-		"email",
-		"address.street",
-		"address.postal_code",
-		"address.city",
-		"address.country",
-	}, &validationErrors)
-	requirePaths(invoiceBlock, "invoice", []string{
-		"number",
-		"issue_date",
-		"due_date",
-		"period",
-	}, &validationErrors)
-	requirePaths(issuerPayment, "issuer.payment", []string{
-		"bank_name",
-		"iban",
-		"bic",
-		"due_days",
-		"payment_terms_text",
-	}, &validationErrors)
+	fieldProblems = append(fieldProblems, company.validate()...)
+	fieldProblems = append(fieldProblems, header.validate()...)
+	fieldProblems = append(fieldProblems, payment.validate()...)
 
-	for _, fieldName := range []string{"issue_date", "due_date"} {
-		if value := getPath(invoiceBlock, fieldName); value != nil {
-			if _, err := time.Parse("2006-01-02", fmt.Sprint(value)); err != nil {
-				validationErrors = append(validationErrors, fmt.Sprintf("invoice.%s: expected YYYY-MM-DD, got `%v`", fieldName, value))
-			}
-		}
+	var customerVATRate Rate
+	if customer != nil {
+		customerVATRate = customer.Tax.DefaultVATRate
 	}
-
-	paidAmount := coerceDecimal(getPath(invoiceBlock, "paid_amount"), "invoice.paid_amount", &validationErrors, true)
-	if paidAmount != nil && paidAmount.Sign() < 0 {
-		validationErrors = append(validationErrors, "invoice.paid_amount: must not be negative")
-	}
-	paidAmountCents, ok := moneyCents(paidAmount)
-	if !ok && paidAmount.Sign() >= 0 {
-		validationErrors = append(validationErrors, errAmountTooLarge("invoice.paid_amount:").Error())
-	}
-	invoiceVATRate := parseOptionalVATRate(invoiceBlock["vat_percent"], "invoice.vat_percent", &validationErrors)
-	customerVATRate := parseOptionalVATRate(getPath(customer, "tax.default_vat_rate"), "customer.tax.default_vat_rate", &validationErrors)
-	coerceNonNegativeInt(getPath(issuerPayment, "due_days"), "issuer.payment.due_days", &validationErrors)
-
-	normalizedItems := make([]LineItem, 0, len(rawLineItems))
-	missingInvoiceVATReported := false
-	for index, rawItem := range rawLineItems {
-		item, ok := rawItem.(map[string]any)
-		if !ok {
-			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d]: each position must be a mapping", index+1))
-			continue
+	// A rate that did not decode may be the one that applies, so a missing
+	// rate is not reported while one did not decode.
+	vatUndecoded := within("invoice.vat_percent", failed) || within("customer.tax.default_vat_rate", failed)
+	items := make([]LineItem, 0, len(invoiceFile.Positions))
+	missingVATReported := false
+	for index, position := range invoiceFile.Positions {
+		fieldProblems = append(fieldProblems, position.validate(index+1)...)
+		rate := firstRate(position.VATPercent, header.VATPercent, customerVATRate)
+		positionVATUndecoded := within(fmt.Sprintf("positions[%d].vat_percent", index+1), failed)
+		if rate == nil && !missingVATReported && !vatUndecoded && !positionVATUndecoded {
+			fieldProblems = append(fieldProblems, "invoice.vat_percent: missing value")
+			missingVATReported = true
 		}
-		requirePaths(item, fmt.Sprintf("positions[%d]", index+1), []string{"name", "description", "unit_price", "quantity"}, &validationErrors)
-		unitPrice := coerceDecimal(item["unit_price"], fmt.Sprintf("positions[%d].unit_price", index+1), &validationErrors, false)
-		quantity := coerceDecimal(item["quantity"], fmt.Sprintf("positions[%d].quantity", index+1), &validationErrors, false)
-		if unitPrice != nil && unitPrice.Sign() < 0 {
-			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].unit_price: must be >= 0", index+1))
-		}
-		if _, ok := moneyCents(unitPrice); !ok && unitPrice.Sign() >= 0 {
-			validationErrors = append(validationErrors, errAmountTooLarge(fmt.Sprintf("positions[%d].unit_price:", index+1)).Error())
-		}
-		if quantity != nil && quantity.Sign() <= 0 {
-			validationErrors = append(validationErrors, fmt.Sprintf("positions[%d].quantity: must be > 0", index+1))
-		}
-		positionVATRate := parseOptionalVATRate(item["vat_percent"], fmt.Sprintf("positions[%d].vat_percent", index+1), &validationErrors)
-		effectiveVATRate, missingVATRate := resolveEffectiveVATRate(positionVATRate, invoiceVATRate, customerVATRate)
-		if missingVATRate && !missingInvoiceVATReported {
-			validationErrors = append(validationErrors, "invoice.vat_percent: missing value")
-			missingInvoiceVATReported = true
-		}
-		normalizedItems = append(normalizedItems, LineItem{
-			Name:           asString(item["name"]),
-			Description:    asString(item["description"]),
-			UnitPrice:      unitPrice,
-			Quantity:       quantity,
-			VATRatePercent: effectiveVATRate,
+		items = append(items, LineItem{
+			Name:           string(position.Name),
+			Description:    string(position.Description),
+			UnitPrice:      position.UnitPrice.Rat(),
+			Quantity:       position.Quantity.Rat(),
+			VATRatePercent: rate,
 		})
+	}
+	// Every field problem starts with the path of its field.
+	for _, problem := range fieldProblems {
+		if path, _, _ := strings.Cut(problem, ":"); !within(path, failed) {
+			problems = append(problems, problem)
+		}
 	}
 
 	var validationErr error
-	if len(validationErrors) > 0 {
-		validationErr = errors.New(strings.Join(validationErrors, "\n"))
+	if len(problems) > 0 {
+		validationErr = errors.New(strings.Join(problems, "\n"))
 	}
-	if err := errors.Join(unknownCustomer, validationErr); err != nil {
+	if err := errors.Join(unknownCustomer, decodeErr, validationErr); err != nil {
 		return nil, err
 	}
 
+	ctx := &Context{
+		CustomerID:    customerID,
+		Customer:      *customer,
+		Company:       *company,
+		Payment:       *payment,
+		Invoice:       *header,
+		Currency:      customer.BillingCurrency(),
+		CustomerEmail: customer.InvoiceEmail(),
+		InvoiceNumber: header.Number.Trim(),
+	}
+	// Validation bounded paid_amount, so it converts.
+	ctx.PaidAmountCents, _ = moneyCents(header.PaidAmount.Rat())
+	if err := ctx.computeTotals(items); err != nil {
+		return nil, err
+	}
+	return ctx, nil
+}
+
+func isDecodeError(err error) bool {
+	var decodeErr *DecodeError
+	return errors.As(err, &decodeErr)
+}
+
+// firstRate returns the first rate that is set, nil when none is: the
+// position's own, then the invoice's, then the customer's default.
+func firstRate(rates ...Rate) *big.Rat {
+	for _, rate := range rates {
+		if rate.isSet() {
+			return rate.Percent()
+		}
+	}
+	return nil
+}
+
+// computeTotals sets the line totals, the VAT per rate and the invoice
+// totals from items, whose prices, quantities and rates are validated.
+func (ctx *Context) computeTotals(items []LineItem) error {
 	var subtotalCents int64
-	renderedItems := make([]LineItem, 0, len(normalizedItems))
-	vatBuckets := make(map[string]*VATBreakdown, len(normalizedItems))
-	for index, item := range normalizedItems {
+	vatBuckets := make(map[string]*VATBreakdown, len(items))
+	for index := range items {
+		item := &items[index]
 		lineTotal, ok := moneyCents(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
 		if !ok {
-			return nil, errAmountTooLarge(fmt.Sprintf("positions[%d]: unit_price × quantity", index+1))
+			return errAmountTooLarge(fmt.Sprintf("positions[%d]: unit_price × quantity", index+1))
 		}
 		if subtotalCents, ok = addMoneyCents(subtotalCents, lineTotal); !ok {
-			return nil, errAmountTooLarge("invoice subtotal")
+			return errAmountTooLarge("invoice subtotal")
 		}
 		item.LineTotalCents = lineTotal
-		renderedItems = append(renderedItems, item)
 		key := item.VATRatePercent.RatString()
 		bucket, ok := vatBuckets[key]
 		if !ok {
@@ -638,11 +603,11 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	for _, bucket := range vatBuckets {
 		vatCents, ok := moneyCents(percentOfMoney(bucket.NetCents, bucket.RatePercent))
 		if !ok {
-			return nil, errAmountTooLarge("invoice VAT amount")
+			return errAmountTooLarge("invoice VAT amount")
 		}
 		bucket.VATAmountCents = vatCents
 		if vatAmountCents, ok = addMoneyCents(vatAmountCents, vatCents); !ok {
-			return nil, errAmountTooLarge("invoice VAT amount")
+			return errAmountTooLarge("invoice VAT amount")
 		}
 		vatBreakdowns = append(vatBreakdowns, *bucket)
 	}
@@ -652,36 +617,19 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 
 	totalCents, ok := addMoneyCents(subtotalCents, vatAmountCents)
 	if !ok {
-		return nil, errAmountTooLarge("invoice total")
+		return errAmountTooLarge("invoice total")
 	}
-	outstandingCents := totalCents - paidAmountCents
-
-	if paidAmountCents > totalCents {
-		return nil, fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", FormatMoneyCents(paidAmountCents), FormatMoneyCents(totalCents))
+	if ctx.PaidAmountCents > totalCents {
+		return fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", FormatMoneyCents(ctx.PaidAmountCents), FormatMoneyCents(totalCents))
 	}
 
-	currency := customerCurrency(customer)
-	resolvedCustomerEmail := customerEmail(customer)
-	invoiceNumber := strings.TrimSpace(asString(getPath(invoiceBlock, "number")))
-	normalizedInvoice := cloneMap(invoiceBlock)
-
-	return &Context{
-		CustomerID:       customerID,
-		Customer:         customer,
-		IssuerCompany:    issuerCompany,
-		IssuerPayment:    issuerPayment,
-		Invoice:          normalizedInvoice,
-		LineItems:        renderedItems,
-		Currency:         currency,
-		VATBreakdowns:    vatBreakdowns,
-		SubtotalCents:    subtotalCents,
-		VATAmountCents:   vatAmountCents,
-		TotalCents:       totalCents,
-		PaidAmountCents:  paidAmountCents,
-		OutstandingCents: outstandingCents,
-		CustomerEmail:    resolvedCustomerEmail,
-		InvoiceNumber:    invoiceNumber,
-	}, nil
+	ctx.LineItems = items
+	ctx.VATBreakdowns = vatBreakdowns
+	ctx.SubtotalCents = subtotalCents
+	ctx.VATAmountCents = vatAmountCents
+	ctx.TotalCents = totalCents
+	ctx.OutstandingCents = totalCents - ctx.PaidAmountCents
+	return nil
 }
 
 func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error {
@@ -843,40 +791,40 @@ func migrateLegacyTemplatePlaceholders(template string) string {
 
 func buildTemplateValues(ctx *Context) map[string]string {
 	return map[string]string{
-		"@@ISSUER_NAME@@":              latexEscape(asString(ctx.IssuerCompany["legal_company_name"])),
-		"@@ISSUER_COMPANY_REG_NO@@":    latexEscape(asString(ctx.IssuerCompany["company_registration_number"])),
-		"@@ISSUER_VAT_TAX_ID@@":        latexEscape(asString(ctx.IssuerCompany["vat_tax_id"])),
-		"@@ISSUER_WEBSITE@@":           latexEscape(asString(ctx.IssuerCompany["website"])),
-		"@@ISSUER_EMAIL@@":             latexEscape(asString(ctx.IssuerCompany["email"])),
-		"@@ISSUER_STREET@@":            latexEscape(asString(getPath(ctx.IssuerCompany, "address.street"))),
-		"@@ISSUER_CITY@@":              latexEscape(asString(getPath(ctx.IssuerCompany, "address.city"))),
-		"@@ISSUER_POSTAL_CODE@@":       latexEscape(asString(getPath(ctx.IssuerCompany, "address.postal_code"))),
-		"@@ISSUER_COUNTRY@@":           latexEscape(asString(getPath(ctx.IssuerCompany, "address.country"))),
-		"@@INVOICE_NUMBER@@":           latexEscape(asString(ctx.Invoice["number"])),
-		"@@ISSUE_DATE@@":               latexEscape(formatDate(asString(ctx.Invoice["issue_date"]))),
-		"@@DUE_DATE@@":                 latexEscape(formatDate(asString(ctx.Invoice["due_date"]))),
+		"@@ISSUER_NAME@@":              latexEscape(string(ctx.Company.LegalCompanyName)),
+		"@@ISSUER_COMPANY_REG_NO@@":    latexEscape(string(ctx.Company.CompanyRegistrationNumber)),
+		"@@ISSUER_VAT_TAX_ID@@":        latexEscape(string(ctx.Company.VATTaxID)),
+		"@@ISSUER_WEBSITE@@":           latexEscape(string(ctx.Company.Website)),
+		"@@ISSUER_EMAIL@@":             latexEscape(string(ctx.Company.Email)),
+		"@@ISSUER_STREET@@":            latexEscape(string(ctx.Company.Address.Street)),
+		"@@ISSUER_CITY@@":              latexEscape(string(ctx.Company.Address.City)),
+		"@@ISSUER_POSTAL_CODE@@":       latexEscape(string(ctx.Company.Address.PostalCode)),
+		"@@ISSUER_COUNTRY@@":           latexEscape(string(ctx.Company.Address.Country)),
+		"@@INVOICE_NUMBER@@":           latexEscape(string(ctx.Invoice.Number)),
+		"@@ISSUE_DATE@@":               latexEscape(ctx.Invoice.IssueDate.Display()),
+		"@@DUE_DATE@@":                 latexEscape(ctx.Invoice.DueDate.Display()),
 		"@@INVOICE_TOTAL@@":            FormatCurrency(ctx.TotalCents, ctx.Currency),
 		"@@OUTSTANDING_TOTAL@@":        FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@CUSTOMER_NAME@@":            latexEscape(customerName(ctx.Customer)),
-		"@@CUSTOMER_STREET@@":          latexEscape(asString(getPath(ctx.Customer, "address.street"))),
-		"@@CUSTOMER_CITY@@":            latexEscape(asString(getPath(ctx.Customer, "address.city"))),
-		"@@CUSTOMER_POSTAL_CODE@@":     latexEscape(asString(getPath(ctx.Customer, "address.postal_code"))),
-		"@@CUSTOMER_COUNTRY@@":         latexEscape(asString(getPath(ctx.Customer, "address.country"))),
-		"@@CUSTOMER_VAT_TAX_ID@@":      latexEscape(asString(getPath(ctx.Customer, "tax.vat_tax_id"))),
+		"@@CUSTOMER_NAME@@":            latexEscape(ctx.Customer.DisplayName()),
+		"@@CUSTOMER_STREET@@":          latexEscape(string(ctx.Customer.Address.Street)),
+		"@@CUSTOMER_CITY@@":            latexEscape(string(ctx.Customer.Address.City)),
+		"@@CUSTOMER_POSTAL_CODE@@":     latexEscape(string(ctx.Customer.Address.PostalCode)),
+		"@@CUSTOMER_COUNTRY@@":         latexEscape(string(ctx.Customer.Address.Country)),
+		"@@CUSTOMER_VAT_TAX_ID@@":      latexEscape(string(ctx.Customer.Tax.VATTaxID)),
 		"@@CUSTOMER_EMAIL@@":           latexEscape(ctx.CustomerEmail),
 		"@@LINE_ITEMS_ROWS@@":          renderLineItems(ctx.LineItems, ctx.Currency),
 		"@@LINE_ITEMS_ROWS_WITH_VAT@@": renderLineItemsWithVAT(ctx.LineItems, ctx.Currency),
-		"@@PERIOD_LABEL@@":             latexEscape(asString(ctx.Invoice["period"])),
-		"@@PAYMENT_TERMS_TEXT@@":       latexEscape(asString(ctx.IssuerPayment["payment_terms_text"])),
-		"@@VAT_LABEL@@":                latexEscape(issuerVATLabel(ctx.IssuerPayment)),
+		"@@PERIOD_LABEL@@":             latexEscape(string(ctx.Invoice.Period)),
+		"@@PAYMENT_TERMS_TEXT@@":       latexEscape(string(ctx.Payment.PaymentTermsText)),
+		"@@VAT_LABEL@@":                latexEscape(ctx.Payment.vatLabel()),
 		"@@SUBTOTAL@@":                 FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_SUMMARY_ROWS@@":         renderVATSummaryRows(issuerVATLabel(ctx.IssuerPayment), ctx.VATBreakdowns, ctx.Currency),
+		"@@VAT_SUMMARY_ROWS@@":         renderVATSummaryRows(ctx.Payment.vatLabel(), ctx.VATBreakdowns, ctx.Currency),
 		"@@TOTAL@@":                    FormatCurrency(ctx.TotalCents, ctx.Currency),
 		"@@PAID_AMOUNT@@":              FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
 		"@@OUTSTANDING_AMOUNT@@":       FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@BANK_NAME@@":                latexEscape(asString(ctx.IssuerPayment["bank_name"])),
-		"@@IBAN@@":                     latexEscape(asString(ctx.IssuerPayment["iban"])),
-		"@@BIC@@":                      latexEscape(asString(ctx.IssuerPayment["bic"])),
+		"@@BANK_NAME@@":                latexEscape(string(ctx.Payment.BankName)),
+		"@@IBAN@@":                     latexEscape(string(ctx.Payment.IBAN)),
+		"@@BIC@@":                      latexEscape(string(ctx.Payment.BIC)),
 	}
 }
 
@@ -1103,7 +1051,7 @@ func epcQRAvailabilityLiteral(wantAvailable, available bool) string {
 func renderEPCQRCodeLabel(ctx *Context) string {
 	label := defaultEPCQRLabel
 	if ctx != nil {
-		if configured := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.label"))); configured != "" {
+		if configured := ctx.Payment.EPCQR.Label.Trim(); configured != "" {
 			label = configured
 		}
 	}
@@ -1129,37 +1077,37 @@ func buildEPCPayload(ctx *Context) ([]byte, error) {
 		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", FormatMoneyCents(ctx.OutstandingCents), "999999999,99")
 	}
 
-	name := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.name")))
+	name := ctx.Payment.EPCQR.Name.Trim()
 	if name == "" {
-		name = strings.TrimSpace(asString(ctx.IssuerCompany["legal_company_name"]))
+		name = ctx.Company.LegalCompanyName.Trim()
 	}
 	if name == "" {
 		return nil, errors.New("issuer.payment.epc_qr.name: missing value")
 	}
 
-	iban := compactEPCAccountIdentifier(asString(ctx.IssuerPayment["iban"]))
+	iban := compactEPCAccountIdentifier(string(ctx.Payment.IBAN))
 	if !isValidIBAN(iban) {
-		return nil, fmt.Errorf("issuer.payment.iban: invalid IBAN `%s`", asString(ctx.IssuerPayment["iban"]))
+		return nil, fmt.Errorf("issuer.payment.iban: invalid IBAN `%s`", ctx.Payment.IBAN)
 	}
 	if !isSEPASchemeIBAN(iban) {
-		return nil, fmt.Errorf("issuer.payment.iban: IBAN `%s` is outside the current SEPA scheme scope", asString(ctx.IssuerPayment["iban"]))
+		return nil, fmt.Errorf("issuer.payment.iban: IBAN `%s` is outside the current SEPA scheme scope", ctx.Payment.IBAN)
 	}
 
-	bic := compactEPCAccountIdentifier(asString(ctx.IssuerPayment["bic"]))
+	bic := compactEPCAccountIdentifier(string(ctx.Payment.BIC))
 	if bic != "" && !epcBICPattern.MatchString(bic) {
-		return nil, fmt.Errorf("issuer.payment.bic: invalid BIC `%s`", asString(ctx.IssuerPayment["bic"]))
+		return nil, fmt.Errorf("issuer.payment.bic: invalid BIC `%s`", ctx.Payment.BIC)
 	}
 
-	purpose := strings.ToUpper(strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.purpose"))))
+	purpose := strings.ToUpper(ctx.Payment.EPCQR.Purpose.Trim())
 	if purpose != "" && !epcPurposePattern.MatchString(purpose) {
 		return nil, fmt.Errorf("issuer.payment.epc_qr.purpose: expected 1-4 letters or digits, got `%s`", purpose)
 	}
 
-	text := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.text")))
+	text := ctx.Payment.EPCQR.Text.Trim()
 	if text == "" {
-		text = strings.TrimSpace(asString(ctx.Invoice["number"]))
+		text = ctx.Invoice.Number.Trim()
 	}
-	information := strings.TrimSpace(asString(getPath(ctx.IssuerPayment, "epc_qr.information")))
+	information := ctx.Payment.EPCQR.Information.Trim()
 
 	for _, field := range []struct {
 		label    string
@@ -1399,140 +1347,6 @@ func formatVATRate(value *big.Rat) string {
 	return latexEscape(formatQuantity(value)) + `\%`
 }
 
-func requirePaths(source map[string]any, prefix string, paths []string, errors *[]string) {
-	for _, path := range paths {
-		value := getPath(source, path)
-		if value == nil || strings.TrimSpace(asString(value)) == "" {
-			*errors = append(*errors, fmt.Sprintf("%s.%s: missing value", prefix, path))
-		}
-	}
-}
-
-func appendUnsupportedInvoiceKeyErrors(source map[string]any, errors *[]string) {
-	if _, ok := source["line_items"]; ok {
-		*errors = append(*errors, "line_items: unsupported key; use positions")
-	}
-
-	invoiceBlock, ok := source["invoice"].(map[string]any)
-	if !ok {
-		return
-	}
-	if _, ok := invoiceBlock["period_label"]; ok {
-		*errors = append(*errors, "invoice.period_label: unsupported key; use invoice.period")
-	}
-	if _, ok := invoiceBlock["vat_rate_percent"]; ok {
-		*errors = append(*errors, "invoice.vat_rate_percent: unsupported key; use invoice.vat_percent")
-	}
-}
-
-func getPath(source any, path string) any {
-	value := source
-	for _, part := range strings.Split(path, ".") {
-		mapping, ok := value.(map[string]any)
-		if !ok {
-			return nil
-		}
-		next, ok := mapping[part]
-		if !ok {
-			return nil
-		}
-		value = next
-	}
-	return value
-}
-
-func firstPresentPath(source map[string]any, paths ...string) any {
-	for _, path := range paths {
-		if value := getPath(source, path); value != nil {
-			return value
-		}
-	}
-	return nil
-}
-
-func firstNonEmptyPath(source map[string]any, paths ...string) any {
-	for _, path := range paths {
-		value := getPath(source, path)
-		if value != nil && strings.TrimSpace(asString(value)) != "" {
-			return value
-		}
-	}
-	return nil
-}
-
-func cloneMap(source map[string]any) map[string]any {
-	cloned := make(map[string]any, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
-	return cloned
-}
-
-func coerceDecimal(value any, label string, errors *[]string, allowDefault bool) *big.Rat {
-	if strings.TrimSpace(asString(value)) == "" {
-		if allowDefault {
-			return big.NewRat(0, 1)
-		}
-		*errors = append(*errors, fmt.Sprintf("%s: missing value", label))
-		return nil
-	}
-	rat, ok := parseDecimal(asString(value))
-	if !ok {
-		*errors = append(*errors, fmt.Sprintf("%s: expected a decimal number such as 12 or 12.50, got `%v`", label, value))
-		return nil
-	}
-	return rat
-}
-
-func parseOptionalVATRate(value any, label string, errors *[]string) vatRateField {
-	raw := strings.TrimSpace(asString(value))
-	if raw == "" {
-		return vatRateField{}
-	}
-	raw = strings.TrimSuffix(raw, "%")
-	rat, ok := parseDecimal(strings.TrimSpace(raw))
-	if !ok {
-		*errors = append(*errors, fmt.Sprintf("%s: expected a number or percent string, got `%v`", label, value))
-		return vatRateField{Present: true}
-	}
-	if rat.Sign() < 0 {
-		*errors = append(*errors, fmt.Sprintf("%s: must be >= 0", label))
-		return vatRateField{Present: true}
-	}
-	return vatRateField{Present: true, Value: rat}
-}
-
-func resolveEffectiveVATRate(position, invoice, customer vatRateField) (*big.Rat, bool) {
-	switch {
-	case position.Present:
-		return position.Value, false
-	case invoice.Present:
-		return invoice.Value, false
-	case customer.Present:
-		return customer.Value, false
-	default:
-		return nil, true
-	}
-}
-
-func coerceNonNegativeInt(value any, label string, errors *[]string) int64 {
-	raw := strings.TrimSpace(asString(value))
-	if raw == "" {
-		*errors = append(*errors, fmt.Sprintf("%s: missing value", label))
-		return 0
-	}
-	parsed, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		*errors = append(*errors, fmt.Sprintf("%s: expected an integer, got `%v`", label, value))
-		return 0
-	}
-	if parsed < 0 {
-		*errors = append(*errors, fmt.Sprintf("%s: must be >= 0", label))
-		return 0
-	}
-	return parsed
-}
-
 // decimalPattern is the grammar for money, quantities and rates: an optional
 // minus sign, digits, and an optional fraction. Leading zeros are decimal.
 var decimalPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
@@ -1594,14 +1408,6 @@ func roundHalfUp(value *big.Rat) *big.Int {
 		quotient.Neg(quotient)
 	}
 	return quotient
-}
-
-func formatDate(value string) string {
-	t, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		return value
-	}
-	return t.Format("02.01.2006")
 }
 
 // FormatMoneyCents formats cents as 1.234,56, without a currency.
@@ -1666,23 +1472,6 @@ func latexEscape(text string) string {
 		return "{}" + escaped
 	}
 	return escaped
-}
-
-func asString(value any) string {
-	if value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case bool:
-		if typed {
-			return "true"
-		}
-		return "false"
-	default:
-		return fmt.Sprint(value)
-	}
 }
 
 func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) error {
@@ -1807,10 +1596,6 @@ func firstExistingPath(paths ...string) string {
 		}
 	}
 	return ""
-}
-
-func prependPath(path string, paths []string) []string {
-	return append([]string{path}, paths...)
 }
 
 func fileExists(path string) bool {

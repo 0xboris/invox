@@ -1,0 +1,10 @@
+customer_id=0042
+number=0042
+currency=EUR
+email=x@example.com
+items=2
+subtotal=20000
+vat=4000
+total=24000
+paid=0
+outstanding=24000

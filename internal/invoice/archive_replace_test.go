@@ -196,7 +196,7 @@ func TestArchiveHistoryIsIgnoredByNumberingAndDuplicateCheck(t *testing.T) {
 	}
 	writeStatusInvoice(t, filepath.Join(historyDir, "old.20261005T123045Z.yaml"), "CUST-001-009", "archived")
 
-	invoiceNumber, _, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", map[string]any{}, 0)
+	invoiceNumber, _, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", Customer{}, 0)
 	if err != nil {
 		t.Fatalf("NextInvoiceNumber returned error: %v", err)
 	}

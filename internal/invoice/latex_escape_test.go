@@ -35,8 +35,8 @@ func TestRenderInvoiceKeepsLeadingStarAndBracketAfterLineBreak(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
-	ctx.Customer["address"] = map[string]any{"street": "*Hinterhof", "city": "Vienna"}
-	ctx.Invoice["period"] = "[Q1] 2026"
+	ctx.Customer.Address = Address{Street: "*Hinterhof", City: "Vienna"}
+	ctx.Invoice.Period = "[Q1] 2026"
 
 	templatePath := filepath.Join(t.TempDir(), "template.tex")
 	template := "@@CUSTOMER_CITY@@\\\\\n@@CUSTOMER_STREET@@\\\\\nPeriod:\\\\ @@PERIOD_LABEL@@\n"

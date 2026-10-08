@@ -1,0 +1,75 @@
+\documentclass[11pt,a4paper]{article}
+% fontspec loads Latin Modern as OpenType, which covers accented Latin text.
+\usepackage{fontspec}
+% Fail the build when a character has no glyph instead of dropping it.
+\tracinglostchars=3
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{eurosym}
+\usepackage{qrcode}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\qrset{height=2.2cm}
+
+\begin{document}
+
+{\LARGE \textbf{Invoice}} \hfill {\large CUST-001-007}
+
+\vspace{1cm}
+\textbf{Issuer}\\
+Boris Consulting\\
+Ring 1\\
+1010 Vienna\\
+Austria\\
+UID: ATU87654321\\
+FN: FN 123456a\\
+https://example.com\\
+hello@example.com
+
+\vspace{0.8cm}
+\textbf{Bill To}\\
+Appsters GmbH\\
+Hauptstrasse 1\\
+1010 Vienna\\
+Austria\\
+UID: ATU12345678\\
+office@appsters.example
+
+\vspace{0.8cm}
+Issue date: 15.01.2026\\
+Due date: 14.02.2026\\
+January
+
+\vspace{0.8cm}
+\begin{longtable}{p{3cm}p{5.5cm}r r r}
+\toprule
+Item & Description & Unit Price & Qty & Total\\
+\midrule
+\endhead
+    Retainer & Monthly & 100,00 \euro & 1 & 100,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{longtable}
+
+\vspace{0.8cm}
+\begin{tabular}{lr}
+Subtotal: & 100,00 \euro\\
+VAT (10\%): & 10,00 \euro\\
+Total: & 110,00 \euro\\
+Paid: & 110,00 \euro\\
+Outstanding: & 0,00 \euro\\
+\end{tabular}
+\ifnum0=1
+\vspace{0.5cm}
+\\
+
+\fi
+
+\vfill
+Pay within 30 days
+
+Bank: Test Bank\\
+IBAN: AT611904300234573201\\
+BIC: BKAUATWW
+
+\end{document}

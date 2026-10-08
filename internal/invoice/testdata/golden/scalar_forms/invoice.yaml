@@ -1,0 +1,17 @@
+customer_id: 0042
+invoice:
+  number: 0042
+  issue_date: 2026-3-6
+  due_date: "2026-04-05"
+  status: draft
+  period: 2026-03-01
+  vat_percent: " 20% "
+  paid_amount: ""
+positions:
+  - {name: Flow, description: "inline, mapping", unit_price: "100", quantity: 2}
+  - name: 12.50
+    description: |
+      Literal
+      block
+    unit_price: -0
+    quantity: 1

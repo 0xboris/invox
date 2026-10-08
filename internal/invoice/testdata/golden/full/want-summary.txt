@@ -1,0 +1,10 @@
+customer_id=ACME-7
+number=ACM-2026-0100
+currency=EUR
+email=accounting@acme.example
+items=4
+subtotal=380950
+vat=75577
+total=456527
+paid=10050
+outstanding=446477

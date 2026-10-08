@@ -1,0 +1,14 @@
+customer_id: CUST-001
+invoice:
+  number: CUST-001-007
+  issue_date: 2026-01-15
+  due_date: 2026-02-14
+  status: built
+  period: January
+  vat_percent: 10
+  paid_amount: 110.00
+positions:
+  - name: Retainer
+    description: Monthly
+    unit_price: 100
+    quantity: 1

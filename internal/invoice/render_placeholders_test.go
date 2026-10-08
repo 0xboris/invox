@@ -16,8 +16,8 @@ func TestRenderInvoiceDoesNotResubstitutePlaceholdersInValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
-	ctx.Customer["name"] = "Evil @@TOTAL@@ & @@IBAN@@ Ltd"
-	ctx.Invoice["period"] = "@@SUBTOTAL@@"
+	ctx.Customer.Name = "Evil @@TOTAL@@ & @@IBAN@@ Ltd"
+	ctx.Invoice.Period = "@@SUBTOTAL@@"
 	ctx.LineItems[0].Description = "Item @@TOTAL@@ 100%"
 
 	templatePath := filepath.Join(t.TempDir(), "template.tex")
