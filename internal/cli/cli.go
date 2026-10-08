@@ -104,8 +104,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 
 	switch args[0] {
-	case "init":
-		return runInit(ctx, f, args[1:])
 	case "completion":
 		return runCompletion(ios, args[1:])
 	case "new":

@@ -11,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	configcmd "github.com/0xboris/invox/internal/cmd/config"
 	customercmd "github.com/0xboris/invox/internal/cmd/customer"
+	initcmd "github.com/0xboris/invox/internal/cmd/init"
 	templatecmd "github.com/0xboris/invox/internal/cmd/template"
 	versioncmd "github.com/0xboris/invox/internal/cmd/version"
 )
@@ -63,6 +64,7 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	root.AddCommand(
 		configcmd.NewCmdConfig(f, nil),
 		customercmd.NewCmdCustomer(f),
+		initcmd.NewCmdInit(f, nil),
 		templatecmd.NewCmdTemplate(f),
 		versioncmd.NewCmdVersion(f, nil),
 	)
