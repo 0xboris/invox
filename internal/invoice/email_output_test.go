@@ -33,7 +33,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	_, err = h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, false, "", "")
+	_, err = createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("CreateInvoiceEmailDraft error = %v, want fs.ErrExist", err)
 	}
@@ -45,7 +45,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
 
-	if _, err := h.CreateInvoiceEmailDraft(time.Now(), customersPath, issuerPath, invoicePath, pdfPath, outputPath, true, "", ""); err != nil {
+	if _, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, true); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft with overwrite returned error: %v", err)
 	}
 	content, err = os.ReadFile(outputPath)

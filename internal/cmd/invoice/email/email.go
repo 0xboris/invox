@@ -125,12 +125,19 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	if err != nil {
 		return err
 	}
-	message, err := h.PrepareInvoiceEmail(customersPath, issuerPath, paths.InvoicePath, paths.PDFPath, opts.To, opts.Subject)
+	message, err := h.PrepareInvoiceEmail(invoice.EmailParams{
+		CustomersPath: customersPath,
+		IssuerPath:    issuerPath,
+		InvoicePath:   paths.InvoicePath,
+		PDFPath:       paths.PDFPath,
+		Recipient:     opts.To,
+		Subject:       opts.Subject,
+	})
 	if err != nil {
 		return err
 	}
 	draft := func(outputPath string, overwrite bool) error {
-		_, err := h.CreateInvoiceEmailDraft(opts.Now(), customersPath, issuerPath, paths.InvoicePath, paths.PDFPath, outputPath, overwrite, opts.To, opts.Subject)
+		_, err := h.CreateInvoiceEmailDraft(opts.Now(), message, outputPath, overwrite)
 		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("%s already exists; pass --force or choose another -o path", invoice.DisplayPath(outputPath, baseDir))
 		}
