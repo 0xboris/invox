@@ -121,11 +121,8 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 
 	errorPrefix := fmt.Sprintf("built %s but ", outputDisplay)
 	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, h, opts.Now, "build", invoicePath, baseDir, opts.Yes, errorPrefix)
-	// These already start with errorPrefix, and wrapping a FlagError would
-	// repeat "built ... but" in its message.
-	if errors.Is(err, cmdutil.CancelError) || errors.As(err, new(*cmdutil.FlagError)) {
-		return err
-	}
+	// A usage error or a declined prompt already starts with errorPrefix,
+	// and Main prints only the inner message of a wrapped one.
 	if err != nil {
 		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, err)
 	}
