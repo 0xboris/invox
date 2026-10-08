@@ -66,7 +66,7 @@ func archiveRun(ctx context.Context, opts *ArchiveOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
 	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, opts.Host(), opts.Now, "archive", invoicePath, baseDir, opts.Yes, "")
 	if err != nil {

@@ -26,9 +26,13 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   reads them from the process; everything else uses the `Env` it is given. `ambient_test.go`
   fails on any other read, apart from a short allowlist (`iostreams.newSystem`, `exit.go`, and
   `adapters/run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
-- `internal/cli`: argument parsing (`command_specs.go`, `parsing.go`), commands
-  (`commands_*.go`), hand-written help (`help.go`). `cmdutil.Factory` hands commands the
-  streams and the external-program adapters.
+- `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the single-dash flag
+  normaliser, help routing), exit codes (`exit.go`), signals and the hand-written help
+  (`help.go`, replaced by generated help in #48). `cmdutil` holds the `Factory`, the error
+  types, `FlagErrorFunc` and helpers commands share (support-file lookup, editor, prompt).
+- `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
+  `NewCmdX(f, runF)` and a run function. Parse-only tests pass a `runF`. The invoice verbs
+  live under `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`.
 - `internal/adapters`: `run` is the only package that calls `os/exec`. `tectonic`, `editor`,
   `opener` and `applemail` each wrap one program on top of a `run.Runner`.
 - `internal/invoice`: domain logic (loading and validation, money and VAT, numbering,

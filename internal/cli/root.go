@@ -23,24 +23,28 @@ import (
 	versioncmd "github.com/0xboris/invox/internal/cmd/version"
 )
 
-// newRootCmd returns the invox command tree. Commands that have not moved to
-// cobra yet reach the root's RunE, which hands its unparsed arguments to the
-// legacy dispatcher. Main prints errors and picks exit codes, so cobra prints
-// neither errors nor usage.
+// newRootCmd returns the invox command tree. Main prints errors and picks
+// exit codes, so cobra prints neither errors nor usage.
 func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	ios := f.IOStreams
 	root := &cobra.Command{
-		Use:                "invox",
-		Args:               cobra.ArbitraryArgs,
-		DisableFlagParsing: true,
-		SilenceErrors:      true,
-		SilenceUsage:       true,
-		CompletionOptions:  cobra.CompletionOptions{DisableDefaultCmd: true},
+		Use:               "invox",
+		Args:              cobra.ArbitraryArgs,
+		SilenceErrors:     true,
+		SilenceUsage:      true,
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return applyGlobalFlags(cmd, f)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLegacy(cmd.Context(), f, args)
+			if len(args) == 0 {
+				return cmdutil.FlagErrorf("", "missing subcommand")
+			}
+			message := fmt.Sprintf("unknown subcommand %q", args[0])
+			if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+				message += fmt.Sprintf("; did you mean %q?", strings.Join(suggestions, `" or "`))
+			}
+			return cmdutil.FlagErrorf("", "%s", message)
 		},
 	}
 	root.SuggestionsMinimumDistance = 2
@@ -55,16 +59,19 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 	// Until help is generated from the command tree (#48), every help request
 	// prints the hand-written page for the command.
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		if err := runHelp(f, strings.Fields(cmdutil.CommandPath(cmd))); err != nil {
+		var topic []string
+		if cmd.Name() != "help" {
+			topic = strings.Fields(cmdutil.CommandPath(cmd))
+		}
+		if err := runHelp(f, topic); err != nil {
 			fmt.Fprintf(ios.ErrOut, "error: %s\n", err)
 		}
 	})
 	root.SetHelpCommand(&cobra.Command{
-		Use:                "help",
-		Hidden:             true,
-		DisableFlagParsing: true,
+		Use:    "help [topic]",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLegacy(cmd.Context(), f, append([]string{"help"}, args...))
+			return runHelp(f, args)
 		},
 	})
 
@@ -72,6 +79,7 @@ func newRootCmd(f *cmdutil.Factory) *cobra.Command {
 		archivecmd.NewCmdArchive(f, nil),
 		configcmd.NewCmdConfig(f, nil),
 		buildcmd.NewCmdBuild(f, nil),
+		newCmdCompletion(f),
 		customercmd.NewCmdCustomer(f),
 		emailcmd.NewCmdEmail(f, nil),
 		incrementcmd.NewCmdIncrement(f, nil),

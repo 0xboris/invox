@@ -425,11 +425,16 @@ func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) 
 	}
 }
 
+// supportPaths are the four support files a command reads.
+type supportPaths struct {
+	CustomersPath, IssuerPath, DefaultsPath, TemplatePath string
+}
+
 // resolveDefaultOptions resolves the four support files from start the way
 // the CLI does before flags override them.
-func resolveDefaultOptions(t *testing.T, h Host, start string) Options {
+func resolveDefaultOptions(t *testing.T, h Host, start string) supportPaths {
 	t.Helper()
-	var opts Options
+	var opts supportPaths
 	for _, resolve := range []struct {
 		path *string
 		kind SupportFile

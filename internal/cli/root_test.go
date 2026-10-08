@@ -60,14 +60,9 @@ func TestNormalizeLongFlags(t *testing.T) {
 			want: []string{"template", "list", "-hx", "-5"},
 		},
 		{
-			name: "legacy command",
-			args: []string{"completion", "-zsh"},
-			want: []string{"completion", "-zsh"},
-		},
-		{
-			name: "help command",
+			name: "unknown word on the help command",
 			args: []string{"help", "-names"},
-			want: []string{"help", "-names"},
+			want: []string{"help", "--names"},
 		},
 	}
 	for _, tc := range tests {

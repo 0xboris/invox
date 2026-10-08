@@ -29,8 +29,8 @@ func TestAbsPathResolvesAgainstBase(t *testing.T) {
 			if !tc.windowsOnly {
 				base, want = filepath.FromSlash(base), filepath.FromSlash(want)
 			}
-			if got := absPath(base, filepath.FromSlash(tc.path)); got != want {
-				t.Fatalf("absPath(%q, %q) = %q, want %q", base, tc.path, got, want)
+			if got := AbsPath(base, filepath.FromSlash(tc.path)); got != want {
+				t.Fatalf("AbsPath(%q, %q) = %q, want %q", base, tc.path, got, want)
 			}
 		})
 	}

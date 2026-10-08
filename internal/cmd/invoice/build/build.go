@@ -91,10 +91,10 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 	outputPath := shared.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
+		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
 	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
 	invoiceDisplay := invoice.DisplayPath(invoicePath, baseDir)

@@ -14,6 +14,8 @@ import (
 	"github.com/0xboris/invox/internal/config"
 )
 
+const commandName = "invox"
+
 func Main(args []string, f *cmdutil.Factory) int {
 	cobra.MousetrapHelpText = ""
 	ctx, stop := signalContext(context.Background())
@@ -50,21 +52,6 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	return exitCode(f.IOStreams, err)
 }
 
-// runLegacy runs a command that has not moved to cobra yet. It parses the
-// global flags itself, because the root command leaves its arguments
-// unparsed.
-func runLegacy(ctx context.Context, f *cmdutil.Factory, args []string) error {
-	g, rest, err := splitGlobalFlags(args)
-	if err != nil {
-		return err
-	}
-	f.ConfigFile = g.configFile
-	if g.noInput {
-		f.IOStreams.SetNeverPrompt(true)
-	}
-	return dispatch(ctx, f, rest)
-}
-
 // warnLegacyFiles prints one line when the command read files from the
 // deprecated config directory.
 func warnLegacyFiles(f *cmdutil.Factory) {
@@ -86,29 +73,6 @@ func warnLegacyFiles(f *cmdutil.Factory) {
 		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
 	}
 	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, h.ConfigDir())
-}
-
-func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
-	ios := f.IOStreams
-	if len(args) == 0 {
-		return cmdutil.FlagErrorf("", "missing subcommand")
-	}
-
-	if isHelpToken(args[0]) {
-		printRootHelp(ios.Out, f.Host())
-		return nil
-	}
-
-	if args[0] == "help" {
-		return runHelp(f, args[1:])
-	}
-
-	switch args[0] {
-	case "completion":
-		return runCompletion(ios, args[1:])
-	default:
-		return cmdutil.FlagErrorf("", "unknown subcommand %q", args[0])
-	}
 }
 
 func runHelp(f *cmdutil.Factory, args []string) error {
@@ -215,17 +179,4 @@ func runHelp(f *cmdutil.Factory, args []string) error {
 
 func unknownHelpTopic(args []string) error {
 	return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
-}
-
-func wantsHelp(args []string) bool {
-	for _, arg := range args {
-		if isHelpToken(arg) {
-			return true
-		}
-	}
-	return false
-}
-
-func isHelpToken(arg string) bool {
-	return arg == "-h" || arg == "--help" || arg == "-help"
 }

@@ -1,0 +1,21 @@
+# The root command is cobra's too: unknown subcommands suggest the closest
+# one, unknown flags say so, and `help -h` prints the root help.
+
+exits 2 invox custmer
+! stdout .
+cmp stderr want-subcommand.txt
+
+exits 2 invox --bogus
+! stdout .
+cmp stderr want-flag.txt
+
+exec invox help -h
+stdout '^invox generates LaTeX and PDF invoices from YAML data\.$'
+! stderr .
+
+-- want-subcommand.txt --
+error: unknown subcommand "custmer"; did you mean "customer"?
+Run 'invox --help' for usage.
+-- want-flag.txt --
+error: unknown flag: --bogus
+Run 'invox --help' for usage.

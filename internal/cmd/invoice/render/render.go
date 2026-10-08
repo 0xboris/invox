@@ -80,9 +80,9 @@ func renderRun(opts *RenderOptions) error {
 	}
 	outputPath := filepath.Join(baseDir, "invoice.tex")
 	if strings.TrimSpace(opts.OutputPath) != "" {
-		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
+		outputPath = invoice.AbsPath(baseDir, opts.OutputPath)
 	}
-	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
+	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
 	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
