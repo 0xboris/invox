@@ -2,6 +2,7 @@ package version
 
 import (
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
@@ -32,6 +33,8 @@ func TestNewCmdVersionParsing(t *testing.T) {
 				}
 				return nil
 			})
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
 			cmd.SetArgs(tc.args)
 			err := cmd.Execute()
 

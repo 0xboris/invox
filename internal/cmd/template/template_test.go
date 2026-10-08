@@ -2,6 +2,7 @@ package template
 
 import (
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,8 @@ func TestNewCmdTemplateUnknownSubcommand(t *testing.T) {
 			ios, _, out, _ := iostreams.Test()
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
 			root.AddCommand(NewCmdTemplate(cmdutil.NewFactory(ios, run.Exec{}, env.System())))
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
 			root.SetArgs([]string{"template", tc.arg})
 			err := root.Execute()
 

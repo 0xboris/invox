@@ -2,6 +2,7 @@ package list
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func TestNewCmdListParsing(t *testing.T) {
@@ -38,6 +40,8 @@ func TestNewCmdListParsing(t *testing.T) {
 				return nil
 			})
 			cmd.SetFlagErrorFunc(cmdutil.FlagErrorFunc)
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
 			cmd.SetArgs(tc.args)
 			err := cmd.Execute()
 
@@ -83,8 +87,8 @@ func TestListRun(t *testing.T) {
 	}{
 		{
 			name: "piped",
-			want: "plain.tex\t" + filepath.Join(configDir, "plain.tex") + "\n" +
-				"template.tex\t" + filepath.Join(configDir, "template.tex") + "\n",
+			want: "plain.tex\t" + tableprinter.EscapeTSVField(filepath.Join(configDir, "plain.tex")) + "\n" +
+				"template.tex\t" + tableprinter.EscapeTSVField(filepath.Join(configDir, "template.tex")) + "\n",
 		},
 		{name: "names only", namesOnly: true, want: "plain.tex\ntemplate.tex\n"},
 	}
