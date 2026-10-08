@@ -70,11 +70,23 @@ func configSpec() commandSpec {
 	}
 }
 
+func configPathsSpec() commandSpec {
+	return commandSpec{
+		Name:    "config paths",
+		Summary: "Show where each config and support file is read from.",
+		Usage:   "config paths",
+		Examples: []string{
+			commandExample("config paths"),
+		},
+	}
+}
+
 func initSpec() commandSpec {
 	return commandSpec{
-		Name:    "init",
-		Summary: "Create starter support files in the global config directory.",
-		Usage:   "init",
+		Name:              "init",
+		Summary:           "Create starter support files in the global config directory.",
+		Usage:             "init [--force]",
+		SupportsForceFlag: true,
 		Examples: []string{
 			commandExample("init"),
 		},
@@ -268,6 +280,8 @@ func lookupCommand(name string) (commandSpec, bool) {
 		return customerConfigSpec(), true
 	case "config":
 		return configSpec(), true
+	case "config paths":
+		return configPathsSpec(), true
 	case "init":
 		return initSpec(), true
 	case "template list":

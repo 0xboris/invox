@@ -336,11 +336,11 @@ func buildInvoiceEmailDraft(emailMessage EmailMessage, pdfBytes []byte, now time
 func (h Host) invoiceEmailSubject(ctx *Context, invoicePath, subjectOverride string) (string, error) {
 	template := strings.TrimSpace(subjectOverride)
 	if template == "" {
-		configured, err := h.resolveConfiguredString("email", "subject")
+		cfg, err := h.Config()
 		if err != nil {
 			return "", err
 		}
-		template = configured
+		template = string(cfg.Email.Subject)
 	}
 	if strings.TrimSpace(template) == "" {
 		template = defaultEmailSubjectTemplate
@@ -365,10 +365,11 @@ func (h Host) invoiceEmailBody(ctx *Context) (string, error) {
 }
 
 func (h Host) invoiceEmailBodyText(ctx *Context) (string, error) {
-	template, err := h.resolveConfiguredString("email", "body")
+	cfg, err := h.Config()
 	if err != nil {
 		return "", err
 	}
+	template := string(cfg.Email.Body)
 	if template == "" {
 		template = defaultEmailBodyTemplate
 	}

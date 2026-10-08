@@ -1,0 +1,97 @@
+# config paths prints each resolved path and where it came from. Stdout is
+# data (tab-separated when piped); warnings go to stderr.
+
+# Nothing set up: only the defaults.
+exec invox config paths
+! stderr .
+scrubpaths -tsv stdout got.tsv
+cmp got.tsv want-defaults.tsv
+
+# A project file in the working directory, a file only in the legacy
+# directory, and --config with paths.* and archive.dir. The legacy file gets
+# one warning line on stderr.
+cp legacy-issuer.yaml home/.config/invoice-tool/issuer.yaml
+cp project-customers.yaml customers.yaml
+exec invox config paths --config acme.yaml
+scrubpaths -tsv stdout got.tsv
+cmp got.tsv want-mixed.tsv
+scrubpaths stderr got.txt
+cmp got.txt want-legacy-warning.txt
+
+# INVOX_CONFIG_DIR replaces the config directory and turns off the legacy one.
+env INVOX_CONFIG_DIR=$WORK/env-config
+rm customers.yaml
+exec invox config paths
+! stderr .
+scrubpaths -tsv stdout got.tsv
+cmp got.tsv want-env.tsv
+env INVOX_CONFIG_DIR=
+
+# A config file with an unknown key names the file and line.
+exits 1 invox --config bad.yaml config paths
+! stdout .
+cmp stderr want-bad.txt
+
+# A missing --config file is an error, never a fallback.
+exits 1 invox --config missing.yaml config paths
+! stdout .
+cmp stderr want-missing.txt
+
+# --config needs a value.
+exits 2 invox config paths --config
+! stdout .
+cmp stderr want-no-value.txt
+
+-- home/.config/invoice-tool/.keep --
+-- legacy-issuer.yaml --
+company:
+  legal_company_name: Legacy GmbH
+-- project-customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+-- acme.yaml --
+paths:
+  template: 'templates/acme.tex'
+archive:
+  dir: 'archive'
+-- env-config/config.yaml --
+-- env-config/customers.yaml --
+CUST-002:
+  name: Env GmbH
+-- bad.yaml --
+numbering:
+  patern: '{customer_code}-{counter:03}'
+-- want-defaults.tsv --
+config-dir	$WORK/home/.config/invox	default
+config		none
+customers		none
+issuer		none
+defaults		none
+template		none
+archive	$DATA_HOME/invox/invoices	default
+-- want-mixed.tsv --
+config-dir	$WORK/home/.config/invox	default
+config	$WORK/acme.yaml	flag
+customers	$WORK/customers.yaml	project
+issuer	$WORK/home/.config/invoice-tool/issuer.yaml	legacy
+defaults		none
+template	$WORK/templates/acme.tex	config
+archive	$WORK/archive	config
+-- want-legacy-warning.txt --
+warning: using issuer.yaml from deprecated config directory $WORK/home/.config/invoice-tool; run 'invox init' to copy it to $WORK/home/.config/invox
+-- want-env.tsv --
+config-dir	$WORK/env-config	env
+config	$WORK/env-config/config.yaml	env
+customers	$WORK/env-config/customers.yaml	env
+issuer		none
+defaults		none
+template		none
+archive	$DATA_HOME/invox/invoices	default
+-- want-bad.txt --
+error: bad.yaml:2: unknown key "patern" in numbering
+Run 'invox --config bad.yaml config' to open and fix the config file.
+-- want-missing.txt --
+error: config file missing.yaml does not exist
+-- want-no-value.txt --
+error: flag needs an argument: --config
+Run 'invox --help' for usage.

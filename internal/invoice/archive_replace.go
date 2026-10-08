@@ -101,10 +101,7 @@ func existingArchivePaths(paths ...string) ([]string, error) {
 // <archive.dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its
 // directory below archive.dir.
 func backupArchivedFiles(archiveDir string, paths []string, now time.Time) ([]ArchiveBackup, error) {
-	absArchiveDir, err := filepath.Abs(archiveDir)
-	if err != nil {
-		return nil, err
-	}
+	absArchiveDir := filepath.Clean(archiveDir)
 	stamp := now.UTC().Format(archiveBackupTimeFormat)
 
 	backups := make([]ArchiveBackup, 0, len(paths))

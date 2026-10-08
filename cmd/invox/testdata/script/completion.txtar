@@ -80,6 +80,12 @@ _invox() {
           ;;
       esac
       ;;
+    config)
+      if (( CURRENT == 3 )); then
+        _values 'config command' 'paths[Show where each config and support file is read from]'
+        return
+      fi
+      ;;
     completion)
       if (( CURRENT == 3 )); then
         _values 'shell' 'zsh[Zsh completion script]'

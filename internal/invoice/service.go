@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
@@ -280,59 +281,6 @@ func absPath(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-func DiscoverBaseDir(start string) string {
-	if path := findUpward(start, "invoice_template.tex"); path != "" {
-		return filepath.Dir(path)
-	}
-	if path := findUpward(start, "customers.yaml"); path != "" {
-		return filepath.Dir(path)
-	}
-	if path := findUpward(start, "issuer.yaml"); path != "" {
-		return filepath.Dir(path)
-	}
-	if path := findUpward(start, "invoice_defaults.yaml"); path != "" {
-		return filepath.Dir(path)
-	}
-	return start
-}
-
-func (h Host) ConfigDir() string {
-	baseDir := h.configBase
-	if baseDir == "" {
-		return ""
-	}
-	return filepath.Join(baseDir, configDirName)
-}
-
-func (h Host) legacyConfigDir() string {
-	baseDir := h.configBase
-	if baseDir == "" {
-		return ""
-	}
-	return filepath.Join(baseDir, legacyConfigDirName)
-}
-
-func (h Host) configSearchDirs() []string {
-	dirs := make([]string, 0, 2)
-	if configDir := h.ConfigDir(); configDir != "" {
-		dirs = append(dirs, configDir)
-	}
-	if legacyDir := h.legacyConfigDir(); legacyDir != "" && legacyDir != h.ConfigDir() {
-		dirs = append(dirs, legacyDir)
-	}
-	return dirs
-}
-
-func (h Host) configSearchPaths(names ...string) []string {
-	paths := make([]string, 0, len(h.configSearchDirs())*len(names))
-	for _, dir := range h.configSearchDirs() {
-		for _, name := range names {
-			paths = append(paths, filepath.Join(dir, name))
-		}
-	}
-	return paths
-}
-
 func (h Host) GlobalCustomersPath() string {
 	return filepath.Join(h.ConfigDir(), "customers.yaml")
 }
@@ -349,25 +297,25 @@ func (h Host) GlobalConfigPath() string {
 	return filepath.Join(h.ConfigDir(), "config.yaml")
 }
 
-func (h Host) LegacyConfigPath() string {
-	return filepath.Join(h.legacyConfigDir(), "config.yaml")
-}
-
-func (h Host) ResolveConfigPath() string {
-	return firstExistingPath(h.configSearchPaths("config.yaml")...)
-}
-
+// EditableConfigPath returns the config file to open in an editor, creating
+// it from the template when it does not exist: the explicit config file, else
+// config.yaml where Config reads it, else config.yaml in the config
+// directory.
 func (h Host) EditableConfigPath() (string, error) {
-	if path := h.ResolveConfigPath(); path != "" {
-		if err := h.ensureConfigTemplate(path); err != nil {
+	path := h.configFile
+	if path == "" {
+		found, err := h.findInConfigDir(false, "config.yaml")
+		var missingDir *ConfigDirNotFoundError
+		if err != nil && !errors.As(err, &missingDir) {
 			return "", err
 		}
-		return path, nil
+		path = found.Path
 	}
-
-	path := h.GlobalConfigPath()
-	if strings.TrimSpace(path) == "" {
-		return "", errors.New("config directory is unavailable")
+	if path == "" {
+		if h.ConfigDir() == "" {
+			return "", errors.New("config directory is unavailable")
+		}
+		path = h.GlobalConfigPath()
 	}
 	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private); err != nil {
 		return "", err
@@ -487,132 +435,6 @@ func (h Host) DefaultArchiveDir() string {
 		return ""
 	}
 	return filepath.Join(baseDir, configDirName, "invoices")
-}
-
-func (h Host) ResolveArchiveDir() (string, error) {
-	path, err := h.resolveConfiguredPath("archive", "dir")
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(path) == "" {
-		return h.DefaultArchiveDir(), nil
-	}
-	return path, nil
-}
-
-func (h Host) ResolveDefaultCustomersPath(start string) (string, error) {
-	return h.resolveDefaultPath(start, "customers", []string{"customers.yaml"}, []string{"customers.yaml"})
-}
-
-func (h Host) ResolveDefaultIssuerPath(start string) (string, error) {
-	return h.resolveDefaultPath(start, "issuer", []string{"issuer.yaml"}, []string{"issuer.yaml"})
-}
-
-func (h Host) ResolveDefaultTemplatePath(start string) (string, error) {
-	return h.resolveDefaultPath(start, "template", []string{"invoice_template.tex", "template.tex"}, []string{"template.tex", "invoice_template.tex"})
-}
-
-func (h Host) resolveDefaultPath(start, configKey string, localNames, globalNames []string) (string, error) {
-	if path := findUpward(start, localNames...); path != "" {
-		return path, nil
-	}
-
-	path, err := h.resolveConfiguredPath("paths", configKey)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(path) != "" {
-		return path, nil
-	}
-
-	return firstExistingPath(h.configSearchPaths(globalNames...)...), nil
-}
-
-func (h Host) resolveConfiguredPath(section, key string) (string, error) {
-	configPath, root, err := h.loadConfigRoot()
-	if err != nil || strings.TrimSpace(configPath) == "" {
-		return "", err
-	}
-
-	block, ok := root[section].(map[string]any)
-	if !ok {
-		return "", nil
-	}
-
-	rawPath := strings.TrimSpace(asString(block[key]))
-	if rawPath == "" {
-		return "", nil
-	}
-
-	return h.normalizeConfiguredPath(configPath, rawPath)
-}
-
-func (h Host) resolveConfiguredString(section, key string) (string, error) {
-	configPath, root, err := h.loadConfigRoot()
-	if err != nil || strings.TrimSpace(configPath) == "" {
-		return "", err
-	}
-
-	block, ok := root[section].(map[string]any)
-	if !ok {
-		return "", nil
-	}
-
-	rawValue, ok := block[key]
-	if !ok || rawValue == nil {
-		return "", nil
-	}
-
-	value, ok := rawValue.(string)
-	if !ok {
-		return "", fmt.Errorf("%s: %s.%s: expected a string", configPath, section, key)
-	}
-	return strings.TrimSpace(value), nil
-}
-
-func (h Host) loadConfigRoot() (string, map[string]any, error) {
-	configPath := h.ResolveConfigPath()
-	if configPath == "" {
-		return "", nil, nil
-	}
-
-	if err := validateConfigSource(configPath); err != nil {
-		return "", nil, &ConfigError{Path: configPath, Err: err}
-	}
-
-	value, err := loadYAML(configPath)
-	if err != nil {
-		return "", nil, &ConfigError{Path: configPath, Err: err}
-	}
-	if value == nil {
-		return configPath, map[string]any{}, nil
-	}
-
-	root, ok := value.(map[string]any)
-	if !ok {
-		return "", nil, &ConfigError{Path: configPath, Err: fmt.Errorf("%s: root value must be a mapping", configPath)}
-	}
-	return configPath, root, nil
-}
-
-func validateConfigSource(path string) error {
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	for _, line := range strings.Split(string(source), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
-			return fmt.Errorf("%s: top-level keys must not be indented; remove the leading whitespace before %q", path, trimmed)
-		}
-		return nil
-	}
-
-	return nil
 }
 
 func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error) {
@@ -981,28 +803,8 @@ func DisplayPath(path, baseDir string) string {
 	return path
 }
 
-func (h Host) normalizeConfiguredPath(configPath, path string) (string, error) {
-	resolved := h.expandHomePath(path)
-	if !filepath.IsAbs(resolved) {
-		resolved = filepath.Join(filepath.Dir(configPath), resolved)
-	}
-	return filepath.Abs(resolved)
-}
-
 func (h Host) expandHomePath(path string) string {
-	if path == "~" {
-		if h.home != "" {
-			return h.home
-		}
-		return path
-	}
-	if !strings.HasPrefix(path, "~/") {
-		return path
-	}
-	if strings.TrimSpace(h.home) == "" {
-		return path
-	}
-	return filepath.Join(h.home, path[2:])
+	return config.ExpandHome(path, h.home)
 }
 
 func PDFPathForOutput(outputPath string) string {
@@ -1919,34 +1721,21 @@ func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) erro
 }
 
 func (h Host) findAssetDir(templatePath, relPath string) string {
-	for _, baseDir := range h.assetSearchDirs(templatePath) {
-		candidate := filepath.Join(baseDir, relPath)
-		info, err := os.Stat(candidate)
-		if err == nil && info.IsDir() {
-			return candidate
-		}
-	}
-	return ""
+	return h.findAsset(templatePath, relPath, true)
 }
 
 func (h Host) findAssetFile(templatePath, relPath string) string {
-	for _, baseDir := range h.assetSearchDirs(templatePath) {
-		candidate := filepath.Join(baseDir, relPath)
-		if fileExists(candidate) {
-			return candidate
-		}
-	}
-	return ""
+	return h.findAsset(templatePath, relPath, false)
 }
 
-func (h Host) assetSearchDirs(templatePath string) []string {
-	dirs := []string{filepath.Dir(templatePath)}
-	for _, configDir := range h.configSearchDirs() {
-		if configDir != "" && configDir != dirs[0] {
-			dirs = append(dirs, configDir)
-		}
+// findAsset looks for relPath next to the template, then in the config
+// directories.
+func (h Host) findAsset(templatePath, relPath string, isDir bool) string {
+	if candidate := filepath.Join(filepath.Dir(templatePath), relPath); pathExists(candidate, isDir) {
+		return candidate
 	}
-	return dirs
+	found, _ := h.findInConfigDir(isDir, relPath)
+	return found.Path
 }
 
 func referencedAssetDirs(rendered string) []string {
@@ -2022,26 +1811,6 @@ func firstExistingPath(paths ...string) string {
 
 func prependPath(path string, paths []string) []string {
 	return append([]string{path}, paths...)
-}
-
-func findUpward(start string, names ...string) string {
-	dir, err := filepath.Abs(start)
-	if err != nil {
-		dir = start
-	}
-	for {
-		for _, name := range names {
-			candidate := filepath.Join(dir, name)
-			if fileExists(candidate) {
-				return candidate
-			}
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
 }
 
 func fileExists(path string) bool {

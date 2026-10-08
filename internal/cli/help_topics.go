@@ -16,17 +16,25 @@ type environmentVariable struct {
 }
 
 var environmentVariables = []environmentVariable{
+	{"INVOX_CONFIG_DIR", []string{
+		"Config directory to use in place of the default one, on every OS. invox",
+		"reads config.yaml and the global support files there, `init` writes there,",
+		"and the legacy directory is not read. It must exist. --config still wins",
+		"for config.yaml.",
+	}},
 	{"XDG_CONFIG_HOME", []string{
 		"Base directory for the config directory, on every OS.",
-		"Default: $HOME/.config.",
+		"Default: $HOME/.config. A relative value is ignored.",
 	}},
 	{"XDG_DATA_HOME", []string{
-		"Base directory for the default archive directory on Linux and other Unix systems.",
-		"Default: $HOME/.local/share. Not used on macOS or Windows.",
+		"Base directory for the default archive directory on Linux, macOS and other",
+		"Unix systems. Default: $HOME/.local/share, or $HOME/Library/Application",
+		"Support on macOS. Not used on Windows. A relative value is ignored.",
 	}},
 	{"APPDATA", []string{
 		"Base directory for the default archive directory on Windows.",
 		"Default: %USERPROFILE%\\AppData\\Roaming. Not used elsewhere.",
+		"A relative value is ignored.",
 	}},
 	{"VISUAL", []string{
 		"Editor for `config`, `customer config` and `new -e`. Wins over EDITOR.",
@@ -60,28 +68,47 @@ func printEnvironmentHelp(w io.Writer, h invoice.Host) {
 		}
 	}
 	fmt.Fprintf(w, "\nConfig directory (config.yaml and the global support files):\n")
-	fmt.Fprintf(w, "  all OSes:  $XDG_CONFIG_HOME/invox, else $HOME/.config/invox\n")
-	fmt.Fprintf(w, "  legacy:    $XDG_CONFIG_HOME/invoice-tool, else $HOME/.config/invoice-tool,\n")
-	fmt.Fprintf(w, "             read when a file is missing from the invox directory\n")
-	fmt.Fprintf(w, "  here:      %s\n", h.ConfigDir())
-	fmt.Fprintf(w, "  $HOME is %%USERPROFILE%% on Windows.\n\n")
+	fmt.Fprintf(w, "  Linux:     $XDG_CONFIG_HOME/invox, else $HOME/.config/invox\n")
+	fmt.Fprintf(w, "  macOS:     $XDG_CONFIG_HOME/invox, else $HOME/.config/invox\n")
+	fmt.Fprintf(w, "  Windows:   %%XDG_CONFIG_HOME%%\\invox, else %%USERPROFILE%%\\.config\\invox\n")
+	fmt.Fprintf(w, "  INVOX_CONFIG_DIR replaces it on every OS.\n")
+	fmt.Fprintf(w, "  here:      %s\n\n", h.ConfigDir())
+	fmt.Fprintf(w, "Legacy config directory (deprecated):\n")
+	fmt.Fprintf(w, "  invoice-tool next to the invox directory, such as $HOME/.config/invoice-tool.\n")
+	fmt.Fprintf(w, "  A file missing from the invox directory is still read from here, and invox\n")
+	fmt.Fprintf(w, "  prints a warning. `%s init` copies the files into the invox directory.\n", commandName)
+	fmt.Fprintf(w, "  Not read when INVOX_CONFIG_DIR is set.\n\n")
 	fmt.Fprintf(w, "Default archive directory (when config.yaml sets no archive.dir):\n")
 	fmt.Fprintf(w, "  Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices\n")
-	fmt.Fprintf(w, "  macOS:     $HOME/Library/Application Support/invox/invoices\n")
+	fmt.Fprintf(w, "  macOS:     $XDG_DATA_HOME/invox/invoices, else $HOME/Library/Application Support/invox/invoices\n")
 	fmt.Fprintf(w, "  Windows:   %%APPDATA%%\\invox\\invoices, else %%USERPROFILE%%\\AppData\\Roaming\\invox\\invoices\n")
 	fmt.Fprintf(w, "  here:      %s\n\n", h.DefaultArchiveDir())
+	fmt.Fprintf(w, "Config file:\n")
+	fmt.Fprintf(w, "  1. --config PATH\n")
+	fmt.Fprintf(w, "  2. config.yaml in INVOX_CONFIG_DIR\n")
+	fmt.Fprintf(w, "  3. config.yaml in the config directory\n")
+	fmt.Fprintf(w, "  4. config.yaml in the legacy directory\n")
+	fmt.Fprintf(w, "  A --config file that is missing or broken is an error. invox never falls\n")
+	fmt.Fprintf(w, "  back to another config file.\n\n")
 	fmt.Fprintf(w, "Precedence:\n")
 	fmt.Fprintf(w, "  An explicit flag wins, then config.yaml, then the defaults above. Environment\n")
 	fmt.Fprintf(w, "  variables only move the default directories; no variable overrides a flag or\n")
 	fmt.Fprintf(w, "  a config.yaml setting.\n\n")
 	fmt.Fprintf(w, "Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, template):\n")
 	fmt.Fprintf(w, "  1. explicit flag (-c, -u, -s, -t)\n")
-	fmt.Fprintf(w, "  2. upward search from the current directory to the filesystem root\n")
+	fmt.Fprintf(w, "  2. upward search from the current directory\n")
 	fmt.Fprintf(w, "  3. paths.* in config.yaml, relative to config.yaml\n")
 	fmt.Fprintf(w, "  4. the file in the config directory, then in the legacy directory\n\n")
+	fmt.Fprintf(w, "Upward search:\n")
+	fmt.Fprintf(w, "  It always searches the current directory. It goes up to the nearest directory\n")
+	fmt.Fprintf(w, "  that holds .git, invox.yaml or invoice_defaults.yaml, and stops below your\n")
+	fmt.Fprintf(w, "  home directory, which it searches only when invox runs there. Outside your\n")
+	fmt.Fprintf(w, "  home directory, without such a marker above, it searches only the current\n")
+	fmt.Fprintf(w, "  directory.\n\n")
 	fmt.Fprintf(w, "Archive directory resolution:\n")
 	fmt.Fprintf(w, "  1. archive.dir in config.yaml, relative to config.yaml\n")
 	fmt.Fprintf(w, "  2. the default archive directory above\n\n")
+	fmt.Fprintf(w, "Run `%s config paths` to see what each lookup finds.\n\n", commandName)
 	fmt.Fprintf(w, "See also:\n")
 	fmt.Fprintf(w, "  %s help config\n", commandName)
 }

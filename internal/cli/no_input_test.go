@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRemoveNoInput(t *testing.T) {
+func TestSplitGlobalFlagsRemovesNoInput(t *testing.T) {
 	tests := []struct {
 		name  string
 		args  []string
@@ -21,9 +21,9 @@ func TestRemoveNoInput(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, found := removeNoInput(tc.args)
-			if !slices.Equal(got, tc.want) || found != tc.found {
-				t.Fatalf("removeNoInput(%q) = (%q, %v), want (%q, %v)", tc.args, got, found, tc.want, tc.found)
+			g, got, err := splitGlobalFlags(tc.args)
+			if err != nil || !slices.Equal(got, tc.want) || g.noInput != tc.found {
+				t.Fatalf("splitGlobalFlags(%q) = (%+v, %q, %v), want noInput %v and %q", tc.args, g, got, err, tc.found, tc.want)
 			}
 		})
 	}

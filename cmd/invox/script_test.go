@@ -95,9 +95,6 @@ func setupSandbox(env *testscript.Env) error {
 	// The default archive directory lives in a different per-user data
 	// directory on each OS. scrubpaths needs to know it to replace it.
 	switch runtime.GOOS {
-	case "darwin":
-		env.Setenv("DATA_HOME", filepath.Join(home, "Library", "Application Support"))
-		env.Setenv("DATA_HOME_TILDE", "~/Library/Application Support")
 	case "windows":
 		env.Setenv("DATA_HOME", filepath.Join(home, "AppData", "Roaming"))
 		env.Setenv("DATA_HOME_TILDE", "~/AppData/Roaming")

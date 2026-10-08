@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-func TestDiscoverBaseDirFallsBackToStartDirWithoutProjectMarkers(t *testing.T) {
-	goDir := t.TempDir()
-
-	if got := DiscoverBaseDir(goDir); got != goDir {
-		t.Fatalf("DiscoverBaseDir(%q) = %q, want %q", goDir, got, goDir)
-	}
-}
-
 func TestLoadContextWithCurrentInvoice(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	ctx, err := LoadContext(
@@ -2539,9 +2531,9 @@ func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) 
 
 	h := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
 
-	_, err := h.ResolveDefaultCustomersPath(t.TempDir())
+	_, err := h.ResolveSupportFile(Customers, t.TempDir())
 	if err == nil {
-		t.Fatalf("ResolveDefaultCustomersPath returned nil error for indented top-level config")
+		t.Fatalf("ResolveSupportFile returned nil error for indented top-level config")
 	}
 	if !strings.Contains(err.Error(), "top-level keys must not be indented") {
 		t.Fatalf("error %q does not contain top-level indentation message", err.Error())
@@ -3465,19 +3457,20 @@ func containsString(values []string, want string) bool {
 func resolveDefaultOptions(t *testing.T, h Host, start string) Options {
 	t.Helper()
 	var opts Options
-	var err error
 	for _, resolve := range []struct {
 		path *string
-		fn   func(string) (string, error)
+		kind SupportFile
 	}{
-		{&opts.CustomersPath, h.ResolveDefaultCustomersPath},
-		{&opts.IssuerPath, h.ResolveDefaultIssuerPath},
-		{&opts.DefaultsPath, h.ResolveDefaultInvoiceDefaultsPath},
-		{&opts.TemplatePath, h.ResolveDefaultTemplatePath},
+		{&opts.CustomersPath, Customers},
+		{&opts.IssuerPath, Issuer},
+		{&opts.DefaultsPath, Defaults},
+		{&opts.TemplatePath, Template},
 	} {
-		if *resolve.path, err = resolve.fn(start); err != nil {
-			t.Fatalf("resolve default path returned error: %v", err)
+		found, err := h.ResolveSupportFile(resolve.kind, start)
+		if err != nil {
+			t.Fatalf("ResolveSupportFile returned error: %v", err)
 		}
+		*resolve.path = found.Path
 	}
 	return opts
 }

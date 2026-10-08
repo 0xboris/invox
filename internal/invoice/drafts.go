@@ -26,10 +26,6 @@ func (h Host) GlobalInvoiceDefaultsPath() string {
 	return filepath.Join(h.ConfigDir(), "invoice_defaults.yaml")
 }
 
-func (h Host) ResolveDefaultInvoiceDefaultsPath(start string) (string, error) {
-	return h.resolveDefaultPath(start, "defaults", []string{"invoice_defaults.yaml"}, []string{"invoice_defaults.yaml"})
-}
-
 func LoadCustomer(customersPath, customerID string) (map[string]any, error) {
 	customersValue, err := loadYAML(customersPath)
 	if err != nil {
@@ -280,10 +276,6 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 
 	outputFilename, archiveTargetPath, archiveReplacePath := editableArchivePaths(relativeArchivePath)
 	outputPath := filepath.Join(workDir, outputFilename)
-	outputPath, err = filepath.Abs(outputPath)
-	if err != nil {
-		return "", "", err
-	}
 	if fileExists(outputPath) {
 		return "", "", fmt.Errorf("%s already exists; choose a different working directory", outputPath)
 	}
@@ -338,14 +330,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 
 	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
-	sourcePath, err := filepath.Abs(invoicePath)
-	if err != nil {
-		return ArchiveResult{}, err
-	}
-	archivePath, err = filepath.Abs(archivePath)
-	if err != nil {
-		return ArchiveResult{}, err
-	}
+	sourcePath := filepath.Clean(invoicePath)
 
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
 	editingArchive := strings.TrimSpace(archiveTargetPath) != ""
@@ -366,10 +351,6 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		case "built":
 		default:
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", invoicePath, status)
-		}
-		archivePath, err = filepath.Abs(filepath.Join(archiveDir, filepath.Base(invoicePath)))
-		if err != nil {
-			return ArchiveResult{}, err
 		}
 		if fileExists(archivePath) {
 			return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)

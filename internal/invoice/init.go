@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/fsutil"
@@ -91,4 +92,77 @@ func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, err
 		return false, err
 	}
 	return true, nil
+}
+
+// LegacyFilesToCopy returns the files in the legacy config directory, relative
+// to it, that the config directory does not have yet.
+func (h Host) LegacyFilesToCopy() ([]string, error) {
+	legacyDir := h.LegacyConfigDir()
+	if legacyDir == "" {
+		return nil, nil
+	}
+	var missing []string
+	err := filepath.WalkDir(legacyDir, func(path string, entry fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrNotExist) && path == legacyDir {
+			return filepath.SkipDir
+		}
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(legacyDir, path)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Lstat(filepath.Join(h.ConfigDir(), rel)); errors.Is(err, fs.ErrNotExist) {
+			missing = append(missing, rel)
+		}
+		return nil
+	})
+	return missing, err
+}
+
+// CopyLegacyFiles copies the files LegacyFilesToCopy reports into the config
+// directory and returns them. It never replaces a file, and it leaves the
+// legacy directory as it is, so running it again copies only what is still
+// missing.
+func (h Host) CopyLegacyFiles() ([]string, error) {
+	missing, err := h.LegacyFilesToCopy()
+	if err != nil {
+		return nil, err
+	}
+	if len(missing) == 0 {
+		return nil, nil
+	}
+	if err := fsutil.MkdirAll(h.ConfigDir(), fsutil.Private); err != nil {
+		return nil, err
+	}
+	copied := make([]string, 0, len(missing))
+	for _, rel := range missing {
+		content, err := os.ReadFile(filepath.Join(h.LegacyConfigDir(), rel))
+		if err != nil {
+			return copied, err
+		}
+		err = fsutil.WriteNewFile(filepath.Join(h.ConfigDir(), rel), content, legacyFilePerm(rel))
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return copied, err
+		}
+		copied = append(copied, rel)
+	}
+	return copied, nil
+}
+
+// legacyFilePerm gives customers.yaml and issuer.yaml the same private mode
+// that init gives their starter files.
+func legacyFilePerm(rel string) fsutil.Perm {
+	switch rel {
+	case "customers.yaml", "issuer.yaml":
+		return fsutil.Private
+	}
+	return fsutil.Public
 }

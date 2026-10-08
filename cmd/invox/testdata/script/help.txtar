@@ -217,6 +217,7 @@ Optional flags:
   -h, --help              Show help
   --version               Show the invox version
   --no-input              Never prompt or open an editor; fail with exit 2 instead
+  --config PATH           Read this config file instead of config.yaml (any command)
   -c, --customers PATH    Path to customers.yaml
   -o, --output PATH       Output file path (defaults vary by command)
   -p, --pdf PATH          Path to the invoice PDF (email)
@@ -226,7 +227,7 @@ Optional flags:
   -e, --edit              Open the created invoice in your editor (new)
   --to EMAIL              Recipient email override (email)
   --subject TEXT          Email subject override, supports placeholders (email)
-  --force                 Overwrite an existing -o draft file (email)
+  --force                 Overwrite an existing -o draft file (email); copy legacy config files (init)
   -s, --source PATH       Path to invoice_defaults.yaml (new)
   -u, --issuer PATH       Path to issuer.yaml
   -t, --template PATH     Path to invoice_template.tex (render/build)
@@ -614,16 +615,20 @@ Open config.yaml in your editor.
 
 Usage:
   invox config
+  invox config paths
   invox help config
 
 Behavior:
-  Opens the resolved config.yaml in your editor.
+  Opens the resolved config.yaml in your editor, or the file given with
+  --config.
   If config.yaml does not exist yet, creates it from the template below.
   Existing config.yaml files are left unchanged.
 
 Config paths:
   preferred: $WORK/home/.config/invox/config.yaml
   legacy fallback: $WORK/home/.config/invoice-tool/config.yaml
+  --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
+  `invox config paths` shows the config file and the support files in use.
 
 Formatting:
   Top-level keys must start at column 1 with no leading spaces.
@@ -917,7 +922,7 @@ CUST-001:
 Create starter support files in the global config directory.
 
 Usage:
-  invox init
+  invox init [--force]
   invox help init
 
 Behavior:
@@ -925,6 +930,12 @@ Behavior:
   Writes starter versions of config.yaml, customers.yaml, issuer.yaml,
   invoice_defaults.yaml, and template.tex.
   Existing non-empty files are left unchanged.
+  When the deprecated invoice-tool directory has files the config directory
+  lacks, asks first, then copies them in before writing the starter files.
+  Nothing is replaced, and the invoice-tool directory is left in place.
+
+Optional flags:
+  --force                 Copy the invoice-tool files without asking (required without a terminal)
 
 Config directory:
   $WORK/home/.config/invox

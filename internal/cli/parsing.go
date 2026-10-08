@@ -125,25 +125,24 @@ func parseCommand(f *cmdutil.Factory, spec commandSpec, args []string) (invoice.
 // config.yaml, so usage errors, and commands whose support files all came from
 // flags, do not depend on a readable config.
 func resolveDefaultSupportPaths(h invoice.Host, spec commandSpec, opts *invoice.Options) error {
-	resolvers := []struct {
-		needed  bool
-		path    *string
-		resolve func(string) (string, error)
+	for _, r := range []struct {
+		needed bool
+		path   *string
+		kind   invoice.SupportFile
 	}{
-		{spec.NeedsCustomers, &opts.CustomersPath, h.ResolveDefaultCustomersPath},
-		{spec.NeedsIssuer, &opts.IssuerPath, h.ResolveDefaultIssuerPath},
-		{spec.NeedsDefaults, &opts.DefaultsPath, h.ResolveDefaultInvoiceDefaultsPath},
-		{spec.NeedsTemplate, &opts.TemplatePath, h.ResolveDefaultTemplatePath},
-	}
-	for _, r := range resolvers {
+		{spec.NeedsCustomers, &opts.CustomersPath, invoice.Customers},
+		{spec.NeedsIssuer, &opts.IssuerPath, invoice.Issuer},
+		{spec.NeedsDefaults, &opts.DefaultsPath, invoice.Defaults},
+		{spec.NeedsTemplate, &opts.TemplatePath, invoice.Template},
+	} {
 		if !r.needed || strings.TrimSpace(*r.path) != "" {
 			continue
 		}
-		path, err := r.resolve(opts.BaseDir)
+		found, err := h.ResolveSupportFile(r.kind, opts.BaseDir)
 		if err != nil {
 			return err
 		}
-		*r.path = path
+		*r.path = found.Path
 	}
 	return nil
 }

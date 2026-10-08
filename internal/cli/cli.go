@@ -3,10 +3,13 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/config"
 )
 
 func Main(args []string, f *cmdutil.Factory) int {
@@ -25,7 +28,20 @@ func Main(args []string, f *cmdutil.Factory) int {
 // waits for the child to exit and be reaped. If it ever happened, invox would
 // exit 1 and print the child's error instead of exiting 130.
 func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
-	err := dispatch(ctx, f, args)
+	g, rest, err := splitGlobalFlags(args)
+	if err != nil {
+		return exitCode(f.IOStreams, err)
+	}
+	f.ConfigFile = g.configFile
+	if g.noInput || f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
+		f.IOStreams.SetNeverPrompt(true)
+	}
+	err = dispatch(ctx, f, rest)
+	warnLegacyFiles(f)
+	var configErr *config.Error
+	if g.configFile != "" && errors.As(err, &configErr) {
+		err = &configFlagError{err: err, path: g.configFile}
+	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
 		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
@@ -34,12 +50,31 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	return exitCode(f.IOStreams, err)
 }
 
+// warnLegacyFiles prints one line when the command read files from the
+// deprecated config directory.
+func warnLegacyFiles(f *cmdutil.Factory) {
+	h := f.Host()
+	used := h.LegacyFilesUsed()
+	if len(used) == 0 {
+		return
+	}
+	legacyDir := h.LegacyConfigDir()
+	names := make([]string, len(used))
+	for i, path := range used {
+		names[i] = path
+		if rel, err := filepath.Rel(legacyDir, path); err == nil {
+			names[i] = rel
+		}
+	}
+	list, pronoun := names[0], "it"
+	if len(names) > 1 {
+		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
+	}
+	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, h.ConfigDir())
+}
+
 func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	ios := f.IOStreams
-	args, noInput := removeNoInput(args)
-	if noInput || f.Env.Getenv("INVOX_PROMPT_DISABLED") != "" {
-		ios.SetNeverPrompt(true)
-	}
 	if len(args) == 0 {
 		return cmdutil.FlagErrorf("", "missing subcommand")
 	}
@@ -63,7 +98,7 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	case "config":
 		return runConfig(ctx, f, args[1:])
 	case "init":
-		return runInit(f, args[1:])
+		return runInit(ctx, f, args[1:])
 	case "template":
 		return runTemplate(f, args[1:])
 	case "completion":
@@ -89,24 +124,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	default:
 		return cmdutil.FlagErrorf("", "unknown subcommand %q", args[0])
 	}
-}
-
-// removeNoInput returns args without the global --no-input flag, which any
-// command accepts anywhere before a "--" terminator, and whether it was there.
-func removeNoInput(args []string) ([]string, bool) {
-	kept := make([]string, 0, len(args))
-	found := false
-	for i, arg := range args {
-		if arg == "--" {
-			return append(kept, args[i:]...), found
-		}
-		if arg == "--no-input" {
-			found = true
-			continue
-		}
-		kept = append(kept, arg)
-	}
-	return kept, found
 }
 
 func runHelp(f *cmdutil.Factory, args []string) error {
