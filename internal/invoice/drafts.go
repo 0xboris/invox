@@ -123,7 +123,9 @@ func (h Host) CreateNewInvoice(now time.Time, workDir, defaultsPath, outputPath,
 	if findMappingValue(root, "positions") == nil {
 		setMappingSequence(root, "positions", []*yaml.Node{})
 	}
-	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, true); err != nil {
+	// An archived invoice is a record: keys it has that invox does not
+	// know are copied over as they are, for validate to report.
+	if err := decodeYAMLDocument(document, sourceLabel, &InvoiceFile{}, !fromLast); err != nil {
 		return NewInvoice{}, err
 	}
 	data, err := encodeYAMLDocument(document)
@@ -238,7 +240,9 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	if !ok {
 		return "", "", fmt.Errorf("%s: archived invoice could not be loaded", archivePath)
 	}
-	if err := decodeYAMLDocument(document, archivePath, &InvoiceFile{}, true); err != nil {
+	// The working copy keeps keys invox does not know, so opening an
+	// archived invoice never fails over them; validate reports them.
+	if err := decodeYAMLDocument(document, archivePath, &InvoiceFile{}, false); err != nil {
 		return "", "", err
 	}
 

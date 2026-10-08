@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -69,6 +70,12 @@ func errorHint(err error) string {
 		return fmt.Sprintf("Run '%s --config %s config' to open and fix the config file.", commandName, configFlag.path)
 	case errors.As(err, &unknownCustomer):
 		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
+	case len(unknownKeyHelpTopics(err)) > 0:
+		var commands []string
+		for _, topic := range unknownKeyHelpTopics(err) {
+			commands = append(commands, fmt.Sprintf("'%s help %s'", commandName, topic))
+		}
+		return fmt.Sprintf("Remove the unknown keys or fix their spelling; %s lists the supported fields.", strings.Join(commands, " or "))
 	case errors.As(err, &configErr):
 		return fmt.Sprintf("Run '%s config' to open and fix the config file.", commandName)
 	case errors.As(err, &duplicate):
@@ -88,3 +95,29 @@ type configFlagError struct {
 
 func (e *configFlagError) Error() string { return e.err.Error() }
 func (e *configFlagError) Unwrap() error { return e.err }
+
+// unknownKeyHelpTopics returns the help topics that document the files in
+// which err reports unknown keys, in the order the files first appear.
+func unknownKeyHelpTopics(err error) []string {
+	topicOf := map[string]string{"customers": "customers", "issuer": "issuer", "invoice": "defaults"}
+	var topics []string
+	seen := map[string]bool{}
+	var walk func(error)
+	walk = func(err error) {
+		switch e := err.(type) {
+		case *invoice.DecodeError:
+			if topic := topicOf[e.Schema]; e.UnknownKey && topic != "" && !seen[topic] {
+				seen[topic] = true
+				topics = append(topics, topic)
+			}
+		case interface{ Unwrap() []error }:
+			for _, inner := range e.Unwrap() {
+				walk(inner)
+			}
+		case interface{ Unwrap() error }:
+			walk(e.Unwrap())
+		}
+	}
+	walk(err)
+	return topics
+}

@@ -22,8 +22,8 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	// Set the period instead of appending a key, so editing an invoice that
-	// was already edited once still writes a single period key.
+	// Set notes instead of appending it, so editing an invoice that was
+	// already edited once still writes a single notes key.
 	document, err := loadYAMLDocument(workingCopy)
 	if err != nil {
 		t.Fatalf("loadYAMLDocument returned error: %v", err)
@@ -32,7 +32,7 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	if err != nil {
 		t.Fatalf("documentRootMapping returned error: %v", err)
 	}
-	setMappingString(findMappingValue(root, "invoice"), "period", "edited")
+	setMappingString(root, "notes", "edited")
 	if err := writeYAMLDocument(workingCopy, document); err != nil {
 		t.Fatalf("writeYAMLDocument(%s) returned error: %v", workingCopy, err)
 	}
@@ -101,7 +101,7 @@ func TestArchiveInvoiceReplaceKeepsBackupInHistory(t *testing.T) {
 	if got := readTestFile(t, backupPath); got != original {
 		t.Fatalf("backup = %q, want the previous version %q", got, original)
 	}
-	if !strings.Contains(readTestFile(t, archivedPath), "period: edited") {
+	if !strings.Contains(readTestFile(t, archivedPath), "notes: edited") {
 		t.Fatalf("archived invoice was not replaced:\n%s", readTestFile(t, archivedPath))
 	}
 

@@ -98,6 +98,7 @@ unknown.yaml:8: invoice.vat_rate_percent: unsupported key; use invoice.vat_perce
 unknown.yaml:9: unknown key "notes" in invoice
 unknown.yaml:12: positions[1].description: expected a string, got a list
 unknown.yaml:15: positions[2] must be a mapping, got a string
+Remove the unknown keys or fix their spelling; 'invox help customers' or 'invox help defaults' lists the supported fields.
 -- anchors.yaml --
 customer_id: CUST-001
 reduced: &reduced

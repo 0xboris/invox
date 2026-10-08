@@ -170,6 +170,11 @@ type DecodeError struct {
 	// Problem names the field itself.
 	Path    string
 	Problem string
+	// UnknownKey is set when the problem is a key the schema does not
+	// define. Schema then names the kind of file: "customers", "issuer" or
+	// "invoice".
+	UnknownKey bool
+	Schema     string
 }
 
 func (e *DecodeError) Error() string {
@@ -201,7 +206,7 @@ func decodeYAMLDocument(document *yaml.Node, label string, out any, strict bool)
 // decodeYAMLNode decodes n, found at path in the file label, into out. A
 // strict decode rejects keys the schema does not define.
 func decodeYAMLNode(n *yaml.Node, label, path string, out any, strict bool) error {
-	d := &yamlDecoder{label: label, strict: strict}
+	d := &yamlDecoder{label: label, strict: strict, schema: schemaName(out)}
 	d.decode(n, reflect.ValueOf(out).Elem(), path)
 	return errors.Join(d.errs...)
 }
@@ -209,7 +214,20 @@ func decodeYAMLNode(n *yaml.Node, label, path string, out any, strict bool) erro
 type yamlDecoder struct {
 	label  string
 	strict bool
+	schema string
 	errs   []error
+}
+
+func schemaName(out any) string {
+	switch out.(type) {
+	case *Customer:
+		return "customers"
+	case *IssuerFile:
+		return "issuer"
+	case *InvoiceFile:
+		return "invoice"
+	}
+	return ""
 }
 
 func (d *yamlDecoder) fail(n *yaml.Node, path, problem string) {
@@ -280,7 +298,7 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 				if path != "" {
 					problem += " in " + path
 				}
-				d.fail(pair.key, "", problem)
+				d.errs = append(d.errs, &DecodeError{File: d.label, Line: pair.key.Line, Problem: problem, UnknownKey: true, Schema: d.schema})
 			}
 		case out.Type().Field(index).Type == removedKeyType:
 			d.fail(pair.key, fieldPath, "unsupported key; use "+out.Type().Field(index).Tag.Get("replacement"))
