@@ -38,7 +38,7 @@ func runConfig(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	}
 	displayPath := invoice.DisplayPath(configPath, baseDir)
 
-	if err := openInEditor(ctx, f, spec.Name, configPath, "edit "+displayPath+" directly"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, spec.Name, configPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 

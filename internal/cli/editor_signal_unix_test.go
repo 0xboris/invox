@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 // guardSignals keeps SIGINT and SIGTERM caught for the whole test, so a
@@ -88,7 +89,7 @@ func TestCtrlCCancelsAgainAfterTheEditorExits(t *testing.T) {
 	ctx, stop := signalContext(context.Background())
 	defer stop()
 
-	release := holdInterrupt(ctx)
+	release := cmdutil.HoldInterrupt(ctx)
 	release()
 	signalUntilDone(t, ctx, syscall.SIGINT)
 
@@ -105,8 +106,8 @@ func TestCtrlCCancelsAgainAfterOpenInEditorReturns(t *testing.T) {
 	ctx, stop := signalContext(context.Background())
 	defer stop()
 
-	if err := openInEditor(ctx, f, "config", filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
-		t.Fatalf("openInEditor returned error: %v", err)
+	if err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, "config", filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
+		t.Fatalf("OpenInEditor returned error: %v", err)
 	}
 	signalUntilDone(t, ctx, syscall.SIGINT)
 

@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 // SignalError is the cancel cause when a signal ended the run. exitCode maps
@@ -16,12 +18,10 @@ type SignalError struct {
 
 func (e *SignalError) Error() string { return "signal: " + e.Signal.String() }
 
-type interruptHoldKey struct{}
-
 // signalContext returns a context that is cancelled with a *SignalError on the
 // first SIGINT or SIGTERM. After that signal the default handling returns, so
-// a second Ctrl-C ends invox at once. SIGINT is ignored while holdInterrupt
-// holds it.
+// a second Ctrl-C ends invox at once. SIGINT is ignored while
+// cmdutil.HoldInterrupt holds it.
 func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancelCause(parent)
 	held := new(atomic.Int32)
@@ -42,21 +42,8 @@ func signalContext(parent context.Context) (context.Context, context.CancelFunc)
 			}
 		}
 	}()
-	return context.WithValue(ctx, interruptHoldKey{}, held), func() {
+	return cmdutil.WithInterruptHold(ctx, held), func() {
 		signal.Stop(signals)
 		cancel(nil)
 	}
-}
-
-// holdInterrupt makes the signalContext that ctx comes from ignore SIGINT
-// until release is called. A terminal sends Ctrl-C to every program in the
-// foreground, so an editor invox waits on gets it too and decides what it
-// means, as with git. SIGTERM, which only invox receives, still cancels ctx.
-func holdInterrupt(ctx context.Context) (release func()) {
-	held, ok := ctx.Value(interruptHoldKey{}).(*atomic.Int32)
-	if !ok {
-		return func() {}
-	}
-	held.Add(1)
-	return func() { held.Add(-1) }
 }
