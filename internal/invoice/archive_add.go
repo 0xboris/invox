@@ -36,7 +36,8 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
 	if opts.AssumeBuilt {
-		status = StatusAfterBuild(status)
+		next, _ := Status(status).Apply(Building)
+		status = string(next)
 	}
 	store, err := h.archiveStore()
 	if err != nil {
@@ -52,9 +53,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	archiveTargetPath, archiveReplacePath := archiveMetadata(root)
 	editingArchive := strings.TrimSpace(archiveTargetPath) != ""
 	if editingArchive {
-		switch status {
-		case "editing", "built":
-		default:
+		if !Status(status).Allows(Rearchiving) {
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", invoicePath, status)
 		}
 		target, err := store.Resolve(archiveTargetPath)
@@ -63,11 +62,10 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		}
 		archivePath = target.Path
 	} else {
-		switch status {
-		case "":
+		switch {
+		case status == "":
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status: missing value", invoicePath)
-		case "built":
-		default:
+		case !Status(status).Allows(Archiving):
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", invoicePath, status)
 		}
 		if fileExists(archivePath) {
@@ -123,7 +121,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, err
 	}
 
-	setMappingString(invoiceNode, "status", "archived")
+	setMappingString(invoiceNode, "status", string(Archived))
 	clearArchiveMetadata(root)
 	data, err := encodeYAMLDocument(document)
 	if err != nil {

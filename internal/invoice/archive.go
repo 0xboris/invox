@@ -109,7 +109,7 @@ func readArchivedIdentity(path string) (archive.Identity, bool, error) {
 
 	status := identity.Invoice.Status.Trim()
 	if status == "" {
-		status = "archived"
+		status = string(Archived)
 	}
 	return archive.Identity{
 		CustomerID:    identity.CustomerID.Trim(),

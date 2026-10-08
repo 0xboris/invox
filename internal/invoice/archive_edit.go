@@ -58,7 +58,7 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 		return "", "", &OutputExistsError{Path: outputPath}
 	}
 
-	setMappingString(invoiceNode, "status", "editing")
+	setMappingString(invoiceNode, "status", string(Editing))
 	setArchiveMetadata(root, edit.Target, edit.Replace)
 
 	data, err := encodeYAMLDocument(document)

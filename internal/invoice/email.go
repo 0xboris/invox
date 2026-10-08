@@ -218,7 +218,7 @@ func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
 	}
 
 	status := ctx.Invoice.Status.Trim()
-	if status != "built" && status != "archived" {
+	if !Status(status).Allows(Emailing) {
 		if status == "" {
 			return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", p.InvoicePath)
 		}

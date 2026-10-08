@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
-	"strings"
 
 	"github.com/0xboris/invox/internal/money"
 )
@@ -66,83 +65,30 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		return nil, invoiceErr
 	}
 
-	var problems []Problem
 	var unknownCustomer error
 	customerID := invoiceFile.CustomerID.Trim()
 	// customer stays nil when the invoice names no usable customer, so its
 	// fields are not reported missing one by one.
 	var customer *Customer
 	var customerErr error
-	if customerID == "" {
-		if !within("customer_id", failedFields(invoiceErr)) {
-			problems = append(problems, Problem{File: invoicePath, Field: "customer_id", Message: "missing `customer_id`"})
+	if customerID != "" {
+		if found, ok, err := customers.customer(customerID, true); !ok {
+			unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
+		} else {
+			customer, customerErr = &found, err
 		}
-	} else if found, ok, err := customers.customer(customerID, true); !ok {
-		unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
-	} else {
-		customer, customerErr = &found, err
 	}
 	decodeErr := errors.Join(customerErr, issuerErr, invoiceErr)
 	failed := failedFields(decodeErr)
 
-	header := invoiceFile.Invoice
-	if header == nil {
-		problems = append(problems, Problem{File: invoicePath, Field: "invoice", Message: "missing `invoice` mapping"})
-		header = &InvoiceHeader{}
-	}
-	company := issuer.Company
-	if company == nil {
-		problems = append(problems, Problem{File: issuerPath, Field: "issuer.company", Message: "missing `company` mapping"})
-		company = &Company{}
-	}
-	payment := issuer.Payment
-	if payment == nil {
-		problems = append(problems, Problem{File: issuerPath, Field: "issuer.payment", Message: "missing `payment` mapping"})
-		payment = &Payment{}
-	}
-	if len(invoiceFile.Positions) == 0 && !within("positions", failed) {
-		problems = append(problems, Problem{File: invoicePath, Field: "positions", Message: "`positions` must be a non-empty list"})
-	}
-	var fieldProblems []string
-	if customer != nil {
-		fieldProblems = append(fieldProblems, customer.validate()...)
-	}
-	fieldProblems = append(fieldProblems, company.validate()...)
-	fieldProblems = append(fieldProblems, header.validate()...)
-	fieldProblems = append(fieldProblems, payment.validate()...)
-
-	var customerVATRate Rate
-	if customer != nil {
-		customerVATRate = customer.Tax.DefaultVATRate
-	}
-	// A rate that did not decode may be the one that applies, so a missing
-	// rate is not reported while one did not decode.
-	vatUndecoded := within("invoice.vat_percent", failed) || within("customer.tax.default_vat_rate", failed)
-	items := make([]LineItem, 0, len(invoiceFile.Positions))
-	missingVATReported := false
-	for index, position := range invoiceFile.Positions {
-		fieldProblems = append(fieldProblems, position.validate(index+1)...)
-		rate := firstRate(position.VATPercent, header.VATPercent, customerVATRate)
-		positionVATUndecoded := within(fmt.Sprintf("positions[%d].vat_percent", index+1), failed)
-		if rate == nil && !missingVATReported && !vatUndecoded && !positionVATUndecoded {
-			fieldProblems = append(fieldProblems, "invoice.vat_percent: missing value")
-			missingVATReported = true
-		}
-		items = append(items, LineItem{
-			Name:           string(position.Name),
-			Description:    string(position.Description),
-			UnitPrice:      position.UnitPrice.Rat(),
-			Quantity:       position.Quantity.Rat(),
-			VATRatePercent: rate,
-		})
-	}
-	// Every field problem starts with the path of its field.
-	for _, problem := range fieldProblems {
-		if field, message, _ := strings.Cut(problem, ": "); !within(field, failed) {
-			problems = append(problems, Problem{Field: field, Message: message})
-		}
-	}
-
+	problems := Validate(Bundle{
+		Invoice:     invoiceFile,
+		InvoicePath: invoicePath,
+		Customer:    customer,
+		Issuer:      issuer,
+		IssuerPath:  issuerPath,
+		Undecoded:   func(field string) bool { return within(field, failed) },
+	})
 	var validationErr error
 	if len(problems) > 0 {
 		validationErr = &ValidationError{Problems: problems}
@@ -151,6 +97,18 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		return nil, err
 	}
 
+	header := invoiceFile.Invoice
+	items := make([]LineItem, 0, len(invoiceFile.Positions))
+	for _, position := range invoiceFile.Positions {
+		items = append(items, LineItem{
+			Name:           string(position.Name),
+			Description:    string(position.Description),
+			UnitPrice:      position.UnitPrice.Rat(),
+			Quantity:       position.Quantity.Rat(),
+			VATRatePercent: firstRate(position.VATPercent, header.VATPercent, customer.Tax.DefaultVATRate),
+		})
+	}
+	company, payment := issuer.Company, issuer.Payment
 	ctx := &Context{
 		CustomerID:    customerID,
 		Customer:      *customer,

@@ -170,9 +170,7 @@ func draftInvoiceNumber(path string) (string, bool) {
 	if err := decodeYAMLFile(path, &identity, false); err != nil || identity.Invoice == nil {
 		return "", false
 	}
-	switch identity.Invoice.Status.Trim() {
-	case "draft", "built":
-	default:
+	if !Status(identity.Invoice.Status.Trim()).Allows(Numbering) {
 		return "", false
 	}
 	invoiceNumber := identity.Invoice.Number.Trim()

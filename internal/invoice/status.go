@@ -44,17 +44,8 @@ func MarkInvoiceBuilt(invoicePath string) error {
 	if identity.Invoice != nil {
 		status = identity.Invoice.Status.Trim()
 	}
-	if StatusAfterBuild(status) == "archived" {
+	if next, _ := Status(status).Apply(Building); next != Built {
 		return nil
 	}
-	return SetInvoiceStatus(invoicePath, "built")
-}
-
-// StatusAfterBuild is the invoice.status a successful build leaves: `built`,
-// except that an archived invoice stays `archived`.
-func StatusAfterBuild(status string) string {
-	if status == "archived" {
-		return status
-	}
-	return "built"
+	return SetInvoiceStatus(invoicePath, string(Built))
 }

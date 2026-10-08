@@ -103,7 +103,7 @@ func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
 	setMappingString(invoiceNode, "number", invoiceNumber)
 	setMappingString(invoiceNode, "issue_date", issueDate)
 	setMappingString(invoiceNode, "due_date", p.Now.AddDate(0, 0, dueDays).Format("2006-01-02"))
-	setMappingString(invoiceNode, "status", "draft")
+	setMappingString(invoiceNode, "status", string(Draft))
 	setMappingString(invoiceNode, "paid_amount", "0")
 
 	if strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "vat_percent"))) == "" {
