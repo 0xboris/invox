@@ -11,8 +11,10 @@ import (
 )
 
 type ArchivedInvoiceSummary struct {
+	Path       string
 	Filename   string
 	CustomerID string
+	Number     string
 	IssueDate  string
 	Status     string
 }
@@ -26,8 +28,10 @@ func (h Host) ListArchivedInvoices() ([]ArchivedInvoiceSummary, error) {
 	summaries := make([]ArchivedInvoiceSummary, 0, len(records))
 	for _, record := range records {
 		summaries = append(summaries, ArchivedInvoiceSummary{
+			Path:       record.Path,
 			Filename:   record.Filename,
 			CustomerID: record.CustomerID,
+			Number:     record.InvoiceNumber,
 			IssueDate:  record.IssueDate,
 			Status:     record.Status,
 		})

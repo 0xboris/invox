@@ -23,6 +23,26 @@ func TestFormatCents(t *testing.T) {
 	}
 }
 
+func TestDecimalString(t *testing.T) {
+	tests := []struct {
+		cents int64
+		want  string
+	}{
+		{0, "0.00"},
+		{5, "0.05"},
+		{-5, "-0.05"},
+		{12000, "120.00"},
+		{123456, "1234.56"},
+		{-123456, "-1234.56"},
+		{MaxCents, "10000000000000.00"},
+	}
+	for _, tt := range tests {
+		if got := DecimalString(tt.cents); got != tt.want {
+			t.Errorf("DecimalString(%d) = %q, want %q", tt.cents, got, tt.want)
+		}
+	}
+}
+
 func TestFormatQuantity(t *testing.T) {
 	tests := []struct {
 		value *big.Rat

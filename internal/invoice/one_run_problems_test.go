@@ -1,6 +1,9 @@
 package invoice
 
 import (
+	"errors"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -44,5 +47,32 @@ func TestUnknownKeyWithAnchorIsRejectedBelowTheTopLevel(t *testing.T) {
 	_, err := LoadContext(customersPath, issuerPath, invoicePath)
 	if want := invoicePath + `:7: unknown key "notes" in invoice`; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
+	}
+}
+
+// The missing and out-of-range fields come back as a *ValidationError whose
+// problems name the field, and the file when the problem is the file's.
+func TestLoadContextReturnsTypedValidationProblems(t *testing.T) {
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	source := "customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  due_date: 2026-04-05\n  vat_percent: 20\n"
+	if err := os.WriteFile(invoicePath, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("error = %v, want a *ValidationError", err)
+	}
+	want := []Problem{
+		{File: invoicePath, Field: "positions", Message: "`positions` must be a non-empty list"},
+		{Field: "invoice.period", Message: "missing value"},
+	}
+	if !slices.Equal(validationErr.Problems, want) {
+		t.Fatalf("problems = %+v, want %+v", validationErr.Problems, want)
+	}
+	wantText := invoicePath + ": `positions` must be a non-empty list\ninvoice.period: missing value"
+	if err.Error() != wantText {
+		t.Fatalf("error = %q, want %q", err.Error(), wantText)
 	}
 }
