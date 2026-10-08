@@ -130,14 +130,14 @@ func copyExecutable(t *testing.T, src, dst string) {
 	if err != nil {
 		t.Fatalf("open %s: %v", src, err)
 	}
-	defer in.Close()
+	defer in.Close() //nolint:errcheck // read-only source; the copy already succeeded or failed the test
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 	if err != nil {
 		t.Fatalf("create %s: %v", dst, err)
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close()
 		t.Fatalf("copy %s to %s: %v", src, dst, err)
 	}
 	if err := out.Close(); err != nil {

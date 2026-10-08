@@ -53,9 +53,9 @@ var rules = []rule{
 		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
 	},
 	{
-		name: "adapters know nothing about invoices",
+		name: "adapters import only run and iostreams",
 		pkgs: []string{mod + "internal/adapters/...", mod + "internal/tableprinter"},
-		deny: []string{mod + "internal/invoice/..."},
+		only: []string{mod + "internal/adapters/run", mod + "internal/iostreams"},
 	},
 	{
 		name:        "only internal/adapters/run starts programs",

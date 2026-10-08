@@ -151,7 +151,7 @@ func TestEmailImplicitDraftLeavesSiblingEMLUntouched(t *testing.T) {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
 	draftDir := filepath.Dir(*opened)
-	t.Cleanup(func() { os.RemoveAll(draftDir) })
+	t.Cleanup(func() { _ = os.RemoveAll(draftDir) })
 	if draftDir == filepath.Dir(invoicePath) {
 		t.Fatalf("opened %q, want the draft in a temporary directory", *opened)
 	}

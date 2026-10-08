@@ -258,7 +258,7 @@ func decodeProblem(path, msg string, keys map[int]string) error {
 	if m == nil {
 		return &Error{File: path, Err: errors.New(msg)}
 	}
-	// problemLine captures only digits, so Atoi cannot fail.
+	// The capture is a yaml.v3 line number: a small decimal int.
 	line, _ := strconv.Atoi(m[1])
 	text := m[2]
 	if u := unknownField.FindStringSubmatch(text); u != nil {

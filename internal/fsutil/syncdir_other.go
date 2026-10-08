@@ -15,7 +15,7 @@ func syncDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer handle.Close()
+	defer handle.Close() //nolint:errcheck // read-only handle opened only to Sync, whose error is returned
 	if err := handle.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTSUP) {
 		return err
 	}

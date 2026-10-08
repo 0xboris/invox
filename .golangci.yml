@@ -108,14 +108,18 @@ linters:
               desc: return data; the command renders it
             - pkg: github.com/0xboris/invox/internal/adapters
               desc: the CLI layer runs programs; the domain takes their results
-        # Adapters wrap one program each; they don't know the domain.
+        # Adapters wrap one program each on top of run.Runner and write to
+        # IOStreams; they know nothing about the domain.
         adapters:
+          list-mode: strict
           files:
             - "**/internal/adapters/**"
             - "**/internal/tableprinter/**"
-          deny:
-            - pkg: github.com/0xboris/invox/internal/invoice
-              desc: adapters wrap programs and know nothing about invoices
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/adapters/run
+            - github.com/0xboris/invox/internal/iostreams
         # Leaf packages. Each states the only module packages it may import.
         stdlib-only:
           list-mode: strict
@@ -172,11 +176,6 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-        # Best-effort cleanup in defers: a temp file or directory, or a
-        # directory handle opened only to sync it.
-        - os.Remove
-        - os.RemoveAll
-        - (*os.File).Close
 
     forbidigo:
       analyze-types: true
@@ -196,6 +195,12 @@ linters:
         - pattern: ^exec\.Command(Context)?$
           pkg: ^os/exec$
           msg: start programs through run.Runner
+        - pattern: ^os\.StartProcess$
+          msg: start programs through run.Runner
+        - pattern: ^syscall\.Exit$
+          msg: return an error; cli.Main picks the exit code and main exits
+        - pattern: ^log\.(Print|Fatal|Panic)(f|ln)?$
+          msg: write to the injected IOStreams and return errors
 
     gosec:
       excludes:
@@ -244,13 +249,6 @@ linters:
       - path: ^internal/iostreams/iostreams\.go$
         linters: [forbidigo]
         text: "`(os\\.(Stdin|Stdout|Stderr)|os\\.Getenv)`"
-      # run.Exec starts the program the caller names; that is its job.
-      - path: ^internal/adapters/run/run\.go$
-        linters: [forbidigo]
-        text: "`exec\\.CommandContext`"
-      - path: ^internal/adapters/run/run\.go$
-        linters: [gosec]
-        text: G204
       # TIOCGETA/TCGETS through syscall.Syscall needs unsafe.Pointer.
       - path: ^internal/iostreams/terminal_ioctl\.go$
         linters: [gosec]

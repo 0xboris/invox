@@ -110,7 +110,7 @@ func (h Host) LegacyFilesToCopy() ([]string, error) {
 			return err
 		}
 		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
-			return nil //nolint:nilerr // only regular files are copied; skip a dangling link
+			return nil //nolint:nilerr // only regular files are copied; skip a link that does not resolve or cannot be read
 		}
 		rel, err := filepath.Rel(legacyDir, path)
 		if err != nil {

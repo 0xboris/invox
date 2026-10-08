@@ -58,7 +58,7 @@ func (e *ExecError) Unwrap() error { return e.Err }
 type Exec struct{}
 
 func (Exec) Run(ctx context.Context, c Cmd) error {
-	cmd := exec.CommandContext(ctx, c.Name, c.Args...)
+	cmd := exec.CommandContext(ctx, c.Name, c.Args...) //nolint:forbidigo,gosec // the one place invox starts a program, the one its caller names
 	cmd.Dir = c.Dir
 	if len(c.Env) > 0 {
 		cmd.Env = append(os.Environ(), c.Env...)
