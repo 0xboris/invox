@@ -209,10 +209,8 @@ func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templ
 
 	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
 	fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-	switch inv.Invoice.Status.Trim() {
-	case "built", "archived":
-	default:
-		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to built in %s\n", invoice.DisplayPath(invoicePath, baseDir))
+	if status := inv.Invoice.Status.Trim(); invoice.StatusAfterBuild(status) != status {
+		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", invoice.StatusAfterBuild(status), invoice.DisplayPath(invoicePath, baseDir))
 	}
 	if !opts.Archive {
 		return printResult(nil)

@@ -53,8 +53,21 @@ func MarkInvoiceBuilt(invoicePath string) error {
 	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil && !isDecodeError(err) {
 		return err
 	}
-	if identity.Invoice != nil && identity.Invoice.Status.Trim() == "archived" {
+	status := ""
+	if identity.Invoice != nil {
+		status = identity.Invoice.Status.Trim()
+	}
+	if StatusAfterBuild(status) == "archived" {
 		return nil
 	}
 	return SetInvoiceStatus(invoicePath, "built")
+}
+
+// StatusAfterBuild is the invoice.status a successful build leaves: `built`,
+// except that an archived invoice stays `archived`.
+func StatusAfterBuild(status string) string {
+	if status == "archived" {
+		return status
+	}
+	return "built"
 }

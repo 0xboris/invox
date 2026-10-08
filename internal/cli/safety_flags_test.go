@@ -103,7 +103,8 @@ func TestDryRunWritesNothing(t *testing.T) {
 				args:       []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-n", "-e"},
 				dirs:       []string{workDir, filepath.Dir(customersPath), filepath.Dir(configPath)},
 				wantStdout: "CUST-001-002.yaml\n",
-				wantStderr: "Would create CUST-001-002.yaml for CUST-001 (CUST-001-002)\n",
+				wantStderr: "Would create CUST-001-002.yaml for CUST-001 (CUST-001-002)\n" +
+					"warning: -e, --edit could not open the editor: stdin is not a terminal\n",
 			}
 		}},
 		{name: "increment", setup: func(t *testing.T) dryRunCase {
@@ -274,10 +275,13 @@ func TestDryRunWritesNothing(t *testing.T) {
 // neither writes anything.
 func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		setup      func(t *testing.T) ([]string, []string)
-		wantExit   int
-		wantStderr string
+		name  string
+		setup func(t *testing.T) ([]string, []string)
+		// realRunWrites is set where the real run writes before it fails,
+		// as build does before its archive step.
+		realRunWrites bool
+		wantExit      int
+		wantStderr    string
 	}{
 		{name: "new over an existing output", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
@@ -324,6 +328,29 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			chdirForTest(t, workDir)
 			return []string{"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath}, []string{workDir, filepath.Dir(invoicePath)}
 		}, wantStderr: "@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder"},
+		{name: "build --archive with a duplicate number", wantExit: 1, realRunWrites: true, setup: func(t *testing.T) ([]string, []string) {
+			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+			installFakeTectonic(t, fakeTectonicWritePDF)
+			archiveDir := t.TempDir()
+			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			writeNumberedInvoice(t, archiveDir, "old.yaml", "CUST-001-001", "archived")
+			workDir := t.TempDir()
+			chdirForTest(t, workDir)
+			return []string{"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath, "--archive"}, []string{workDir, filepath.Dir(invoicePath), archiveDir}
+		}, wantStderr: "is already used by archived invoice"},
+		{name: "build --archive of an archived invoice", wantExit: 1, realRunWrites: true, setup: func(t *testing.T) ([]string, []string) {
+			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+			source := strings.Replace(readFileForTest(t, invoicePath), "  paid_amount: 0", "  paid_amount: 0\n  status: archived", 1)
+			if err := os.WriteFile(invoicePath, []byte(source), 0o644); err != nil {
+				t.Fatalf("WriteFile returned error: %v", err)
+			}
+			installFakeTectonic(t, fakeTectonicWritePDF)
+			archiveDir := t.TempDir()
+			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			workDir := t.TempDir()
+			chdirForTest(t, workDir)
+			return []string{"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath, "--archive"}, []string{workDir, filepath.Dir(invoicePath), archiveDir}
+		}, wantStderr: "invoice.status must be `built` before archiving, got `archived`"},
 		{name: "archive a duplicate number", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			archiveDir := t.TempDir()
 			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
@@ -361,8 +388,15 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 				}
 				before := snapshotDirs(t, dirs...)
 
-				f, _ := testFactory(t)
-				exitCode, stdout, stderr := captureRunFactory(t, f, args)
+				var exitCode int
+				var stdout, stderr string
+				if tc.realRunWrites {
+					// The real run runs the fake tectonic.
+					exitCode, stdout, stderr = captureRun(t, args)
+				} else {
+					f, _ := testFactory(t)
+					exitCode, stdout, stderr = captureRunFactory(t, f, args)
+				}
 				if exitCode != tc.wantExit {
 					t.Fatalf("exitCode = %d, want %d, stderr=%q", exitCode, tc.wantExit, stderr)
 				}
@@ -377,9 +411,84 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 				} else if !strings.Contains(stderr, want) {
 					t.Errorf("stderr = %q, want it to contain %q", stderr, want)
 				}
-				assertSnapshotUnchanged(t, before, dirs...)
+				if dryRun || !tc.realRunWrites {
+					assertSnapshotUnchanged(t, before, dirs...)
+				}
 			})
 		}
+	}
+}
+
+// TestForceNeverReplacesArchivedFile points new -o --force at an archived
+// invoice by paths that differ from archive.dir in their name but not in the
+// file they reach.
+func TestForceNeverReplacesArchivedFile(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// setup returns archive.dir and the -o path for the archived
+		// invoice archiveDir/first.yaml.
+		setup func(t *testing.T, root string) (archiveDir, output string)
+	}{
+		{name: "differently cased path", setup: func(t *testing.T, root string) (string, string) {
+			archiveDir := filepath.Join(root, "archive")
+			if err := os.Mkdir(archiveDir, 0o755); err != nil {
+				t.Fatalf("Mkdir returned error: %v", err)
+			}
+			upper := filepath.Join(root, "ARCHIVE")
+			if _, err := os.Stat(upper); err != nil {
+				t.Skip("the file system is case-sensitive")
+			}
+			return archiveDir, filepath.Join(upper, "first.yaml")
+		}},
+		{name: "symlink to the archived invoice", setup: func(t *testing.T, root string) (string, string) {
+			archiveDir := filepath.Join(root, "archive")
+			if err := os.Mkdir(archiveDir, 0o755); err != nil {
+				t.Fatalf("Mkdir returned error: %v", err)
+			}
+			link := filepath.Join(root, "link.yaml")
+			if err := os.Symlink(filepath.Join(archiveDir, "first.yaml"), link); err != nil {
+				t.Skipf("cannot create symlinks: %v", err)
+			}
+			return archiveDir, link
+		}},
+		{name: "archive.dir is a symlink", setup: func(t *testing.T, root string) (string, string) {
+			realDir := filepath.Join(root, "real")
+			if err := os.Mkdir(realDir, 0o755); err != nil {
+				t.Fatalf("Mkdir returned error: %v", err)
+			}
+			archiveDir := filepath.Join(root, "archive")
+			if err := os.Symlink(realDir, archiveDir); err != nil {
+				t.Skipf("cannot create symlinks: %v", err)
+			}
+			return archiveDir, filepath.Join(realDir, "first.yaml")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+			archiveDir, output := tc.setup(t, t.TempDir())
+			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
+			before := snapshotDirs(t, archiveDir+string(filepath.Separator))
+			workDir := t.TempDir()
+			chdirForTest(t, workDir)
+
+			for _, args := range [][]string{{"--force"}, {"--force", "--dry-run"}} {
+				exitCode, stdout, stderr := captureRun(t, append([]string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "-s", defaultsPath, "-o", output}, args...))
+				if exitCode != 1 {
+					t.Fatalf("%v: exitCode = %d, want 1, stderr=%q", args, exitCode, stderr)
+				}
+				if stdout != "" {
+					t.Errorf("%v: stdout = %q, want empty", args, stdout)
+				}
+				if !strings.Contains(stderr, "is in the archive directory and is never overwritten") {
+					t.Errorf("%v: stderr = %q, want the archive refusal", args, stderr)
+				}
+			}
+			assertSnapshotUnchanged(t, before, archiveDir+string(filepath.Separator))
+			if got := readFileForTest(t, archivedPath); !strings.Contains(got, "status: archived") {
+				t.Fatalf("archived invoice changed:\n%s", got)
+			}
+		})
 	}
 }
 

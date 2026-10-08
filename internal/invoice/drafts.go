@@ -359,8 +359,8 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
-	if opts.AssumeBuilt && status != "archived" {
-		status = "built"
+	if opts.AssumeBuilt {
+		status = StatusAfterBuild(status)
 	}
 	store, err := h.archiveStore()
 	if err != nil {
@@ -486,24 +486,31 @@ func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
 	if strings.TrimSpace(store.Dir) == "" {
 		return nil
 	}
-	if pathWithin(resolvedPath(outputPath), resolvedPath(store.Dir)) {
+	archiveInfo, err := os.Stat(store.Dir)
+	if err != nil {
+		return nil
+	}
+	if inDir(outputPath, archiveInfo) {
+		return &ArchivedOutputError{Path: outputPath}
+	}
+	if resolved, err := filepath.EvalSymlinks(outputPath); err == nil && inDir(resolved, archiveInfo) {
 		return &ArchivedOutputError{Path: outputPath}
 	}
 	return nil
 }
 
-// resolvedPath is path with its symlinks resolved, or path itself when they
-// cannot be.
-func resolvedPath(path string) string {
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		return resolved
+// inDir reports whether one of path's parent directories is dir. It compares
+// files rather than names, so a differently cased path on a case-insensitive
+// file system, or a symlinked parent, still matches.
+func inDir(path string, dir os.FileInfo) bool {
+	for parent := filepath.Dir(filepath.Clean(path)); ; parent = filepath.Dir(parent) {
+		if info, err := os.Stat(parent); err == nil && os.SameFile(info, dir) {
+			return true
+		}
+		if filepath.Dir(parent) == parent {
+			return false
+		}
 	}
-	return filepath.Clean(path)
-}
-
-func pathWithin(path, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // readInvoiceIdentity reads the customer, issue date and number that

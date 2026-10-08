@@ -177,6 +177,9 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		verb = "Would create"
 	}
 	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s (%s)\n", verb, displayPath, opts.CustomerID, created.Number)
+	if reason := cmdutil.WhyNoPrompt(opts.IO); opts.DryRun && opts.Edit && reason != "" {
+		fmt.Fprintf(opts.IO.ErrOut, "warning: -e, --edit could not open the editor: %s\n", reason)
+	}
 	if opts.Exporter != nil {
 		return opts.Exporter.Write(opts.IO, newJSON{Path: created.Path, Number: created.Number, CustomerID: opts.CustomerID})
 	}
