@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 // archiveHistoryDirName is the directory below archive.dir that keeps the
@@ -126,13 +128,9 @@ func backupArchivedFiles(archiveDir string, paths []string, now time.Time) ([]Ar
 
 // writeArchiveBackup writes data to path with stamp inserted before the
 // extension, adding a counter when a backup with that name already exists.
-// The name is claimed with O_EXCL, so an existing backup is never replaced,
-// and the data is synced to disk before it returns the backup's path.
+// An existing backup is never replaced, and the data is synced to disk
+// before it returns the backup's path.
 func writeArchiveBackup(path, stamp string, data []byte) (string, error) {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
 	ext := filepath.Ext(path)
 	stem := strings.TrimSuffix(path, ext)
 	for counter := 1; ; counter++ {
@@ -140,32 +138,15 @@ func writeArchiveBackup(path, stamp string, data []byte) (string, error) {
 		if counter > 1 {
 			candidate = stem + "." + stamp + "-" + strconv.Itoa(counter) + ext
 		}
-		file, err := os.OpenFile(candidate, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		err := fsutil.WriteNewFile(candidate, data, fsutil.Private)
 		if errors.Is(err, fs.ErrExist) {
 			continue
 		}
 		if err != nil {
 			return "", err
 		}
-		if err := writeAndClose(file, data); err != nil {
-			_ = os.Remove(candidate)
-			return "", err
-		}
-		return candidate, syncDir(dir)
+		return candidate, nil
 	}
-}
-
-// writeAndClose writes data to file, syncs it to disk and closes it.
-func writeAndClose(file *os.File, data []byte) error {
-	if _, err := file.Write(data); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return err
-	}
-	return file.Close()
 }
 
 // MarkInvoiceBuilt sets invoice.status to `built` after a successful PDF

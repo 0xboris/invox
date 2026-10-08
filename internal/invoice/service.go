@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 type Options struct {
@@ -367,7 +369,7 @@ func (h Host) EditableConfigPath() (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("config directory is unavailable")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private); err != nil {
 		return "", err
 	}
 	if err := h.ensureConfigTemplate(path); err != nil {
@@ -377,15 +379,8 @@ func (h Host) EditableConfigPath() (string, error) {
 }
 
 func (h Host) ensureConfigTemplate(path string) error {
-	info, err := os.Stat(path)
-	switch {
-	case err == nil && info.Size() > 0:
-		return nil
-	case err != nil && !errors.Is(err, os.ErrNotExist):
-		return err
-	}
-
-	return os.WriteFile(path, []byte(h.defaultConfigTemplate()), 0o644)
+	_, err := ensureStarterFile(path, []byte(h.defaultConfigTemplate()), fsutil.Public)
+	return err
 }
 
 func (h Host) defaultConfigTemplate() string {
@@ -893,10 +888,7 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 	values[epcQRLabelPlaceholder] = epcQRLabel
 	values[epcQRCodePlaceholder] = epcQRCode
 	rendered := renderLineItemTemplateBlocks(template, ctx.LineItems, ctx.Currency, sortedReplacementPairs(values))
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(outputPath, []byte(rendered), 0o644); err != nil {
+	if err := fsutil.WriteFile(outputPath, []byte(rendered), fsutil.Public); err != nil {
 		return err
 	}
 	return h.copyTemplateAssets(templatePath, outputPath, rendered)
@@ -921,7 +913,11 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	if err := compile(ctx, renderPath); err != nil {
 		return err
 	}
-	return copyFile(PDFPathForOutput(renderPath), outputPath)
+	pdf, err := os.ReadFile(PDFPathForOutput(renderPath))
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFile(outputPath, pdf, fsutil.Public)
 }
 
 func FormatCurrency(cents int64, currency string) string {
@@ -1997,7 +1993,7 @@ func copyDir(sourceDir, destDir string) error {
 		}
 		targetPath := filepath.Join(destDir, relPath)
 		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode().Perm())
+			return fsutil.MkdirAll(targetPath, fsutil.Perm{Dir: info.Mode().Perm()})
 		}
 		return copyFile(path, targetPath)
 	})
@@ -2012,10 +2008,7 @@ func copyFile(sourcePath, destPath string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(destPath, data, info.Mode().Perm())
+	return fsutil.WriteFile(destPath, data, fsutil.Perm{File: info.Mode().Perm(), Dir: 0o755})
 }
 
 func firstExistingPath(paths ...string) string {

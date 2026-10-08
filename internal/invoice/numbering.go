@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/fsutil"
 )
 
 type NumberingSettings struct {
@@ -535,7 +537,7 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	return writeFileAtomic(path, buffer.Bytes(), 0o644)
+	return fsutil.WriteFile(path, buffer.Bytes(), fsutil.Public)
 }
 
 func findMappingValue(node *yaml.Node, key string) *yaml.Node {
@@ -560,41 +562,4 @@ func scalarNode(value string) *yaml.Node {
 		Tag:   "!!str",
 		Value: value,
 	}
-}
-
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tempFile, err := os.CreateTemp(filepath.Dir(path), ".invox-*")
-	if err != nil {
-		return err
-	}
-	tempPath := tempFile.Name()
-	success := false
-	defer func() {
-		if !success {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if _, err := tempFile.Write(data); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Chmod(mode); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Sync(); err != nil {
-		_ = tempFile.Close()
-		return err
-	}
-	if err := tempFile.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return err
-	}
-	success = true
-	return syncDir(filepath.Dir(path))
 }
