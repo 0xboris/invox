@@ -8,6 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 func runTemplate(f *cmdutil.Factory, args []string) error {
@@ -60,21 +61,21 @@ func runTemplateList(f *cmdutil.Factory, args []string) error {
 		return err
 	}
 
-	list := table{
-		columns:   []column{{header: "NAME"}, {header: "PATH"}},
-		emptyHint: "No templates found in " + templateDir,
+	list := tableprinter.Table{
+		Columns:   []tableprinter.Column{{Header: "NAME"}, {Header: "PATH"}},
+		EmptyHint: "No templates found in " + templateDir,
 	}
 	if namesOnly {
-		list.columns = list.columns[:1]
+		list.Columns = list.Columns[:1]
 	}
 	for _, template := range templates {
 		if namesOnly {
-			list.addRow(template.Name)
+			list.AddRow(template.Name)
 			continue
 		}
-		list.addRow(template.Name, template.Path)
+		list.AddRow(template.Name, template.Path)
 	}
-	list.print(ios)
+	list.Print(ios)
 	return nil
 }
 
