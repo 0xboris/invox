@@ -34,6 +34,8 @@ type NewOptions struct {
 	IssuerPath    string
 	FromLast      bool
 	Edit          bool
+	Force         bool
+	DryRun        bool
 	Exporter      *cmdutil.Exporter
 }
 
@@ -67,6 +69,7 @@ Default lookup:
 		Example: `$ invox new CUST-001
 $ invox new CUST-001 -e
 $ invox new CUST-001 --from-last
+$ invox new CUST-001 --dry-run
 $ invox new CUST-001 --json path,number
 $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 `,
@@ -96,6 +99,8 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c cust
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
 	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
+	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the number and path the invoice would get and write nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
 	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("source", "yaml", "yml")
@@ -143,17 +148,19 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		IssuerPath:    issuerPath,
 		CustomerID:    opts.CustomerID,
 		FromLast:      opts.FromLast,
+		Overwrite:     opts.Force,
+		DryRun:        opts.DryRun,
 	})
 	var exists *invoice.OutputExistsError
 	if errors.As(err, &exists) {
-		return fmt.Errorf("%s; choose a different -o/--output path", exists)
+		return fmt.Errorf("%s; pass --force to replace it or choose a different -o/--output path", exists)
 	}
 	if err != nil {
 		return err
 	}
 	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.SkippedArchiveFiles, baseDir)
 	displayPath := invoice.DisplayPath(created.Path, baseDir)
-	if opts.Edit {
+	if opts.Edit && !opts.DryRun {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
 		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)
 		var flagErr *cmdutil.FlagError
@@ -165,7 +172,14 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		}
 	}
 
-	fmt.Fprintf(opts.IO.ErrOut, "Created %s for %s (%s)\n", displayPath, opts.CustomerID, created.Number)
+	verb := "Created"
+	if opts.DryRun {
+		verb = "Would create"
+	}
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s (%s)\n", verb, displayPath, opts.CustomerID, created.Number)
+	if reason := cmdutil.WhyNoPrompt(opts.IO); opts.DryRun && opts.Edit && reason != "" {
+		fmt.Fprintf(opts.IO.ErrOut, "warning: -e, --edit could not open the editor: %s\n", reason)
+	}
 	if opts.Exporter != nil {
 		return opts.Exporter.Write(opts.IO, newJSON{Path: created.Path, Number: created.Number, CustomerID: opts.CustomerID})
 	}

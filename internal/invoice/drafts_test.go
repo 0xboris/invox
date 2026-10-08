@@ -399,6 +399,7 @@ func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
 	incremented, err := h.IncrementInvoiceNumber(
 		invoicePath,
 		customersPath,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("IncrementInvoiceNumber returned error: %v", err)

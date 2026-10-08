@@ -149,12 +149,8 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 // to outputPath as an .eml draft. Unless overwrite is set, an existing
 // outputPath is left untouched and the returned error matches fs.ErrExist.
 func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, outputPath string, overwrite bool) (EmailDraftResult, error) {
-	if !overwrite {
-		if _, err := os.Lstat(outputPath); err == nil {
-			return EmailDraftResult{}, &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return EmailDraftResult{}, err
-		}
+	if err := CheckEmailDraftOutput(outputPath, overwrite); err != nil {
+		return EmailDraftResult{}, err
 	}
 
 	pdfBytes, err := os.ReadFile(emailMessage.AttachmentPath)
@@ -181,6 +177,20 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, 
 		CustomerID:    emailMessage.CustomerID,
 		InvoiceNumber: emailMessage.InvoiceNumber,
 	}, nil
+}
+
+// CheckEmailDraftOutput returns an error matching fs.ErrExist when a draft
+// would replace an existing outputPath and overwrite is not set.
+func CheckEmailDraftOutput(outputPath string, overwrite bool) error {
+	if overwrite {
+		return nil
+	}
+	if _, err := os.Lstat(outputPath); err == nil {
+		return &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // EmailParams names the files an invoice email is made from, and the

@@ -1,3 +1,9 @@
+# --dry-run prints the change and leaves the file alone.
+exec invox increment -i invoice.yaml -n
+cmp stdout want-increment-stdout.txt
+cmp stderr want-increment-dry-run.txt
+grep '^  number: CUST-001-001$' invoice.yaml
+
 # increment bumps the counter in invoice.number in place.
 exec invox increment -i invoice.yaml
 cmp stdout want-increment-stdout.txt
@@ -129,5 +135,7 @@ positions:
     description: QA
     unit_price: 10
     quantity: 1
+-- want-increment-dry-run.txt --
+Would increment invoice.yaml for CUST-001: CUST-001-001 -> CUST-001-002
 -- want-increment-stdout.txt --
 invoice.yaml

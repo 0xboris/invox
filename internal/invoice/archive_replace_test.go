@@ -20,7 +20,7 @@ var archiveBackupTime = time.Date(2026, 10, 5, 12, 30, 45, 0, time.UTC)
 func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	t.Helper()
 
-	workingCopy, _, err := h.EditArchivedInvoice(archiveName, t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice(archiveName, t.TempDir(), EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestArchiveHistoryPathsAreRefused(t *testing.T) {
 		".HISTORY/customer-a/first.20261005T123045Z.yaml",
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := h.EditArchivedInvoice(name, t.TempDir())
+			_, _, err := h.EditArchivedInvoice(name, t.TempDir(), EditArchiveOptions{})
 			if err == nil || !strings.Contains(err.Error(), "is a backup in .history, not an archived invoice") {
 				t.Fatalf("EditArchivedInvoice error = %v, want backup refusal", err)
 			}

@@ -1041,7 +1041,9 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the number and path the invoice would get and write nothing
   -e, --edit               Open the created invoice in your editor
+      --force              Overwrite an existing output file
       --from-last          Use the latest archived invoice for this customer as the source document
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
@@ -1060,6 +1062,7 @@ Examples:
   $ invox new CUST-001
   $ invox new CUST-001 -e
   $ invox new CUST-001 --from-last
+  $ invox new CUST-001 --dry-run
   $ invox new CUST-001 --json path,number
   $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 -- want-increment.txt --
@@ -1077,6 +1080,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the old and new number and change nothing
   -i, --input string       Input invoice YAML file
       --json fields        Output JSON with the specified fields
 
@@ -1091,6 +1095,7 @@ JSON fields:
 Examples:
   $ invox increment -i invoice.yaml
   $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment -i invoice.yaml --dry-run
   $ invox increment -i invoice.yaml --json number,previousNumber
 -- want-validate.txt --
 Validate invoice YAML against customers and issuer data.
@@ -1151,6 +1156,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Check the invoice and template, print the output path and write nothing
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
@@ -1168,6 +1174,7 @@ JSON fields:
 Examples:
   $ invox render -i invoice.yaml
   $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
+  $ invox render -i invoice.yaml --dry-run
   $ invox render -i invoice.yaml --json path
 -- want-email.txt --
 Create an email draft and open it in the default mail app.
@@ -1204,6 +1211,7 @@ Aliases:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the recipient, subject and attachment, and neither write nor open a draft
       --force              Overwrite an existing output file
   -i, --input string       Input invoice YAML or PDF file
   -u, --issuer string      Path to issuer.yaml
@@ -1221,6 +1229,7 @@ Examples:
   $ invox email invoice.yaml
   $ invox email invoice.pdf
   $ invox email invoice.yaml --to billing@example.com
+  $ invox email invoice.yaml --dry-run
   $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 -- want-build.txt --
 Render and compile an invoice PDF with Tectonic.
@@ -1252,6 +1261,7 @@ Usage:
 Flags:
       --archive            Archive the invoice after a successful build
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Check the invoice and template, print what would be built and archived, and change nothing (does not run Tectonic)
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
@@ -1270,6 +1280,7 @@ JSON fields:
 Examples:
   $ invox build invoice.yaml
   $ invox build invoice.yaml --archive
+  $ invox build invoice.yaml --archive --dry-run
   $ invox build invoice.yaml --json path,number
   $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 -- want-archive.txt --
@@ -1297,6 +1308,7 @@ Commands:
   list  List archived invoices from the configured archive directory
 
 Flags:
+  -n, --dry-run        Print where the invoice would be archived and change nothing
   -i, --input string   Input invoice YAML file
       --json fields    Output JSON with the specified fields
       --yes            Replace an archived invoice without asking
@@ -1313,6 +1325,7 @@ Examples:
   $ invox archive invoice.yaml
   $ invox archive invoices/2026-0021.yaml
   $ invox archive 2026-03-06.yaml --yes
+  $ invox archive invoice.yaml --dry-run
   $ invox archive invoice.yaml --json path
   $ invox archive edit 2026-03-06.yaml
   $ invox archive list
@@ -1335,6 +1348,8 @@ Usage:
   invox archive edit FILENAME [flags]
 
 Flags:
+  -n, --dry-run       Print where the working copy would go and write nothing
+      --force         Overwrite an existing working copy
       --json fields   Output JSON with the specified fields
 
 Global flags:
@@ -1348,6 +1363,7 @@ JSON fields:
 Examples:
   $ invox archive edit 2026-03-06.yaml
   $ invox archive edit customer-a/2026-03-06.yaml
+  $ invox archive edit 2026-03-06.yaml --force
   $ invox archive edit 2026-03-06.yaml --json path
 -- want-archive-list.txt --
 List archived invoices from the configured archive directory.

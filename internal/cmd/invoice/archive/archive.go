@@ -30,6 +30,7 @@ type ArchiveOptions struct {
 
 	InvoicePath string
 	Yes         bool
+	DryRun      bool
 	Exporter    *cmdutil.Exporter
 }
 
@@ -68,6 +69,7 @@ Default lookup:
 		Example: `$ invox archive invoice.yaml
 $ invox archive invoices/2026-0021.yaml
 $ invox archive 2026-03-06.yaml --yes
+$ invox archive invoice.yaml --dry-run
 $ invox archive invoice.yaml --json path
 $ invox archive edit 2026-03-06.yaml
 $ invox archive list
@@ -90,6 +92,7 @@ $ invox archive list
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
+	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print where the invoice would be archived and change nothing")
 	cmd.AddCommand(edit.NewCmdEdit(f, nil), list.NewCmdList(f, nil))
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
@@ -105,13 +108,21 @@ func archiveRun(ctx context.Context, opts *ArchiveOptions) error {
 	baseDir := filepath.Clean(cwd)
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	result, err := shared.ArchiveWithConfirmation(ctx, opts.IO, opts.Host(), opts.Now, "archive", invoicePath, baseDir, opts.Yes, "")
-	if err != nil {
-		return err
+	var result invoice.ArchiveResult
+	if opts.DryRun {
+		result, err = opts.Host().ArchiveInvoice(opts.Now(), invoicePath, invoice.ArchiveOptions{Replace: true, DryRun: true})
+		if err != nil {
+			return err
+		}
+		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
+	} else {
+		result, err = shared.ArchiveWithConfirmation(ctx, opts.IO, opts.Host(), opts.Now, "archive", invoicePath, baseDir, opts.Yes, "")
+		if err != nil {
+			return err
+		}
+		shared.PrintArchiveReplacements(opts.IO, result, baseDir)
+		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", invoice.DisplayPath(invoicePath, baseDir), invoice.DisplayPath(result.Path, baseDir))
 	}
-
-	shared.PrintArchiveReplacements(opts.IO, result, baseDir)
-	fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", invoice.DisplayPath(invoicePath, baseDir), invoice.DisplayPath(result.Path, baseDir))
 	if opts.Exporter != nil {
 		replaced := make([]replacedJSON, 0, len(result.Replaced))
 		for _, backup := range result.Replaced {

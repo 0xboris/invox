@@ -46,7 +46,7 @@ positions:
 		t.Fatalf("new invoice does not keep notes:\n%s", created)
 	}
 
-	workingCopy, _, err := h.EditArchivedInvoice("2026-03-08.yaml", t.TempDir())
+	workingCopy, _, err := h.EditArchivedInvoice("2026-03-08.yaml", t.TempDir(), EditArchiveOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}

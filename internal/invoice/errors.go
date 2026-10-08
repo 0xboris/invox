@@ -28,6 +28,16 @@ func (e *OutputExistsError) Error() string {
 	return e.Path + " already exists"
 }
 
+// ArchivedOutputError reports that a command would overwrite a file in the
+// archive directory.
+type ArchivedOutputError struct {
+	Path string
+}
+
+func (e *ArchivedOutputError) Error() string {
+	return e.Path + " is in the archive directory and is never overwritten; archived invoices change only by re-archiving an edited copy"
+}
+
 // TemplateNotFoundError reports a template name that no known template has.
 type TemplateNotFoundError struct {
 	Name string

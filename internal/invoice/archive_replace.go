@@ -13,6 +13,12 @@ type ArchiveOptions struct {
 	// the archived file it was opened from. The previous version is kept in
 	// the archive's history directory.
 	Replace bool
+	// DryRun runs every check and returns the result without writing. The
+	// result's backups have no BackupPath.
+	DryRun bool
+	// AssumeBuilt checks the invoice as if `build` had already marked it
+	// built, for `build --archive --dry-run`, which does not mark it.
+	AssumeBuilt bool
 }
 
 // ArchiveResult describes what ArchiveInvoice wrote.
@@ -21,6 +27,8 @@ type ArchiveResult struct {
 	Path string
 	// Replaced lists the archived files the invoice replaced.
 	Replaced []archive.Backup
+	// HistoryDir is where the replaced files' previous versions are kept.
+	HistoryDir string
 }
 
 // ArchiveReplaceError reports that archiving the invoice would replace
@@ -45,8 +53,21 @@ func MarkInvoiceBuilt(invoicePath string) error {
 	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil && !isDecodeError(err) {
 		return err
 	}
-	if identity.Invoice != nil && identity.Invoice.Status.Trim() == "archived" {
+	status := ""
+	if identity.Invoice != nil {
+		status = identity.Invoice.Status.Trim()
+	}
+	if StatusAfterBuild(status) == "archived" {
 		return nil
 	}
 	return SetInvoiceStatus(invoicePath, "built")
+}
+
+// StatusAfterBuild is the invoice.status a successful build leaves: `built`,
+// except that an archived invoice stays `archived`.
+func StatusAfterBuild(status string) string {
+	if status == "archived" {
+		return status
+	}
+	return "built"
 }

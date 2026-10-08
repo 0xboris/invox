@@ -37,6 +37,7 @@ Aliases:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the recipient, subject and attachment, and neither write nor open a draft
       --force              Overwrite an existing output file
   -i, --input string       Input invoice YAML or PDF file
   -u, --issuer string      Path to issuer.yaml
@@ -54,6 +55,7 @@ Examples:
   $ invox email invoice.yaml
   $ invox email invoice.pdf
   $ invox email invoice.yaml --to billing@example.com
+  $ invox email invoice.yaml --dry-run
   $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 .fi
 .SH SEE ALSO

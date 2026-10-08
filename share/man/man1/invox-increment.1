@@ -17,6 +17,7 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the old and new number and change nothing
   -i, --input string       Input invoice YAML file
       --json fields        Output JSON with the specified fields
 
@@ -31,6 +32,7 @@ JSON fields:
 Examples:
   $ invox increment -i invoice.yaml
   $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
+  $ invox increment -i invoice.yaml --dry-run
   $ invox increment -i invoice.yaml --json number,previousNumber
 .fi
 .SH SEE ALSO

@@ -21,6 +21,8 @@ Usage:
   invox archive edit FILENAME [flags]
 
 Flags:
+  -n, --dry-run       Print where the working copy would go and write nothing
+      --force         Overwrite an existing working copy
       --json fields   Output JSON with the specified fields
 
 Global flags:
@@ -34,6 +36,7 @@ JSON fields:
 Examples:
   $ invox archive edit 2026-03-06.yaml
   $ invox archive edit customer-a/2026-03-06.yaml
+  $ invox archive edit 2026-03-06.yaml --force
   $ invox archive edit 2026-03-06.yaml --json path
 .fi
 .SH SEE ALSO

@@ -61,6 +61,18 @@ exits 1 invox validate -i missing.yaml --json valid
 ! stdout .
 stderr 'missing\.yaml'
 
+# --dry-run --json prints the object the real run prints, and writes nothing.
+exec invox new CUST-002 --dry-run --json path,number,customerId
+scrubpaths -json stdout got.json
+cmp got.json want-new.json
+cmp stderr want-new-dry-run-stderr.txt
+! exists CUST-002-001.yaml
+exec invox build second.yaml --archive --dry-run --json path,archivedPath
+scrubpaths -json stdout got.json
+cmp got.json want-build-archive.json
+exists second.yaml
+! exists second.pdf
+
 # Commands that write files print what they wrote.
 exec invox new CUST-002 --json path,number,customerId
 scrubpaths -json stdout got.json
@@ -140,6 +152,8 @@ invoice.vat_percent: missing value
 Run 'invox customer list' to see the customer IDs.
 -- want-new.json --
 {"customerId":"CUST-002","number":"CUST-002-001","path":"$WORK/CUST-002-001.yaml"}
+-- want-new-dry-run-stderr.txt --
+Would create CUST-002-001.yaml for CUST-002 (CUST-002-001)
 -- want-new-stderr.txt --
 Created CUST-002-001.yaml for CUST-002 (CUST-002-001)
 -- want-increment.json --

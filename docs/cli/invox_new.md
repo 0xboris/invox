@@ -23,7 +23,9 @@ Usage:
 
 Flags:
   -c, --customers string   Path to customers.yaml
+  -n, --dry-run            Print the number and path the invoice would get and write nothing
   -e, --edit               Open the created invoice in your editor
+      --force              Overwrite an existing output file
       --from-last          Use the latest archived invoice for this customer as the source document
   -u, --issuer string      Path to issuer.yaml
       --json fields        Output JSON with the specified fields
@@ -42,6 +44,7 @@ Examples:
   $ invox new CUST-001
   $ invox new CUST-001 -e
   $ invox new CUST-001 --from-last
+  $ invox new CUST-001 --dry-run
   $ invox new CUST-001 --json path,number
   $ invox new CUST-001 -o invoices/2026-0022.yaml -s invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 ```
