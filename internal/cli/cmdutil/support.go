@@ -2,7 +2,6 @@ package cmdutil
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -38,7 +37,7 @@ func SupportPath(h invoice.Host, command string, kind invoice.SupportFile, flagV
 		s := supportFlags[kind]
 		return "", FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", s.label, s.flag, s.key, s.name, s.global(h))
 	}
-	return AbsPath(filepath.Clean(baseDir), path), nil
+	return invoice.AbsPath(filepath.Clean(baseDir), path), nil
 }
 
 // TemplatePath returns the absolute path of the template that command
@@ -61,19 +60,5 @@ func TemplatePath(h invoice.Host, command, flagValue, baseDir string) (string, e
 	if err != nil {
 		return "", &FlagError{Command: command, Err: err}
 	}
-	return AbsPath(filepath.Clean(baseDir), path), nil
-}
-
-// AbsPath is filepath.Abs with base in place of the process working
-// directory.
-func AbsPath(base, path string) string {
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-	if path != "" && os.IsPathSeparator(path[0]) {
-		// A rooted path without a volume, such as \x on Windows, stays on
-		// base's drive, as filepath.Abs keeps it on the current drive.
-		return filepath.Join(filepath.VolumeName(base), path)
-	}
-	return filepath.Join(base, path)
+	return invoice.AbsPath(filepath.Clean(baseDir), path), nil
 }

@@ -15,7 +15,8 @@ import (
 // need not be the process's own.
 func TestArchiveRunResolvesInputAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
+	dataHome := t.TempDir()
+	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: dataHome, ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +27,7 @@ func TestArchiveRunResolvesInputAgainstGetwd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ios, _, _, _ := iostreams.Test()
+	ios, _, out, errOut := iostreams.Test()
 	opts := &ArchiveOptions{
 		IO:          ios,
 		Host:        func() invoice.Host { return host },
@@ -43,5 +44,12 @@ func TestArchiveRunResolvesInputAgainstGetwd(t *testing.T) {
 	archived, err := host.ListArchivedInvoices()
 	if err != nil || len(archived) != 1 {
 		t.Fatalf("ListArchivedInvoices() = %v, %v; want one archived invoice", archived, err)
+	}
+	archivedPath := filepath.Join(dataHome, "invox", "invoices", archived[0].Filename)
+	if got := out.String(); got != archivedPath+"\n" {
+		t.Errorf("stdout = %q, want %q", got, archivedPath+"\n")
+	}
+	if got, want := errOut.String(), "Archived inv.yaml -> "+archivedPath+"\n"; got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
 	}
 }
