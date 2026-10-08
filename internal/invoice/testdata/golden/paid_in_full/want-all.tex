@@ -1,0 +1,28 @@
+\documentclass{article}
+% Issuer
+Boris Consulting|FN 123456a|ATU87654321|https://example.com|hello@example.com
+Ring 1|1010|Vienna|Austria
+% Customer
+Appsters GmbH|Hauptstrasse 1|1010|Vienna|Austria
+ATU12345678|office@appsters.example
+% Invoice
+CUST-001-007|15.01.2026|14.02.2026|January
+% Rows
+\begin{tabular}{lllll}
+    Retainer & Monthly & 100,00 \euro & 1 & 100,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{tabular}
+\begin{tabular}{llllll}
+    Retainer & Monthly & 100,00 \euro & 1 & 10\% & 100,00 \euro\\
+    \specialrule{0.4pt}{0pt}{0pt}
+\end{tabular}
+Retainer & Monthly & 100,00 \euro & 1 & 10\% & 100,00 \euro (CUST-001-007)\\
+\specialrule{0.4pt}{0pt}{0pt}
+% Totals
+100,00 \euro|110,00 \euro|110,00 \euro|110,00 \euro|0,00 \euro|0,00 \euro
+VAT (10\%): & 10,00 \euro\\
+VAT
+% Payment
+Pay within 30 days|Test Bank|AT611904300234573201|BKAUATWW
+0|
+

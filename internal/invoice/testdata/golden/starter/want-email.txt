@@ -1,0 +1,1 @@
+error: invoice.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`

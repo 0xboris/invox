@@ -1,0 +1,9 @@
+email:
+  subject: 'Invoice {invoice_number} for {customer_id} ({total_amount})'
+  body: |
+    {email_greeting}
+    name={customer_name} contact={contact_person} id={customer_id}
+    number={invoice_number} issued={issue_date} due={due_date}
+    total={total_amount} outstanding={outstanding_amount}
+    terms={payment_terms_text}
+    {issuer_name}

@@ -1,0 +1,39 @@
+# Every customer field, with anchors and merge keys.
+_shared: &dresden
+  street: "*Königsbrücker Straße 1 & 2"
+  postal_code: 01067
+  city: Dresden
+  country: Germany
+ACME-7:
+  name: ACME_Industries 100% {GmbH} & Co. KG
+  legal_company_name: ACME Industries GmbH & Co. KG
+  status: active
+  email: office@acme.example
+  email_greeting: Sehr geehrte Frau Müller,
+  contact_person: Erika Müller
+  currency: USD
+  address:
+    <<: *dresden
+    city: Dresden-Neustadt
+  tax:
+    vat_tax_id: DE123456789
+    default_vat_rate: 19%
+  billing:
+    send_invoice_to: accounting@acme.example
+    email: billing@acme.example
+    contact_person: Max Billing
+    email_greeting: Dear Accounts Team,
+    currency: EUR
+  numbering:
+    code: ACM
+    start: 100
+OTHER:
+  name: Other Customer
+  email: other@example.com
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+  tax:
+    vat_tax_id: ATU00000000

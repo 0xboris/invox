@@ -1,0 +1,24 @@
+company:
+  legal_company_name: Boris ~Consulting~ e.U.
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com/~boris?a=1&b=2#top
+  email: hello@example.com
+  address:
+    street: "[Ring] 1"
+    postal_code: 0100
+    city: Wien
+    country: Österreich
+payment:
+  bank_name: Test Bank AG
+  iban: AT61 1904 3002 3457 3201
+  bic: bkauatww
+  due_days: 14
+  payment_terms_text: Zahlbar binnen 14 Tagen ohne Abzug. 2% Skonto bei Zahlung in 7 Tagen.
+  vat_label: USt.
+  epc_qr:
+    label: Bezahlen mit EPC-QR
+    name: Boris Consulting
+    purpose: GDDS
+    text: ACM-2026-0100
+    information: Danke für Ihren Auftrag

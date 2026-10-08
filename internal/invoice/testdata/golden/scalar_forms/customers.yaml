@@ -1,0 +1,13 @@
+0042:
+  name: true
+  email: x@example.com
+  email_greeting: ~
+  address:
+    street: yes
+    postal_code: 0x1F
+    city: 2026-01-02
+    country: 1e3
+  tax:
+    vat_tax_id: 012345
+  billing:
+    currency: ""

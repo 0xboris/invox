@@ -1,0 +1,11 @@
+to=rechnung@schweizer.example
+from=Boris Consulting <hello@example.com>
+subject=Invoice CH-1-001 for CH-1 (3.461,40 CHF)
+
+Grüezi Herr Muster,
+name=Schweizer AG contact=Hans Muster id=CH-1
+number=CH-1-001 issued=2026-12-31 due=2026-12-31
+total=3.461,40 CHF outstanding=3.461,40 CHF
+terms=Due on receipt
+Boris Consulting
+
