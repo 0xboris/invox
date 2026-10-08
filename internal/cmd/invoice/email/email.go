@@ -76,7 +76,7 @@ func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) e
 	return cmd
 }
 
-// validate checks the flags in the order the old parser did.
+// validate checks the flags before any support file is read, as render does.
 func validate(opts *EmailOptions) error {
 	if strings.TrimSpace(opts.InvoicePath) == "" {
 		return cmdutil.FlagErrorf("email", "missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input")
