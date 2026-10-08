@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -96,7 +96,7 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			tempDir := isolateTempDir(t)
 			isolateUserDirs(t)
 			ios, _, stdout, stderr := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := factory.New(ios, run.Exec{}, env.System())
 			ctx, cancel := context.WithCancelCause(context.Background())
 			t.Cleanup(func() { cancel(nil) })
 

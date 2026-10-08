@@ -10,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -32,7 +33,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ListOptions
-			cmd := NewCmdList(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *ListOptions) error {
+			cmd := NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(opts *ListOptions) error {
 				got = opts
 				return nil
 			})

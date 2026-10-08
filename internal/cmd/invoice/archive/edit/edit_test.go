@@ -10,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -31,7 +32,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			var got *EditOptions
 			root := &cobra.Command{Use: "invox"}
 			archive := &cobra.Command{Use: "archive"}
-			archive.AddCommand(NewCmdEdit(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *EditOptions) error {
+			archive.AddCommand(NewCmdEdit(factory.New(ios, run.Exec{}, env.System()), func(opts *EditOptions) error {
 				got = opts
 				return nil
 			}))

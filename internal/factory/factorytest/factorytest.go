@@ -10,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/store"
@@ -69,7 +70,7 @@ func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory 
 		Getwd: opts.Getwd,
 		Now:   func() time.Time { return Now },
 	}
-	return cmdutil.NewFactory(ios, opts.Runner, e)
+	return factory.New(ios, opts.Runner, e)
 }
 
 // SetStatus sets invoice.status in the invoice at path, as a build or an

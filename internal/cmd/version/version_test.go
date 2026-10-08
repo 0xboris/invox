@@ -8,6 +8,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -24,7 +25,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := factory.New(ios, run.Exec{}, env.System())
 			ran := false
 			cmd := NewCmdVersion(f, func(opts *VersionOptions) error {
 				ran = true

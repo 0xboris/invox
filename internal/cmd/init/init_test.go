@@ -9,6 +9,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -28,7 +29,7 @@ func TestNewCmdInitParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *InitOptions
-			cmd := NewCmdInit(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *InitOptions) error {
+			cmd := NewCmdInit(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *InitOptions) error {
 				got = opts
 				return nil
 			})

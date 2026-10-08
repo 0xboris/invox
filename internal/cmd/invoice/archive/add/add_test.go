@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -46,7 +47,7 @@ func TestNewCmdAddParsing(t *testing.T) {
 		for _, tc := range tests {
 			t.Run(form.command+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
-				f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+				f := factory.New(ios, run.Exec{}, env.System())
 				var got *AddOptions
 				runF := func(_ context.Context, opts *AddOptions) error {
 					got = opts

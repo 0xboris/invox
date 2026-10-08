@@ -10,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -26,7 +27,7 @@ func TestNewCmdTemplateUnknownSubcommand(t *testing.T) {
 		t.Run(tc.arg, func(t *testing.T) {
 			ios, _, out, _ := iostreams.Test()
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdTemplate(cmdutil.NewFactory(ios, run.Exec{}, env.System())))
+			root.AddCommand(NewCmdTemplate(factory.New(ios, run.Exec{}, env.System())))
 			root.SetOut(io.Discard)
 			root.SetErr(io.Discard)
 			root.SetArgs([]string{"template", tc.arg})

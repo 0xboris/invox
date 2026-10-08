@@ -11,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -40,7 +41,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			t.Run(form.name+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
 				var got *EditOptions
-				cmd := form.newCmd(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EditOptions) error {
+				cmd := form.newCmd(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EditOptions) error {
 					got = opts
 					return nil
 				})

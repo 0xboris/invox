@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -36,7 +37,7 @@ func TestNewCmdEmailParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *EmailOptions
-			cmd := NewCmdEmail(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EmailOptions) error {
+			cmd := NewCmdEmail(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EmailOptions) error {
 				got = opts
 				return nil
 			})

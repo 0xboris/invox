@@ -8,12 +8,13 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestNewCmdPathsParsing(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+	f := factory.New(ios, run.Exec{}, env.System())
 
 	ran := false
 	cmd := NewCmdPaths(f, func(*PathsOptions) error { ran = true; return nil })

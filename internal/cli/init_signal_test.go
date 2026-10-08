@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 )
 
 func TestSignalAtInitLegacyPrompt(t *testing.T) {
@@ -36,7 +36,7 @@ func TestSignalAtInitLegacyPrompt(t *testing.T) {
 			t.Cleanup(func() { _ = unanswered.Close() })
 			ios.In = stdin
 			isolateUserDirs(t)
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := factory.New(ios, run.Exec{}, env.System())
 			ctx, cancel := context.WithCancelCause(context.Background())
 			cancel(&SignalError{Signal: tc.signal})
 

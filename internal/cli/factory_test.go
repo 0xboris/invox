@@ -8,6 +8,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -49,7 +50,7 @@ func testFactoryOn(t *testing.T, goos string, vars map[string]string) (*cmdutil.
 		}
 		return ""
 	}
-	return cmdutil.NewFactory(ios, stub, e), stub
+	return factory.New(ios, stub, e), stub
 }
 
 // expectEditor makes f's stdin and stderr terminals, so the editor may open,

@@ -10,8 +10,8 @@ import (
 	"github.com/0xboris/invox/internal/numbering"
 )
 
-// Files are the support files named for one run, as typed: relative to the
-// working directory, or "" to look them up.
+// Files are the support files named for one run, relative to the working
+// directory or absolute, or "" to look them up.
 type Files struct {
 	Customers string
 	Issuer    string
