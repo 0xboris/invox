@@ -41,7 +41,8 @@ fuzz: ## Run each fuzz target for FUZZTIME (default: 10s).
 	set -e; \
 	if [ -z "$(FUZZ_PACKAGES)" ]; then echo "no fuzz targets found" >&2; exit 1; fi; \
 	for package in $(FUZZ_PACKAGES); do \
-		for target in $$($(GO) test -list '^Fuzz' $$package | grep '^Fuzz'); do \
+		targets="$$($(GO) test -list '^Fuzz' $$package)" || exit 1; \
+		for target in $$(printf '%s\n' "$$targets" | grep '^Fuzz'); do \
 			echo "$$package $$target"; \
 			$(GO) test -run '^$$' -fuzz "^$$target\$$" -fuzztime "$(FUZZTIME)" $$package || exit 1; \
 		done; \
