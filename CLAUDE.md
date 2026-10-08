@@ -11,10 +11,13 @@ go test -race ./...            # or: make test
 go vet ./...
 gofmt -l .                     # must print nothing
 go mod tidy -diff              # must print nothing
+make lint                      # golangci-lint at CI's version, rules in .golangci.yml
+make vulncheck                 # govulncheck ./... (needs vuln.go.dev)
 ```
 
 CI (`.github/workflows/ci.yml`) runs the tests on linux/macos/windows with Go 1.24 (the
-minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it green.
+minimum in `go.mod`) and stable, and gofmt/vet/tidy, golangci-lint and govulncheck on Linux.
+Keep all of it green.
 
 ## Layout
 
@@ -24,8 +27,8 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   touches the process streams; everything else writes to the `IOStreams` it is given.
 - `internal/env`: `env.Env` holds `GOOS`, `Getenv`, `HomeDir`, `Getwd` and `Now`. `env.System()`
   reads them from the process; everything else uses the `Env` it is given. `ambient_test.go`
-  fails on any other read, apart from a short allowlist (`iostreams.newSystem`, `exit.go`, and
-  `adapters/run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
+  fails on any other read, apart from a short allowlist of functions (`iostreams.newSystem`,
+  `cli.printError`, and `run.Exec.Run`, whose child processes inherit the environment). `Factory.Env` carries the `Env`.
 - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the single-dash flag
   normaliser, help routing, help groups), exit codes (`exit.go`), signals, the help page
   renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
@@ -50,6 +53,10 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   `money`. `internal/archive` (the archive directory: walk, list, name resolution, `.history`
   backups) imports only `fsutil`; `invoice` hands it a reader for the YAML.
 - `internal/invoice/starter`: files embedded for `invox init`.
+- The layering above is enforced. depguard and forbidigo in `.golangci.yml` check each file;
+  `internal/archtest` checks the transitive import graph with `go list`. A new package or
+  import that crosses a layer fails both; update the rules in the same PR when the layering
+  itself changes.
 
 ## Quality roadmap
 

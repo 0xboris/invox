@@ -1121,7 +1121,7 @@ func TestEmailDefaultsDraftPathFromInputFile(t *testing.T) {
 	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(*openedPath)) })
 	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
@@ -1181,7 +1181,7 @@ func TestEmailAcceptsPDFInputFile(t *testing.T) {
 	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(*openedPath)) })
 	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}
@@ -1245,7 +1245,7 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	if filepath.Base(*openedPath) != "BL00210001.eml" || filepath.Dir(*openedPath) == inputDir {
 		t.Fatalf("openedPath = %q, want BL00210001.eml in a temporary directory", *openedPath)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Dir(*openedPath)) })
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(*openedPath)) })
 	if _, err := os.Stat(*openedPath); err != nil {
 		t.Fatalf("Stat(openedPath) returned error: %v, want the draft kept for the mail app", err)
 	}

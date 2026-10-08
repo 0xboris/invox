@@ -90,11 +90,11 @@ func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
 	}
 	root, err := documentRootMapping(document, path)
 	if err != nil {
-		return invoiceIdentity{}, false, nil
+		return invoiceIdentity{}, false, nil //nolint:nilerr // not an invoice: the caller skips it
 	}
 	var identity invoiceIdentity
 	if err := decodeYAMLNode(root, path, &identity, false); err != nil || identity.Invoice == nil {
-		return invoiceIdentity{}, false, nil
+		return invoiceIdentity{}, false, nil //nolint:nilerr // not an invoice: the caller skips it
 	}
 	return identity, true, nil
 }

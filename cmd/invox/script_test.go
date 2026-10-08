@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 	// Under -race every process sleeps a second on exit by default, and the
 	// suite starts a few hundred. testscript passes GORACE on to them.
 	if _, ok := os.LookupEnv("GORACE"); !ok {
-		os.Setenv("GORACE", "atexit_sleep_ms=0")
+		_ = os.Setenv("GORACE", "atexit_sleep_ms=0")
 	}
 
 	// testscript copies the test binary into a bin directory on PATH once per

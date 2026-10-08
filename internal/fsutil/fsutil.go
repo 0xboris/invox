@@ -107,7 +107,7 @@ func WriteNewFile(path string, data []byte, perm Perm) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tempPath)
+	defer os.Remove(tempPath) //nolint:errcheck // best-effort removal of the temp name; path holds the data or the error is returned
 	if testHookBeforeCommit != nil {
 		testHookBeforeCommit(path)
 	}
