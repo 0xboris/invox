@@ -11,6 +11,9 @@ type CustomerSummary struct {
 	ID               string
 	LegalCompanyName string
 	Status           string
+	// Email is where invoices go, as Customer.InvoiceEmail.
+	Email    string
+	Currency string
 }
 
 func ListCustomers(customersPath string) ([]CustomerSummary, error) {
@@ -37,6 +40,8 @@ func ListCustomers(customersPath string) ([]CustomerSummary, error) {
 			ID:               customerID,
 			LegalCompanyName: customer.DisplayName(),
 			Status:           customer.Status.Trim(),
+			Email:            customer.InvoiceEmail(),
+			Currency:         customer.BillingCurrency(),
 		})
 	}
 

@@ -23,6 +23,16 @@ type IncrementOptions struct {
 	InvoicePath   string
 	CustomersPath string
 	DryRun        bool
+	Exporter      *cmdutil.Exporter
+}
+
+// incrementJSON is the --json output of increment: the invoice and its old
+// and new number.
+type incrementJSON struct {
+	Path           string `json:"path"`
+	Number         string `json:"number"`
+	PreviousNumber string `json:"previousNumber"`
+	CustomerID     string `json:"customerId"`
 }
 
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
@@ -43,6 +53,7 @@ Default lookup:
 		Example: `$ invox increment -i invoice.yaml
 $ invox increment -i invoices/2026-0022.yaml -c customers.yaml
 $ invox increment -i invoice.yaml --dry-run
+$ invox increment -i invoice.yaml --json number,previousNumber
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -66,6 +77,7 @@ $ invox increment -i invoice.yaml --dry-run
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, incrementJSON{})
 	return cmd
 }
 
@@ -94,6 +106,14 @@ func incrementRun(opts *IncrementOptions) error {
 		verb = "Would increment"
 	}
 	fmt.Fprintf(opts.IO.ErrOut, "%s %s for %s: %s -> %s\n", verb, displayPath, incremented.CustomerID, incremented.OldNumber, incremented.NewNumber)
+	if opts.Exporter != nil {
+		return opts.Exporter.Write(opts.IO, incrementJSON{
+			Path:           invoicePath,
+			Number:         incremented.NewNumber,
+			PreviousNumber: incremented.OldNumber,
+			CustomerID:     incremented.CustomerID,
+		})
+	}
 	fmt.Fprintln(opts.IO.Out, displayPath)
 	return nil
 }

@@ -66,7 +66,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		return nil, invoiceErr
 	}
 
-	var problems []string
+	var problems []Problem
 	var unknownCustomer error
 	customerID := invoiceFile.CustomerID.Trim()
 	// customer stays nil when the invoice names no usable customer, so its
@@ -75,7 +75,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	var customerErr error
 	if customerID == "" {
 		if !within("customer_id", failedFields(invoiceErr)) {
-			problems = append(problems, fmt.Sprintf("%s: missing `customer_id`", invoicePath))
+			problems = append(problems, Problem{File: invoicePath, Field: "customer_id", Message: "missing `customer_id`"})
 		}
 	} else if found, ok, err := customers.customer(customerID, true); !ok {
 		unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
@@ -87,21 +87,21 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 
 	header := invoiceFile.Invoice
 	if header == nil {
-		problems = append(problems, fmt.Sprintf("%s: missing `invoice` mapping", invoicePath))
+		problems = append(problems, Problem{File: invoicePath, Field: "invoice", Message: "missing `invoice` mapping"})
 		header = &InvoiceHeader{}
 	}
 	company := issuer.Company
 	if company == nil {
-		problems = append(problems, fmt.Sprintf("%s: missing `company` mapping", issuerPath))
+		problems = append(problems, Problem{File: issuerPath, Field: "issuer.company", Message: "missing `company` mapping"})
 		company = &Company{}
 	}
 	payment := issuer.Payment
 	if payment == nil {
-		problems = append(problems, fmt.Sprintf("%s: missing `payment` mapping", issuerPath))
+		problems = append(problems, Problem{File: issuerPath, Field: "issuer.payment", Message: "missing `payment` mapping"})
 		payment = &Payment{}
 	}
 	if len(invoiceFile.Positions) == 0 && !within("positions", failed) {
-		problems = append(problems, fmt.Sprintf("%s: `positions` must be a non-empty list", invoicePath))
+		problems = append(problems, Problem{File: invoicePath, Field: "positions", Message: "`positions` must be a non-empty list"})
 	}
 	var fieldProblems []string
 	if customer != nil {
@@ -138,14 +138,14 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 	}
 	// Every field problem starts with the path of its field.
 	for _, problem := range fieldProblems {
-		if path, _, _ := strings.Cut(problem, ":"); !within(path, failed) {
-			problems = append(problems, problem)
+		if field, message, _ := strings.Cut(problem, ": "); !within(field, failed) {
+			problems = append(problems, Problem{Field: field, Message: message})
 		}
 	}
 
 	var validationErr error
 	if len(problems) > 0 {
-		validationErr = errors.New(strings.Join(problems, "\n"))
+		validationErr = &ValidationError{Problems: problems}
 	}
 	if err := errors.Join(unknownCustomer, decodeErr, validationErr); err != nil {
 		return nil, err

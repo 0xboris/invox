@@ -19,18 +19,23 @@ Usage:
   invox archive edit FILENAME [flags]
 
 Flags:
-  -n, --dry-run   Print where the working copy would go and write nothing
-      --force     Overwrite an existing working copy
+  -n, --dry-run       Print where the working copy would go and write nothing
+      --force         Overwrite an existing working copy
+      --json fields   Output JSON with the specified fields
 
 Global flags:
       --config string   Read this config file instead of config.yaml
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  archivedPath, path
+
 Examples:
   $ invox archive edit 2026-03-06.yaml
   $ invox archive edit customer-a/2026-03-06.yaml
   $ invox archive edit 2026-03-06.yaml --force
+  $ invox archive edit 2026-03-06.yaml --json path
 ```
 
 ## See also

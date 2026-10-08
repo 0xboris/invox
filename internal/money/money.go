@@ -115,6 +115,17 @@ func FormatCents(cents int64) string {
 	return fmt.Sprintf("%s%s,%02d", sign, groupThousands(integerPart), fractionPart)
 }
 
+// DecimalString formats cents as a plain decimal with a point and no
+// grouping, such as 1234.56, the form machine output uses.
+func DecimalString(cents int64) string {
+	sign := ""
+	if cents < 0 {
+		sign = "-"
+		cents = -cents
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, cents/100, cents%100)
+}
+
 func groupThousands(value int64) string {
 	digits := fmt.Sprintf("%d", value)
 	if len(digits) <= 3 {

@@ -37,6 +37,17 @@ type BuildOptions struct {
 	Archive       bool
 	Yes           bool
 	DryRun        bool
+	Exporter      *cmdutil.Exporter
+}
+
+// buildJSON is the --json output of build: the PDF it wrote, the invoice it
+// built and, with --archive, where the invoice was archived.
+type buildJSON struct {
+	Path         string  `json:"path"`
+	Input        string  `json:"input"`
+	Number       string  `json:"number"`
+	CustomerID   string  `json:"customerId"`
+	ArchivedPath *string `json:"archivedPath"`
 }
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
@@ -63,6 +74,7 @@ Default lookup:
 		Example: `$ invox build invoice.yaml
 $ invox build invoice.yaml --archive
 $ invox build invoice.yaml --archive --dry-run
+$ invox build invoice.yaml --json path,number
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -98,6 +110,7 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, buildJSON{})
 	return cmd
 }
 
@@ -132,8 +145,16 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if err != nil {
 		return err
 	}
+	// printResult prints the PDF's path, or with --json the build's result.
+	printResult := func(archivedPath *string) error {
+		if opts.Exporter != nil {
+			return opts.Exporter.Write(opts.IO, buildJSON{Path: outputPath, Input: invoicePath, Number: inv.InvoiceNumber, CustomerID: inv.CustomerID, ArchivedPath: archivedPath})
+		}
+		fmt.Fprintln(opts.IO.Out, outputDisplay)
+		return nil
+	}
 	if opts.DryRun {
-		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir)
+		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir, printResult)
 	}
 	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
 		var execErr *run.ExecError
@@ -147,8 +168,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	}
 	if !opts.Archive {
 		fmt.Fprintf(opts.IO.ErrOut, "Built %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-		fmt.Fprintln(opts.IO.Out, outputDisplay)
-		return nil
+		return printResult(nil)
 	}
 
 	errorPrefix := fmt.Sprintf("built %s but ", outputDisplay)
@@ -168,14 +188,13 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		invoiceDisplay,
 		invoice.DisplayPath(result.Path, baseDir),
 	)
-	fmt.Fprintln(opts.IO.Out, outputDisplay)
-	return nil
+	return printResult(&result.Path)
 }
 
 // buildDryRun runs the checks of a build, and of the archive step with
 // --archive, and prints what the build would do. It neither runs Tectonic
 // nor writes anything.
-func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string) error {
+func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
 	if _, err := invoice.RenderTeX(templatePath, inv); err != nil {
 		return err
 	}
@@ -195,9 +214,9 @@ func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templ
 	default:
 		fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to built in %s\n", invoice.DisplayPath(invoicePath, baseDir))
 	}
-	if opts.Archive {
-		shared.PrintArchivePreview(opts.IO, archived, invoicePath, baseDir)
+	if !opts.Archive {
+		return printResult(nil)
 	}
-	fmt.Fprintln(opts.IO.Out, outputDisplay)
-	return nil
+	shared.PrintArchivePreview(opts.IO, archived, invoicePath, baseDir)
+	return printResult(&archived.Path)
 }

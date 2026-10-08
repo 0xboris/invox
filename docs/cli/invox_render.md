@@ -24,6 +24,7 @@ Flags:
   -n, --dry-run            Check the invoice and template, print the output path and write nothing
   -i, --input string       Input invoice YAML file
   -u, --issuer string      Path to issuer.yaml
+      --json fields        Output JSON with the specified fields
   -o, --output string      Output TeX path (must end with .tex; default invoice.tex)
   -t, --template string    Template path or name
 
@@ -32,10 +33,14 @@ Global flags:
   -h, --help            Show help for a command
       --no-input        Never prompt or open an editor; fail with exit 2 instead
 
+JSON fields:
+  customerId, input, number, path
+
 Examples:
   $ invox render -i invoice.yaml
   $ invox render -i invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
   $ invox render -i invoice.yaml --dry-run
+  $ invox render -i invoice.yaml --json path
 ```
 
 ## See also

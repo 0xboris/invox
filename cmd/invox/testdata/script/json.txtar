@@ -1,0 +1,310 @@
+# --json prints one JSON document on stdout in place of the usual output:
+# an array for list commands, [] when there is nothing to list, and an object
+# for validate and the commands that write files. Status lines stay on
+# stderr. Piped, the JSON is compact. archive.dir is set in config.yaml
+# (relative to it) so the paths are the same on every OS.
+
+# Empty lists are [], not null and not the "no results" hint.
+exec invox archive list --json file,path
+cmp stdout want-empty.json
+! stderr .
+
+# Bare --json lists the fields and exits 1; an unknown field is a usage error
+# that lists them too. Neither writes to stdout.
+exits 1 invox customer list --json
+! stdout .
+cmp stderr want-bare.txt
+exits 1 invox archive list --json=
+! stdout .
+stderr '^error: specify one or more comma-separated fields for --json:$'
+exits 2 invox customer list --json id,bogus
+! stdout .
+cmp stderr want-unknown.txt
+exits 2 invox template list --names --json name
+! stdout .
+cmp stderr want-names-json.txt
+
+# The shell completes field names after a comma.
+exec invox __complete customer list --json id,
+cmp stdout want-complete.txt
+
+# List commands.
+exec invox customer list --json id,name,status,email,currency
+cmp stdout want-customers.json
+! stderr .
+exec invox customer list --json id
+cmp stdout want-customer-ids.json
+exec invox template list --json name,path,default
+scrubpaths -json stdout got.json
+cmp got.json want-templates.json
+! stderr .
+
+# validate: valid and invalid. Invalid still prints the document, with the
+# invoice's fields null, and exits 1 with the usual error on stderr.
+exec invox validate -i invoice.yaml --json valid,number,customerId,lineItems,total,currency,errors
+cmp stdout want-valid.json
+cmp stderr want-valid-stderr.txt
+exits 1 invox validate -i invalid.yaml --json valid,number,total,errors
+scrubpaths -json stdout got.json
+cmp got.json want-invalid.json
+scrubpaths stderr got.txt
+cmp got.txt want-invalid-stderr.txt
+# Malformed YAML and a total too large to compute are invalid too; they are
+# problems with only a message.
+exits 1 invox validate -i malformed.yaml --json valid,errors
+scrubpaths -json stdout got.json
+cmp got.json want-malformed.json
+exits 1 invox validate -i huge.yaml --json valid,errors
+cmp stdout want-huge.json
+# A file that cannot be read is not an invalid invoice: no JSON.
+exits 1 invox validate -i missing.yaml --json valid
+! stdout .
+stderr 'missing\.yaml'
+
+# --dry-run --json prints the object the real run prints, and writes nothing.
+exec invox new CUST-002 --dry-run --json path,number,customerId
+scrubpaths -json stdout got.json
+cmp got.json want-new.json
+cmp stderr want-new-dry-run-stderr.txt
+! exists CUST-002-001.yaml
+exec invox build second.yaml --archive --dry-run --json path,archivedPath
+scrubpaths -json stdout got.json
+cmp got.json want-build-archive.json
+exists second.yaml
+! exists second.pdf
+
+# Commands that write files print what they wrote.
+exec invox new CUST-002 --json path,number,customerId
+scrubpaths -json stdout got.json
+cmp got.json want-new.json
+cmp stderr want-new-stderr.txt
+exec invox increment -i CUST-002-001.yaml --json path,number,previousNumber,customerId
+scrubpaths -json stdout got.json
+cmp got.json want-increment.json
+exec invox render -i invoice.yaml -o out.tex --json path,input,number,customerId
+scrubpaths -json stdout got.json
+cmp got.json want-render.json
+exec invox build invoice.yaml --json path,input,number,customerId,archivedPath
+scrubpaths -json stdout got.json
+cmp got.json want-build.json
+exec invox build second.yaml --archive --json path,archivedPath
+scrubpaths -json stdout got.json
+cmp got.json want-build-archive.json
+exec invox archive invoice.yaml --json path,input,replaced
+scrubpaths -json stdout got.json
+cmp got.json want-archive.json
+exec invox archive list --json file,path,customerId,number,issueDate,status
+scrubpaths -json stdout got.json
+cmp got.json want-archive-list.json
+exec invox archive edit invoice.yaml --json path,archivedPath
+scrubpaths -json stdout got.json
+cmp got.json want-edit.json
+# The backup's name has the time in it, so it is matched loosely.
+exec invox archive invoice.yaml --yes --json replaced
+stdout '^\{"replaced":\[\{"path":"[^"]*archive[/\\]+invoice\.yaml","backupPath":"[^"]*archive[/\\]+\.history[/\\]+invoice\.\d{8}T\d{6}Z\.yaml"\}\]\}$'
+
+-- want-empty.json --
+[]
+-- want-bare.txt --
+error: specify one or more comma-separated fields for --json:
+  currency
+  email
+  id
+  name
+  status
+-- want-unknown.txt --
+error: unknown JSON field: "bogus"
+Available fields:
+  currency
+  email
+  id
+  name
+  status
+Run 'invox customer list --help' for usage.
+-- want-names-json.txt --
+error: --names and --json cannot be used together
+Run 'invox template list --help' for usage.
+-- want-complete.txt --
+id,currency
+id,email
+id,name
+id,status
+:6
+-- want-customers.json --
+[{"currency":"EUR","email":"office@appsters.example","id":"CUST-001","name":"Appsters GmbH","status":"active"},{"currency":"EUR","email":"billing@second.example","id":"CUST-002","name":"Second Customer OG","status":"inactive"},{"currency":"EUR","email":"billing@third.example","id":"CUST-003","name":"Third Customer KG","status":"active"}]
+-- want-customer-ids.json --
+[{"id":"CUST-001"},{"id":"CUST-002"},{"id":"CUST-003"}]
+-- want-templates.json --
+[{"default":true,"name":"template.tex","path":"$WORK/home/.config/invox/template.tex"}]
+-- want-valid.json --
+{"currency":"EUR","customerId":"CUST-001","errors":[],"lineItems":2,"number":"CUST-001-001","total":"252.00","valid":true}
+-- want-valid-stderr.txt --
+Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
+-- want-invalid.json --
+{"errors":[{"file":"$WORK/invalid.yaml","line":null,"field":"customer_id","message":"unknown customer_id `NOPE-1`"},{"file":"$WORK/invalid.yaml","line":5,"field":"invoice.due_date","message":"expected YYYY-MM-DD, got `soon`"},{"file":null,"line":null,"field":"invoice.period","message":"missing value"},{"file":null,"line":null,"field":"positions[1].description","message":"missing value"},{"file":null,"line":null,"field":"positions[1].quantity","message":"must be > 0"},{"file":null,"line":null,"field":"invoice.vat_percent","message":"missing value"}],"number":null,"total":null,"valid":false}
+-- want-invalid-stderr.txt --
+error: invalid.yaml: unknown customer_id `NOPE-1`
+invalid.yaml:5: invoice.due_date: expected YYYY-MM-DD, got `soon`
+invoice.period: missing value
+positions[1].description: missing value
+positions[1].quantity: must be > 0
+invoice.vat_percent: missing value
+Run 'invox customer list' to see the customer IDs.
+-- want-new.json --
+{"customerId":"CUST-002","number":"CUST-002-001","path":"$WORK/CUST-002-001.yaml"}
+-- want-new-dry-run-stderr.txt --
+Would create CUST-002-001.yaml for CUST-002 (CUST-002-001)
+-- want-new-stderr.txt --
+Created CUST-002-001.yaml for CUST-002 (CUST-002-001)
+-- want-increment.json --
+{"customerId":"CUST-002","number":"CUST-002-002","path":"$WORK/CUST-002-001.yaml","previousNumber":"CUST-002-001"}
+-- want-render.json --
+{"customerId":"CUST-001","input":"$WORK/invoice.yaml","number":"CUST-001-001","path":"$WORK/out.tex"}
+-- want-build.json --
+{"archivedPath":null,"customerId":"CUST-001","input":"$WORK/invoice.yaml","number":"CUST-001-001","path":"$WORK/invoice.pdf"}
+-- want-build-archive.json --
+{"archivedPath":"$WORK/home/.config/invox/archive/second.yaml","path":"$WORK/second.pdf"}
+-- want-archive.json --
+{"input":"$WORK/invoice.yaml","path":"$WORK/home/.config/invox/archive/invoice.yaml","replaced":[]}
+-- want-archive-list.json --
+[{"customerId":"CUST-001","file":"invoice.yaml","issueDate":"2026-03-06","number":"CUST-001-001","path":"$WORK/home/.config/invox/archive/invoice.yaml","status":"archived"},{"customerId":"CUST-001","file":"second.yaml","issueDate":"2026-03-07","number":"CUST-001-002","path":"$WORK/home/.config/invox/archive/second.yaml","status":"archived"}]
+-- want-edit.json --
+{"archivedPath":"$WORK/home/.config/invox/archive/invoice.yaml","path":"$WORK/invoice.yaml"}
+-- want-malformed.json --
+{"errors":[{"file":null,"line":null,"field":null,"message":"$WORK/malformed.yaml: yaml: line 1: did not find expected ',' or ']'"}],"valid":false}
+-- want-huge.json --
+{"errors":[{"file":null,"line":null,"field":null,"message":"positions[1]: unit_price × quantity exceeds the maximum amount of `10.000.000.000.000,00`"}],"valid":false}
+-- malformed.yaml --
+customer_id: [unclosed
+-- huge.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-099
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: March
+  vat_percent: 20
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 9999999999
+    quantity: 9999999
+-- invalid.yaml --
+customer_id: NOPE-1
+invoice:
+  number: NOPE-1-001
+  issue_date: 2026-03-06
+  due_date: soon
+positions:
+  - name: Development
+    unit_price: 10
+    quantity: 0
+-- home/.config/invox/config.yaml --
+archive:
+  dir: archive
+-- home/.config/invox/customers.yaml --
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  email: office@appsters.example
+  email_greeting: Dear Jane Doe,
+  contact_person: Jane Doe
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+  billing:
+    currency: EUR
+CUST-002:
+  name: Second Customer OG
+  status: inactive
+  email: billing@second.example
+  address:
+    street: Nebenstrasse 2
+    postal_code: "8010"
+    city: Graz
+    country: Austria
+CUST-003:
+  name: Third Customer KG
+  status: active
+  email: billing@third.example
+  address:
+    street: Seeweg 3
+    postal_code: "5020"
+    city: Salzburg
+    country: Austria
+-- home/.config/invox/issuer.yaml --
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+-- home/.config/invox/invoice_defaults.yaml --
+invoice:
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+-- home/.config/invox/template.tex --
+Invoice @@INVOICE_NUMBER@@ for @@CUSTOMER_NAME@@
+Issued @@ISSUE_DATE@@, due @@DUE_DATE@@
+@@LINE_ITEMS_ROWS@@
+Subtotal @@SUBTOTAL@@
+@@VAT_SUMMARY_ROWS@@
+Total @@TOTAL@@
+Outstanding @@OUTSTANDING_AMOUNT@@
+@@PAYMENT_TERMS_TEXT@@
+IBAN @@IBAN@@
+-- invoice.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1
+-- second.yaml --
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-07
+  due_date: 2026-04-06
+  status: draft
+  period: "Leistungszeitraum: März 2026"
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Review
+    description: Code review
+    unit_price: 1234.5
+    quantity: 1

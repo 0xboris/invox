@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -74,6 +75,11 @@ func builtInvoice(t *testing.T, invoicePath, dir, name string) string {
 		t.Fatalf("WriteFile(%s) returned error: %v", pdfPath, err)
 	}
 	return path
+}
+
+func jsonString(s string) string {
+	quoted, _ := json.Marshal(s)
+	return string(quoted)
 }
 
 type dryRunCase struct {
@@ -175,6 +181,16 @@ func TestDryRunWritesNothing(t *testing.T) {
 				args:       []string{"archive", "first.yaml", "--dry-run"},
 				dirs:       []string{filepath.Dir(e.workingCopy), e.archiveDir},
 				wantStdout: e.archivedPath + "\n",
+				wantStderr: "Would replace archived invoice " + e.archivedPath + "; the previous version would be kept in " + filepath.Join(e.archiveDir, ".history") + "\n" +
+					"Would archive first.yaml -> " + e.archivedPath + "\n",
+			}
+		}},
+		{name: "archive --json replacing an archived invoice", setup: func(t *testing.T) dryRunCase {
+			e := setupEditedArchive(t)
+			return dryRunCase{
+				args:       []string{"archive", "first.yaml", "--dry-run", "--json", "path,replaced"},
+				dirs:       []string{filepath.Dir(e.workingCopy), e.archiveDir},
+				wantStdout: "{\"path\":" + jsonString(e.archivedPath) + ",\"replaced\":[{\"path\":" + jsonString(e.archivedPath) + ",\"backupPath\":\"\"}]}\n",
 				wantStderr: "Would replace archived invoice " + e.archivedPath + "; the previous version would be kept in " + filepath.Join(e.archiveDir, ".history") + "\n" +
 					"Would archive first.yaml -> " + e.archivedPath + "\n",
 			}

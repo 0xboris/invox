@@ -25,6 +25,14 @@ type EditOptions struct {
 	Filename string
 	Force    bool
 	DryRun   bool
+	Exporter *cmdutil.Exporter
+}
+
+// editJSON is the --json output of archive edit: the working copy it wrote
+// and the archived invoice it copied.
+type editJSON struct {
+	Path         string `json:"path"`
+	ArchivedPath string `json:"archivedPath"`
 }
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
@@ -53,6 +61,7 @@ Behavior:
 		Example: `$ invox archive edit 2026-03-06.yaml
 $ invox archive edit customer-a/2026-03-06.yaml
 $ invox archive edit 2026-03-06.yaml --force
+$ invox archive edit 2026-03-06.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
@@ -73,6 +82,7 @@ $ invox archive edit 2026-03-06.yaml --force
 	}
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing working copy")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print where the working copy would go and write nothing")
+	cmdutil.AddJSONFlags(cmd, &opts.Exporter, editJSON{})
 	return cmd
 }
 
@@ -100,6 +110,9 @@ func editRun(opts *EditOptions) error {
 		verb = "Would copy"
 	}
 	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
+	if opts.Exporter != nil {
+		return opts.Exporter.Write(opts.IO, editJSON{Path: outputPath, ArchivedPath: archivePath})
+	}
 	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(outputPath, baseDir))
 	return nil
 }

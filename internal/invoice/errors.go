@@ -2,6 +2,7 @@ package invoice
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/0xboris/invox/internal/money"
 )
@@ -50,4 +51,36 @@ func (e *TemplateNotFoundError) Error() string {
 // amount, such as "invoice.paid_amount:" or "invoice total".
 func errAmountTooLarge(subject string) error {
 	return fmt.Errorf("%s exceeds the maximum amount of `%s`", subject, money.FormatCents(money.MaxCents))
+}
+
+// Problem is a field of an invoice, or of the customer or issuer it uses,
+// that is missing or out of range.
+type Problem struct {
+	// File is set when the problem concerns the file as a whole, such as a
+	// missing mapping, and is then named in place of Field.
+	File string
+	// Field is the field, such as positions[1].quantity.
+	Field   string
+	Message string
+}
+
+func (p Problem) String() string {
+	if p.File != "" {
+		return p.File + ": " + p.Message
+	}
+	return p.Field + ": " + p.Message
+}
+
+// ValidationError lists the problems LoadContext found once the files
+// decoded, one per line.
+type ValidationError struct {
+	Problems []Problem
+}
+
+func (e *ValidationError) Error() string {
+	lines := make([]string, 0, len(e.Problems))
+	for _, problem := range e.Problems {
+		lines = append(lines, problem.String())
+	}
+	return strings.Join(lines, "\n")
 }
