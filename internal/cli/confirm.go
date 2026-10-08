@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -12,39 +11,6 @@ import (
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
-
-// confirm asks question on stderr and reads a yes/no answer. Anything but
-// y or yes, including end of input, is a no. It returns cmdutil.CancelError
-// when ctx is cancelled before an answer arrives.
-func confirm(ctx context.Context, ios *iostreams.IOStreams, question string) (bool, error) {
-	fmt.Fprintf(ios.ErrOut, "%s [y/N] ", question)
-	type reply struct {
-		answer string
-		err    error
-	}
-	replies := make(chan reply, 1)
-	go func() {
-		answer, err := bufio.NewReader(ios.In).ReadString('\n')
-		replies <- reply{answer, err}
-	}()
-	var r reply
-	select {
-	case <-ctx.Done():
-		fmt.Fprintln(ios.ErrOut)
-		return false, cmdutil.CancelError
-	case r = <-replies:
-	}
-	if r.err != nil && r.answer == "" {
-		fmt.Fprintln(ios.ErrOut)
-		return false, nil
-	}
-	switch strings.ToLower(strings.TrimSpace(r.answer)) {
-	case "y", "yes":
-		return true, nil
-	default:
-		return false, nil
-	}
-}
 
 // archiveWithConfirmation archives the invoice and, when that replaces
 // archived files, asks first unless --yes was passed. errorPrefix starts
@@ -79,7 +45,7 @@ func archiveWithConfirmation(ctx context.Context, ios *iostreams.IOStreams, h in
 		replaced,
 		invoice.DisplayPath(replaceErr.HistoryDir, opts.BaseDir),
 	)
-	confirmed, err := confirm(ctx, ios, question)
+	confirmed, err := cmdutil.Confirm(ctx, ios, question)
 	if err != nil {
 		return invoice.ArchiveResult{}, err
 	}

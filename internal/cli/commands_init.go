@@ -51,7 +51,7 @@ func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, h invoice.Ho
 		if !ios.CanPrompt() {
 			return cmdutil.FlagErrorf(spec.Name, "the deprecated config directory %s has files that %s lacks; pass --force to copy them (no terminal to ask on)", legacyDir, configDir)
 		}
-		confirmed, err := confirm(ctx, ios, fmt.Sprintf("Copy %s from %s to %s?", strings.Join(missing, ", "), legacyDir, configDir))
+		confirmed, err := cmdutil.Confirm(ctx, ios, fmt.Sprintf("Copy %s from %s to %s?", strings.Join(missing, ", "), legacyDir, configDir))
 		if err != nil {
 			return err
 		}
