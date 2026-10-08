@@ -104,7 +104,6 @@ func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context
 	if deprecated {
 		cmd.ValidArgsFunction = cobra.NoFileCompletions
 		cmd.Flags().VisitAll(func(flag *pflag.Flag) { flag.Hidden = true })
-		delete(cmd.Annotations, cmdutil.JSONFieldsAnnotation)
 	}
 }
 

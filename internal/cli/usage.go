@@ -48,7 +48,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, h invoice.Host) error {
 	} else {
 		section("Flags", cmd.LocalFlags().FlagUsages())
 	}
-	if fields, ok := cmd.Annotations[cmdutil.JSONFieldsAnnotation]; ok {
+	if fields, ok := cmd.Annotations[cmdutil.JSONFieldsAnnotation]; ok && !cmd.Flags().Lookup("json").Hidden {
 		section("JSON fields", "  "+strings.ReplaceAll(fields, ",", ", ")+"\n")
 	}
 	section("Examples", indent(cmd.Example))

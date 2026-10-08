@@ -33,6 +33,11 @@ exits 2 invox archive F.yaml -i x.yaml
 ! stdout .
 cmp stderr want-archive-both.txt
 
+# Bare --json lists the fields and exits 1, though help leaves them out.
+exits 1 invox archive F.yaml --json
+! stdout .
+cmp stderr want-archive-json-fields.txt
+
 # A file named list or edit is archived with archive add.
 exec invox archive add list --yes
 scrubpaths stdout got.txt
@@ -89,6 +94,11 @@ Run 'invox archive --help' for usage.
 -- want-archive-both.txt --
 error: the INVOICE argument F.yaml and -i, --input x.yaml name different files; pass only one
 Run 'invox archive --help' for usage.
+-- want-archive-json-fields.txt --
+error: specify one or more comma-separated fields for --json:
+  input
+  path
+  replaced
 -- want-list-stdout.txt --
 home/.config/invox/archive/list
 -- want-customer-config.txt --
