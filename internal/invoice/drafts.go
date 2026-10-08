@@ -251,12 +251,9 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string) (string, string, 
 	if err != nil {
 		return "", "", err
 	}
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return "", "", fmt.Errorf("%s: missing `invoice` mapping", archivePath)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return "", "", fmt.Errorf("%s: `invoice` must be a mapping", archivePath)
+	invoiceNode, err := invoiceMapping(root, archivePath)
+	if err != nil {
+		return "", "", err
 	}
 
 	edit := target.Edit()
@@ -297,12 +294,9 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, err
 	}
 
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return ArchiveResult{}, fmt.Errorf("%s: missing `invoice` mapping", invoicePath)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return ArchiveResult{}, fmt.Errorf("%s: `invoice` must be a mapping", invoicePath)
+	invoiceNode, err := invoiceMapping(root, invoicePath)
+	if err != nil {
+		return ArchiveResult{}, err
 	}
 
 	status := strings.TrimSpace(nodeText(findMappingValue(invoiceNode, "status")))
@@ -489,12 +483,9 @@ func writeInvoiceStringField(path, key, value string) error {
 		return err
 	}
 
-	invoiceNode := findMappingValue(root, "invoice")
-	if invoiceNode == nil {
-		return fmt.Errorf("%s: missing `invoice` mapping", path)
-	}
-	if invoiceNode.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: `invoice` must be a mapping", path)
+	invoiceNode, err := invoiceMapping(root, path)
+	if err != nil {
+		return err
 	}
 
 	setMappingString(invoiceNode, key, value)
