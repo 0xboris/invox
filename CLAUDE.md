@@ -31,13 +31,14 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy on Linux. Keep all of it gre
   streams and the external-program adapters.
 - `internal/adapters`: `run` is the only package that calls `os/exec`. `tectonic`, `editor`,
   `opener` and `applemail` each wrap one program on top of a `run.Runner`.
-- `internal/invoice`: domain logic (loading and validation, VAT totals, numbering, the
-  render and EPC orchestration, email drafts, archive), one file per concept. Issue #44 moves
-  `archive` and `email` out next.
-- `internal/money` (decimals, cents, 1.234,56 formatting) and `internal/epc` (EPC QR rules
-  and payload) import only the standard library. `internal/render/latex` (escaping, rows,
-  line item blocks, template checks) imports only `money`. `invoice` imports all three;
-  none of them imports `invoice`.
+- `internal/invoice`: domain logic (loading and validation, VAT totals, numbering, and the
+  render, EPC, email and archive orchestration), one file per concept.
+- Leaf packages below `invoice`, none of which imports it: `internal/money` (decimals, cents,
+  1.234,56 formatting), `internal/epc` (EPC QR rules and payload) and `internal/email`
+  (subject and body templates, the .eml MIME layout) import only the standard library.
+  `internal/render/latex` (escaping, rows, line item blocks, template checks) imports only
+  `money`. `internal/archive` (the archive directory: walk, list, name resolution, `.history`
+  backups) imports only `fsutil`; `invoice` hands it a reader for the YAML.
 - `internal/invoice/starter`: files embedded for `invox init`.
 
 ## Quality roadmap
