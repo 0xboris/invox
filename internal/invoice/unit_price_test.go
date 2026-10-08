@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 func TestFormatUnitPriceShowsNeededDecimals(t *testing.T) {
@@ -24,9 +26,9 @@ func TestFormatUnitPriceShowsNeededDecimals(t *testing.T) {
 		{price: "0.00001", currency: "EUR", want: `0,0000 \euro`},
 	}
 	for _, tt := range tests {
-		price, ok := parseDecimal(tt.price)
+		price, ok := money.ParseDecimal(tt.price)
 		if !ok {
-			t.Fatalf("parseDecimal(%q) failed", tt.price)
+			t.Fatalf("ParseDecimal(%q) failed", tt.price)
 		}
 		if got := formatUnitPrice(price, tt.currency); got != tt.want {
 			t.Errorf("formatUnitPrice(%s, %s) = %q, want %q", tt.price, tt.currency, got, tt.want)

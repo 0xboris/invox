@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 const (
@@ -176,10 +178,10 @@ func buildEPCPayload(ctx *Context) ([]byte, error) {
 		return nil, errors.New("invoice.outstanding_amount: EPC QR code requires an amount above zero")
 	}
 	if ctx.OutstandingCents > ctx.TotalCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", FormatMoneyCents(ctx.OutstandingCents), FormatMoneyCents(ctx.TotalCents))
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds total `%s`", money.FormatCents(ctx.OutstandingCents), money.FormatCents(ctx.TotalCents))
 	}
 	if ctx.OutstandingCents > epcQRMaxAmountCents {
-		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", FormatMoneyCents(ctx.OutstandingCents), "999999999,99")
+		return nil, fmt.Errorf("invoice.outstanding_amount: `%s` exceeds EPC QR maximum `%s`", money.FormatCents(ctx.OutstandingCents), "999999999,99")
 	}
 
 	name := ctx.Payment.EPCQR.Name.Trim()

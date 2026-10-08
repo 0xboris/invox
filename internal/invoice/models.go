@@ -1,6 +1,10 @@
 package invoice
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/0xboris/invox/internal/money"
+)
 
 // The schema of customers.yaml, issuer.yaml and invoice files. Each struct
 // maps YAML keys to fields through yaml tags; decodeYAMLNode fills them.
@@ -236,7 +240,7 @@ func (h InvoiceHeader) validate() []string {
 	if paid := h.PaidAmount.Rat(); paid != nil {
 		if paid.Sign() < 0 {
 			problems = append(problems, "invoice.paid_amount: must not be negative")
-		} else if _, ok := moneyCents(paid); !ok {
+		} else if _, ok := money.Cents(paid); !ok {
 			problems = append(problems, errAmountTooLarge("invoice.paid_amount:").Error())
 		}
 	}
@@ -272,7 +276,7 @@ func (p Position) validate(index int) []string {
 	if price := p.UnitPrice.Rat(); price != nil {
 		if price.Sign() < 0 {
 			problems = append(problems, prefix+".unit_price: must be >= 0")
-		} else if _, ok := moneyCents(price); !ok {
+		} else if _, ok := money.Cents(price); !ok {
 			problems = append(problems, errAmountTooLarge(prefix+".unit_price:").Error())
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/money"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -51,7 +52,7 @@ func (d *Decimal) decodeScalar(n *yaml.Node) error {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
-	value, ok := parseDecimal(text)
+	value, ok := money.ParseDecimal(text)
 	if !ok {
 		return fmt.Errorf("expected a decimal number such as 12 or 12.50, got `%s`", text)
 	}
@@ -81,7 +82,7 @@ func (r *Rate) decodeScalar(n *yaml.Node) error {
 	if text == "" {
 		return nil
 	}
-	value, ok := parseDecimal(strings.TrimSuffix(text, "%"))
+	value, ok := money.ParseDecimal(strings.TrimSuffix(text, "%"))
 	if !ok {
 		return fmt.Errorf("expected a number or percent string, got `%s`", raw)
 	}

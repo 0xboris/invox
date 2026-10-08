@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 const (
@@ -187,7 +189,7 @@ func renderLineItemTemplate(body string, item LineItem, currency, rule string, t
 		lineItemNamePlaceholder, latexEscape(item.Name),
 		lineItemDescriptionPlaceholder, latexEscape(item.Description),
 		lineItemUnitPricePlaceholder, formatUnitPrice(item.UnitPrice, currency),
-		lineItemQuantityPlaceholder, latexEscape(formatQuantity(item.Quantity)),
+		lineItemQuantityPlaceholder, latexEscape(money.FormatQuantity(item.Quantity)),
 		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
 		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
 		lineItemRulePlaceholder, rule,

@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 // Context is an invoice with its customer and issuer, validated, with its
@@ -160,7 +162,7 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		InvoiceNumber: header.Number.Trim(),
 	}
 	// Validation bounded paid_amount, so it converts.
-	ctx.PaidAmountCents, _ = moneyCents(header.PaidAmount.Rat())
+	ctx.PaidAmountCents, _ = money.Cents(header.PaidAmount.Rat())
 	if err := ctx.computeTotals(items); err != nil {
 		return nil, err
 	}
@@ -190,11 +192,11 @@ func (ctx *Context) computeTotals(items []LineItem) error {
 	vatBuckets := make(map[string]*VATBreakdown, len(items))
 	for index := range items {
 		item := &items[index]
-		lineTotal, ok := moneyCents(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
+		lineTotal, ok := money.Cents(new(big.Rat).Mul(item.UnitPrice, item.Quantity))
 		if !ok {
 			return errAmountTooLarge(fmt.Sprintf("positions[%d]: unit_price × quantity", index+1))
 		}
-		if subtotalCents, ok = addMoneyCents(subtotalCents, lineTotal); !ok {
+		if subtotalCents, ok = money.AddCents(subtotalCents, lineTotal); !ok {
 			return errAmountTooLarge("invoice subtotal")
 		}
 		item.LineTotalCents = lineTotal
@@ -212,12 +214,12 @@ func (ctx *Context) computeTotals(items []LineItem) error {
 	vatBreakdowns := make([]VATBreakdown, 0, len(vatBuckets))
 	var vatAmountCents int64
 	for _, bucket := range vatBuckets {
-		vatCents, ok := moneyCents(percentOfMoney(bucket.NetCents, bucket.RatePercent))
+		vatCents, ok := money.Cents(money.PercentOf(bucket.NetCents, bucket.RatePercent))
 		if !ok {
 			return errAmountTooLarge("invoice VAT amount")
 		}
 		bucket.VATAmountCents = vatCents
-		if vatAmountCents, ok = addMoneyCents(vatAmountCents, vatCents); !ok {
+		if vatAmountCents, ok = money.AddCents(vatAmountCents, vatCents); !ok {
 			return errAmountTooLarge("invoice VAT amount")
 		}
 		vatBreakdowns = append(vatBreakdowns, *bucket)
@@ -226,12 +228,12 @@ func (ctx *Context) computeTotals(items []LineItem) error {
 		return vatBreakdowns[left].RatePercent.Cmp(vatBreakdowns[right].RatePercent) < 0
 	})
 
-	totalCents, ok := addMoneyCents(subtotalCents, vatAmountCents)
+	totalCents, ok := money.AddCents(subtotalCents, vatAmountCents)
 	if !ok {
 		return errAmountTooLarge("invoice total")
 	}
 	if ctx.PaidAmountCents > totalCents {
-		return fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", FormatMoneyCents(ctx.PaidAmountCents), FormatMoneyCents(totalCents))
+		return fmt.Errorf("invoice.paid_amount: `%s` exceeds total `%s`", money.FormatCents(ctx.PaidAmountCents), money.FormatCents(totalCents))
 	}
 
 	ctx.LineItems = items

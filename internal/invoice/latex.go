@@ -4,52 +4,16 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/0xboris/invox/internal/money"
 )
 
 func FormatCurrency(cents int64, currency string) string {
-	return withCurrency(FormatMoneyCents(cents), currency)
+	return withCurrency(money.FormatCents(cents), currency)
 }
-
-// Unit prices are shown with as many decimals as they need, at least
-// minUnitPriceDecimals and at most maxUnitPriceDecimals (rounded half up beyond
-// that), so that unit price × quantity matches the line total.
-const (
-	minUnitPriceDecimals = 2
-	maxUnitPriceDecimals = 4
-)
 
 func formatUnitPrice(value *big.Rat, currency string) string {
-	decimals := unitPriceDecimals(value)
-	if decimals == minUnitPriceDecimals {
-		return FormatCurrency(quantizeMoney(value), currency)
-	}
-	scale := int64(1)
-	for range decimals {
-		scale *= 10
-	}
-	units := roundHalfUpToInt(new(big.Rat).Mul(value, new(big.Rat).SetInt64(scale)))
-	sign := ""
-	if units < 0 {
-		sign = "-"
-		units = -units
-	}
-	formatted := fmt.Sprintf("%s%s,%0*d", sign, groupThousands(units/scale), decimals, units%scale)
-	return withCurrency(formatted, currency)
-}
-
-func unitPriceDecimals(value *big.Rat) int {
-	if value == nil {
-		return minUnitPriceDecimals
-	}
-	scaled := new(big.Rat).Set(value)
-	scaled.Mul(scaled, big.NewRat(100, 1))
-	for decimals := minUnitPriceDecimals; decimals < maxUnitPriceDecimals; decimals++ {
-		if scaled.IsInt() {
-			return decimals
-		}
-		scaled.Mul(scaled, big.NewRat(10, 1))
-	}
-	return maxUnitPriceDecimals
+	return withCurrency(money.FormatUnitPrice(value), currency)
 }
 
 func withCurrency(formatted, currency string) string {
@@ -132,7 +96,7 @@ func renderLineItemRows(items []LineItem, currency string, includeVAT bool) stri
 			latexEscape(item.Name),
 			latexEscape(item.Description),
 			formatUnitPrice(item.UnitPrice, currency),
-			latexEscape(formatQuantity(item.Quantity)),
+			latexEscape(money.FormatQuantity(item.Quantity)),
 		}
 		if includeVAT {
 			parts = append(parts, formatVATRate(item.VATRatePercent))
@@ -167,7 +131,7 @@ func renderVATSummaryRows(label string, breakdowns []VATBreakdown, currency stri
 }
 
 func formatVATRate(value *big.Rat) string {
-	return latexEscape(formatQuantity(value)) + `\%`
+	return latexEscape(money.FormatQuantity(value)) + `\%`
 }
 
 func latexEscape(text string) string {
