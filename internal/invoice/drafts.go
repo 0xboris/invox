@@ -501,17 +501,6 @@ func writeInvoiceStringField(path, key, value string) error {
 	return writeYAMLDocument(path, document)
 }
 
-func replaceFileExtension(path, ext string) string {
-	if strings.TrimSpace(path) == "" || strings.TrimSpace(ext) == "" {
-		return path
-	}
-	currentExt := filepath.Ext(path)
-	if currentExt == "" {
-		return path + ext
-	}
-	return strings.TrimSuffix(path, currentExt) + ext
-}
-
 func archiveMetadata(root *yaml.Node) (string, string) {
 	internalNode := findMappingValue(root, internalMetadataKey)
 	if internalNode == nil || internalNode.Kind != yaml.MappingNode {

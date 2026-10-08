@@ -60,14 +60,14 @@ func (h Host) ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (Ema
 	case ".yaml", ".yml":
 		paths.InvoicePath = inputPath
 		if paths.PDFPath == "" {
-			paths.PDFPath = replaceFileExtension(inputPath, ".pdf")
+			paths.PDFPath = ReplaceExt(inputPath, ".pdf")
 		}
 	default:
 		return EmailDraftPaths{}, fmt.Errorf("%s: input must end with .yaml, .yml, or .pdf", inputPath)
 	}
 
 	if paths.OutputPath == "" {
-		paths.OutputPath = replaceFileExtension(inputPath, ".eml")
+		paths.OutputPath = ReplaceExt(inputPath, ".eml")
 	}
 
 	return paths, nil
@@ -140,7 +140,7 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	return "", fmt.Errorf(
 		"%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s",
 		store.Dir,
-		filepath.Base(replaceFileExtension(pdfPath, ".yaml")),
+		filepath.Base(ReplaceExt(pdfPath, ".yaml")),
 		strings.Join(matches, ", "),
 	)
 }

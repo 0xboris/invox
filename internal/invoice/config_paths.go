@@ -184,12 +184,13 @@ func (h Host) expandHomePath(path string) string {
 	return config.ExpandHome(path, h.home)
 }
 
-func PDFPathForOutput(outputPath string) string {
-	ext := filepath.Ext(outputPath)
-	if ext == "" {
-		return outputPath + ".pdf"
+// ReplaceExt returns path with its extension replaced by ext, or with ext
+// added when it has none. It returns "" for an empty path.
+func ReplaceExt(path, ext string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
 	}
-	return strings.TrimSuffix(outputPath, ext) + ".pdf"
+	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
 }
 
 func firstExistingPath(paths ...string) string {
