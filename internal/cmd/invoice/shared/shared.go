@@ -73,3 +73,22 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, h invoice.Host, invoicePath
 		invoice.DisplayPath(invoicePath, baseDir),
 	)
 }
+
+// ReplaceExt returns path with its extension replaced by ext, or with ext
+// added when it has none. It returns "" for an empty path.
+func ReplaceExt(path, ext string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
+}
+
+// TakeInput makes the first positional argument the invoice when -i, --input
+// did not name one, and returns the arguments left over.
+func TakeInput(invoicePath *string, args []string) []string {
+	if strings.TrimSpace(*invoicePath) == "" && len(args) > 0 {
+		*invoicePath = args[0]
+		return args[1:]
+	}
+	return args
+}

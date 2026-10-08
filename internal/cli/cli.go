@@ -106,12 +106,6 @@ func dispatch(ctx context.Context, f *cmdutil.Factory, args []string) error {
 	switch args[0] {
 	case "completion":
 		return runCompletion(ios, args[1:])
-	case "email":
-		return runEmail(ctx, f, args[1:])
-	case "send":
-		return runEmail(ctx, f, args[1:])
-	case "build":
-		return runBuild(ctx, f, args[1:])
 	case "archive":
 		return runArchive(ctx, f, args[1:])
 	default:
