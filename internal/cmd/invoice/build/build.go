@@ -166,7 +166,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	}
 	if opts.DryRun {
 		fmt.Fprintf(opts.IO.ErrOut, "Would build %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
-		status := invoice.Status(inv.Header.Status.Trim())
+		status := inv.Header.Status
 		if next, _ := status.Apply(invoice.Building); next != status {
 			fmt.Fprintf(opts.IO.ErrOut, "Would set invoice.status to %s in %s\n", next, invoiceDisplay)
 		}

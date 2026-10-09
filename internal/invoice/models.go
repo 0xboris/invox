@@ -97,7 +97,7 @@ type Header struct {
 	Number     Text
 	IssueDate  Date
 	DueDate    Date
-	Status     Text
+	Status     Status
 	Period     Text
 	VATPercent Rate
 	PaidAmount Decimal

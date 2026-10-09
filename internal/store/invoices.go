@@ -264,9 +264,9 @@ func ReadArchived(path string) (billing.ArchiveEntry, bool, error) {
 	if err != nil || !ok {
 		return billing.ArchiveEntry{}, ok, err
 	}
-	status := identity.Invoice.Status.Trim()
+	status := identity.Invoice.Status
 	if status == "" {
-		status = string(invoice.Archived)
+		status = invoice.Archived
 	}
 	return billing.ArchiveEntry{
 		Path:       path,

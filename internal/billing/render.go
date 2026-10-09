@@ -136,13 +136,13 @@ func (s *Service) markBuilt(path string) error {
 	}
 	var status invoice.Status
 	if inv.Header != nil {
-		status = invoice.Status(inv.Header.Status.Trim())
+		status = inv.Header.Status
 	}
 	if next, _ := status.Apply(invoice.Building); next != invoice.Built {
 		return nil
 	}
 	return s.Invoices.Update(path, func(inv *invoice.Invoice) error {
-		inv.Header.Status = invoice.Text(invoice.Built)
+		inv.Header.Status = invoice.Built
 		return nil
 	})
 }

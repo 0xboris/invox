@@ -153,7 +153,7 @@ type ArchiveEntry struct {
 	CustomerID string
 	IssueDate  string
 	// Status is `archived` when the file has none.
-	Status string
+	Status invoice.Status
 	Number string
 }
 

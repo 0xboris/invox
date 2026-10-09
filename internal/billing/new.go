@@ -94,7 +94,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 			Number:     invoice.Text(number),
 			IssueDate:  issued,
 			DueDate:    due,
-			Status:     invoice.Text(invoice.Draft),
+			Status:     invoice.Draft,
 			PaidAmount: paid,
 			VATPercent: rate,
 		},

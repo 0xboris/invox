@@ -83,7 +83,7 @@ func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory 
 // archive step would.
 func SetStatus(path string, status invoice.Status) error {
 	return (&store.Store{}).Update(path, func(inv *invoice.Invoice) error {
-		inv.Header.Status = invoice.Text(status)
+		inv.Header.Status = status
 		return nil
 	})
 }

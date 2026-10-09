@@ -52,6 +52,27 @@ func TestTextKeepsTheWrittenText(t *testing.T) {
 	}
 }
 
+func TestStatusDecodesTrimmed(t *testing.T) {
+	tests := []struct {
+		source  string
+		want    invoice.Status
+		wantErr string
+	}{
+		{source: "value: built\n", want: invoice.Built},
+		{source: "value: '  archived  '\n", want: invoice.Archived},
+		{source: "value: sent\n", want: "sent"},
+		{source: "value: ~\n", want: ""},
+		{source: "value: [built]\n", wantErr: "expected a string, got a list"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.source, func(t *testing.T) {
+			var got invoice.Status
+			err := decodeScalarForTest(t, tt.source, &got)
+			checkDecodeResult(t, err, tt.wantErr, func() string { return string(got) }, string(tt.want))
+		})
+	}
+}
+
 func TestDecimalDecoding(t *testing.T) {
 	tests := []struct {
 		source  string

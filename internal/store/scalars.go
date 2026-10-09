@@ -20,6 +20,9 @@ func decodeScalar(out any, n *yaml.Node) (bool, error) {
 	case *invoice.Text:
 		expected = "a string"
 		parse = func(text string) error { *v = invoice.Text(text); return nil }
+	case *invoice.Status:
+		expected = "a string"
+		parse = func(text string) error { *v = invoice.ParseStatus(text); return nil }
 	case *invoice.Decimal:
 		expected = "a decimal number such as 12 or 12.50"
 		parse = func(text string) (err error) { *v, err = invoice.ParseDecimal(text); return err }

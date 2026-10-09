@@ -54,7 +54,7 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if inv.Header == nil {
 		return ArchiveResult{}, fmt.Errorf("%s: missing `invoice` mapping", path)
 	}
-	status := invoice.Status(inv.Header.Status.Trim())
+	status := inv.Header.Status
 	if opts.AssumeBuilt {
 		status, _ = status.Apply(invoice.Building)
 	}
@@ -69,7 +69,7 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 		Replace: opts.Replace,
 		DryRun:  opts.DryRun,
 		Change: func(inv *invoice.Invoice) error {
-			inv.Header.Status = invoice.Text(invoice.Archived)
+			inv.Header.Status = invoice.Archived
 			inv.Archive = nil
 			return nil
 		},
@@ -205,7 +205,7 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 		return Edited{}, fmt.Errorf("%s: missing `invoice` mapping", checkout.Archived)
 	}
 	_, err = s.Invoices.Create(checkout.Path, checkout.Archived, invoice.Invoice{
-		Header:  &invoice.Header{Status: invoice.Text(invoice.Editing)},
+		Header:  &invoice.Header{Status: invoice.Editing},
 		Archive: &checkout.Link,
 	}, CreateOptions{Overwrite: opts.Overwrite, DryRun: opts.DryRun, Check: CheckNone})
 	if err != nil {

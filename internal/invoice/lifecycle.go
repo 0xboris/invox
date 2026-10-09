@@ -1,5 +1,7 @@
 package invoice
 
+import "strings"
+
 // Status is invoice.status: where an invoice is in its life. An invoice
 // file may hold any text there; the statuses below are the ones invox sets
 // and checks.
@@ -11,6 +13,10 @@ const (
 	Editing  Status = "editing"  // a working copy made by `archive edit`
 	Archived Status = "archived" // in the archive
 )
+
+// ParseStatus reads a Status from its text, without surrounding space. Any
+// text is a status; only the ones above allow actions.
+func ParseStatus(text string) Status { return Status(strings.TrimSpace(text)) }
 
 // Action is a step that a status allows or refuses.
 type Action int

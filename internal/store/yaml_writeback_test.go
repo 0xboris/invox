@@ -33,12 +33,12 @@ func TestInvoiceWritesKeepComments(t *testing.T) {
 	}{
 		{
 			name:  "MarkInvoiceBuilt",
-			write: func(path string) error { return setInvoiceStatus(path, string(invoice.Built)) },
+			write: func(path string) error { return setInvoiceStatus(path, invoice.Built) },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: built #", 1),
 		},
 		{
 			name:  "SetInvoiceStatus",
-			write: func(path string) error { return setInvoiceStatus(path, "archived") },
+			write: func(path string) error { return setInvoiceStatus(path, invoice.Archived) },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: archived #", 1),
 		},
 		{
@@ -76,9 +76,9 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 	})
 }
 
-func setInvoiceStatus(path, status string) error {
+func setInvoiceStatus(path string, status invoice.Status) error {
 	return (&Store{}).Update(path, func(inv *invoice.Invoice) error {
-		inv.Header.Status = invoice.Text(status)
+		inv.Header.Status = status
 		return nil
 	})
 }

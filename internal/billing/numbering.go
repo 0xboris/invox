@@ -92,7 +92,7 @@ func (s *Service) highestDraftCounter(workDir, output, customerID, issueDate str
 	var highest int64
 	for _, draft := range s.Invoices.Drafts(workDir, output) {
 		number := draft.Header.Number.Trim()
-		if !invoice.Status(draft.Header.Status.Trim()).Allows(invoice.Numbering) || number == "" {
+		if !draft.Header.Status.Allows(invoice.Numbering) || number == "" {
 			continue
 		}
 		counter, err := numbering.Parse(settings.Pattern, number, customerID, customer.Numbering.Code.Trim(), issueDate)

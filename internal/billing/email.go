@@ -58,7 +58,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 	if err != nil {
 		return EmailResult{}, err
 	}
-	status := invoice.Status(inv.Header.Status.Trim())
+	status := inv.Header.Status
 	if !status.Allows(invoice.Emailing) {
 		if status == "" {
 			return EmailResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)

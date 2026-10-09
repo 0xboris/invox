@@ -12,9 +12,9 @@ import (
 type invoiceIdentity struct {
 	CustomerID invoice.Text `yaml:"customer_id"`
 	Invoice    *struct {
-		Number    invoice.Text `yaml:"number"`
-		IssueDate invoice.Text `yaml:"issue_date"`
-		Status    invoice.Text `yaml:"status"`
+		Number    invoice.Text   `yaml:"number"`
+		IssueDate invoice.Text   `yaml:"issue_date"`
+		Status    invoice.Status `yaml:"status"`
 	} `yaml:"invoice"`
 }
 

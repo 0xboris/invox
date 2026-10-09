@@ -96,7 +96,7 @@ func listRun(opts *ListOptions) error {
 				CustomerID: archived.CustomerID,
 				Number:     archived.Number,
 				IssueDate:  archived.IssueDate,
-				Status:     archived.Status,
+				Status:     string(archived.Status),
 			})
 		}
 		return opts.Exporter.Write(opts.IO, items)
@@ -110,7 +110,7 @@ func listRun(opts *ListOptions) error {
 		table.EmptyHint = "No archived invoices found"
 	}
 	for _, archived := range archivedInvoices {
-		table.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, archived.Status)
+		table.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, string(archived.Status))
 	}
 	table.Print(opts.IO)
 	return nil
