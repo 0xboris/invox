@@ -57,7 +57,7 @@ func scalarText(n *yaml.Node) string {
 	case "!!timestamp":
 		var value time.Time
 		if n.Decode(&value) == nil {
-			return value.Format("2006-01-02")
+			return value.Format(time.DateOnly)
 		}
 	case "!!binary":
 		var value string

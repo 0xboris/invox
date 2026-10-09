@@ -185,8 +185,8 @@ func (s *Service) latestArchived(customerID string) (string, bool, error) {
 // date that parses beats one that does not, then by invoice number,
 // Filename and Path.
 func (e ArchiveEntry) Newer(other ArchiveEntry) bool {
-	leftDate, leftErr := time.Parse("2006-01-02", strings.TrimSpace(e.IssueDate))
-	rightDate, rightErr := time.Parse("2006-01-02", strings.TrimSpace(other.IssueDate))
+	leftDate, leftErr := time.Parse(time.DateOnly, strings.TrimSpace(e.IssueDate))
+	rightDate, rightErr := time.Parse(time.DateOnly, strings.TrimSpace(other.IssueDate))
 	leftOK, rightOK := leftErr == nil, rightErr == nil
 
 	switch {

@@ -73,7 +73,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	}
 
 	now := s.Now().In(time.Local)
-	issueDate := now.Format("2006-01-02")
+	issueDate := now.Format(time.DateOnly)
 	draftCounter, err := s.highestDraftCounter(req.WorkDir, req.Output, req.CustomerID, issueDate, customer)
 	if err != nil {
 		return NewResult{}, err
@@ -92,7 +92,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	}
 
 	issued, _ := invoice.ParseDate(issueDate)
-	due, _ := invoice.ParseDate(now.AddDate(0, 0, dueDays).Format("2006-01-02"))
+	due, _ := invoice.ParseDate(now.AddDate(0, 0, dueDays).Format(time.DateOnly))
 	paid, _ := invoice.ParseDecimal("0")
 	// A rate fills in only where the source has none.
 	rate, _ := invoice.ParseRate(trimmedRate(customer.Tax.DefaultVATRate))

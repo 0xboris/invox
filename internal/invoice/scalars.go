@@ -64,7 +64,7 @@ func (d Date) String() string {
 	if !d.IsSet() {
 		return ""
 	}
-	return d.t.Format("2006-01-02")
+	return d.t.Format(time.DateOnly)
 }
 
 // Display returns the date as DD.MM.YYYY, the form invoices print.
@@ -121,7 +121,7 @@ func ParseDate(text string) (Date, error) {
 	if strings.TrimSpace(text) == "" {
 		return Date{}, nil
 	}
-	t, err := time.Parse("2006-01-02", text)
+	t, err := time.Parse(time.DateOnly, text)
 	if err != nil {
 		return Date{}, fmt.Errorf("expected YYYY-MM-DD, got `%s`", text)
 	}

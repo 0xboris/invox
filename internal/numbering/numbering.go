@@ -133,11 +133,11 @@ func Next(start, highest int64) int64 {
 // period, so an invoice from another period never counts. A date that does
 // not parse is treated as in the period.
 func InPeriod(pattern, date, issueDate string) bool {
-	own, err := time.Parse("2006-01-02", date)
+	own, err := time.Parse(time.DateOnly, date)
 	if err != nil {
 		return true
 	}
-	requested, err := time.Parse("2006-01-02", issueDate)
+	requested, err := time.Parse(time.DateOnly, issueDate)
 	if err != nil {
 		return true
 	}
@@ -254,7 +254,7 @@ func Parse(pattern, invoiceNumber, customerID, customerCode, issueDate string) (
 }
 
 func values(customerID, customerCode, issueDate string) (time.Time, string, error) {
-	issueTime, err := time.Parse("2006-01-02", issueDate)
+	issueTime, err := time.Parse(time.DateOnly, issueDate)
 	if err != nil {
 		return time.Time{}, "", fmt.Errorf("invoice.issue_date: expected YYYY-MM-DD, got %q", issueDate)
 	}
