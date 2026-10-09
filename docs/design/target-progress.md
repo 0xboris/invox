@@ -19,7 +19,7 @@ the package table, one depguard rule per row.
 
 Behavior. The 35 testscript goldens, `docs/cli` and `share/man` are byte-for-byte unchanged,
 no test was removed or skipped, and the CLI tests passed unchanged once the code compiled.
-Two untested edge cases changed; they are listed under Known differences.
+Two untested edge cases changed; follow-up unit A (70c583d) restored them, with tests.
 
 What was hard. Comment-keeping writes: `new` has always rewritten fields such as
 `paid_amount: 0` as `"0"` even when the value is the same, so a diff of the entity cannot
@@ -36,8 +36,8 @@ identifiers left unresolved after a package split), gopls did the renames, and t
 test files reach the new code through a test-only shim of the old `Host` API instead of being
 rewritten call by call.
 
-Open blockers: none. Follow-ups: the two Known differences, and moving the store tests off
-the shim onto `billing.Service` directly.
+Open blockers: none. Follow-ups after the run (see the Follow-up units section): narrowing the
+ports, sizing `billing`, and moving the store tests off the shim onto `billing.Service` directly.
 
 ## Blockers
 
@@ -62,3 +62,14 @@ None.
 | 2026-10-08 | 6 | 298e799 | Moved `cmdutil.NewFactory` and the user-directory resolution to `factory.New`; `cmd/invox`, `docs/gen`, `factorytest` and the tests call it. `cmdutil` keeps `Factory`, `Files` and the editor and opener. | 32 passed, 0 failed | Every target check passes from here; step 7 makes `.golangci.yml` and `archtest_test.go` state the full table. |
 | 2026-10-08 | 7 | 0d2ae79 | Rewrote the depguard rules and `archtest_test.go` rules as the package table (entities, use cases, driven, driving, main, libraries), checked that depguard rejects a driven import from a command and a `helptext` import from `cmd/invox`. Updated the Layout, Conventions and Testing parts of `CLAUDE.md`. Wrote the summary. | 32 passed, 0 failed | depguard matches by prefix, so the CLI root and `factory` need a trailing `$` for an exact match. |
 | 2026-10-08 | log | this commit | Filled in the step 7 commit. | 32 passed, 0 failed | |
+
+## Follow-up units
+
+Coordinated from the review in the target-architecture comparison: restore the changed edge cases
+(A), narrow the ports so path decisions live in the adapters (B), decide on splitting `billing`
+(C), and move the `store` tests off the `Host` shim (D). Each lands only after
+`scripts/verify-target.sh --target` passes on its commit in a clean worktree.
+
+| Date | Unit | Commit | What moved | Target checks | Notes |
+|---|---|---|---|---|---|
+| 2026-10-09 | A | 70c583d | Restored "`invoice` must be a mapping" for a null, scalar or aliased `invoice:` on `archive add` and `archive edit`, and the removal of an empty or null `_invox` link on archive. `store.Head` reports the `invoice` key's shape as written (`billing.HeaderShape`); `invoice.Invoice.Archive` is a pointer; `Invoices.LoadArchived` became `ArchivedHead`. New `internal/cli/archive_shape_test.go`: 9 subtests fail on d13b178, all pass here. | 32 passed, 0 failed | Same root cause also fixed an aliased `invoice:` that moved the file into the archive before failing. Open: archiving copies the file before `Invoices.Update` sets its status, so a later failure can leave an archived copy with `status: built`. |
