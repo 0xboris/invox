@@ -3,12 +3,15 @@ package applemail_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/run/runtest"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -22,15 +25,20 @@ func TestComposePassesTheMessageAsArguments(t *testing.T) {
 		return nil
 	})
 
-	err := applemail.New(stub, ios).Compose(context.Background(), applemail.Message{
-		To:         "office@appsters.example",
-		Subject:    `Invoice "42"`,
-		Body:       "Dear Jane,\nend tell",
-		Attachment: "/tmp/invoice.pdf",
-		Sender:     "billing@example.com",
-	})
-	if err != nil {
-		t.Fatalf("Compose returned error: %v", err)
+	pdf := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdf, []byte("%PDF-1.4\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := applemail.New(stub, ios).Draft(context.Background(), billing.Message{
+		To:          "office@appsters.example",
+		Subject:     `Invoice "42"`,
+		Body:        "Dear Jane,\nend tell",
+		Attachment:  pdf,
+		FromAddress: "billing@example.com",
+	}, false)
+	if err != nil || path != "" {
+		t.Fatalf("Draft = %q, %v, want \"\", nil", path, err)
 	}
 
 	want := []string{
@@ -60,7 +68,7 @@ func TestComposePassesTheMessageAsArguments(t *testing.T) {
 		"office@appsters.example",
 		`Invoice "42"`,
 		"Dear Jane,\nend tell",
-		"/tmp/invoice.pdf",
+		pdf,
 		"billing@example.com",
 	}
 	if !slices.Equal(got.Args, want) {

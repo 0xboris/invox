@@ -11,16 +11,6 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// Message is the email to compose.
-type Message struct {
-	To         string
-	Subject    string
-	Body       string
-	Attachment string
-	// Sender is the From address, or empty for Mail's default account.
-	Sender string
-}
-
 // Composer runs an AppleScript through osascript. Its output goes to stderr,
 // so stdout carries only the data a command prints.
 type Composer struct {
@@ -58,23 +48,9 @@ var script = []string{
 	`end run`,
 }
 
-// Compose opens msg in a new Mail compose window with its attachment.
-func (c *Composer) Compose(ctx context.Context, msg Message) error {
-	args := make([]string, 0, 2*len(script)+6)
-	for _, line := range script {
-		args = append(args, "-e", line)
-	}
-	args = append(args, "--", msg.To, msg.Subject, msg.Body, msg.Attachment, msg.Sender)
-	return c.runner.Run(ctx, run.Cmd{
-		Name:   "osascript",
-		Args:   args,
-		Stdout: c.ios.ErrOut,
-		Stderr: c.ios.ErrOut,
-	})
-}
-
 // Draft opens m in an Apple Mail compose window with the PDF attached. It
-// implements billing.Mailer; the draft has no file.
+// implements billing.Mailer; the draft has no file. An empty m.FromAddress
+// leaves the sender to Mail's default account.
 func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
 	if _, err := os.Stat(m.Attachment); err != nil {
 		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
@@ -82,12 +58,16 @@ func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (s
 	if dryRun {
 		return "", nil
 	}
-	err := c.Compose(ctx, Message{
-		To:         m.To,
-		Subject:    m.Subject,
-		Body:       m.Body,
-		Attachment: m.Attachment,
-		Sender:     m.FromAddress,
+	args := make([]string, 0, 2*len(script)+6)
+	for _, line := range script {
+		args = append(args, "-e", line)
+	}
+	args = append(args, "--", m.To, m.Subject, m.Body, m.Attachment, m.FromAddress)
+	err := c.runner.Run(ctx, run.Cmd{
+		Name:   "osascript",
+		Args:   args,
+		Stdout: c.ios.ErrOut,
+		Stderr: c.ios.ErrOut,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to open editable email draft: %w", err)

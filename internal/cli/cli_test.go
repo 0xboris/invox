@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -1279,10 +1279,10 @@ func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 
 	// Apple Mail drafts the email on macOS.
 	f, stub := testFactoryOn(t, "darwin", nil)
-	var opened applemail.Message
+	var opened billing.Message
 	stub.Register("osascript", func(cmd run.Cmd) error {
 		message := cmd.Args[slices.Index(cmd.Args, "--")+1:]
-		opened = applemail.Message{To: message[0], Subject: message[1], Body: message[2], Attachment: message[3], Sender: message[4]}
+		opened = billing.Message{To: message[0], Subject: message[1], Body: message[2], Attachment: message[3], FromAddress: message[4]}
 		return nil
 	})
 
