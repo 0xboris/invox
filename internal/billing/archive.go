@@ -3,7 +3,6 @@ package billing
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -69,10 +68,11 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	if err := s.numberUnique(path, head); err != nil {
+	unread, err := s.numberUnique(path, head)
+	if err != nil {
 		return ArchiveResult{}, err
 	}
-	return s.Archives.Add(path, place, AddOptions{
+	result, err := s.Archives.Add(path, place, AddOptions{
 		Replace: opts.Replace,
 		DryRun:  opts.DryRun,
 		Now:     s.Now(),
@@ -82,6 +82,8 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 			return nil
 		},
 	})
+	result.Unread = unread
+	return result, err
 }
 
 // archivable returns why the invoice at path, whose head is head, cannot be
@@ -130,13 +132,13 @@ func requireHeader(path string, head Head) error {
 // the invoice at path uses a number that an archived invoice already has.
 // The archived file the invoice was opened from (`archive edit`) does not
 // count as a duplicate.
-func (s *Service) CheckNumberUnique(path string) error {
+func (s *Service) CheckNumberUnique(path string) (Unread, error) {
 	head, err := s.Invoices.Head(path)
 	if err != nil && !isDecodeError(err) {
-		return err
+		return Unread{}, err
 	}
 	if !head.HasHeader {
-		return nil
+		return Unread{}, nil
 	}
 	return s.numberUnique(path, head)
 }
@@ -144,27 +146,18 @@ func (s *Service) CheckNumberUnique(path string) error {
 // numberUnique returns a *invoice.DuplicateInvoiceNumberError when an
 // archived invoice other than the one the invoice at path replaces has its
 // number.
-func (s *Service) numberUnique(path string, head Head) error {
-	archived, err := s.Archives.Duplicate(path, head)
+func (s *Service) numberUnique(path string, head Head) (Unread, error) {
+	archived, unread, err := s.Archives.Duplicate(path, head)
 	if err != nil || archived == "" {
-		return err
+		return unread, err
 	}
-	return &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: head.Number, ArchivedPath: archived}
-}
-
-// archiveEntries returns the archived invoices sorted by Filename.
-func (s *Service) archiveEntries() ([]ArchiveEntry, error) {
-	entries, err := s.Archives.Entries()
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Filename < entries[j].Filename })
-	return entries, nil
+	return unread, &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: head.Number, ArchivedPath: archived}
 }
 
 // latestArchived returns the archived invoice of customerID issued last.
+// New reports what the archive holds unread from its numbering walk.
 func (s *Service) latestArchived(customerID string) (string, bool, error) {
-	entries, err := s.archiveEntries()
+	entries, _, err := s.Archives.Entries()
 	if err != nil {
 		return "", false, err
 	}
@@ -213,11 +206,13 @@ type ArchiveList struct {
 	// Dir is the archive directory, "" when there is none.
 	Dir     string
 	Entries []ArchiveEntry
+	// Unread is what the archive holds that invox no longer reads.
+	Unread Unread
 }
 
 // ListArchive lists the archived invoices sorted by file name.
 func (s *Service) ListArchive() (ArchiveList, error) {
-	entries, err := s.archiveEntries()
+	entries, unread, err := s.Archives.Entries()
 	if err != nil {
 		return ArchiveList{}, err
 	}
@@ -225,7 +220,7 @@ func (s *Service) ListArchive() (ArchiveList, error) {
 	if err != nil {
 		return ArchiveList{}, err
 	}
-	return ArchiveList{Dir: dir, Entries: entries}, nil
+	return ArchiveList{Dir: dir, Entries: entries, Unread: unread}, nil
 }
 
 // EditOptions control EditArchived.

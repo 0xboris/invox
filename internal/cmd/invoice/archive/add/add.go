@@ -102,12 +102,14 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		if err != nil {
 			return err
 		}
+		shared.WarnUnread(opts.IO, result.Unread, baseDir)
 		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
 	} else {
 		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, "archive add", invoicePath, baseDir, "")})
 		if err != nil {
 			return err
 		}
+		shared.WarnUnread(opts.IO, result.Unread, baseDir)
 		shared.PrintArchiveReplacements(opts.IO, result, baseDir)
 		fmt.Fprintf(opts.IO.ErrOut, "Archived %s -> %s\n", cmdutil.DisplayPath(invoicePath, baseDir), cmdutil.DisplayPath(result.Path, baseDir))
 	}

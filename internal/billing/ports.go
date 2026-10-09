@@ -35,14 +35,13 @@ type Head struct {
 	// Header is what the `invoice` key holds as written. Archiving rewrites
 	// that mapping in place, so an alias to a mapping is HeaderOther.
 	Header HeaderShape
-	// ArchivePath and ReplacePath are the `_invox` link of a working copy
-	// from `archive edit`, relative to the archive, "" when it has none.
+	// ArchivePath is the `_invox` link of a working copy from `archive
+	// edit`, relative to the archive, "" when it has none.
 	ArchivePath string
-	ReplacePath string
 }
 
 // WorkingCopy reports whether h is a working copy from `archive edit`,
-// which re-archiving writes back over the archived files it names.
+// which re-archiving writes back over the archived file it names.
 func (h Head) WorkingCopy() bool { return h.ArchivePath != "" }
 
 // HeaderShape is what the `invoice` key of an invoice file holds.
@@ -81,9 +80,8 @@ type Invoices interface {
 	// Load decodes the invoice at path strictly. Values that do not fit
 	// come back as joined *DecodeError values, with the rest decoded.
 	Load(path string) (invoice.Invoice, error)
-	// ArchivedHead is Head for an archived invoice, which may be the front
-	// matter of a Markdown file. It decodes the whole invoice strictly, as
-	// Load does, and returns those errors.
+	// ArchivedHead is Head for an archived invoice. It decodes the whole
+	// invoice strictly, as Load does, and returns those errors.
 	ArchivedHead(path string) (Head, error)
 	// Head reads what numbering and the archive need of the invoice at
 	// path. Values that do not decode are left unset and reported as
@@ -197,6 +195,14 @@ type ArchiveEntry struct {
 	Number string
 }
 
+// Unread is what the archive holds that invox no longer reads.
+type Unread struct {
+	// Dir is the archive directory, "" when there is none.
+	Dir string
+	// Markdown are the archived invoices stored as Markdown, sorted.
+	Markdown []string
+}
+
 // Backup is an archived file that re-archiving replaced, and where its
 // previous version was kept.
 type Backup struct {
@@ -212,6 +218,9 @@ type ArchiveResult struct {
 	Replaced []Backup
 	// HistoryDir is where the replaced files' previous versions are kept.
 	HistoryDir string
+	// Unread is what the archive walk of the duplicate check could not
+	// read.
+	Unread Unread
 }
 
 // Placement is where Archive.Add puts an invoice. Archive.Place makes it.
@@ -220,9 +229,6 @@ type Placement struct {
 	Path string
 	// Overwrite allows Path to exist, when a working copy is re-archived.
 	Overwrite bool
-	// Remove is an archived file the invoice supersedes, removed after it
-	// is written, or "".
-	Remove string
 	// HistoryDir is where replaced files' previous versions are kept.
 	HistoryDir string
 }
@@ -253,9 +259,9 @@ type Checkout struct {
 
 // Archive holds finished invoices.
 type Archive interface {
-	// Entries reads every archived invoice, in the lexical order of a
-	// directory walk.
-	Entries() ([]ArchiveEntry, error)
+	// Entries reads every archived invoice, sorted by Filename, and
+	// returns what the archive holds that invox no longer reads.
+	Entries() ([]ArchiveEntry, Unread, error)
 	// Dir returns the archive directory, "" when there is none.
 	Dir() (string, error)
 	// Place says where archiving the invoice at src, whose head is head,
@@ -265,9 +271,10 @@ type Archive interface {
 	Place(src string, head Head) (Placement, error)
 	// Duplicate returns the archived invoice, in file name order, that has
 	// head's number, other than src and, for a working copy, the archived
-	// files it replaces. It returns "" when there is none, when head has
-	// no number, or when there is no archive directory.
-	Duplicate(src string, head Head) (string, error)
+	// file it replaces. It returns "" when there is none, when head has no
+	// number, or when there is no archive directory, and what its walk
+	// could not read.
+	Duplicate(src string, head Head) (string, Unread, error)
 	// Add moves the invoice at src into the archive at p with opts.Change
 	// applied, in one write, after backing up the archived files it
 	// replaces. Without opts.Replace it refuses to replace any.
@@ -281,8 +288,8 @@ type Archive interface {
 	// Source returns the invoice YAML file the PDF at pdf was built from:
 	// the one with its name next to it, else the one in the archive. It
 	// returns "" when there is none, and an error when the archive has
-	// several.
-	Source(pdf string) (string, error)
+	// several, with what a walk of the archive could not read.
+	Source(pdf string) (string, Unread, error)
 }
 
 // EPC is what a template's EPC QR code placeholders need.

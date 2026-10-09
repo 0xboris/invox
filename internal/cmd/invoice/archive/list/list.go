@@ -2,6 +2,7 @@
 package list
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -9,14 +10,16 @@ import (
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
+	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
-// ListOptions is what archive list needs: its streams and the user
-// directories.
+// ListOptions is what archive list needs: its streams, the working
+// directory and the user directories.
 type ListOptions struct {
 	IO      *iostreams.IOStreams
+	Getwd   func() (string, error)
 	Service func(cmdutil.Files) *billing.Service
 
 	Exporter *cmdutil.Exporter
@@ -36,7 +39,7 @@ type archivedJSON struct {
 // NewCmdList returns the archive list command. runF replaces listRun in
 // tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Service: f.Service}
+	opts := &ListOptions{IO: f.IOStreams, Getwd: f.Env.Getwd, Service: f.Service}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List archived invoices from the configured archive directory",
@@ -77,6 +80,12 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 	archivedInvoices, archiveDir := list.Entries, list.Dir
+	// The working directory only shortens the paths of the warning.
+	baseDir := ""
+	if cwd, err := opts.Getwd(); err == nil {
+		baseDir = filepath.Clean(cwd)
+	}
+	shared.WarnUnread(opts.IO, list.Unread, baseDir)
 
 	if opts.Exporter != nil {
 		items := make([]archivedJSON, 0, len(archivedInvoices))

@@ -41,7 +41,7 @@ func TestResolveEmailDraftPathsReportsUnreadableDirBelowResolvedArchiveDir(t *te
 		t.Fatalf("EvalSymlinks returned error: %v", err)
 	}
 
-	_, err = h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	_, _, err = h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	var pathErr *fs.PathError
 	if !errors.As(err, &pathErr) || !errors.Is(err, fs.ErrPermission) {
 		t.Fatalf("ResolveEmailDraftPaths error = %v, want a permission error", err)

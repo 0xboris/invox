@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 )
@@ -138,21 +136,6 @@ func deleteMappingKey(parent *yaml.Node, key string) {
 	}
 }
 
-func markdownFrontMatter(source []byte) ([]byte, bool) {
-	text := strings.ReplaceAll(string(source), "\r\n", "\n")
-	if !strings.HasPrefix(text, "---\n") {
-		return nil, false
-	}
-	remainder := text[len("---\n"):]
-	end := strings.Index(remainder, "\n---\n")
-	if end < 0 {
-		return nil, false
-	}
-	// The leading newline stands in for the opening `---`, so YAML line
-	// numbers in errors match the lines of the Markdown file.
-	return []byte("\n" + remainder[:end]), true
-}
-
 func findMappingValue(node *yaml.Node, key string) *yaml.Node {
 	if node == nil || node.Kind != yaml.MappingNode {
 		return nil
@@ -174,33 +157,6 @@ func scalarNode(value string) *yaml.Node {
 		Kind:  yaml.ScalarNode,
 		Tag:   "!!str",
 		Value: value,
-	}
-}
-
-func loadArchivedInvoiceDocument(path string) (*yaml.Node, bool, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		document, err := loadYAMLDocument(path)
-		if err != nil {
-			return nil, true, err
-		}
-		return document, true, nil
-	case ".md", ".markdown":
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return nil, false, err
-		}
-		frontMatter, ok := markdownFrontMatter(source)
-		if !ok {
-			return nil, false, nil
-		}
-		document, err := parseYAMLDocumentSource(frontMatter, "front matter in "+path)
-		if err != nil {
-			return nil, true, err
-		}
-		return document, true, nil
-	default:
-		return nil, false, nil
 	}
 }
 

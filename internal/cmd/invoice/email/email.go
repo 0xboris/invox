@@ -160,6 +160,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	if err != nil {
 		return outputExists(cmdutil.UsageError("email", err), baseDir)
 	}
+	shared.WarnUnread(opts.IO, result.Unread, baseDir)
 	message := result.Message
 
 	if opts.DryRun {

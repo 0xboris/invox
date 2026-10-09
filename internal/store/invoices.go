@@ -2,7 +2,6 @@ package store
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,15 +21,12 @@ func (s *Store) Load(path string) (invoice.Invoice, error) {
 	return inv, err
 }
 
-// ArchivedHead reads the head of the archived invoice at path, a YAML file
-// or the front matter of a Markdown file, and decodes it strictly.
+// ArchivedHead reads the head of the archived invoice at path and decodes
+// it strictly.
 func (s *Store) ArchivedHead(path string) (billing.Head, error) {
-	document, ok, err := loadArchivedInvoiceDocument(path)
+	document, err := loadYAMLDocument(path)
 	if err != nil {
 		return billing.Head{}, err
-	}
-	if !ok {
-		return billing.Head{}, fmt.Errorf("%s: archived invoice could not be loaded", path)
 	}
 	err = decodeYAMLDocument(document, path, &invoice.Invoice{}, true)
 	if err != nil && !isDecodeError(err) {
@@ -59,7 +55,7 @@ func documentHead(document *yaml.Node, path string) (billing.Head, error) {
 	head := identity.head()
 	root := document.Content[0]
 	head.Header = headerShape(root)
-	head.ArchivePath, head.ReplacePath = archiveMetadata(root)
+	head.ArchivePath = archiveMetadata(root)
 	return head, err
 }
 
@@ -151,7 +147,7 @@ func (s *Store) Destination(path, workDir, number string, overwrite bool) (strin
 
 // Create writes a new invoice to path from the document at from.
 func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.CreateOptions) error {
-	document, err := loadSourceDocument(from)
+	document, err := loadYAMLDocument(from)
 	if err != nil {
 		return err
 	}
@@ -201,27 +197,6 @@ func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.Crea
 		return err
 	}
 	return nil
-}
-
-// loadSourceDocument reads the document a new invoice starts from: the
-// front matter of a Markdown file, else YAML.
-func loadSourceDocument(path string) (*yaml.Node, error) {
-	if !isMarkdown(path) {
-		return loadYAMLDocument(path)
-	}
-	document, ok, err := loadArchivedInvoiceDocument(path)
-	if err == nil && !ok {
-		err = fmt.Errorf("%s: archived invoice could not be loaded", path)
-	}
-	return document, err
-}
-
-func isMarkdown(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".md", ".markdown":
-		return true
-	}
-	return false
 }
 
 type headerField struct {
@@ -319,13 +294,12 @@ func setArchiveLink(root *yaml.Node, link *invoice.ArchiveLink) {
 		deleteMappingKey(root, internalMetadataKey)
 		return
 	}
-	setArchiveMetadata(root, string(link.ArchivePath), string(link.ArchiveReplacePath))
+	setArchiveMetadata(root, string(link.ArchivePath))
 }
 
 // ReadArchived reads what the archive lists of the invoice at path. ok is
-// false for a file that is not an invoice: Markdown without front matter,
-// or a document whose invoice fields cannot be read. An archived invoice
-// without a status is listed as `archived`.
+// false for a document whose invoice fields cannot be read. An archived
+// invoice without a status is listed as `archived`.
 func ReadArchived(path string) (billing.ArchiveEntry, bool, error) {
 	identity, ok, err := archivedInvoiceIdentity(path)
 	if err != nil || !ok {

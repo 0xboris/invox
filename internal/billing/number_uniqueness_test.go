@@ -18,7 +18,7 @@ func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
 
 	archiveDir := t.TempDir()
 	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	archivedPath := writeArchivedInvoiceMarkdown(t, archiveDir, "first.md", "CUST-001-001")
+	archivedPath := writeArchivedInvoice(t, archiveDir, "first.yaml", "CUST-001-001")
 
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
@@ -89,10 +89,10 @@ func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
 	workingCopy := opened.Path
-	if err := h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Time{}).CheckNumberUnique(workingCopy); err != nil {
+	if _, err := h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Time{}).CheckNumberUnique(workingCopy); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(working copy) = %v, want nil", err)
 	}
-	if err := h.service(t, cmdutil.Files{}, archiveDir, time.Time{}).CheckNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
+	if _, err := h.service(t, cmdutil.Files{}, archiveDir, time.Time{}).CheckNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(archived file) = %v, want nil", err)
 	}
 }

@@ -129,39 +129,6 @@ func TestArchiveInvoiceReplaceKeepsBackupInHistory(t *testing.T) {
 	}
 }
 
-func TestArchiveInvoiceReplaceBacksUpMarkdownOriginalInSubdirectory(t *testing.T) {
-	t.Parallel()
-
-	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	markdownPath := filepath.Join(archiveDir, "customer-a", "first.md")
-	if err := os.MkdirAll(filepath.Dir(markdownPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll returned error: %v", err)
-	}
-	yamlSource := filepath.Join(t.TempDir(), "first.yaml")
-	writeStatusInvoice(t, yamlSource, "CUST-001-001", "archived")
-	original := "---\n" + readTestFile(t, yamlSource) + "---\n\n# Archived invoice\n"
-	if err := os.WriteFile(markdownPath, []byte(original), 0o644); err != nil {
-		t.Fatalf("WriteFile(first.md) returned error: %v", err)
-	}
-
-	workingCopy := editArchivedForTest(t, h, "customer-a/first.md")
-	result, err := h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), archiveBackupTime).Archive(workingCopy, billing.ArchiveOptions{Replace: true})
-	if err != nil {
-		t.Fatalf("ArchiveInvoice returned error: %v", err)
-	}
-	backupPath := filepath.Join(archiveDir, ".history", "customer-a", "first.20261005T123045Z.md")
-	if len(result.Replaced) != 1 || result.Replaced[0] != (billing.Backup{Path: markdownPath, BackupPath: backupPath}) {
-		t.Fatalf("Replaced = %+v, want %s backed up to %s", result.Replaced, markdownPath, backupPath)
-	}
-	if got := readTestFile(t, backupPath); got != original {
-		t.Fatalf("backup = %q, want %q", got, original)
-	}
-	if _, err := os.Stat(markdownPath); !os.IsNotExist(err) {
-		t.Fatalf("markdown original should be replaced by YAML, Stat err = %v", err)
-	}
-}
-
 func TestArchiveInvoiceReplaceStillChecksDuplicateNumbers(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +169,7 @@ func TestArchiveHistoryIsIgnoredByNumberingAndDuplicateCheck(t *testing.T) {
 	}
 	writeStatusInvoice(t, filepath.Join(historyDir, "old.20261005T123045Z.yaml"), "CUST-001-009", "archived")
 
-	invoiceNumber, _, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
+	invoiceNumber, _, _, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
 	if err != nil {
 		t.Fatalf("NextInvoiceNumber returned error: %v", err)
 	}
@@ -212,7 +179,7 @@ func TestArchiveHistoryIsIgnoredByNumberingAndDuplicateCheck(t *testing.T) {
 
 	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-009", "built")
-	if err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Time{}).CheckNumberUnique(invoicePath); err != nil {
+	if _, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Time{}).CheckNumberUnique(invoicePath); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique = %v, want nil (backups must not count)", err)
 	}
 

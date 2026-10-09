@@ -114,8 +114,7 @@ type Position struct {
 // ArchiveLink is the `_invox` mapping of a working copy made by `archive
 // edit`: the archived file it replaces when it is archived again.
 type ArchiveLink struct {
-	ArchivePath        Text
-	ArchiveReplacePath Text
+	ArchivePath Text
 }
 
 const (

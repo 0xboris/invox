@@ -67,34 +67,6 @@ func TestInvoiceWritesKeepComments(t *testing.T) {
 	}
 }
 
-// Legacy Markdown archives go through the same decoder as YAML ones, with
-// line numbers of the Markdown file.
-func TestArchivedMarkdownInvoiceUsesTheInvoiceDecoder(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "2025-01.md")
-	source := "---\ncustomer_id: 0042\nnotes: kept by older versions\ninvoice:\n  number: 0042-007\n  issue_date: 2025-1-5\n  status: archived\n---\n# Invoice\n"
-	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	identity, ok, err := archivedInvoiceIdentity(path)
-	if err != nil || !ok {
-		t.Fatalf("archivedInvoiceIdentity = ok %v, error %v; want an invoice", ok, err)
-	}
-	got := []string{identity.CustomerID.Trim(), identity.Invoice.Number.Trim(), identity.Invoice.IssueDate.Trim(), identity.Invoice.Status.Trim()}
-	if want := []string{"0042", "0042-007", "2025-01-05", "archived"}; strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Fatalf("identity = %q, want %q", got, want)
-	}
-
-	document, ok, err := loadArchivedInvoiceDocument(path)
-	if err != nil || !ok {
-		t.Fatalf("loadArchivedInvoiceDocument = ok %v, error %v", ok, err)
-	}
-	err = decodeYAMLDocument(document, path, &invoice.Invoice{}, true)
-	if want := path + `:3: unknown key "notes"`; err == nil || err.Error() != want {
-		t.Fatalf("strict decode error = %v, want %q", err, want)
-	}
-}
-
 // writeInvoiceNumber and setInvoiceStatus write one header field through
 // Store.Update, as the use cases do.
 func writeInvoiceNumber(path, invoiceNumber string) error {

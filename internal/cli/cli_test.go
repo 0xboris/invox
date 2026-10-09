@@ -1441,19 +1441,10 @@ invoice:
 		t.Fatalf("WriteFile(yamlArchivePath) returned error: %v", err)
 	}
 
-	markdownArchivePath := filepath.Join(archiveDir, "2026-03-05.md")
-	if err := os.WriteFile(markdownArchivePath, []byte(strings.Join([]string{
-		"---",
-		"customer_id: CUST-MD",
-		"invoice:",
-		"  number: CUST-MD-001",
-		"  issue_date: 2026-03-05",
-		"---",
-		"",
-		"# Archived invoice",
-		"",
-	}, "\n")), 0o644); err != nil {
-		t.Fatalf("WriteFile(markdownArchivePath) returned error: %v", err)
+	// No status lists as archived.
+	unstatedArchivePath := filepath.Join(archiveDir, "2026-03-05.yaml")
+	if err := os.WriteFile(unstatedArchivePath, []byte("customer_id: CUST-NS\ninvoice:\n  number: CUST-NS-001\n  issue_date: 2026-03-05\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(unstatedArchivePath) returned error: %v", err)
 	}
 
 	exitCode, stdout, stderr := captureRun(t, []string{"archive", "list"})
@@ -1465,7 +1456,7 @@ invoice:
 	}
 
 	want := strings.Join([]string{
-		"2026-03-05.md\tCUST-MD\t2026-03-05\tarchived",
+		"2026-03-05.yaml\tCUST-NS\t2026-03-05\tarchived",
 		"2026-03-06.yaml\tCUST-YAML\t2026-03-06\tarchived",
 	}, "\n") + "\n"
 	if stdout != want {
@@ -1532,7 +1523,7 @@ invoice:
 		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 	}
 	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-011")
+	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-011")
 
 	exitCode, stdout, stderr := captureRun(t, []string{
 		"increment",
@@ -2230,19 +2221,11 @@ func writeConfigFile(t *testing.T, source string) string {
 	return path
 }
 
-func writeArchivedInvoiceMarkdown(t *testing.T, dir, name, invoiceNumber string) string {
+func writeArchivedInvoice(t *testing.T, dir, name, invoiceNumber string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, name)
-	source := strings.Join([]string{
-		"---",
-		"invoice:",
-		"  number: " + invoiceNumber,
-		"---",
-		"",
-		"# Archived invoice",
-		"",
-	}, "\n")
+	source := "invoice:\n  number: " + invoiceNumber + "\n"
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) returned error: %v", path, err)
 	}

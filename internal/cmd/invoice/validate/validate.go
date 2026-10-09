@@ -100,6 +100,7 @@ func validateRun(opts *ValidateOptions) error {
 	}
 	ctx := result.Context
 
+	shared.WarnUnread(opts.IO, result.Unread, baseDir)
 	shared.WarnArchivedDuplicate(opts.IO, result.Duplicate, invoicePath, baseDir)
 
 	fmt.Fprintf(

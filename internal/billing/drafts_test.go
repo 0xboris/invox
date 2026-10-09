@@ -19,7 +19,7 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-001")
+	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-001")
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
 	workDir := t.TempDir()
@@ -162,24 +162,15 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 	}
 }
 
-func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T) {
+func TestNewFailsWhenAnArchivedInvoiceIsInvalidYAML(t *testing.T) {
 	t.Parallel()
 
 	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
 	archiveDir := t.TempDir()
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 
-	archivePath := filepath.Join(archiveDir, "2026-03-05.md")
-	if err := os.WriteFile(archivePath, []byte(strings.Join([]string{
-		"---",
-		"invoice:",
-		"  number: CUST-001-010",
-		"  broken: [",
-		"---",
-		"",
-		"# Archived invoice",
-		"",
-	}, "\n")), 0o644); err != nil {
+	archivePath := filepath.Join(archiveDir, "2026-03-05.yaml")
+	if err := os.WriteFile(archivePath, []byte("invoice:\n  number: CUST-001-010\n  broken: [\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) returned error: %v", archivePath, err)
 	}
 
@@ -187,7 +178,7 @@ func TestCreateNewInvoiceFailsWhenArchiveContainsInvalidFrontMatter(t *testing.T
 	workDir := t.TempDir()
 	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err == nil {
-		t.Fatal("CreateNewInvoice returned nil error for invalid archived invoice front matter")
+		t.Fatal("New returned nil error for an archived invoice that is not valid YAML")
 	}
 	if !strings.Contains(err.Error(), archivePath) {
 		t.Fatalf("error %q does not contain archived invoice path %q", err.Error(), archivePath)
@@ -407,7 +398,7 @@ func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
 	invoicePath := writeMinimalInvoice(t, "CUST-001-009")
 	archiveDir := t.TempDir()
 	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoiceMarkdown(t, archiveDir, "2026-03-05.md", "CUST-001-011")
+	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-011")
 
 	incremented, err := h.service(t, cmdutil.Files{Customers: customersPath}, filepath.Dir(invoicePath), time.Time{}).Increment(
 		invoicePath,

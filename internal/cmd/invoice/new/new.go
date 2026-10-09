@@ -143,6 +143,7 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	if err != nil {
 		return cmdutil.UsageError("new", err)
 	}
+	shared.WarnUnread(opts.IO, created.Unread, baseDir)
 	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.Skipped, baseDir)
 	displayPath := cmdutil.DisplayPath(created.Path, baseDir)
 	if opts.Edit && !opts.DryRun {

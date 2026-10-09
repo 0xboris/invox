@@ -25,7 +25,7 @@ func TestResolveEmailDraftPathsFollowsSymlinkedArchiveDir(t *testing.T) {
 		t.Fatalf("WriteFile(archivedInvoicePath) returned error: %v", err)
 	}
 
-	source, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	source, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestResolveEmailDraftPathsSkipsArchiveHistory(t *testing.T) {
 		}
 	}
 
-	source, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	source, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
 		}
 	}
 
-	_, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	_, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err == nil {
 		t.Fatal("ResolveEmailDraftPaths returned nil error for ambiguous archive matches")
 	}

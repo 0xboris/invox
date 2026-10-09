@@ -6,8 +6,10 @@
 package archive
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -41,48 +43,56 @@ func (s Store) HistoryDir() string {
 }
 
 // Walk calls visit for every archived invoice file below the root, in the
-// lexical order of filepath.WalkDir. A missing or empty Dir has no files. A
-// Dir that is not a directory is an error. Backups in the history directory
-// are not archived invoices and are skipped.
-func (s Store) Walk(visit func(path string) error) error {
+// lexical order of filepath.WalkDir, and returns the Markdown files it
+// skipped, sorted. A missing or empty Dir has no files. A Dir that is not a
+// directory is an error. Backups in the history directory are not archived
+// invoices and are skipped.
+func (s Store) Walk(visit func(path string) error) ([]string, error) {
 	return s.walk(func(path, _ string) error { return visit(path) })
 }
 
-func (s Store) walk(visit func(path, rel string) error) error {
+func (s Store) walk(visit func(path, rel string) error) ([]string, error) {
 	if strings.TrimSpace(s.Dir) == "" {
-		return nil
+		return nil, nil
 	}
 	info, err := os.Stat(s.Dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%s: archive.dir must point to a directory", s.Dir)
+		return nil, fmt.Errorf("%s: archive.dir must point to a directory", s.Dir)
 	}
 
 	root, err := filepath.EvalSymlinks(s.Dir)
 	if err != nil {
 		root = s.Dir
 	}
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	var markdown []string
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if entry.IsDir() && isHistoryDir(root, path) {
 			return filepath.SkipDir
 		}
-		if entry.IsDir() || !isInvoiceFile(path) {
+		if entry.IsDir() || !isInvoiceFile(path) && !isMarkdownInvoice(path) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
+		if !isInvoiceFile(path) {
+			markdown = append(markdown, filepath.Join(s.Dir, rel))
+			return nil
+		}
 		return visit(filepath.Join(s.Dir, rel), rel)
 	})
+	sort.Strings(markdown)
+	return markdown, err
 }
 
 // Reader reads what the archived invoice at path says about itself. ok is
@@ -91,22 +101,10 @@ func (s Store) walk(visit func(path, rel string) error) error {
 type Reader func(path string) (entry billing.ArchiveEntry, ok bool, err error)
 
 // List reads every archived invoice with read and returns them sorted by
-// Filename.
-func (s Store) List(read Reader) ([]billing.ArchiveEntry, error) {
-	entries, err := s.entries(read)
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Filename < entries[j].Filename
-	})
-	return entries, nil
-}
-
-// entries reads every archived invoice with read, in the order of Walk.
-func (s Store) entries(read Reader) ([]billing.ArchiveEntry, error) {
+// Filename, with what the archive holds that invox no longer reads.
+func (s Store) List(read Reader) ([]billing.ArchiveEntry, billing.Unread, error) {
 	entries := make([]billing.ArchiveEntry, 0)
-	err := s.walk(func(path, rel string) error {
+	markdown, err := s.walk(func(path, rel string) error {
 		entry, ok, err := read(path)
 		if err != nil || !ok {
 			return err
@@ -116,9 +114,12 @@ func (s Store) entries(read Reader) ([]billing.ArchiveEntry, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, billing.Unread{}, err
 	}
-	return entries, nil
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Filename < entries[j].Filename
+	})
+	return entries, billing.Unread{Dir: s.Dir, Markdown: markdown}, nil
 }
 
 // Target is a file inside the archive, named relative to the root.
@@ -170,30 +171,10 @@ func (s Store) Find(name string) (Target, error) {
 	if info.IsDir() {
 		return Target{}, fmt.Errorf("%s: archived invoice must be a file", target.Path)
 	}
-	return target, nil
-}
-
-// Edit describes the working copy `archive edit` makes of a Target.
-type Edit struct {
-	// Filename is the working copy's file name.
-	Filename string
-	// Target is where re-archiving the working copy writes it, relative to
-	// the root.
-	Target string
-	// Replace is the archived file the working copy supersedes, relative to
-	// the root, or "" when that is Target itself.
-	Replace string
-}
-
-// Edit returns the working copy of t. A Markdown archived invoice is edited
-// as YAML and re-archived as YAML, replacing the Markdown original.
-func (t Target) Edit() Edit {
-	rel := filepath.Clean(t.Rel)
-	if isMarkdown(rel) {
-		yamlRel := strings.TrimSuffix(rel, filepath.Ext(rel)) + ".yaml"
-		return Edit{Filename: filepath.Base(yamlRel), Target: yamlRel, Replace: rel}
+	if isMarkdown(target.Path) {
+		return Target{}, fmt.Errorf("%s is a Markdown invoice, which invox no longer reads; convert it to .yaml", target.Path)
 	}
-	return Edit{Filename: filepath.Base(rel), Target: rel}
+	return target, nil
 }
 
 // Backup copies each archived file to
@@ -285,14 +266,32 @@ func isInHistory(rel string) bool {
 }
 
 // isInvoiceFile reports whether path has the extension of an archived
-// invoice: YAML, or Markdown with the invoice as front matter.
+// invoice.
 func isInvoiceFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":
 		return true
 	default:
-		return isMarkdown(path)
+		return false
 	}
+}
+
+// isMarkdownInvoice reports whether path is a Markdown file that opens with
+// a `---` line, which invox used to read as an archived invoice with its
+// front matter. The walk reports them as unread, and leaves out other
+// Markdown files, such as a README.
+func isMarkdownInvoice(path string) bool {
+	if !isMarkdown(path) {
+		return false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	head := make([]byte, len("---\r\n"))
+	n, _ := io.ReadFull(file, head)
+	_ = file.Close()
+	return bytes.HasPrefix(head[:n], []byte("---\n")) || bytes.HasPrefix(head[:n], []byte("---\r\n"))
 }
 
 func isMarkdown(path string) bool {

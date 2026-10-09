@@ -152,6 +152,9 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return cmdutil.UsageError("build", err)
 	}
 	inv := result.Context
+	if result.Archived != nil {
+		shared.WarnUnread(opts.IO, result.Archived.Unread, baseDir)
+	}
 
 	// printResult prints the PDF's path, or with --json the build's result.
 	printResult := func(archivedPath *string) error {

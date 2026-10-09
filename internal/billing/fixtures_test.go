@@ -225,19 +225,11 @@ func writeInvoiceWithoutNumber(t *testing.T, sourcePath string) string {
 	return invoicePath
 }
 
-func writeArchivedInvoiceMarkdown(t *testing.T, dir, name, invoiceNumber string) string {
+func writeArchivedInvoice(t *testing.T, dir, name, invoiceNumber string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, name)
-	source := strings.Join([]string{
-		"---",
-		"invoice:",
-		"  number: " + invoiceNumber,
-		"---",
-		"",
-		"# Archived invoice",
-		"",
-	}, "\n")
+	source := "invoice:\n  number: " + invoiceNumber + "\n"
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) returned error: %v", path, err)
 	}

@@ -203,22 +203,6 @@ func TestLoadYAMLDocumentRejectsDuplicateKeys(t *testing.T) {
 	}
 }
 
-func TestArchivedInvoiceIdentityReportsMarkdownFileLines(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "invoice.md")
-	source := "---\ninvoice:\n  number: A-1\n  number: A-2\n---\n# Invoice\n"
-	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-		t.Fatalf("WriteFile returned error: %v", err)
-	}
-
-	_, _, err := archivedInvoiceIdentity(path)
-	if err == nil {
-		t.Fatal("archivedInvoiceIdentity returned nil error, want duplicate key error")
-	}
-	if want := "front matter in " + path + `:4: duplicate key "number" (first defined on line 3)`; err.Error() != want {
-		t.Fatalf("error = %q, want %q", err.Error(), want)
-	}
-}
-
 func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
 	source := "defaults: &d\n  currency: EUR\ninvoice:\n  <<: *d\n  number: A-1\n"
 	tests := []struct {

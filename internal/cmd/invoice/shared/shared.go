@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -51,6 +52,25 @@ func WarnSkippedArchiveFiles(ios *iostreams.IOStreams, customerID string, paths 
 	}
 	fmt.Fprintf(ios.ErrOut, "warning: numbering ignored %d archived invoice(s) for %s that do not match numbering.pattern: %s\n", len(paths), customerID, list)
 	fmt.Fprintf(ios.ErrOut, "If they are obsolete, move them out of the archive or rename them to another extension. To continue their sequence, set numbering.start (or customers.%s.numbering.start) to the next number.\n", customerID)
+}
+
+// WarnUnread warns on stderr about the archived invoices invox no longer
+// reads, one file per line, so the user can convert them. It prints nothing
+// when there are none.
+func WarnUnread(ios *iostreams.IOStreams, unread billing.Unread, baseDir string) {
+	n := len(unread.Markdown)
+	if n == 0 {
+		return
+	}
+	dir := cmdutil.DisplayPath(unread.Dir, baseDir)
+	if n == 1 {
+		fmt.Fprintf(ios.ErrOut, "warning: 1 Markdown invoice in %s is no longer read; convert it to .yaml to include it:\n", dir)
+	} else {
+		fmt.Fprintf(ios.ErrOut, "warning: %d Markdown invoices in %s are no longer read; convert them to .yaml to include them:\n", n, dir)
+	}
+	for _, path := range unread.Markdown {
+		fmt.Fprintf(ios.ErrOut, "  %s\n", cmdutil.DisplayPath(path, baseDir))
+	}
 }
 
 // WarnArchivedDuplicate warns on stderr when err, the duplicate check of

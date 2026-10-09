@@ -90,6 +90,7 @@ func incrementRun(opts *IncrementOptions) error {
 	if err != nil {
 		return cmdutil.UsageError("increment", err)
 	}
+	shared.WarnUnread(opts.IO, incremented.Unread, baseDir)
 	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.Skipped, baseDir)
 
 	displayPath := cmdutil.DisplayPath(invoicePath, baseDir)

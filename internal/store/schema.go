@@ -106,8 +106,7 @@ var schemaKeys = map[reflect.Type]map[string]string{
 		"vat_percent": "VATPercent",
 	},
 	reflect.TypeFor[invoice.ArchiveLink](): {
-		"archive_path":         "ArchivePath",
-		"archive_replace_path": "ArchiveReplacePath",
+		"archive_path": "ArchivePath",
 	},
 }
 

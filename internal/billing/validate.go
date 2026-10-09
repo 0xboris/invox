@@ -14,6 +14,8 @@ type ValidateResult struct {
 	// kept the archive from being checked. It never makes the invoice
 	// invalid.
 	Duplicate error
+	// Unread is what the duplicate check's archive walk could not read.
+	Unread Unread
 }
 
 // Validate loads the invoice at path with its customer and issuer and
@@ -23,7 +25,8 @@ func (s *Service) Validate(path string) (ValidateResult, error) {
 	if err != nil {
 		return ValidateResult{}, err
 	}
-	return ValidateResult{Context: ctx, Duplicate: s.CheckNumberUnique(path)}, nil
+	unread, duplicate := s.CheckNumberUnique(path)
+	return ValidateResult{Context: ctx, Duplicate: duplicate, Unread: unread}, nil
 }
 
 // load locates customers.yaml and issuer.yaml and loads the invoice at path

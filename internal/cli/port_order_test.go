@@ -55,19 +55,21 @@ func TestPortOrder(t *testing.T) {
 			wantExit:   1,
 			wantStderr: "error: invoice.yaml: invoice.status must be `editing` or `built` before re-archiving, got `draft`\n",
 		},
+		// archive_replace_path was written only for Markdown working
+		// copies; a stale one is ignored.
 		{
 			name:       "replace-resolve-no-number",
 			files:      map[string]string{"invoice.yaml": portOrderWorkingCopy("", "editing", "invoice.yaml", "../escape.md")},
 			args:       []string{"archive", "add", "invoice.yaml"},
-			wantExit:   1,
-			wantStderr: "error: ../escape.md must stay within home/.config/invox/archive\n",
+			wantStdout: "home/.config/invox/archive/invoice.yaml\n",
+			wantStderr: "Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml\n",
 		},
 		{
 			name:       "replace-resolve-with-number",
 			files:      map[string]string{"invoice.yaml": portOrderWorkingCopy("CUST-001-001", "editing", "invoice.yaml", "../escape.md")},
 			args:       []string{"archive", "add", "invoice.yaml"},
-			wantExit:   1,
-			wantStderr: "error: ../escape.md must stay within home/.config/invox/archive\n",
+			wantStdout: "home/.config/invox/archive/invoice.yaml\n",
+			wantStderr: "Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml\n",
 		},
 		{
 			name: "target-dir-vs-duplicate",
@@ -109,8 +111,9 @@ func TestPortOrder(t *testing.T) {
 			},
 			args:       []string{"archive", "add", "invoice.yaml", "--yes"},
 			wantStdout: "home/.config/invox/archive/invoice.yaml\n",
-			wantStderr: "Replaced archived invoice home/.config/invox/archive/invoice.yaml; previous version kept at home/.config/invox/archive/.history/invoice<stamp>yaml\n" +
-				"Replaced archived invoice home/.config/invox/archive/old.md; previous version kept at home/.config/invox/archive/.history/old<stamp>md\n" +
+			wantStderr: "warning: 1 Markdown invoice in home/.config/invox/archive is no longer read; convert it to .yaml to include it:\n" +
+				"  home/.config/invox/archive/old.md\n" +
+				"Replaced archived invoice home/.config/invox/archive/invoice.yaml; previous version kept at home/.config/invox/archive/.history/invoice<stamp>yaml\n" +
 				"Archived invoice.yaml -> home/.config/invox/archive/invoice.yaml\n",
 			check: func(t *testing.T, work string) {
 				archived := filepath.Join(work, portOrderArchive, "invoice.yaml")
@@ -121,10 +124,13 @@ func TestPortOrder(t *testing.T) {
 					t.Errorf("archived invoice =\n%s\nwant\n%s", got, want)
 				}
 				assertPortOrderMode(t, archived, 0o640)
-				assertPortOrderGone(t, filepath.Join(work, "invoice.yaml"), filepath.Join(work, portOrderArchive, "old.md"))
+				assertPortOrderGone(t, filepath.Join(work, "invoice.yaml"))
+				if got := readFileForTest(t, filepath.Join(work, portOrderArchive, "old.md")); got != oldMarkdown {
+					t.Errorf("old.md = %q, want it untouched", got)
+				}
 				history, err := os.ReadDir(filepath.Join(work, portOrderArchive, ".history"))
-				if err != nil || len(history) != 2 {
-					t.Errorf(".history = %v, %v; want the two replaced files", history, err)
+				if err != nil || len(history) != 1 {
+					t.Errorf(".history = %v, %v; want the replaced invoice.yaml", history, err)
 				}
 			},
 		},

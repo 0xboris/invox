@@ -21,10 +21,9 @@ const (
 
 // aliasLoaders are the entry points every YAML file goes through: typed
 // decoding (invoices, customers, issuer, config), node documents (drafts,
-// defaults, numbering), and front matter of archived Markdown invoices.
+// defaults, numbering), and archived invoices.
 var aliasLoaders = map[string]struct {
-	markdown bool
-	load     func(path string) error
+	load func(path string) error
 }{
 	"decodeYAMLFile": {load: func(path string) error {
 		return decodeYAMLFile(path, &invoiceIdentity{}, false)
@@ -33,12 +32,8 @@ var aliasLoaders = map[string]struct {
 		_, err := loadYAMLDocument(path)
 		return err
 	}},
-	"archivedInvoiceIdentity": {markdown: true, load: func(path string) error {
+	"archivedInvoiceIdentity": {load: func(path string) error {
 		_, _, err := archivedInvoiceIdentity(path)
-		return err
-	}},
-	"loadArchivedInvoiceDocument": {markdown: true, load: func(path string) error {
-		_, _, err := loadArchivedInvoiceDocument(path)
 		return err
 	}},
 }
@@ -94,7 +89,6 @@ func billionLaughs() string {
 }
 
 func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
-	// Front matter errors count lines from the top of the Markdown file.
 	tests := []struct {
 		name    string
 		source  string
@@ -127,24 +121,16 @@ func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for name, loader := range aliasLoaders {
+		for name := range aliasLoaders {
 			t.Run(tt.name+"/"+name, func(t *testing.T) {
 				t.Parallel()
 				dir := t.TempDir()
 				path := filepath.Join(dir, "invoice.yaml")
-				source := tt.source
-				label, line := path, tt.line
-				if loader.markdown {
-					path = filepath.Join(dir, "invoice.md")
-					source = "---\n" + source + "---\n"
-					label = "front matter in " + path
-					line++
-				}
-				if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+				if err := os.WriteFile(path, []byte(tt.source), 0o644); err != nil {
 					t.Fatalf("WriteFile returned error: %v", err)
 				}
 
-				want := fmt.Sprintf("%s:%d: %s", label, line, tt.message)
+				want := fmt.Sprintf("%s:%d: %s", path, tt.line, tt.message)
 				if got := runAliasLoader(t, name, path); got != want {
 					t.Fatalf("error = %q, want %q", got, want)
 				}

@@ -38,6 +38,8 @@ type EmailResult struct {
 	Message    Message
 	// Draft is where the draft went; unset in a dry run.
 	Draft Draft
+	// Unread is what the archive walk for the PDF's invoice could not read.
+	Unread Unread
 }
 
 // DraftEmail drafts an email with the invoice's PDF attached, for an
@@ -47,7 +49,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 	if err != nil {
 		return EmailResult{}, err
 	}
-	invoicePath, err := s.emailInvoice(req)
+	invoicePath, unread, err := s.emailInvoice(req)
 	if err != nil {
 		return EmailResult{}, err
 	}
@@ -103,6 +105,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 			Overwrite:   req.Keep && req.Overwrite,
 			Date:        s.Now(),
 		},
+		Unread: unread,
 	}
 	if req.DryRun {
 		if req.Keep {
@@ -120,19 +123,19 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 }
 
 // emailInvoice returns the invoice of req: the one it names, else the one
-// its PDF was built from.
-func (s *Service) emailInvoice(req EmailRequest) (string, error) {
+// its PDF was built from, with what the archive walk could not read.
+func (s *Service) emailInvoice(req EmailRequest) (string, Unread, error) {
 	if req.Invoice != "" {
-		return req.Invoice, nil
+		return req.Invoice, Unread{}, nil
 	}
-	invoicePath, err := s.Archives.Source(req.FromPDF)
+	invoicePath, unread, err := s.Archives.Source(req.FromPDF)
 	if err != nil {
-		return "", err
+		return "", unread, err
 	}
 	if invoicePath == "" {
-		return "", fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", req.FromPDF)
+		return "", unread, fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", req.FromPDF)
 	}
-	return invoicePath, nil
+	return invoicePath, unread, nil
 }
 
 // emailFields is what the email placeholders stand for in ctx.

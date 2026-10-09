@@ -23,26 +23,27 @@ func (s *Service) numberingSettings() (numbering.Settings, error) {
 // NextNumber returns the next invoice number of the customer on issueDate:
 // above every archived invoice's counter, minimumCounter and the start
 // before it. skipped are the customer's archived invoices from the same
-// period whose numbers do not match the pattern.
-func (s *Service) NextNumber(customerID, issueDate string, customer invoice.Customer, minimumCounter int64) (string, []string, error) {
+// period whose numbers do not match the pattern, and unread what the
+// archive walk could not read.
+func (s *Service) NextNumber(customerID, issueDate string, customer invoice.Customer, minimumCounter int64) (number string, skipped []string, unread Unread, err error) {
 	settings, err := s.numberingSettings()
 	if err != nil {
-		return "", nil, err
+		return "", nil, Unread{}, err
 	}
 	start, err := numberingStart(customerID, customer, settings.Start)
 	if err != nil {
-		return "", nil, err
+		return "", nil, Unread{}, err
 	}
-	highest, skipped, err := s.highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
+	highest, skipped, unread, err := s.highestArchivedCounter(settings.Pattern, customerID, issueDate, customer)
 	if err != nil {
-		return "", nil, err
+		return "", nil, Unread{}, err
 	}
 	next := numbering.Next(start, max(highest, minimumCounter))
-	number, err := numbering.Format(settings.Pattern, customerID, customer.Numbering.Code.Trim(), issueDate, next)
+	number, err = numbering.Format(settings.Pattern, customerID, customer.Numbering.Code.Trim(), issueDate, next)
 	if err != nil {
-		return "", nil, err
+		return "", nil, Unread{}, err
 	}
-	return number, skipped, nil
+	return number, skipped, unread, nil
 }
 
 func numberingStart(customerID string, customer invoice.Customer, globalStart int64) (int64, error) {
@@ -55,10 +56,10 @@ func numberingStart(customerID string, customer invoice.Customer, globalStart in
 	return 0, fmt.Errorf("customers.%s.numbering.start: must be >= 1", customerID)
 }
 
-func (s *Service) highestArchivedCounter(pattern, customerID, issueDate string, customer invoice.Customer) (int64, []string, error) {
-	entries, err := s.Archives.Entries()
+func (s *Service) highestArchivedCounter(pattern, customerID, issueDate string, customer invoice.Customer) (int64, []string, Unread, error) {
+	entries, unread, err := s.Archives.Entries()
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, Unread{}, err
 	}
 	var highest int64
 	var skipped []string
@@ -75,7 +76,7 @@ func (s *Service) highestArchivedCounter(pattern, customerID, issueDate string, 
 		}
 		highest = max(highest, counter)
 	}
-	return highest, skipped, nil
+	return highest, skipped, unread, nil
 }
 
 // highestDraftCounter returns the highest counter used by unarchived
@@ -110,6 +111,8 @@ type IncrementResult struct {
 	// Skipped are archived invoices of the customer whose numbers do not
 	// match numbering.pattern, so they did not count towards NewNumber.
 	Skipped []string
+	// Unread is what the archive walk could not read.
+	Unread Unread
 }
 
 // Increment writes the next invoice number into the invoice at path. With
@@ -149,11 +152,11 @@ func (s *Service) Increment(path string, dryRun bool) (IncrementResult, error) {
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	next, skipped, err := s.NextNumber(head.CustomerID, head.IssueDate, customer, current)
+	next, skipped, unread, err := s.NextNumber(head.CustomerID, head.IssueDate, customer, current)
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	result := IncrementResult{CustomerID: head.CustomerID, OldNumber: head.Number, NewNumber: next, Skipped: skipped}
+	result := IncrementResult{CustomerID: head.CustomerID, OldNumber: head.Number, NewNumber: next, Skipped: skipped, Unread: unread}
 	if dryRun {
 		return result, nil
 	}

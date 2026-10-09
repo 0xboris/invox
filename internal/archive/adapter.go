@@ -34,13 +34,13 @@ func (a Archive) store() (Store, error) {
 	return Store{Dir: dir}, nil
 }
 
-// Entries reads every archived invoice in the order of Walk.
-func (a Archive) Entries() ([]billing.ArchiveEntry, error) {
+// Entries reads every archived invoice, sorted by Filename.
+func (a Archive) Entries() ([]billing.ArchiveEntry, billing.Unread, error) {
 	s, err := a.store()
 	if err != nil {
-		return nil, err
+		return nil, billing.Unread{}, err
 	}
-	return s.entries(a.Read)
+	return s.List(a.Read)
 }
 
 // Dir returns the archive directory.
@@ -67,54 +67,40 @@ func (a Archive) Place(src string, head billing.Head) (billing.Placement, error)
 	if filepath.Clean(src) == p.Path {
 		return billing.Placement{}, fmt.Errorf("%s is already in the archive directory", src)
 	}
-	if head.WorkingCopy() && head.ReplacePath != "" && head.ReplacePath != head.ArchivePath {
-		target, err := s.Resolve(head.ReplacePath)
-		if err != nil {
-			return billing.Placement{}, err
-		}
-		if target.Path != p.Path {
-			p.Remove = target.Path
-		}
-	}
 	return p, nil
 }
 
 // Duplicate returns the archived invoice, in file name order, that has
-// head's number, other than src and, for a working copy, the archived
-// files it replaces.
-func (a Archive) Duplicate(src string, head billing.Head) (string, error) {
+// head's number, other than src and, for a working copy, the archived file
+// it replaces.
+func (a Archive) Duplicate(src string, head billing.Head) (string, billing.Unread, error) {
 	s, err := a.store()
 	if err != nil {
-		return "", err
+		return "", billing.Unread{}, err
 	}
 	if strings.TrimSpace(s.Dir) == "" || head.Number == "" {
-		return "", nil
+		return "", billing.Unread{}, nil
 	}
 	excluded := map[string]bool{filepath.Clean(src): true}
 	// Only a working copy from `archive edit` may reuse the number of the
 	// archived file it replaces.
 	if head.WorkingCopy() {
-		for _, name := range []string{head.ArchivePath, head.ReplacePath} {
-			if name == "" {
-				continue
-			}
-			target, err := s.Resolve(name)
-			if err != nil {
-				return "", err
-			}
-			excluded[target.Path] = true
+		target, err := s.Resolve(head.ArchivePath)
+		if err != nil {
+			return "", billing.Unread{}, err
 		}
+		excluded[target.Path] = true
 	}
-	entries, err := s.List(a.Read)
+	entries, unread, err := s.List(a.Read)
 	if err != nil {
-		return "", err
+		return "", unread, err
 	}
 	for _, entry := range entries {
 		if entry.Number == head.Number && !excluded[filepath.Clean(entry.Path)] {
-			return filepath.Clean(entry.Path), nil
+			return filepath.Clean(entry.Path), unread, nil
 		}
 	}
-	return "", nil
+	return "", unread, nil
 }
 
 // Checkout resolves ref and says where its working copy in workDir goes.
@@ -130,21 +116,20 @@ func (a Archive) Checkout(ref, workDir string) (billing.Checkout, error) {
 	if err != nil {
 		return billing.Checkout{}, err
 	}
-	edit := target.Edit()
 	return billing.Checkout{
 		Archived: target.Path,
-		Path:     filepath.Join(workDir, edit.Filename),
-		Link:     billingLink(edit),
+		Path:     filepath.Join(workDir, filepath.Base(target.Rel)),
+		Link:     invoice.ArchiveLink{ArchivePath: invoice.Text(target.Rel)},
 	}, nil
 }
 
 // Add writes the invoice at src to p.Path with opts.Change applied, after
-// backing up the archived files it replaces, then removes p.Remove and src.
+// backing up the archived file it replaces, then removes src.
 func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (billing.ArchiveResult, error) {
 	var replaced []string
 	if p.Overwrite {
 		var err error
-		if replaced, err = ExistingFiles(p.Path, p.Remove); err != nil {
+		if replaced, err = ExistingFiles(p.Path); err != nil {
 			return billing.ArchiveResult{}, err
 		}
 	}
@@ -180,11 +165,6 @@ func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (
 	}
 	if err != nil {
 		return billing.ArchiveResult{}, err
-	}
-	if p.Remove != "" {
-		if err := os.Remove(p.Remove); err != nil && !os.IsNotExist(err) {
-			return billing.ArchiveResult{}, fmt.Errorf("remove %s: %w", p.Remove, err)
-		}
 	}
 	if err := os.Remove(filepath.Clean(src)); err != nil {
 		return billing.ArchiveResult{}, fmt.Errorf("remove %s: %w", filepath.Clean(src), err)
@@ -234,12 +214,12 @@ func inDir(path string, dir os.FileInfo) bool {
 
 // Source returns the invoice YAML file the PDF at pdf was built from: next
 // to it, else in the archive.
-func (a Archive) Source(pdf string) (string, error) {
+func (a Archive) Source(pdf string) (string, billing.Unread, error) {
 	base := strings.TrimSuffix(pdf, filepath.Ext(pdf))
 	candidates := []string{base + ".yaml", base + ".yml"}
 	for _, candidate := range candidates {
 		if isFile(candidate) {
-			return candidate, nil
+			return candidate, billing.Unread{}, nil
 		}
 	}
 	return a.findFile(filepath.Base(candidates[0]), filepath.Base(candidates[1]))
@@ -254,21 +234,21 @@ func isFile(path string) bool {
 // findFile returns the archived file named one of names: one directly in
 // the archive directory, else the only one below it. It returns "" when
 // there is none or no archive directory, and an error when several match.
-func (a Archive) findFile(names ...string) (string, error) {
+func (a Archive) findFile(names ...string) (string, billing.Unread, error) {
 	s, err := a.store()
 	if err != nil {
-		return "", err
+		return "", billing.Unread{}, err
 	}
 	if strings.TrimSpace(s.Dir) == "" {
-		return "", nil
+		return "", billing.Unread{}, nil
 	}
 	for _, name := range names {
 		if info, err := os.Stat(filepath.Join(s.Dir, name)); err == nil && !info.IsDir() {
-			return filepath.Join(s.Dir, name), nil
+			return filepath.Join(s.Dir, name), billing.Unread{}, nil
 		}
 	}
 	var matches []string
-	err = s.Walk(func(path string) error {
+	markdown, err := s.Walk(func(path string) error {
 		for _, name := range names {
 			if filepath.Base(path) == name {
 				matches = append(matches, path)
@@ -277,19 +257,16 @@ func (a Archive) findFile(names ...string) (string, error) {
 		}
 		return nil
 	})
+	unread := billing.Unread{Dir: s.Dir, Markdown: markdown}
 	if err != nil {
-		return "", err
+		return "", unread, err
 	}
 	switch len(matches) {
 	case 0:
-		return "", nil
+		return "", unread, nil
 	case 1:
-		return matches[0], nil
+		return matches[0], unread, nil
 	}
 	sort.Strings(matches)
-	return "", fmt.Errorf("%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s", s.Dir, names[0], strings.Join(matches, ", "))
-}
-
-func billingLink(e Edit) invoice.ArchiveLink {
-	return invoice.ArchiveLink{ArchivePath: invoice.Text(e.Target), ArchiveReplacePath: invoice.Text(e.Replace)}
+	return "", unread, fmt.Errorf("%s: multiple archived invoice YAML files match %s; pass the YAML path explicitly: %s", s.Dir, names[0], strings.Join(matches, ", "))
 }

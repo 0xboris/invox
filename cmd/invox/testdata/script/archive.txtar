@@ -42,12 +42,19 @@ scrubpaths stderr got.txt
 cmp got.txt want-archive.txt
 ! exists second.yaml
 
-# archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS,
-# including Markdown invoices with YAML front matter.
+# archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS.
+# A Markdown invoice is no longer read: one warning names it, and archive
+# edit refuses it.
 cp legacy.md home/.config/invox/archive/legacy.md
 exec invox archive list
 cmp stdout want-list.tsv
-! stderr .
+scrubpaths stderr got.txt
+cmp got.txt want-markdown-warning.txt
+exits 1 invox archive edit legacy.md
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-edit-markdown.txt
+rm home/.config/invox/archive/legacy.md
 
 # archive edit copies an archived invoice back for editing; archiving the
 # working copy replaces the archived one. stdin is not a terminal here, so
@@ -191,9 +198,13 @@ Would archive invoice.yaml -> home/.config/invox/archive/invoice.yaml
 Would archive second.yaml -> home/.config/invox/archive/second.yaml
 -- want-archive.txt --
 Archived second.yaml -> home/.config/invox/archive/second.yaml
+-- want-markdown-warning.txt --
+warning: 1 Markdown invoice in home/.config/invox/archive is no longer read; convert it to .yaml to include it:
+  home/.config/invox/archive/legacy.md
+-- want-edit-markdown.txt --
+error: home/.config/invox/archive/legacy.md is a Markdown invoice, which invox no longer reads; convert it to .yaml
 -- want-list.tsv --
 invoice.yaml	CUST-001	2026-03-06	archived
-legacy.md	CUST-MD	2026-03-05	archived
 second.yaml	CUST-003	2026-03-07	archived
 -- want-edit.txt --
 Editing home/.config/invox/archive/invoice.yaml -> invoice.yaml

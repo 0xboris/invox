@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 )
@@ -23,6 +24,7 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 		files       map[string]string
 		wantNumber  string
 		wantSkipped []string
+		wantUnread  []string
 	}{
 		{
 			name:    "same customer non-matching invoice is skipped",
@@ -99,14 +101,15 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 			wantSkipped: []string{"march-2025.yaml"},
 		},
 		{
-			name:    "markdown archive in an old format is skipped",
+			name:    "markdown archive is not read, whatever its number",
 			pattern: counterPattern,
 			files: map[string]string{
 				"a.yaml":        "customer_id: CUST-001\ninvoice:\n  number: CUST-001-004\n  issue_date: \"2026-03-06\"\n",
 				"old-format.md": "---\ncustomer_id: CUST-001\ninvoice:\n  number: CUST-001/0009\n  issue_date: \"2026-03-06\"\n---\n# Invoice\n",
+				"later.md":      "---\ncustomer_id: CUST-001\ninvoice:\n  number: CUST-001-015\n  issue_date: \"2026-03-06\"\n---\n# Invoice\n",
 			},
-			wantNumber:  "CUST-001-005",
-			wantSkipped: []string{"old-format.md"},
+			wantNumber: "CUST-001-005",
+			wantUnread: []string{"later.md", "old-format.md"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,12 +122,15 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 					t.Fatalf("WriteFile(%s) returned error: %v", name, err)
 				}
 			}
-			var wantSkipped []string
+			var wantSkipped, wantUnread []string
 			for _, name := range tc.wantSkipped {
 				wantSkipped = append(wantSkipped, filepath.Join(archiveDir, name))
 			}
+			for _, name := range tc.wantUnread {
+				wantUnread = append(wantUnread, filepath.Join(archiveDir, name))
+			}
 
-			number, skipped, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
+			number, skipped, unread, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
 			if err != nil {
 				t.Fatalf("NextInvoiceNumber returned error: %v", err)
 			}
@@ -133,6 +139,9 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 			}
 			if !reflect.DeepEqual(skipped, wantSkipped) {
 				t.Fatalf("skipped = %q, want %q", skipped, wantSkipped)
+			}
+			if want := (billing.Unread{Dir: archiveDir, Markdown: wantUnread}); !reflect.DeepEqual(unread, want) {
+				t.Fatalf("unread = %+v, want %+v", unread, want)
 			}
 		})
 	}

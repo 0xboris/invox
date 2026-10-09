@@ -32,6 +32,8 @@ type NewResult struct {
 	// Skipped are archived invoices of the customer whose numbers do not
 	// match numbering.pattern, so they did not count towards Number.
 	Skipped []string
+	// Unread is what the archive walk could not read.
+	Unread Unread
 }
 
 // New drafts the next invoice of a customer from invoice_defaults.yaml or
@@ -78,7 +80,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-	number, skipped, err := s.NextNumber(req.CustomerID, issueDate, customer, draftCounter)
+	number, skipped, unread, err := s.NextNumber(req.CustomerID, issueDate, customer, draftCounter)
 	if err != nil {
 		return NewResult{}, err
 	}
@@ -121,7 +123,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-	return NewResult{Number: number, Path: output, Skipped: skipped}, nil
+	return NewResult{Number: number, Path: output, Skipped: skipped, Unread: unread}, nil
 }
 
 // newSource returns the document a new invoice starts from, after checking
