@@ -62,6 +62,19 @@ func WriteContext(t T) Context {
 	}
 }
 
+// WriteBuiltContext is WriteContext with the invoice built: Invoice is
+// BL00210001.yaml, the context's invoice with status built, next to its PDF
+// BL00210001.pdf in a directory of its own.
+func WriteBuiltContext(t T) Context {
+	t.Helper()
+	fx := WriteContext(t)
+	dir := t.TempDir()
+	fx.Invoice = filepath.Join(dir, "BL00210001.yaml")
+	WriteFile(t, fx.Invoice, strings.Replace(Source("context/invoice.yaml"), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1))
+	WriteFile(t, filepath.Join(dir, "BL00210001.pdf"), "%PDF-1.4\nfake")
+	return fx
+}
+
 // Draft is what new drafts an invoice from: a customer with a name only,
 // an issuer with payment terms only, and invoice defaults.
 type Draft struct {

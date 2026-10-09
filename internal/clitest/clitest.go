@@ -39,6 +39,8 @@ type Invox struct {
 	// IO is the terminal of the next Run. A test sets stdin and the TTY
 	// flags on it; after each Run it is a fresh one.
 	IO *iostreams.IOStreams
+	// GOOS is the OS invox runs as; "" is linux.
+	GOOS string
 
 	vars  map[string]string
 	getwd func() (string, error)
@@ -83,6 +85,7 @@ func (x *Invox) Run(args []string) (int, string, string) {
 	ios := x.IO
 	x.IO, _, _, _ = iostreams.Test()
 	f := factorytest.New(x.t, ios, factorytest.Options{
+		GOOS:   x.GOOS,
 		Home:   x.Host.Home,
 		Vars:   maps.Clone(x.vars),
 		Getwd:  x.getwd,
