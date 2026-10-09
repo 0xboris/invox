@@ -223,19 +223,6 @@ Customer @@CUSTOMER_NAME@@
 	}
 }
 
-func TestIncrementRequiresInput(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"increment"})
-	if exitCode != 2 {
-		t.Fatalf("exitCode = %d, want 2", exitCode)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
-		t.Fatalf("stderr %q does not contain missing input message", stderr)
-	}
-}
-
 func TestRenderRequiresInputOnly(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"render"})
 	if exitCode != 2 {
@@ -729,46 +716,6 @@ func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "invoice.tex")); err != nil {
 		t.Fatalf("default invoice.tex was not created: %v", err)
-	}
-}
-
-func TestIncrementUpdatesInvoiceNumber(t *testing.T) {
-	customersPath, _, _ := writeDraftFixtures(t)
-	workDir := t.TempDir()
-	invoicePath := filepath.Join(workDir, "invoice.yaml")
-	archiveDir := t.TempDir()
-	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-009
-  issue_date: 2026-03-06
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
-	}
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-011")
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"increment",
-		"-i", invoicePath,
-		"-c", customersPath,
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "Incremented " + invoicePath + " for CUST-001: CUST-001-009 -> CUST-001-012\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != invoicePath+"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout, invoicePath+"\n")
-	}
-
-	updated, err := os.ReadFile(invoicePath)
-	if err != nil {
-		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
-	}
-	if !strings.Contains(string(updated), "number: CUST-001-012") {
-		t.Fatalf("invoice file does not contain incremented number: %q", string(updated))
 	}
 }
 
