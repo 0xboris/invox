@@ -15,19 +15,20 @@ func TestLoadYAMLPreservesNumericLookingMappingKeys(t *testing.T) {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	customers, err := loadCustomerTable(path)
+	customers, err := loadCustomerEntries(path)
 	if err != nil {
-		t.Fatalf("loadCustomerTable returned error: %v", err)
+		t.Fatalf("loadCustomerEntries returned error: %v", err)
 	}
-	if _, exists, _ := customers.Lookup("17", false); exists {
+	if _, exists := customers["17"]; exists {
 		t.Fatalf("customers unexpectedly contains coerced key %q", "17")
 	}
-	customer, exists, err := customers.Lookup("0021", false)
-	if err != nil {
-		t.Fatalf("customer(0021) returned error: %v", err)
-	}
+	entry, exists := customers["0021"]
 	if !exists {
 		t.Fatalf("customers does not contain key %q", "0021")
+	}
+	customer, err := decodeCustomer(path, "0021", entry)
+	if want := path + `:3: unknown key "nested" in customer`; err == nil || err.Error() != want {
+		t.Fatalf("customer(0021) error = %v, want %s", err, want)
 	}
 	if got := customer.DisplayName(); got != "Appsters GmbH" {
 		t.Fatalf("customer name = %q, want %q", got, "Appsters GmbH")

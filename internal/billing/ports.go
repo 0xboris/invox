@@ -72,15 +72,15 @@ type Invoices interface {
 	Update(path string, change func(*invoice.Invoice) error) error
 }
 
-// CustomerTable is customers.yaml. An entry is decoded only when it is
-// looked up, so a problem in one entry never stops another customer's
-// invoice.
-type CustomerTable interface {
-	// IDs returns the customer IDs, sorted.
-	IDs() []string
-	// Lookup decodes the entry of id. ok is false when there is none. A
-	// strict lookup rejects keys a customer does not have.
-	Lookup(id string, strict bool) (c invoice.Customer, ok bool, err error)
+// CustomerEntry is one customer of customers.yaml. Each entry is decoded
+// on its own, so a problem in one never stops another customer's invoice.
+type CustomerEntry struct {
+	ID       string
+	Customer invoice.Customer
+	// Err is what in the entry did not decode, as *DecodeError values,
+	// with the rest of Customer decoded. A key a customer does not have
+	// is one, with UnknownKey set.
+	Err error
 }
 
 // Template is a LaTeX template.
@@ -121,7 +121,8 @@ type Directory interface {
 	// finds. Finding none is a *FileNotFoundError.
 	Locate(f File) (string, error)
 	Customer(id string) (invoice.Customer, error)
-	Customers() (CustomerTable, error)
+	// Customers decodes every entry of customers.yaml, sorted by ID.
+	Customers() ([]CustomerEntry, error)
 	// Issuer decodes issuer.yaml strictly; values that do not fit come
 	// back as *DecodeError values.
 	Issuer() (invoice.Issuer, error)

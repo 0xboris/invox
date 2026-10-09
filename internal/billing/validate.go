@@ -2,6 +2,7 @@ package billing
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/0xboris/invox/internal/invoice"
 )
@@ -79,10 +80,12 @@ func (s *Service) loadContext(customersPath, issuerPath, invoicePath string) (*i
 	var customer *invoice.Customer
 	var customerErr error
 	if customerID != "" {
-		if found, ok, err := customers.Lookup(customerID, true); !ok {
+		index := slices.IndexFunc(customers, func(c CustomerEntry) bool { return c.ID == customerID })
+		if index < 0 {
 			unknownCustomer = &invoice.UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
 		} else {
-			customer, customerErr = &found, err
+			found := customers[index]
+			customer, customerErr = &found.Customer, found.Err
 		}
 	}
 	decodeErr := errors.Join(customerErr, issuerErr, invoiceErr)

@@ -111,11 +111,12 @@ func TestBillingHandlesNoPaths(t *testing.T) {
 	}
 }
 
-// TestPortsCarryNoAdapterData checks the two ways adapter data has passed
+// TestPortsCarryNoAdapterData checks the ways adapter data has passed
 // through billing. A port result that billing hands back to the same port
 // (Placement from Archive.Place to Archive.Add) is the adapter's own state
 // taking a detour. A func in a port result (Template.FindAsset,
-// Draft.Discard) is adapter behavior that billing carries for someone else.
+// Draft.Discard) is adapter behavior that billing carries for someone else,
+// and so is an interface (CustomerTable, whose Lookup decoded on demand).
 func TestPortsCarryNoAdapterData(t *testing.T) {
 	billing, err := importer.ForCompiler(token.NewFileSet(), "source", nil).Import(mod + "internal/billing")
 	if err != nil {
@@ -128,8 +129,8 @@ func TestPortsCarryNoAdapterData(t *testing.T) {
 			sig := iface.Method(i).Type().(*types.Signature)
 			for j := range sig.Results().Len() {
 				collect(sig.Results().At(j).Type(), billing, results)
-				if path := funcField(sig.Results().At(j).Type(), map[types.Type]bool{}); path != "" {
-					t.Errorf("billing.%s.%s returns %s, a func: adapter behavior passing through billing", name, iface.Method(i).Name(), path)
+				if path := behavior(sig.Results().At(j).Type(), map[types.Type]bool{}); path != "" {
+					t.Errorf("billing.%s.%s returns %s, a func or an interface: adapter behavior passing through billing", name, iface.Method(i).Name(), path)
 				}
 			}
 			for j := range sig.Params().Len() {
@@ -159,19 +160,25 @@ func collect(t types.Type, billing *types.Package, into map[string]bool) {
 	}
 }
 
-// funcField returns the field path of the first func-typed field in t,
-// following structs, pointers and slices, or "".
-func funcField(t types.Type, seen map[types.Type]bool) string {
+// behavior returns the first func-typed field in t, as its field path, or
+// the first interface other than error, as its name, following structs,
+// pointers and slices; "" when there is none.
+func behavior(t types.Type, seen map[types.Type]bool) string {
 	if seen[t] {
 		return ""
 	}
 	seen[t] = true
 	switch u := t.(type) {
 	case *types.Pointer:
-		return funcField(u.Elem(), seen)
+		return behavior(u.Elem(), seen)
 	case *types.Slice:
-		return funcField(u.Elem(), seen)
+		return behavior(u.Elem(), seen)
+	case *types.Interface:
+		return u.String()
 	case *types.Named:
+		if _, ok := u.Underlying().(*types.Interface); ok && u.Obj().Pkg() != nil {
+			return u.Obj().Name()
+		}
 		st, ok := u.Underlying().(*types.Struct)
 		if !ok {
 			return ""
@@ -181,7 +188,7 @@ func funcField(t types.Type, seen map[types.Type]bool) string {
 			if _, isFunc := f.Type().Underlying().(*types.Signature); isFunc {
 				return u.Obj().Name() + "." + f.Name()
 			}
-			if path := funcField(f.Type(), seen); path != "" {
+			if path := behavior(f.Type(), seen); path != "" {
 				return path
 			}
 		}

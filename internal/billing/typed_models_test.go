@@ -196,3 +196,15 @@ func TestListCustomersRejectsAValueOfTheWrongKind(t *testing.T) {
 		t.Fatalf("error = %v, want %q", err, want)
 	}
 }
+
+func TestListCustomersReportsTheWrongKindButNotUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "customers.yaml")
+	if err := os.WriteFile(path, []byte("A:\n  phone: 123\n  name: [Ay, GmbH]\n  fax: 456\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := isolatedHost(t).service(t, cmdutil.Files{Customers: path}, t.TempDir(), time.Time{}).ListCustomers()
+	if want := path + ":3: customer.name: expected a string, got a list"; err == nil || err.Error() != want {
+		t.Fatalf("error = %v, want %q", err, want)
+	}
+}

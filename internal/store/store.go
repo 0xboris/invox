@@ -1,7 +1,9 @@
 package store
 
 import (
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/0xboris/invox/internal/billing"
@@ -78,16 +80,33 @@ func (s *Store) Customer(id string) (invoice.Customer, error) {
 	if err != nil {
 		return invoice.Customer{}, err
 	}
-	return loadCustomer(path, id)
+	entries, err := loadCustomerEntries(path)
+	if err != nil {
+		return invoice.Customer{}, err
+	}
+	entry, ok := entries[id]
+	if !ok {
+		return invoice.Customer{}, &invoice.UnknownCustomerError{Path: path, CustomerID: id}
+	}
+	return decodeCustomer(path, id, entry)
 }
 
-// Customers reads customers.yaml.
-func (s *Store) Customers() (billing.CustomerTable, error) {
+// Customers decodes every entry of customers.yaml, sorted by ID.
+func (s *Store) Customers() ([]billing.CustomerEntry, error) {
 	path, err := s.Locate(billing.CustomersFile)
 	if err != nil {
 		return nil, err
 	}
-	return loadCustomerTable(path)
+	entries, err := loadCustomerEntries(path)
+	if err != nil {
+		return nil, err
+	}
+	customers := make([]billing.CustomerEntry, 0, len(entries))
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		customer, err := decodeCustomer(path, id, entries[id])
+		customers = append(customers, billing.CustomerEntry{ID: id, Customer: customer, Err: err})
+	}
+	return customers, nil
 }
 
 // Issuer decodes issuer.yaml.

@@ -30,19 +30,17 @@ func (s *Service) ListCustomers() (CustomerList, error) {
 	if err != nil {
 		return CustomerList{}, err
 	}
-	ids := customers.IDs()
-	summaries := make([]CustomerSummary, 0, len(ids))
-	for _, id := range ids {
-		customer, _, err := customers.Lookup(id, false)
-		if err != nil {
+	summaries := make([]CustomerSummary, 0, len(customers))
+	for _, entry := range customers {
+		if err := withoutUnknownKeys(entry.Err); err != nil {
 			return CustomerList{}, err
 		}
 		summaries = append(summaries, CustomerSummary{
-			ID:       id,
-			Name:     customer.DisplayName(),
-			Status:   customer.Status.Trim(),
-			Email:    customer.InvoiceEmail(),
-			Currency: customer.BillingCurrency(),
+			ID:       entry.ID,
+			Name:     entry.Customer.DisplayName(),
+			Status:   entry.Customer.Status.Trim(),
+			Email:    entry.Customer.InvoiceEmail(),
+			Currency: entry.Customer.BillingCurrency(),
 		})
 	}
 	return CustomerList{File: path, Customers: summaries}, nil

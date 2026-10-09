@@ -83,6 +83,23 @@ func failedFields(err error) map[string]bool {
 	return failed
 }
 
+// withoutUnknownKeys returns err, the decode problems of one entry, without
+// the keys the schema does not define.
+func withoutUnknownKeys(err error) error {
+	problems := []error{err}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		problems = joined.Unwrap()
+	}
+	var kept []error
+	for _, problem := range problems {
+		var decodeErr *DecodeError
+		if !errors.As(problem, &decodeErr) || !decodeErr.UnknownKey {
+			kept = append(kept, problem)
+		}
+	}
+	return errors.Join(kept...)
+}
+
 // within reports whether path is one of fields or lies inside one of them.
 func within(path string, fields map[string]bool) bool {
 	for field := range fields {

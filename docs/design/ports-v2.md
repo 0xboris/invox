@@ -167,7 +167,7 @@ type CreateOptions struct {
 type Directory interface {
 	Locate(f File) (string, error)
 	Customer(id string) (invoice.Customer, error)
-	Customers() (CustomerTable, error)
+	Customers() ([]CustomerEntry, error) // U9: was CustomerTable, an interface; now plain data
 	Issuer() (invoice.Issuer, error)
 	Defaults() (string, error)
 	Template(ref string) (Template, error)
