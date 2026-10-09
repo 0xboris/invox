@@ -3,6 +3,7 @@ package store
 import (
 	"reflect"
 
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -18,8 +19,8 @@ type invoiceIdentity struct {
 	} `yaml:"invoice"`
 }
 
-// schemaKeys maps the YAML keys of each schema struct to the names of its
-// fields. A pointer field stays nil when its key is missing or null.
+// schemaKeys maps the YAML keys of each schema struct, those of the invoice
+// files and of config.yaml, to the names of its fields. A pointer field stays nil when its key is missing or null.
 var schemaKeys = map[reflect.Type]map[string]string{
 	reflect.TypeFor[invoice.Customer](): {
 		"name":               "Name",
@@ -107,5 +108,28 @@ var schemaKeys = map[reflect.Type]map[string]string{
 	},
 	reflect.TypeFor[invoice.ArchiveLink](): {
 		"archive_path": "ArchivePath",
+	},
+	reflect.TypeFor[config.Config](): {
+		"paths":     "Paths",
+		"archive":   "Archive",
+		"numbering": "Numbering",
+		"email":     "Email",
+	},
+	reflect.TypeFor[config.Paths](): {
+		"customers": "Customers",
+		"issuer":    "Issuer",
+		"defaults":  "Defaults",
+		"template":  "Template",
+	},
+	reflect.TypeFor[config.Archive](): {
+		"dir": "Dir",
+	},
+	reflect.TypeFor[config.Numbering](): {
+		"pattern": "Pattern",
+		"start":   "Start",
+	},
+	reflect.TypeFor[config.Email](): {
+		"subject": "Subject",
+		"body":    "Body",
 	},
 }

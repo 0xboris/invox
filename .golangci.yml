@@ -217,7 +217,7 @@ linters:
             - github.com/0xboris/invox/internal/env
             - github.com/0xboris/invox/internal/adapters/run
             - github.com/spf13/cobra$
-        # Libraries import no application package.
+        # Libraries import only the standard library.
         libraries:
           list-mode: strict
           files:
@@ -231,7 +231,6 @@ linters:
             - "!$test"
           allow:
             - $gostd
-            - gopkg.in/yaml.v3
         # runtest is test support: a Runner stub on run and the standard
         # library.
         test-support:

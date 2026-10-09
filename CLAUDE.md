@@ -52,8 +52,8 @@ dependencies point inward, from main to the driving and driven adapters to the u
   of use cases that walk the archive carry `Unread`, the Markdown invoices it no longer reads.
   It imports only the entities.
 - Driven adapters implement the ports. `internal/store` (`store.Store`: `Directory` and
-  `Invoices`) owns YAML decoding (strict decoder, alias limits, duplicate keys, the key table
-  in `schema.go`), comment-keeping writes (`Create`, which names `<number>.yaml` and refuses
+  `Invoices`) owns YAML decoding of the invoice files and `config.yaml` (strict decoder, alias
+  limits, duplicate keys, the key table in `schema.go`), comment-keeping writes (`Create`, which names `<number>.yaml` and refuses
   to overwrite an archived file, and `Update`), config and support-file lookup in the invox
   config directory only, and the `init` starter files (`starter/`). `internal/archive`
   (`archive.Archive`) owns the archive directory: walk, list, name resolution, where `Add`
@@ -84,7 +84,8 @@ dependencies point inward, from main to the driving and driven adapters to the u
 - `internal/docs/gen`: `go run ./internal/docs/gen` (or `make docs`) rewrites `docs/cli/*.md`
   and `share/man/man1/*.1` from the command tree. CI fails when they are stale, so regenerate
   them with any help change. The release binary doesn't import it.
-- Libraries, which import no application package: `internal/config`, `internal/fsutil`,
+- Libraries, which import only the standard library: `internal/config` (the typed settings
+  of `config.yaml`, which `store` decodes), `internal/fsutil`,
   `internal/adapters/run` (the only package that calls `os/exec`), `internal/iostreams`
   (stdin, stdout and stderr plus TTY detection; only `iostreams.System()` touches the process
   streams), `internal/env` and `internal/build`. `env.Env` holds `GOOS`, `Getenv`, `HomeDir`,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/config"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // HostInputs are the parts of the environment the user directories come
@@ -94,15 +95,43 @@ func (h Host) loadConfig() (*config.Config, error) {
 	if file.Path == "" {
 		return &config.Config{}, nil
 	}
-	c, err := config.Load(file.Path)
+	c, err := loadConfigFile(file.Path)
 	if file.Source == SourceExplicit && errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("config file %s does not exist", file.Path)
 	}
-	var configErr *config.Error
-	if errors.As(err, &configErr) {
+	return c, err
+}
+
+// loadConfigFile reads and strictly decodes the config file at path. A file
+// without a document, such as one with only comments, gives the zero Config
+// with File set. A read failure is returned as is, so errors.Is(err,
+// fs.ErrNotExist) tells a missing file apart; a problem in the file comes
+// back as a *billing.ConfigError.
+func loadConfigFile(path string) (*config.Config, error) {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	c := &config.Config{File: path}
+	if err := decodeConfig(source, path, c); err != nil {
 		return nil, &billing.ConfigError{Err: err}
 	}
-	return c, err
+	return c, nil
+}
+
+// decodeConfig decodes config.yaml like the support files, and also
+// refuses an indented first key: uncommenting a line of the starter file
+// leaves one behind.
+func decodeConfig(source []byte, path string, c *config.Config) error {
+	document, err := parseYAMLDocumentSource(source, path)
+	if err != nil || len(document.Content) == 0 {
+		return err
+	}
+	if root := document.Content[0]; root.Kind == yaml.MappingNode && root.Column > 1 && len(root.Content) > 0 {
+		key := root.Content[0]
+		return &billing.DecodeError{File: path, Line: key.Line, Problem: fmt.Sprintf("top-level keys must not be indented; remove the leading whitespace before %q", key.Value)}
+	}
+	return decodeYAMLDocument(document, path, c, true)
 }
 
 // configFileResolved returns the config file to read: the explicit one, or

@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -190,6 +191,8 @@ func newYAMLDecoder(label string, out any, strict bool) *yamlDecoder {
 		d.schema = "issuer"
 	case *invoice.Invoice:
 		d.schema = "invoice"
+	case *config.Config:
+		d.schema = "config"
 	}
 	return d
 }

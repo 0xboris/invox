@@ -57,8 +57,8 @@ type DecodeError struct {
 	// skips. It is "" for an unknown key.
 	Field string
 	// UnknownKey is set when the problem is a key the schema does not
-	// define. Schema then names the kind of file: "customers", "issuer" or
-	// "invoice".
+	// define. Schema then names the kind of file: "customers", "issuer",
+	// "invoice" or "config".
 	UnknownKey bool
 	Schema     string
 }

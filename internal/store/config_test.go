@@ -1,4 +1,4 @@
-package config
+package store
 
 import (
 	"errors"
@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/config"
 )
 
 func writeConfig(t *testing.T, source string) string {
@@ -34,24 +37,29 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 			want:   `F:2: unknown key "patern" in numbering`,
 		},
 		{
-			name:   "integer into a string",
-			source: "email:\n  subject: 5\n",
-			want:   "F:2: email.subject: expected a string, got integer 5",
+			name:   "list into a string",
+			source: "email:\n  subject: [5]\n",
+			want:   "F:2: email.subject: expected a string, got a list",
 		},
 		{
-			name:   "boolean into a path",
-			source: "archive:\n  dir: true\n",
-			want:   "F:2: archive.dir: expected a string, got boolean true",
+			name:   "mapping into a path",
+			source: "archive:\n  dir: {a: 1}\n",
+			want:   "F:2: archive.dir: expected a string, got a mapping",
 		},
 		{
-			name:   "quoted start",
-			source: "numbering:\n  start: \"3\"\n",
-			want:   `F:2: numbering.start: expected an integer, got string "3"`,
+			name:   "text start",
+			source: "numbering:\n  start: x\n",
+			want:   "F:2: numbering.start: expected an integer, got `x`",
+		},
+		{
+			name:   "empty start",
+			source: "numbering:\n  start: ''\n",
+			want:   "F:2: numbering.start: expected an integer, got ``",
 		},
 		{
 			name:   "fractional start",
 			source: "numbering:\n  start: 1.9\n",
-			want:   "F:2: numbering.start: expected an integer, got number 1.9",
+			want:   "F:2: numbering.start: expected an integer, got `1.9`",
 		},
 		{
 			name:   "section not a mapping",
@@ -61,12 +69,22 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 		{
 			name:   "top level not a mapping",
 			source: "- a\n- b\n",
-			want:   "F:1: the top level must be a mapping, got a list",
+			want:   "F: root value must be a mapping",
 		},
 		{
-			name:   "flow mapping cannot name the key",
-			source: "numbering: {pattern: x, start: \"3\"}\n",
-			want:   `F:1: expected an integer, got string "3"`,
+			name:   "flow mapping",
+			source: "numbering: {pattern: x, start: 1.9}\n",
+			want:   "F:1: numbering.start: expected an integer, got `1.9`",
+		},
+		{
+			name:   "duplicate key",
+			source: "paths:\n  issuer: i.yaml\npaths:\n  customers: c.yaml\n",
+			want:   `F:3: duplicate key "paths" (first defined on line 1)`,
+		},
+		{
+			name:   "recursive alias",
+			source: "paths: &p\n  customers: *p\n",
+			want:   "F:2: alias *p refers to a node that contains it",
 		},
 		{
 			name:   "syntax error keeps the parser text",
@@ -76,13 +94,13 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 		{
 			name:   "indented top-level key",
 			source: "# note\n  paths:\n    customers: c.yaml\n",
-			want:   `F:2: top-level keys must not be indented; remove the leading whitespace before "paths:"`,
+			want:   `F:2: top-level keys must not be indented; remove the leading whitespace before "paths"`,
 		},
 		{
 			name:   "every problem in one pass, in file order",
-			source: "paths:\n  customer: c.yaml\nnumbering:\n  start: \"3\"\nemail:\n  body: [x]\n",
+			source: "paths:\n  customer: c.yaml\nnumbering:\n  start: x\nemail:\n  body: [x]\n",
 			want: "F:2: unknown key \"customer\" in paths\n" +
-				"F:4: numbering.start: expected an integer, got string \"3\"\n" +
+				"F:4: numbering.start: expected an integer, got `x`\n" +
 				"F:6: email.body: expected a string, got a list",
 		},
 	}
@@ -90,17 +108,17 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.source)
 
-			_, err := Load(path)
+			_, err := loadConfigFile(path)
 			if err == nil {
-				t.Fatalf("Load returned nil error")
+				t.Fatalf("loadConfigFile returned nil error")
 			}
 			want := replaceF(tt.want, path)
 			if err.Error() != want {
-				t.Fatalf("Load error =\n%s\nwant\n%s", err, want)
+				t.Fatalf("loadConfigFile error =\n%s\nwant\n%s", err, want)
 			}
-			var cfgErr *Error
-			if !errors.As(err, &cfgErr) || cfgErr.File != path {
-				t.Fatalf("Load error %#v does not carry *Error for %s", err, path)
+			var cfgErr *billing.ConfigError
+			if !errors.As(err, &cfgErr) {
+				t.Fatalf("loadConfigFile error %#v is not a *billing.ConfigError", err)
 			}
 		})
 	}
@@ -131,11 +149,11 @@ func splitLines(s string) []string {
 
 func TestLoadDecodesSettings(t *testing.T) {
 	template := filepath.Join(t.TempDir(), "t.tex")
-	path := writeConfig(t, "# comment\npaths:\n  customers: ' sub/c.yaml '\n  issuer: ~/i.yaml\n  template: '"+template+"'\narchive:\n  dir: null\nnumbering:\n  pattern: ' {counter} '\n  start: 7\nemail:\n  subject: Hi\n")
+	path := writeConfig(t, "# comment\npaths:\n  customers: ' sub/c.yaml '\n  issuer: ~/i.yaml\n  template: '"+template+"'\narchive:\n  dir: null\nnumbering:\n  pattern: ' {counter} '\n  start: \"7\"\nemail:\n  subject: 5\n")
 
-	c, err := Load(path)
+	c, err := loadConfigFile(path)
 	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
+		t.Fatalf("loadConfigFile returned error: %v", err)
 	}
 	home := filepath.Join(t.TempDir(), "ada")
 	dir := filepath.Dir(path)
@@ -147,7 +165,7 @@ func TestLoadDecodesSettings(t *testing.T) {
 		{"defaults", c.Resolve(c.Paths.Defaults, home), ""},
 		{"archive", c.Resolve(c.Archive.Dir, home), ""},
 		{"pattern", string(c.Numbering.Pattern), "{counter}"},
-		{"subject", string(c.Email.Subject), "Hi"},
+		{"subject", string(c.Email.Subject), "5"},
 		{"body", string(c.Email.Body), ""},
 	} {
 		if check.got != check.want {
@@ -162,19 +180,19 @@ func TestLoadDecodesSettings(t *testing.T) {
 func TestLoadEmptyFileIsTheZeroConfig(t *testing.T) {
 	for _, source := range []string{"", "# only a comment\n\n"} {
 		path := writeConfig(t, source)
-		c, err := Load(path)
+		c, err := loadConfigFile(path)
 		if err != nil {
-			t.Fatalf("Load(%q) returned error: %v", source, err)
+			t.Fatalf("loadConfigFile(%q) returned error: %v", source, err)
 		}
-		if *c != (Config{File: path}) {
-			t.Fatalf("Load(%q) = %+v, want the zero Config with File set", source, *c)
+		if *c != (config.Config{File: path}) {
+			t.Fatalf("loadConfigFile(%q) = %+v, want the zero Config with File set", source, *c)
 		}
 	}
 }
 
 func TestLoadMissingFileIsNotExist(t *testing.T) {
-	_, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	_, err := loadConfigFile(filepath.Join(t.TempDir(), "missing.yaml"))
 	if !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Load error = %v, want fs.ErrNotExist", err)
+		t.Fatalf("loadConfigFile error = %v, want fs.ErrNotExist", err)
 	}
 }

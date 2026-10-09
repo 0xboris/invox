@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/config"
 	"github.com/0xboris/invox/internal/invoice"
 	yaml "gopkg.in/yaml.v3"
 )
 
-// decodeScalar fills out, a pointer to one of the invoice value types, from
-// n and reports whether out is such a type. It reports a wrong kind or a
-// malformed value without the field path, which the decoder adds.
+// decodeScalar fills out, a pointer to one of the invoice or config value
+// types, from n and reports whether out is such a type. It reports a wrong
+// kind or a malformed value without the field path, which the decoder adds.
 func decodeScalar(out any, n *yaml.Node) (bool, error) {
 	var expected string
 	var parse func(text string) error
@@ -35,6 +36,22 @@ func decodeScalar(out any, n *yaml.Node) (bool, error) {
 	case *invoice.Count:
 		expected = "an integer"
 		parse = func(text string) (err error) { *v, err = invoice.ParseCount(text); return err }
+	case *config.Text:
+		expected = "a string"
+		parse = func(text string) error { *v = config.Text(strings.TrimSpace(text)); return nil }
+	case *config.Path:
+		expected = "a string"
+		parse = func(text string) error { *v = config.NewPath(text); return nil }
+	case *config.Int:
+		expected = "an integer"
+		parse = func(text string) error {
+			count, err := invoice.ParseCount(text)
+			if err == nil && !count.IsSet() {
+				err = fmt.Errorf("expected an integer, got `%s`", text)
+			}
+			*v = config.Int(count.Int())
+			return err
+		}
 	default:
 		return false, nil
 	}

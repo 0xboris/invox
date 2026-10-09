@@ -111,9 +111,9 @@ var rules = []rule{
 		only: []string{mod + "internal/factory", mod + "internal/cli", mod + "internal/cli/cmdutil", mod + "internal/cli/helptext", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/env", mod + "internal/adapters/run", "github.com/spf13/cobra"},
 	},
 	{
-		name: "libraries import no application package",
+		name: "libraries import only the standard library",
 		pkgs: ringLibraries,
-		only: []string{"gopkg.in/yaml.v3"},
+		only: []string{},
 	},
 	{
 		name: "test support: runtest imports only run",
