@@ -80,3 +80,18 @@ Coordinated from the review in the target-architecture comparison: restore the c
 | 2026-10-09 | C | (decision) | Don't split `billing`. It is 1,955 lines after B, but the 14 use cases stay methods on `Service` and the only code that could leave cleanly (`emailtext.go`, `epc.go`, about 200 lines) belongs to billing by the spec. A split would add pass-through layers. | | Revisit if billing grows a second, separable concern. |
 | 2026-10-09 | D | 475d398..7937e18 | Deleted the test-only `Host` shim (`store/legacy_api_test.go`). Use-case tests moved to `internal/billing` as `package billing_test` on `factorytest`; render, asset and PDF-build tests to `internal/render/latex`; PDF-to-invoice lookup tests to `internal/archive`; email path defaulting tests to `internal/cmd/invoice/email`. `internal/store` keeps 49 test functions (was 154) on decoding, writing and paths. `factorytest.Options` gained `Now`; the unused `store.writeYAMLDocument` is gone. | 32 passed, 0 failed | Coordinator checks: verify-target OK on 7937e18 in a clean worktree; test and fuzz names identical before and after (491); assertion calls 2,065 before, 2,078 after; production diff limited to factorytest and the deleted helper. |
 
+## Round 2
+
+The maintainer lifted byte-identical output ("we can break things if need be") and asked to drop
+legacy support: the invoice-tool directory, the deprecated command forms, and Markdown archived
+invoices (with a warning naming skipped files). Plans: `docs/design/cleanup-plan.md` (12 units)
+and `docs/design/ports-v2.md` (ports 36 to 24 methods, Service to the 14 use cases). Guardrails:
+`scripts/verify-target.sh` takes its baseline from `docs/design/target/BASELINE`; output may
+change only when each changed file is named in `docs/design/output-changes/`.
+
+| Date | Unit | Commits | What moved | Target checks | Notes |
+|---|---|---|---|---|---|
+| 2026-10-09 | guardrails | 74d3563 | Movable baseline, output-change and removed-test ledgers per unit, regenerated baselines. | 32 passed, 0 failed | Control: an unlisted golden change fails, a listed one passes. |
+| 2026-10-09 | U1 | 52b9678 | Dropped `archive FILE`, `customer config`, `send`, `new -s/--source`, `cmdutil/deprecated.go`; the single-dash normaliser became a check that rejects `-names` with exit 2. 11 goldens changed, `deprecated.txtar` deleted; see `output-changes/U1.md`. | 32 passed, 0 failed | Coordinator ran the binary: removed forms exit 2 with the planned messages; `-output=x.yaml` writes nothing; `-ofile.yaml` still works. |
+| 2026-10-09 | U7 | d85a2bd..7d9e2b8 | `time.DateOnly`; one numbering token table and `Parse` without a per-call regexp; `latex.Item`/`VATRow` deleted; `run.Stub` moved to `run/runtest` (not in the release binary); one `fsutil.Abs` for store and factory. | 32 passed, 0 failed | Fixed a Windows path bug, reproduced under wine; see `output-changes/U7.md`. Verified on the combined tip with U1. |
+
