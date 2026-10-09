@@ -4,13 +4,18 @@ import (
 	"embed"
 	"errors"
 	"strings"
+	"text/template"
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
-//go:embed starter/customers.yaml starter/issuer.yaml starter/invoice_defaults.yaml starter/template.tex
+//go:embed starter
 var starterFiles embed.FS
+
+// configStarter is the starter config.yaml, which names the archive
+// directory and the email placeholders.
+var configStarter = template.Must(template.ParseFS(starterFiles, "starter/config.yaml.tmpl"))
 
 // initConfigDir creates the config directory and the starter files it
 // lacks, and returns the directory.
@@ -25,7 +30,7 @@ func (h Host) initConfigDir() (string, []billing.InitFile, error) {
 
 	results := make([]billing.InitFile, 0, 5)
 
-	created, err := ensureStarterFile(h.GlobalConfigPath(), []byte(h.defaultConfigTemplate()), fsutil.Public)
+	created, err := ensureStarterFile(h.GlobalConfigPath(), []byte(h.ConfigTemplate()), fsutil.Public)
 	if err != nil {
 		return "", nil, err
 	}

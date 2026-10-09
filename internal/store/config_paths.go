@@ -31,7 +31,7 @@ func (h Host) GlobalConfigPath() string {
 
 // editableConfigPath returns the config file to open in an editor, creating
 // it from the template when it does not exist: the explicit config file, else
-// config.yaml where Config reads it, else config.yaml in the config
+// config.yaml where Host reads it, else config.yaml in the config
 // directory.
 func (h Host) editableConfigPath() (string, error) {
 	path := h.configFile
@@ -52,89 +52,28 @@ func (h Host) editableConfigPath() (string, error) {
 	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private); err != nil {
 		return "", err
 	}
-	if err := h.ensureConfigTemplate(path); err != nil {
+	if _, err := ensureStarterFile(path, []byte(h.ConfigTemplate()), fsutil.Public); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
-func (h Host) ensureConfigTemplate(path string) error {
-	_, err := ensureStarterFile(path, []byte(h.defaultConfigTemplate()), fsutil.Public)
-	return err
-}
-
-func (h Host) defaultConfigTemplate() string {
-	defaultArchiveDir := h.configTemplatePath(h.DefaultArchiveDir())
-	if strings.TrimSpace(defaultArchiveDir) == "" {
-		defaultArchiveDir = "invoices"
-	}
-	var emailPlaceholders strings.Builder
-	for _, p := range billing.EmailPlaceholders() {
-		fmt.Fprintf(&emailPlaceholders, "#       %s\n", p.Name)
-	}
-
-	return strings.TrimLeft(fmt.Sprintf(`
-# Invox user configuration.
-#
-# Uncomment a setting and change it to override the default.
-#
-# Supported settings:
-#   paths.customers
-#   paths.issuer
-#   paths.defaults
-#   paths.template
-#   numbering.pattern
-#   numbering.start
-#   archive.dir
-#     Directory where archived invoice files are stored.
-#   email.subject
-#     Subject template for the email command.
-#   email.body
-#     Plain-text body template for the email command.
-#     Supported placeholders for email.subject and email.body:
-%s#
-# Notes:
-# - Top-level keys must not be indented.
-# - Relative paths are resolved relative to this file.
-# - "~/" expands to your home directory.
-# - Per-customer numbering overrides live in customers.yaml at:
-#   <customer>.numbering.start
-# - Support file resolution order is:
-#   1. explicit CLI flag
-#   2. upward project search
-#   3. paths.* in this file
-#   4. conventional files in this config directory
-#
-# paths:
-#   customers: 'customers.yaml'
-#   issuer: 'issuer.yaml'
-#   defaults: 'invoice_defaults.yaml'
-#   template: 'template.tex'
-#
-# numbering:
-#   pattern: '{customer_code}-{counter:03}'
-#   start: 1
-#
-# archive:
-#   dir: '%s'
-#
-# email:
-#   subject: 'Invoice {invoice_number}'
-#   body: |
-#     {email_greeting}
-#     
-#     Please find attached invoice {invoice_number}.
-#     Issue date: {issue_date}
-#     Due date: {due_date}
-#     Outstanding amount: {outstanding_amount}
-#     
-#     Regards,
-#     {issuer_name}
-`, emailPlaceholders.String(), defaultArchiveDir), "\n")
-}
-
+// ConfigTemplate returns the starter config.yaml: each setting, commented
+// out, with its default.
 func (h Host) ConfigTemplate() string {
-	return h.defaultConfigTemplate()
+	archiveDir := h.configTemplatePath(h.DefaultArchiveDir())
+	if strings.TrimSpace(archiveDir) == "" {
+		archiveDir = "invoices"
+	}
+	var b strings.Builder
+	err := configStarter.Execute(&b, struct {
+		ArchiveDir        string
+		EmailPlaceholders []billing.EmailPlaceholder
+	}{archiveDir, billing.EmailPlaceholders()})
+	if err != nil {
+		panic(fmt.Sprintf("store: starter config.yaml: %v", err))
+	}
+	return b.String()
 }
 
 func (h Host) configTemplatePath(path string) string {

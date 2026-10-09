@@ -93,7 +93,7 @@ func TestResolveDefaultPathsFallbackToGlobalConfigFiles(t *testing.T) {
 			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.defaultConfigTemplate()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.ConfigTemplate()), 0o644); err != nil {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
@@ -182,7 +182,7 @@ func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
 	if err := os.MkdirAll(homeDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(homeDir) returned error: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.defaultConfigTemplate()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(h.ConfigTemplate()), 0o644); err != nil {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 	expected := filepath.Join(homeDir, ".local", "share", "invox", "invoices")
