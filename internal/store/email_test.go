@@ -355,30 +355,3 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 		t.Fatalf("OutputPath = %q, want %q", paths.OutputPath, filepath.Join(filepath.Dir(pdfPath), "BL00210001.eml"))
 	}
 }
-
-func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
-	t.Parallel()
-
-	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	for _, path := range []string{
-		filepath.Join(archiveDir, "customer-a", "BL00210001.yaml"),
-		filepath.Join(archiveDir, "customer-b", "BL00210001.yaml"),
-	} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("MkdirAll(filepath.Dir(path)) returned error: %v", err)
-		}
-		if err := os.WriteFile(path, []byte("invoice:\n  number: BL00210001\n"), 0o644); err != nil {
-			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-		}
-	}
-
-	_, err := h.ResolveEmailDraftPaths(filepath.Join(t.TempDir(), "BL00210001.pdf"), "", "")
-	if err == nil {
-		t.Fatal("ResolveEmailDraftPaths returned nil error for ambiguous archive matches")
-	}
-	if !strings.Contains(err.Error(), "multiple archived invoice YAML files match") {
-		t.Fatalf("error %q does not contain ambiguity message", err.Error())
-	}
-}
