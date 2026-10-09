@@ -491,3 +491,22 @@ func TestBuildArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 		t.Fatalf("duplicate invoice should not have been archived, Stat err = %v", err)
 	}
 }
+
+func TestBuildExitsOneWhenTectonicExitsTwo(t *testing.T) {
+	x := clitest.New(t)
+
+	fx := testfixture.WriteContext(t)
+	x.ExpectTectonicFailure(2)
+
+	exitCode, stdout, stderr := x.Run([]string{"build", "-i", fx.Invoice, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template})
+
+	if exitCode != 1 {
+		t.Errorf("exit code = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty", stdout)
+	}
+	if want := "fake tectonic: forced failure\nerror: tectonic exited with status 2\n"; stderr != want {
+		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+}

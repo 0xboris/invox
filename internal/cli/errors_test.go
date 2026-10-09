@@ -111,23 +111,6 @@ func TestMissingTectonicPrintsInstallHint(t *testing.T) {
 	}
 }
 
-func TestBuildExitsOneWhenTectonicExitsTwo(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	installFakeTectonic(t, fakeTectonicExit2)
-
-	exitCode, stdout, stderr := captureRun(t, []string{"build", "-i", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath})
-
-	if exitCode != 1 {
-		t.Errorf("exit code = %d, want 1", exitCode)
-	}
-	if stdout != "" {
-		t.Errorf("stdout = %q, want empty", stdout)
-	}
-	if want := "fake tectonic: forced failure\nerror: tectonic exited with status 2\n"; stderr != want {
-		t.Errorf("stderr = %q, want %q", stderr, want)
-	}
-}
-
 func TestRuntimeErrorKeepsPathsThatOnlyContainWorkingDir(t *testing.T) {
 	cwd := t.TempDir()
 	mirror := filepath.Join(t.TempDir(), "mirror") + filepath.Join(cwd, "bad.yaml")
