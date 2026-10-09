@@ -9,21 +9,6 @@ import (
 	"github.com/0xboris/invox/internal/testfixture"
 )
 
-const archiveShapeInvoice = `customer_id: CUST-003
-invoice:
-  number: CUST-003-001
-  issue_date: 2026-03-07
-  due_date: 2026-04-06
-  status: built
-  period: March
-  vat_percent: 20
-positions:
-  - name: Consulting
-    description: Workshop
-    unit_price: 500
-    quantity: 1
-`
-
 const archiveShapePositions = `positions:
   - name: Consulting
     description: Workshop
@@ -132,7 +117,7 @@ positions:
 			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 			workDir := t.TempDir()
 			x.Chdir(workDir)
-			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(archiveShapeInvoice+link), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(testfixture.Source("cust003-built.yaml")+link), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
@@ -165,7 +150,7 @@ func TestIncrementKeepsArchiveLinkThatNamesNoFile(t *testing.T) {
 			if err := os.WriteFile(customersPath, []byte("CUST-003:\n  name: Third Customer KG\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(archiveShapeInvoice+link), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(testfixture.Source("cust003-built.yaml")+link), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
