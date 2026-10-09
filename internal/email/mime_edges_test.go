@@ -16,7 +16,7 @@ func TestBuildWrapsTheAttachmentAt76Characters(t *testing.T) {
 	for i := range pdf {
 		pdf[i] = byte(i)
 	}
-	eml, err := Build(Draft{
+	eml, err := build(draft{
 		Recipient:      "office@example.com",
 		Subject:        "Invoice",
 		Body:           "Hello\n",
@@ -24,7 +24,7 @@ func TestBuildWrapsTheAttachmentAt76Characters(t *testing.T) {
 		AttachmentPath: "invoice.pdf",
 	}, pdf, draftTime, draftBoundary)
 	if err != nil {
-		t.Fatalf("Build returned error: %v", err)
+		t.Fatalf("build returned error: %v", err)
 	}
 
 	message, err := mail.ReadMessage(bytes.NewReader(eml))
@@ -69,7 +69,7 @@ func TestBuildQuotesABackslashInTheAttachmentName(t *testing.T) {
 		t.Skip("a backslash separates path elements on Windows")
 	}
 	const filename = `Invoice\(2026).pdf`
-	eml, err := Build(Draft{
+	eml, err := build(draft{
 		Recipient:      "office@example.com",
 		Subject:        "Invoice",
 		Body:           "Hello\n",
@@ -77,7 +77,7 @@ func TestBuildQuotesABackslashInTheAttachmentName(t *testing.T) {
 		AttachmentPath: "/tmp/" + filename,
 	}, []byte("%PDF-1.4\nfake"), draftTime, draftBoundary)
 	if err != nil {
-		t.Fatalf("Build returned error: %v", err)
+		t.Fatalf("build returned error: %v", err)
 	}
 	_, _, name, dispositionFilename := parseDraftParts(t, eml)
 	if name != filename || dispositionFilename != filename {

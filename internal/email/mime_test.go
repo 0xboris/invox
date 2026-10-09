@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// parseDraftParts parses an .eml produced by Build and returns
+// parseDraftParts parses an .eml produced by build and returns
 // the text body's transfer encoding, the decoded text body and the attachment's filename as Go's parsers see them.
 func parseDraftParts(t *testing.T, eml []byte) (encoding, body, contentTypeName, dispositionFilename string) {
 	t.Helper()
@@ -58,7 +58,7 @@ func parseDraftParts(t *testing.T, eml []byte) (encoding, body, contentTypeName,
 func TestBuildInvoiceEmailDraftBodyRoundTripsUTF8(t *testing.T) {
 	body := "Sehr geehrte Frau Müller,\n\nanbei die Rechnung über 1.234,56 € (Größe: ½).\n" +
 		"A long line that goes on and on and on, well past seventy-six characters, to check soft line breaks = fine.\n\nGrüße,\nJürgen\n"
-	eml, err := Build(Draft{
+	eml, err := build(draft{
 		Recipient:      "office@example.com",
 		Subject:        "Rechnung",
 		Body:           body,
@@ -67,7 +67,7 @@ func TestBuildInvoiceEmailDraftBodyRoundTripsUTF8(t *testing.T) {
 		AttachmentPath: "invoice.pdf",
 	}, []byte("%PDF-1.4\nfake"), draftTime, draftBoundary)
 	if err != nil {
-		t.Fatalf("Build returned error: %v", err)
+		t.Fatalf("build returned error: %v", err)
 	}
 
 	encoding, got, _, _ := parseDraftParts(t, eml)
@@ -92,7 +92,7 @@ func TestBuildInvoiceEmailDraftAttachmentFilenameRoundTrips(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eml, err := Build(Draft{
+			eml, err := build(draft{
 				Recipient:      "office@example.com",
 				Subject:        "Invoice",
 				Body:           "Hello\n",
@@ -100,7 +100,7 @@ func TestBuildInvoiceEmailDraftAttachmentFilenameRoundTrips(t *testing.T) {
 				AttachmentPath: filepath.Join(t.TempDir(), tt.filename),
 			}, []byte("%PDF-1.4\nfake"), draftTime, draftBoundary)
 			if err != nil {
-				t.Fatalf("Build returned error: %v", err)
+				t.Fatalf("build returned error: %v", err)
 			}
 			_, _, name, filename := parseDraftParts(t, eml)
 			if name != tt.filename {

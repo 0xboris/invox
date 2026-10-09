@@ -1,7 +1,6 @@
-// Package email renders the subject and body of an invoice email from
-// their templates and builds the .eml draft that carries the PDF. It knows
-// the placeholders and the MIME layout, not invoices: the caller fills in
-// Fields.
+// Package email writes an invoice email as an .eml draft that carries the
+// PDF, and opens it. It knows the MIME layout and where temporary drafts
+// go, not invoices: billing writes the subject and body.
 package email
 
 import (
@@ -18,8 +17,8 @@ import (
 	"time"
 )
 
-// Draft is an email with one PDF attachment, ready to write as .eml.
-type Draft struct {
+// draft is an email with one PDF attachment, ready to write as .eml.
+type draft struct {
 	Recipient     string
 	Subject       string
 	Body          string
@@ -29,10 +28,10 @@ type Draft struct {
 	AttachmentPath string
 }
 
-// Build encodes d as a multipart/mixed message: the body quoted-printable,
+// build encodes d as a multipart/mixed message: the body quoted-printable,
 // pdf base64 under the attachment's base name, dated now, marked unsent so
 // mail clients open it for editing. boundary separates the parts.
-func Build(d Draft, pdf []byte, now time.Time, boundary string) ([]byte, error) {
+func build(d draft, pdf []byte, now time.Time, boundary string) ([]byte, error) {
 	fromAddress := mail.Address{
 		Name:    d.SenderName,
 		Address: d.SenderAddress,

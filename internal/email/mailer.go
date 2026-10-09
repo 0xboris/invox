@@ -82,7 +82,7 @@ func write(m billing.Message, path string, overwrite bool) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", m.Attachment, err)
 	}
-	message, err := Build(Draft{
+	message, err := build(draft{
 		Recipient:      m.To,
 		Subject:        m.Subject,
 		Body:           m.Body,
