@@ -31,8 +31,13 @@ func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 	})
 	texPath := filepath.Join("build", "tmp", "invoice.tex")
 
-	if err := tectonic.New(stub, ios, "linux").Build(context.Background(), texPath); err != nil {
-		t.Fatalf("Build returned error: %v", err)
+	pdf, err := tectonic.New(stub, ios, "linux").Compile(context.Background(), texPath)
+	if err != nil {
+		t.Fatalf("Compile returned error: %v", err)
+	}
+
+	if want := filepath.Join("build", "tmp", "invoice.pdf"); pdf != want {
+		t.Fatalf("Compile = %q, want %q", pdf, want)
 	}
 
 	if want := filepath.Join("build", "tmp"); got.Dir != want {
@@ -60,11 +65,11 @@ func TestBuildReturnsExecErrorWhenTectonicFails(t *testing.T) {
 	stub := runtest.NewStub(t)
 	stub.Register("tectonic", func(run.Cmd) error { return &run.ExecError{Name: "tectonic", Code: 1} })
 
-	err := tectonic.New(stub, ios, "linux").Build(context.Background(), "invoice.tex")
+	pdf, err := tectonic.New(stub, ios, "linux").Compile(context.Background(), "invoice.tex")
 
 	var execErr *run.ExecError
-	if !errors.As(err, &execErr) || execErr.Code != 1 {
-		t.Fatalf("Build error = %v, want *run.ExecError with Code 1", err)
+	if !errors.As(err, &execErr) || execErr.Code != 1 || pdf != "" {
+		t.Fatalf("Compile = %q, %v, want \"\", *run.ExecError with Code 1", pdf, err)
 	}
 }
 
@@ -83,11 +88,11 @@ func TestBuildReportsMissingTectonicWithAnInstallHint(t *testing.T) {
 			stub := runtest.NewStub(t)
 			stub.Register("tectonic", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
 
-			err := tectonic.New(stub, ios, tc.goos).Build(context.Background(), "invoice.tex")
+			_, err := tectonic.New(stub, ios, tc.goos).Compile(context.Background(), "invoice.tex")
 
 			var notInstalled *billing.ToolMissingError
 			if !errors.As(err, &notInstalled) {
-				t.Fatalf("Build error = %v, want *billing.ToolMissingError", err)
+				t.Fatalf("Compile error = %v, want *billing.ToolMissingError", err)
 			}
 			if got, want := err.Error(), "tectonic not found in PATH"; got != want {
 				t.Fatalf("Error() = %q, want %q", got, want)

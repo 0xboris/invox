@@ -25,28 +25,22 @@ func New(runner run.Runner, ios *iostreams.IOStreams, goos string) *Compiler {
 	return &Compiler{runner: runner, ios: ios, goos: goos}
 }
 
-// Build compiles texPath into a PDF next to it. It returns a
-// *billing.ToolMissingError when tectonic is not on PATH, and a *run.ExecError when
-// tectonic fails.
-func (c *Compiler) Build(ctx context.Context, texPath string) error {
+// Compile compiles sourcePath and returns the PDF next to it. It implements
+// latex.Compiler. It returns a *billing.ToolMissingError when tectonic is not
+// on PATH, and a *run.ExecError when tectonic fails.
+func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, error) {
 	err := c.runner.Run(ctx, run.Cmd{
-		Dir:    filepath.Dir(texPath),
+		Dir:    filepath.Dir(sourcePath),
 		Name:   "tectonic",
-		Args:   []string{filepath.Base(texPath)},
+		Args:   []string{filepath.Base(sourcePath)},
 		Stdin:  c.ios.In,
 		Stdout: c.ios.ErrOut,
 		Stderr: c.ios.ErrOut,
 	})
 	if errors.Is(err, run.ErrNotFound) {
-		return &billing.ToolMissingError{Tool: "tectonic", Hint: installHint(c.goos)}
+		return "", &billing.ToolMissingError{Tool: "tectonic", Hint: installHint(c.goos)}
 	}
-	return err
-}
-
-// Compile compiles sourcePath and returns the PDF next to it. It
-// implements latex.Compiler.
-func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, error) {
-	if err := c.Build(ctx, sourcePath); err != nil {
+	if err != nil {
 		return "", err
 	}
 	return strings.TrimSuffix(sourcePath, filepath.Ext(sourcePath)) + ".pdf", nil
