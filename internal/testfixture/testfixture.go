@@ -19,6 +19,7 @@ import (
 type T interface {
 	Helper()
 	TempDir() string
+	Cleanup(func())
 	Fatalf(format string, args ...any)
 }
 
