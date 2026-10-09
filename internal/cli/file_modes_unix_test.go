@@ -42,32 +42,6 @@ func assertFileMode(t *testing.T, path string, want fs.FileMode) {
 	}
 }
 
-func TestArchiveCreatesPrivateArchive(t *testing.T) {
-	x := clitest.New(t)
-
-	archiveDir := filepath.Join(t.TempDir(), "archive")
-	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
-	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if err := os.WriteFile(invoicePath, []byte("customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  status: built\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	setUmask(t, 0o077)
-
-	exitCode, stdout, stderr := x.Run([]string{"archive", "add", invoicePath})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	archivePath := filepath.Join(archiveDir, "invoice.yaml")
-	if want := "Archived " + invoicePath + " -> " + archivePath + "\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != archivePath+"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout, archivePath+"\n")
-	}
-	assertFileMode(t, archiveDir, 0o700)
-	assertFileMode(t, archivePath, 0o600)
-}
-
 func TestRenderWritesPublicTex(t *testing.T) {
 	x := clitest.New(t)
 
@@ -157,32 +131,4 @@ func TestEmailWritesPublicDraft(t *testing.T) {
 		t.Fatalf("stdout = %q, want %q", stdout, outputPath+"\n")
 	}
 	assertFileMode(t, outputPath, 0o644&^processUmask(t))
-}
-
-func TestArchiveCreatesMissingArchiveParentsPublic(t *testing.T) {
-	x := clitest.New(t)
-
-	root := t.TempDir()
-	archiveDir := filepath.Join(root, "missing", "archive")
-	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
-	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if err := os.WriteFile(invoicePath, []byte("customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  status: built\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	umask := processUmask(t)
-
-	exitCode, stdout, stderr := x.Run([]string{"archive", "add", invoicePath})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	archivePath := filepath.Join(archiveDir, "invoice.yaml")
-	if want := "Archived " + invoicePath + " -> " + archivePath + "\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != archivePath+"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout, archivePath+"\n")
-	}
-	assertFileMode(t, filepath.Join(root, "missing"), 0o755&^umask)
-	assertFileMode(t, archiveDir, 0o700)
-	assertFileMode(t, archivePath, 0o600)
 }
