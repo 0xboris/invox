@@ -96,8 +96,8 @@ func (s store) walk(visit func(path, rel string) error) ([]string, error) {
 }
 
 // Reader reads what the archived invoice at path says about itself. ok is
-// false for a file that is not an invoice, which List leaves out. List sets
-// Path and Filename.
+// false for a file that is not an invoice, which Archive.Entries leaves out.
+// Entries sets Path and Filename.
 type Reader func(path string) (entry billing.ArchiveEntry, ok bool, err error)
 
 // List reads every archived invoice with read and returns them sorted by
