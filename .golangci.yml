@@ -94,6 +94,16 @@ linters:
             - github.com/0xboris/invox/internal/epc
             - github.com/0xboris/invox/internal/money
             - github.com/0xboris/invox/internal/billing
+        # Use cases hand paths to the adapters; they never build one.
+        use-cases-no-paths:
+          files:
+            - "**/internal/billing/**"
+            - "!$test"
+          deny:
+            - pkg: path$
+              desc: a driven adapter builds paths
+            - pkg: path/filepath
+              desc: a driven adapter builds paths
         # Driven adapters implement billing's ports.
         driven-store:
           list-mode: strict
