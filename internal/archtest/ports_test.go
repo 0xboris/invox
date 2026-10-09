@@ -16,8 +16,9 @@ import (
 )
 
 // narrowPorts is the exact method set of each port billing owns, and
-// serviceMethods that of *billing.Service. docs/design/ports-narrowing.md
-// explains each method; a new one belongs there first.
+// serviceMethods that of *billing.Service. docs/design/ports-v2.md
+// explains each method; a new one belongs there first. The compiler is
+// render/latex's, not a billing port.
 var (
 	narrowPorts = map[string][]string{
 		"Invoices":  {"Create", "Drafts", "Load", "Update"},
@@ -36,6 +37,9 @@ func TestPortMethodSets(t *testing.T) {
 	billing, err := importer.ForCompiler(token.NewFileSet(), "source", nil).Import(mod + "internal/billing")
 	if err != nil {
 		t.Fatalf("type-check billing: %v", err)
+	}
+	if billing.Scope().Lookup("Compiler") != nil {
+		t.Error("billing.Compiler is declared; the renderer owns its compiler")
 	}
 	for name, want := range narrowPorts {
 		tn, _ := billing.Scope().Lookup(name).(*types.TypeName)
@@ -105,4 +109,82 @@ func TestBillingHandlesNoPaths(t *testing.T) {
 			return true
 		})
 	}
+}
+
+// TestPortsCarryNoAdapterData checks the two ways adapter data has passed
+// through billing. A port result that billing hands back to the same port
+// (Placement from Archive.Place to Archive.Add) is the adapter's own state
+// taking a detour. A func in a port result (Template.FindAsset,
+// Draft.Discard) is adapter behavior that billing carries for someone else.
+func TestPortsCarryNoAdapterData(t *testing.T) {
+	billing, err := importer.ForCompiler(token.NewFileSet(), "source", nil).Import(mod + "internal/billing")
+	if err != nil {
+		t.Fatalf("type-check billing: %v", err)
+	}
+	for name := range narrowPorts {
+		iface := billing.Scope().Lookup(name).Type().Underlying().(*types.Interface)
+		results, params := map[string]bool{}, map[string]bool{}
+		for i := range iface.NumMethods() {
+			sig := iface.Method(i).Type().(*types.Signature)
+			for j := range sig.Results().Len() {
+				collect(sig.Results().At(j).Type(), billing, results)
+				if path := funcField(sig.Results().At(j).Type(), map[types.Type]bool{}); path != "" {
+					t.Errorf("billing.%s.%s returns %s, a func: adapter behavior passing through billing", name, iface.Method(i).Name(), path)
+				}
+			}
+			for j := range sig.Params().Len() {
+				collect(sig.Params().At(j).Type(), billing, params)
+			}
+		}
+		for typ := range results {
+			if params[typ] {
+				t.Errorf("billing.%s both returns and takes billing.%s: the adapter's own data takes a detour through billing", name, typ)
+			}
+		}
+	}
+}
+
+// collect adds the billing struct types t names, through pointers and
+// slices, to into.
+func collect(t types.Type, billing *types.Package, into map[string]bool) {
+	switch t := t.(type) {
+	case *types.Pointer:
+		collect(t.Elem(), billing, into)
+	case *types.Slice:
+		collect(t.Elem(), billing, into)
+	case *types.Named:
+		if _, ok := t.Underlying().(*types.Struct); ok && t.Obj().Pkg() == billing {
+			into[t.Obj().Name()] = true
+		}
+	}
+}
+
+// funcField returns the field path of the first func-typed field in t,
+// following structs, pointers and slices, or "".
+func funcField(t types.Type, seen map[types.Type]bool) string {
+	if seen[t] {
+		return ""
+	}
+	seen[t] = true
+	switch u := t.(type) {
+	case *types.Pointer:
+		return funcField(u.Elem(), seen)
+	case *types.Slice:
+		return funcField(u.Elem(), seen)
+	case *types.Named:
+		st, ok := u.Underlying().(*types.Struct)
+		if !ok {
+			return ""
+		}
+		for i := range st.NumFields() {
+			f := st.Field(i)
+			if _, isFunc := f.Type().Underlying().(*types.Signature); isFunc {
+				return u.Obj().Name() + "." + f.Name()
+			}
+			if path := funcField(f.Type(), seen); path != "" {
+				return path
+			}
+		}
+	}
+	return ""
 }

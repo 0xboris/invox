@@ -29,10 +29,13 @@ dependencies point inward, from main to the driving and driven adapters to the u
   `iostreams.System()`, `run.Exec{}` and `env.System()`, then exits with
   `cli.Main(os.Args[1:], f)`.
 - `internal/factory`: the composition root. `factory.New` resolves the user directories from
-  the `env.Env`, builds `store`, `archive`, `render/latex`, the compiler and the mailer (Apple
-  Mail on macOS without `-o`, an .eml file otherwise) and wires them into `billing.Service`
-  behind `Factory.Service(cmdutil.Files)`. `factory/factorytest` builds the same Factory on
-  temporary directories for command tests.
+  the `env.Env`, builds `store`, `archive` (with the clock that stamps backups),
+  `render/latex` (with the tectonic compiler and `store.Host.FindAsset`) and the mailer (Apple
+  Mail on macOS without `-o`, otherwise an .eml file it opens with the Factory's opener), and
+  wires them into `billing.Service` behind `Factory.Service(cmdutil.Files)`. It hands
+  `archive.Archive.Protects` to `store.Store.Protected` and `store.Rewrite` to the archive,
+  and fills `Factory.Locations`, the default locations help texts show.
+  `factory/factorytest` builds the same Factory on temporary directories for command tests.
 - Entities (standard library and `money` only, no disk): `internal/invoice` (the schema types
   without YAML tags, the value types with `Parse*` constructors, `Status` and its transition
   table, `Validate` returning `[]Problem`, VAT totals in `NewContext`), `internal/numbering`
@@ -40,28 +43,35 @@ dependencies point inward, from main to the driving and driven adapters to the u
   `internal/money` (decimals, cents, 1.234,56 formatting).
 - `internal/billing`: the use cases, one method each on `Service` (`New`, `Increment`,
   `Validate`, `Render`, `Build`, `Archive`, `EditArchived`, `DraftEmail`, `ListCustomers`,
-  `ListArchive`, `Paths`, `Init`, `ListTemplates`, `EditablePath`), the six ports in `ports.go`
-  (`Invoices`, `Directory`, `Archive`, `Renderer`, `Compiler`, `Mailer`), the email subject and
-  body templates, and every error type the CLI words (`ConfigError`, `ToolMissingError`,
-  `FileNotFoundError`, `DecodeError`, `OutputExistsError` and so on). It imports only the
-  entities.
+  `ListArchive`, `Paths`, `Init`, `ListTemplates`, `EditablePath`) and no other exported
+  method, the five ports in `ports.go` (`Invoices`, `Directory`, `Archive`, `Renderer`,
+  `Mailer`; `docs/design/ports-v2.md` explains each method), the email subject and body
+  templates, and every error type the CLI words (`ConfigError`, `ToolMissingError`,
+  `FileNotFoundError`, `DecodeError`, `OutputExistsError` and so on). Ports carry domain data
+  only: no func fields in their results, and no result handed back to the same port. Results
+  of use cases that walk the archive carry `Unread`, the Markdown invoices it no longer reads.
+  It imports only the entities.
 - Driven adapters implement the ports. `internal/store` (`store.Store`: `Directory` and
   `Invoices`) owns YAML decoding (strict decoder, alias limits, duplicate keys, the key table
-  in `schema.go`), comment-keeping writes (`Create`, `Update`), Markdown front matter, config
-  and support-file lookup, the legacy directory and the `init` starter files (`starter/`).
-  `internal/archive` (`archive.Archive`) owns the archive directory: walk, list, name
-  resolution, `.history` backups; it reads invoices through `store.ReadArchived`.
-  `internal/render/latex` (`latex.Renderer`) owns placeholders, escaping, line item blocks,
-  template checks and asset copying. `internal/email` (`email.Mailer`) owns the .eml MIME
-  layout and the temporary-draft policy. `internal/adapters/tectonic` and
-  `internal/adapters/applemail` implement `Compiler` and `Mailer` on a `run.Runner`.
+  in `schema.go`), comment-keeping writes (`Create`, which names `<number>.yaml` and refuses
+  to overwrite an archived file, and `Update`), config and support-file lookup in the invox
+  config directory only, and the `init` starter files (`starter/`). `internal/archive`
+  (`archive.Archive`) owns the archive directory: walk, list, name resolution, where `Add`
+  places an invoice, `.history` backups; it reads invoices through `store.ReadArchived` and
+  reports `.md`/`.markdown` files that open with front matter as `billing.Unread` instead of
+  reading them. `internal/render/latex` (`latex.Renderer`) owns placeholders, escaping, line
+  item blocks, template checks and asset copying, and declares the `Compiler` it builds with.
+  `internal/email` (`email.Mailer`) owns the .eml MIME layout, the temporary-draft policy
+  and opening the draft. `internal/adapters/tectonic` implements `latex.Compiler` and
+  `internal/adapters/applemail` `billing.Mailer`, both on a `run.Runner`.
 - Driving adapters: `internal/cli`, `internal/cmd/...`, `internal/tableprinter`,
   `internal/adapters/editor` and `internal/adapters/opener`. They never import a driven
   adapter, `config`, `fsutil` or `factory`.
   - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the check that
     rejects single-dash long flags, help routing, help groups), exit codes (`exit.go`), signals, the help page
     renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
-    `Long` and `Example`; a `Long` is a text/template filled in from `billing.Locations`.
+    `Long` and `Example`; a `Long` is a text/template filled in from `helptext.Locations`,
+    which `cmdutil.Factory.Locations` returns.
     `helptext` holds the shared help content: the topic pages, reference tables and lookup
     lines. `cmdutil` holds the `Factory`, `Files`, the error types, `UsageError` (which words
     a missing support file or template as a usage error), `FlagErrorFunc`, the path display
@@ -69,7 +79,8 @@ dependencies point inward, from main to the driving and driven adapters to the u
   - `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
     `NewCmdX(f, runF)` and a run function that calls one `Service` method and prints its
     result. Parse-only tests pass a `runF`. The invoice verbs live under
-    `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`.
+    `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`, such as
+    `WarnUnread`, the one stderr warning that names the Markdown invoices a command skipped.
 - `internal/docs/gen`: `go run ./internal/docs/gen` (or `make docs`) rewrites `docs/cli/*.md`
   and `share/man/man1/*.1` from the command tree. CI fails when they are stale, so regenerate
   them with any help change. The release binary doesn't import it.
@@ -127,7 +138,14 @@ Settled decisions (#9):
   must be restored with `t.Cleanup`.
 - Tests that reach the editor, the opener or Apple Mail use `testFactory(t)` and
   `captureRunFactory`. Its `runtest.Stub` panics on any program the test did not register with
-  `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs.
+  `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs. The
+  mailer opens drafts itself, so a use-case test that drafts an email passes a stub runner
+  through `factorytest.Options.Runner` (`mailService` in `internal/billing`).
+- `internal/archtest/ports_test.go` pins the exact method set of each port and of
+  `*billing.Service`, and `TestPortsCarryNoAdapterData` fails when a port result carries a func
+  or a port takes back a struct it returned. A new port method updates the lists there.
+- invox reads neither the old `invoice-tool` config directory nor Markdown archived invoices;
+  write archive fixtures as `.yaml`. A `.md` file in a test archive exercises the warning.
 - The e2e suite (`cmd/invox/script_test.go`, scripts in `cmd/invox/testdata/script/*.txtar`)
   pins every command's stdout, stderr and exit code with testscript. Run it with
   `go test ./cmd/invox -run TestScript` (one script: `-run TestScript/archive`). After an
