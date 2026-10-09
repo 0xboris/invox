@@ -50,7 +50,7 @@ $ invox customer list --json id,email
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return cmdutil.FlagErrorf("customer list", "unexpected arguments: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 			}
 			return nil
 		},
@@ -76,7 +76,7 @@ func listRun(opts *ListOptions) error {
 	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
 	list, err := svc.ListCustomers()
 	if err != nil {
-		return cmdutil.UsageError("customer list", err)
+		return cmdutil.UsageError(err)
 	}
 	customers, customersPath := list.Customers, list.File
 

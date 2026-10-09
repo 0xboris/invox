@@ -75,13 +75,13 @@ $ invox build invoice.yaml --json path,number
 $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u issuer.yaml -t template.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("build", opts.Getwd, &opts.InvoicePath, args)
+			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := shared.RequireInput("build", opts.InvoicePath); err != nil {
+			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if err := shared.RequireExtension("build", opts.OutputPath, ".pdf"); err != nil {
+			if err := shared.RequireExtension(opts.OutputPath, ".pdf"); err != nil {
 				return err
 			}
 			if runF != nil {
@@ -132,7 +132,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		Output:   outputPath,
 		Archive:  opts.Archive,
 		Replace:  opts.Yes,
-		Confirm:  shared.ConfirmReplace(ctx, opts.IO, "build", invoicePath, baseDir, fmt.Sprintf("built %s but ", outputDisplay)),
+		Confirm:  shared.ConfirmReplace(ctx, opts.IO, invoicePath, baseDir, fmt.Sprintf("built %s but ", outputDisplay)),
 		DryRun:   opts.DryRun,
 	})
 	var stepErr *billing.StepError
@@ -149,7 +149,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	case errors.As(err, &execErr):
 		return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
 	case err != nil:
-		return cmdutil.UsageError("build", err)
+		return cmdutil.UsageError(err)
 	}
 	inv := result.Context
 	if result.Archived != nil {

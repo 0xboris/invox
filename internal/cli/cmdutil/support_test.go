@@ -18,21 +18,21 @@ func TestSupportPath(t *testing.T) {
 	}
 
 	global := filepath.Join(t.TempDir(), "customers.yaml")
-	err := UsageError("customer list", &billing.FileNotFoundError{File: billing.CustomersFile, Default: global})
+	err := UsageError(&billing.FileNotFoundError{File: billing.CustomersFile, Default: global})
 	var flagErr *FlagError
 	want := "customers file not found; pass -c/--customers, set paths.customers in config.yaml, or place customers.yaml at " + global
-	if !errors.As(err, &flagErr) || flagErr.Command != "customer list" || err.Error() != want {
-		t.Errorf("nothing found: got %#v, want FlagError for customer list: %q", err, want)
+	if !errors.As(err, &flagErr) || err.Error() != want {
+		t.Errorf("nothing found: got %#v, want FlagError %q", err, want)
 	}
 
-	err = UsageError("render", &billing.TemplateLookupError{Err: &billing.TemplateNotFoundError{Name: "fancy.tex"}})
+	err = UsageError(&billing.TemplateLookupError{Err: &billing.TemplateNotFoundError{Name: "fancy.tex"}})
 	want = `template "fancy.tex" not found; run 'invox template list' to see the templates`
-	if !errors.As(err, &flagErr) || flagErr.Command != "render" || err.Error() != want {
-		t.Errorf("unknown template: got %#v, want FlagError for render: %q", err, want)
+	if !errors.As(err, &flagErr) || err.Error() != want {
+		t.Errorf("unknown template: got %#v, want FlagError %q", err, want)
 	}
 
 	other := errors.New("broken")
-	if got := UsageError("validate", other); got != other {
+	if got := UsageError(other); got != other {
 		t.Errorf("other error: got %#v, want it unchanged", got)
 	}
 }

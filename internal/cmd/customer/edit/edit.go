@@ -50,7 +50,7 @@ $ invox customer edit -c customers.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return cmdutil.FlagErrorf("customer edit", "unexpected arguments: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 			}
 			return nil
 		},
@@ -75,11 +75,11 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
 	customersPath, err := svc.EditablePath(billing.CustomersFile)
 	if err != nil {
-		return cmdutil.UsageError("customer edit", err)
+		return cmdutil.UsageError(err)
 	}
 
 	displayPath := cmdutil.DisplayPath(customersPath, baseDir)
-	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "customer edit", customersPath, "edit "+displayPath+" directly"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, customersPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", customersPath, err)
 	}
 

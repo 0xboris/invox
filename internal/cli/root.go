@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -63,7 +64,7 @@ $ invox archive edit 2026-0001.yaml
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmdutil.FlagErrorf("", "missing subcommand")
+				return cmdutil.FlagErrorf("missing subcommand")
 			}
 			return unknownSubcommand(cmd, args[0])
 		},
@@ -162,10 +163,10 @@ var commandGroups = map[string]string{
 // `--`, which the user typed where the subcommand belongs.
 func unknownSubcommand(root *cobra.Command, name string) error {
 	if cmd, _, err := root.Find([]string{name}); err == nil && cmd != root {
-		return cmdutil.FlagErrorf("", "unknown subcommand %q", "--")
+		return cmdutil.FlagErrorf("unknown subcommand %q", "--")
 	}
 	message := fmt.Sprintf("unknown subcommand %q", name) + cmdutil.DidYouMean(root.SuggestionsFor(name))
-	return cmdutil.FlagErrorf("", "%s", message)
+	return cmdutil.FlagErrorf("%s", message)
 }
 
 // applyGlobalFlags copies the global flags cmd parsed into f.
@@ -174,7 +175,7 @@ func applyGlobalFlags(cmd *cobra.Command, f *cmdutil.Factory) error {
 	if flags.Changed("config") {
 		configFile, _ := flags.GetString("config")
 		if configFile == "" {
-			return cmdutil.FlagErrorf("", "flag needs an argument: --config")
+			return &cmdutil.FlagError{Err: errors.New("flag needs an argument: --config"), Root: true}
 		}
 		f.ConfigFile = configFile
 	}
@@ -208,7 +209,8 @@ func versionFlagToCommand(args []string) []string {
 // shorthand flags: one naming a long flag of the command args run, such as
 // -names, or one whose first letter is no shorthand. pflag would read
 // -output=x.pdf as -o utput=x.pdf. A real group such as -ofile.yaml passes.
-func checkSingleDashFlags(root *cobra.Command, args []string) error {
+// It also returns the command args run, whose help explains the error.
+func checkSingleDashFlags(root *cobra.Command, args []string) (*cobra.Command, error) {
 	// Find fails only on an unknown command, which cobra reports when it runs
 	// args, and it still returns the command it got to.
 	cmd, _, _ := root.Find(args)
@@ -222,10 +224,10 @@ func checkSingleDashFlags(root *cobra.Command, args []string) error {
 		var flag *pflag.Flag
 		switch {
 		case arg == "--":
-			return nil
+			return cmd, nil
 		case cmd == root && !strings.HasPrefix(arg, "-"):
 			// An unknown subcommand, which cobra reports.
-			return nil
+			return cmd, nil
 		case strings.HasPrefix(arg, "--"):
 			name, _, _ := strings.Cut(arg[2:], "=")
 			flag = flags.Lookup(name)
@@ -234,17 +236,17 @@ func checkSingleDashFlags(root *cobra.Command, args []string) error {
 		case len(arg) > 2 && arg[0] == '-' && isLetter(arg[1]):
 			name, _, _ := strings.Cut(arg[1:], "=")
 			if flags.Lookup(name) != nil {
-				return cmdutil.FlagErrorf(cmdutil.CommandPath(cmd), "-%s is not a flag; use --%s", name, name)
+				return cmd, cmdutil.FlagErrorf("-%s is not a flag; use --%s", name, name)
 			}
 			if flags.ShorthandLookup(arg[1:2]) == nil {
-				return cmdutil.FlagErrorFunc(cmd, fmt.Errorf("unknown flag: -%s", name))
+				return cmd, cmdutil.FlagErrorFunc(cmd, fmt.Errorf("unknown flag: -%s", name))
 			}
 		}
 		if flag != nil && flag.NoOptDefVal == "" && !strings.Contains(arg, "=") {
 			i++
 		}
 	}
-	return nil
+	return cmd, nil
 }
 
 func isLetter(b byte) bool {

@@ -15,7 +15,7 @@ import (
 // messages it reports. It returns a *cmdutil.FlagError when there is no
 // terminal to ask on, and cmdutil.CancelError when the user declines or ctx
 // is cancelled at the prompt.
-func ConfirmReplace(ctx context.Context, ios *iostreams.IOStreams, command, invoicePath, baseDir, errorPrefix string) func(*billing.ArchiveReplaceError) error {
+func ConfirmReplace(ctx context.Context, ios *iostreams.IOStreams, invoicePath, baseDir, errorPrefix string) func(*billing.ArchiveReplaceError) error {
 	return func(replaceErr *billing.ArchiveReplaceError) error {
 		paths := make([]string, 0, len(replaceErr.Paths))
 		for _, path := range replaceErr.Paths {
@@ -24,7 +24,6 @@ func ConfirmReplace(ctx context.Context, ios *iostreams.IOStreams, command, invo
 		replaced := strings.Join(paths, ", ")
 		if !ios.CanPrompt() {
 			return cmdutil.FlagErrorf(
-				command,
 				"%sarchiving %s replaces archived invoice %s; pass --yes to replace it (%s)",
 				errorPrefix,
 				cmdutil.DisplayPath(invoicePath, baseDir),

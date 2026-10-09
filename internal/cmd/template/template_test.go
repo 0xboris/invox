@@ -34,8 +34,8 @@ func TestNewCmdTemplateUnknownSubcommand(t *testing.T) {
 			err := root.Execute()
 
 			var flagErr *cmdutil.FlagError
-			if !errors.As(err, &flagErr) || flagErr.Command != "template" || err.Error() != tc.want {
-				t.Fatalf("Execute error = %#v, want FlagError for template: %q", err, tc.want)
+			if !errors.As(err, &flagErr) || err.Error() != tc.want {
+				t.Fatalf("Execute error = %#v, want FlagError %q", err, tc.want)
 			}
 			if out.Len() != 0 {
 				t.Errorf("stdout = %q, want empty", out.String())

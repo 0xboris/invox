@@ -66,10 +66,10 @@ $ invox archive add invoice.yaml --dry-run
 $ invox archive add invoice.yaml --json path
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("archive add", opts.Getwd, &opts.InvoicePath, args)
+			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := shared.RequireInput("archive add", opts.InvoicePath); err != nil {
+			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
 			if runF != nil {
@@ -105,7 +105,7 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		shared.WarnUnread(opts.IO, result.Unread, baseDir)
 		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
 	} else {
-		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, "archive add", invoicePath, baseDir, "")})
+		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, invoicePath, baseDir, "")})
 		if err != nil {
 			return err
 		}

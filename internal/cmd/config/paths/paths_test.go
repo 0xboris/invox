@@ -32,7 +32,7 @@ func TestNewCmdPathsParsing(t *testing.T) {
 	cmd.SetArgs([]string{"extra"})
 	err := cmd.Execute()
 	var flagErr *cmdutil.FlagError
-	if !errors.As(err, &flagErr) || flagErr.Command != "config paths" || err.Error() != "unexpected arguments: extra" || ran {
-		t.Fatalf("Execute(extra) = %#v, runF ran = %v; want FlagError for config paths and no run", err, ran)
+	if !errors.As(err, &flagErr) || err.Error() != "unexpected arguments: extra" || ran {
+		t.Fatalf("Execute(extra) = %#v, runF ran = %v; want FlagError and no run", err, ran)
 	}
 }

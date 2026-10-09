@@ -106,7 +106,7 @@ func TestCtrlCCancelsAgainAfterOpenInEditorReturns(t *testing.T) {
 	ctx, stop := signalContext(context.Background())
 	defer stop()
 
-	if err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, "config", filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
 		t.Fatalf("OpenInEditor returned error: %v", err)
 	}
 	signalUntilDone(t, ctx, syscall.SIGINT)

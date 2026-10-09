@@ -55,10 +55,10 @@ $ invox increment invoice.yaml --dry-run
 $ invox increment invoice.yaml --json number,previousNumber
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("increment", opts.Getwd, &opts.InvoicePath, args)
+			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := shared.RequireInput("increment", opts.InvoicePath); err != nil {
+			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
 			if runF != nil {
@@ -88,7 +88,7 @@ func incrementRun(opts *IncrementOptions) error {
 
 	incremented, err := svc.Increment(invoicePath, opts.DryRun)
 	if err != nil {
-		return cmdutil.UsageError("increment", err)
+		return cmdutil.UsageError(err)
 	}
 	shared.WarnUnread(opts.IO, incremented.Unread, baseDir)
 	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.Skipped, baseDir)

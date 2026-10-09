@@ -30,8 +30,8 @@ func TestFlagErrorFuncNamesTheShorthand(t *testing.T) {
 
 		err := root.Execute()
 		var flagErr *FlagError
-		if !errors.As(err, &flagErr) || flagErr.Command != "list" || err.Error() != tc.want {
-			t.Errorf("%q: error = %#v, want FlagError for list: %q", tc.args, err, tc.want)
+		if !errors.As(err, &flagErr) || err.Error() != tc.want {
+			t.Errorf("%q: error = %#v, want FlagError %q", tc.args, err, tc.want)
 		}
 	}
 }

@@ -30,11 +30,11 @@ func TestTakeInput(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			path := tc.input
-			err := TakeInput("validate", getwd, &path, tc.args)
+			err := TakeInput(getwd, &path, tc.args)
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "validate" || err.Error() != tc.wantErr {
-					t.Fatalf("TakeInput error = %#v, want FlagError for validate: %q", err, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
+					t.Fatalf("TakeInput error = %#v, want FlagError %q", err, tc.wantErr)
 				}
 				return
 			}

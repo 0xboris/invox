@@ -66,9 +66,9 @@ $ invox archive edit 2026-03-06.yaml --json path
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case len(args) == 0:
-				return cmdutil.FlagErrorf("archive edit", "missing required arguments: FILENAME")
+				return cmdutil.FlagErrorf("missing required arguments: FILENAME")
 			case len(args) > 1:
-				return cmdutil.FlagErrorf("archive edit", "unexpected arguments: %s", strings.Join(args[1:], " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args[1:], " "))
 			}
 			return nil
 		},

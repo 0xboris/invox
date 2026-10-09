@@ -34,15 +34,7 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		f.IOStreams.SetNeverPrompt(true)
 	}
 	root, helpErr := newRootCmd(f)
-	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
-		// A completion request passes the words typed so far as they are.
-		if err := checkSingleDashFlags(root, args); err != nil {
-			return exitCode(f.IOStreams, err)
-		}
-		args = versionFlagToCommand(args)
-	}
-	root.SetArgs(args)
-	_, err := root.ExecuteContextC(ctx)
+	cmd, err := execute(ctx, root, args)
 	if err == nil {
 		err = helpErr()
 	}
@@ -55,5 +47,19 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
 		err = sigErr
 	}
-	return exitCode(f.IOStreams, err)
+	return exitCode(f.IOStreams, cmd, err)
+}
+
+// execute runs args on root. It returns the command args named, whose help
+// explains a usage error, with the command's error.
+func execute(ctx context.Context, root *cobra.Command, args []string) (*cobra.Command, error) {
+	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
+		// A completion request passes the words typed so far as they are.
+		if cmd, err := checkSingleDashFlags(root, args); err != nil {
+			return cmd, err
+		}
+		args = versionFlagToCommand(args)
+	}
+	root.SetArgs(args)
+	return root.ExecuteContextC(ctx)
 }

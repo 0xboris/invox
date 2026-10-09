@@ -75,7 +75,7 @@ $ invox email invoice.yaml --dry-run
 $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("email", opts.Getwd, &opts.InvoicePath, args)
+			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validate(opts); err != nil {
@@ -110,18 +110,18 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 // validate checks the flags before any support file is read, as render does.
 func validate(opts *EmailOptions) error {
 	if strings.TrimSpace(opts.InvoicePath) == "" {
-		return cmdutil.FlagErrorf("email", "missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input")
+		return cmdutil.FlagErrorf("missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input")
 	}
-	if err := shared.RequireExtension("email", opts.OutputPath, ".eml"); err != nil {
+	if err := shared.RequireExtension(opts.OutputPath, ".eml"); err != nil {
 		return err
 	}
 	switch strings.ToLower(filepath.Ext(opts.InvoicePath)) {
 	case ".yaml", ".yml", ".pdf":
 	default:
-		return cmdutil.FlagErrorf("email", "input must end with .yaml, .yml, or .pdf")
+		return cmdutil.FlagErrorf("input must end with .yaml, .yml, or .pdf")
 	}
 	if strings.TrimSpace(opts.PDFPath) != "" && filepath.Ext(opts.PDFPath) != ".pdf" {
-		return cmdutil.FlagErrorf("email", "-p, --pdf must end with .pdf")
+		return cmdutil.FlagErrorf("-p, --pdf must end with .pdf")
 	}
 	return nil
 }
@@ -156,7 +156,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	}
 	result, err := svc.DraftEmail(ctx, request)
 	if err != nil {
-		return outputExists(cmdutil.UsageError("email", err), baseDir)
+		return outputExists(cmdutil.UsageError(err), baseDir)
 	}
 	shared.WarnUnread(opts.IO, result.Unread, baseDir)
 	message := result.Message

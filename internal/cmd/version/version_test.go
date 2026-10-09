@@ -49,8 +49,8 @@ func TestNewCmdVersionParsing(t *testing.T) {
 				return
 			}
 			var flagErr *cmdutil.FlagError
-			if !errors.As(err, &flagErr) || flagErr.Command != "version" || err.Error() != tc.wantErr {
-				t.Fatalf("Execute error = %#v, want FlagError for version: %q", err, tc.wantErr)
+			if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
+				t.Fatalf("Execute error = %#v, want FlagError %q", err, tc.wantErr)
 			}
 		})
 	}

@@ -77,10 +77,10 @@ $ invox completion bash > ~/.local/share/bash-completion/completions/invox
 			case len(args) == 0:
 				return cmd.Help()
 			case len(args) > 1:
-				return cmdutil.FlagErrorf("completion", "unexpected arguments: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 			}
 			if _, ok := shells[args[0]]; !ok {
-				return cmdutil.FlagErrorf("completion", "unsupported shell %q", args[0])
+				return cmdutil.FlagErrorf("unsupported shell %q", args[0])
 			}
 			opts.Root = cmd.Root()
 			opts.Shell = args[0]

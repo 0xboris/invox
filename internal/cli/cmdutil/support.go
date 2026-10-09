@@ -15,15 +15,15 @@ var supportFlags = map[billing.File]struct{ flag, key, name string }{
 	billing.TemplateFile:  {"-t/--template", "paths.template", "template.tex"},
 }
 
-// UsageError returns err as the usage error of command when it is about a
-// file the command line can name: a support file that was not found, which
+// UsageError returns err as a usage error when it is about a file the
+// command line can name: a support file that was not found, which
 // names the ways to provide it, or a template reference that resolves to
 // nothing. Any other err comes back as it is.
-func UsageError(command string, err error) error {
+func UsageError(err error) error {
 	var notFound *billing.FileNotFoundError
 	if errors.As(err, &notFound) {
 		s := supportFlags[notFound.File]
-		return FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", notFound.File, s.flag, s.key, s.name, notFound.Default)
+		return FlagErrorf("%s file not found; pass %s, set %s in config.yaml, or place %s at %s", notFound.File, s.flag, s.key, s.name, notFound.Default)
 	}
 	var lookup *billing.TemplateLookupError
 	if !errors.As(err, &lookup) {
@@ -31,7 +31,7 @@ func UsageError(command string, err error) error {
 	}
 	var missing *billing.TemplateNotFoundError
 	if errors.As(lookup.Err, &missing) {
-		return FlagErrorf(command, "%s; run 'invox template list' to see the templates", missing)
+		return FlagErrorf("%s; run 'invox template list' to see the templates", missing)
 	}
-	return &FlagError{Command: command, Err: lookup.Err}
+	return &FlagError{Err: lookup.Err}
 }

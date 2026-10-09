@@ -42,8 +42,8 @@ func TestNewCmdCompletionParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "completion" || err.Error() != tc.wantErr {
-					t.Fatalf("Execute error = %#v, want FlagError for completion: %q", err, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
+					t.Fatalf("Execute error = %#v, want FlagError %q", err, tc.wantErr)
 				}
 				return
 			}

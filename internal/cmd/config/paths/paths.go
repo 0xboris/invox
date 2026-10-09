@@ -46,7 +46,7 @@ Sources:
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return cmdutil.FlagErrorf("config paths", "unexpected arguments: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 			}
 			return nil
 		},

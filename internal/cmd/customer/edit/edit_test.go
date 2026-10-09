@@ -40,8 +40,8 @@ func TestNewCmdEditParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "customer edit" || err.Error() != tc.wantErr {
-					t.Fatalf("Execute error = %#v, want FlagError for customer edit: %q", err, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
+					t.Fatalf("Execute error = %#v, want FlagError %q", err, tc.wantErr)
 				}
 				return
 			}

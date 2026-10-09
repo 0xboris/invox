@@ -45,8 +45,8 @@ func TestNewCmdListParsing(t *testing.T) {
 			continue
 		}
 		var flagErr *cmdutil.FlagError
-		if !errors.As(err, &flagErr) || flagErr.Command != "archive list" || err.Error() != tc.wantErr || ran {
-			t.Errorf("%q: Execute error = %#v, runF ran = %v; want FlagError for archive list: %q and no run", tc.args, err, ran, tc.wantErr)
+		if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || ran {
+			t.Errorf("%q: Execute error = %#v, runF ran = %v; want FlagError %q and no run", tc.args, err, ran, tc.wantErr)
 		}
 	}
 }

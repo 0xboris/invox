@@ -51,8 +51,8 @@ func TestNewCmdValidateParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "validate" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for validate: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}

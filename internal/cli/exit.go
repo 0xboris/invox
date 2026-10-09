@@ -10,15 +10,17 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// exitCode reports err on ios.ErrOut and returns the code invox exits with.
-// It is the only place that maps errors to exit codes.
-func exitCode(ios *iostreams.IOStreams, err error) int {
+// exitCode reports err, which cmd returned, on ios.ErrOut and returns the
+// code invox exits with. It is the only place that maps errors to exit codes.
+func exitCode(ios *iostreams.IOStreams, cmd *cobra.Command, err error) int {
 	var flagErr *cmdutil.FlagError
 	var sigErr *SignalError
 	switch {
@@ -31,11 +33,10 @@ func exitCode(ios *iostreams.IOStreams, err error) int {
 	case errors.As(err, &sigErr):
 		return 128 + int(sigErr.Signal)
 	case errors.As(err, &flagErr):
-		command := commandName
-		if flagErr.Command != "" {
-			command += " " + flagErr.Command
+		if flagErr.Root {
+			cmd = cmd.Root()
 		}
-		printError(ios.ErrOut, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, command))
+		printError(ios.ErrOut, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, cmd.CommandPath()))
 		return 2
 	}
 	message := err.Error()

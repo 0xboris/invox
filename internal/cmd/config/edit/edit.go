@@ -16,14 +16,12 @@ import (
 )
 
 // EditOptions is what config edit needs: its streams, the editor and the
-// user directories. Command names the command in its messages.
+// user directories.
 type EditOptions struct {
 	IO      *iostreams.IOStreams
 	Editor  *editor.Editor
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
-
-	Command string
 }
 
 // NewCmdEdit returns the config edit command. runF replaces editRun in tests.
@@ -51,12 +49,11 @@ func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return cmdutil.FlagErrorf(cmdutil.CommandPath(cmd), "unexpected arguments: %s", strings.Join(args, " "))
+			return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 		}
 		return nil
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		opts.Command = cmdutil.CommandPath(cmd)
 		if runF != nil {
 			return runF(cmd.Context(), opts)
 		}
@@ -75,7 +72,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	}
 	displayPath := cmdutil.DisplayPath(configPath, baseDir)
 
-	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, configPath, "edit "+displayPath+" directly"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, configPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 

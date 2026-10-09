@@ -10,12 +10,12 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// OpenInEditor opens path in ed for command. Without a terminal, or with
+// OpenInEditor opens path in ed. Without a terminal, or with
 // prompting disabled, it starts no editor and returns a *FlagError that ends
 // with nextStep, what the user can do instead.
-func OpenInEditor(ctx context.Context, ios *iostreams.IOStreams, ed *editor.Editor, command, path, nextStep string) error {
+func OpenInEditor(ctx context.Context, ios *iostreams.IOStreams, ed *editor.Editor, path, nextStep string) error {
 	if reason := WhyNoPrompt(ios); reason != "" {
-		return FlagErrorf(command, "cannot open an editor: %s; %s", reason, nextStep)
+		return FlagErrorf("cannot open an editor: %s; %s", reason, nextStep)
 	}
 	defer HoldInterrupt(ctx)()
 	err := ed.Edit(ctx, path)

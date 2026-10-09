@@ -8,20 +8,20 @@ import (
 	"fmt"
 )
 
-// FlagError is a usage error: a bad flag, argument or subcommand. Command is
-// the command whose help explains the usage, for example "customer list", or
-// empty for the root command.
+// FlagError is a usage error: a bad flag, argument or subcommand. Main points
+// to the help of the command that ran, or to the root help when Root is set:
+// for a global flag or a help topic, which only the root help explains.
 type FlagError struct {
-	Command string
-	Err     error
+	Err  error
+	Root bool
 }
 
 func (e *FlagError) Error() string { return e.Err.Error() }
 func (e *FlagError) Unwrap() error { return e.Err }
 
-// FlagErrorf returns a *FlagError for command with a formatted message.
-func FlagErrorf(command, format string, args ...any) error {
-	return &FlagError{Command: command, Err: fmt.Errorf(format, args...)}
+// FlagErrorf returns a *FlagError with a formatted message.
+func FlagErrorf(format string, args ...any) error {
+	return &FlagError{Err: fmt.Errorf(format, args...)}
 }
 
 // SilentError means the command failed and has already reported why.

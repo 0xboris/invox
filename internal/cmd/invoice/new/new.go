@@ -74,15 +74,15 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case len(args) == 0:
-				return cmdutil.FlagErrorf("new", "missing required arguments: CUSTOMER_ID")
+				return cmdutil.FlagErrorf("missing required arguments: CUSTOMER_ID")
 			case len(args) > 1:
-				return cmdutil.FlagErrorf("new", "unexpected arguments: %s", strings.Join(args[1:], " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args[1:], " "))
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.CustomerID = strings.TrimSpace(args[0])
-			if err := shared.RequireExtension("new", opts.OutputPath, ".yaml"); err != nil {
+			if err := shared.RequireExtension(opts.OutputPath, ".yaml"); err != nil {
 				return err
 			}
 			if runF != nil {
@@ -141,17 +141,17 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		return fmt.Errorf("%s; choose a different -o/--output path", isDir)
 	}
 	if err != nil {
-		return cmdutil.UsageError("new", err)
+		return cmdutil.UsageError(err)
 	}
 	shared.WarnUnread(opts.IO, created.Unread, baseDir)
 	shared.WarnSkippedArchiveFiles(opts.IO, opts.CustomerID, created.Skipped, baseDir)
 	displayPath := cmdutil.DisplayPath(created.Path, baseDir)
 	if opts.Edit && !opts.DryRun {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
-		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)
+		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, created.Path, nextStep)
 		var flagErr *cmdutil.FlagError
 		if errors.As(err, &flagErr) {
-			return &cmdutil.FlagError{Command: flagErr.Command, Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}
+			return &cmdutil.FlagError{Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}
 		}
 		if err != nil {
 			return fmt.Errorf("created %s but failed to open it: %w", displayPath, err)

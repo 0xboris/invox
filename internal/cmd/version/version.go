@@ -28,7 +28,7 @@ $ invox --version
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return cmdutil.FlagErrorf("version", "unexpected arguments for version: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments for version: %s", strings.Join(args, " "))
 			}
 			return nil
 		},

@@ -127,7 +127,7 @@ func helpTopic(w io.Writer, root *cobra.Command, l helptext.Locations, args []st
 	}
 	cmd, rest, err := root.Find(args)
 	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() {
-		return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
+		return &cmdutil.FlagError{Err: fmt.Errorf("unknown help topic %q", strings.Join(args, " ")), Root: true}
 	}
 	return writeHelp(w, cmd, l)
 }

@@ -56,13 +56,13 @@ $ invox build invoice.yaml -t multi_vat.tex
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return cmdutil.FlagErrorf("template list", "unexpected arguments: %s", strings.Join(args, " "))
+				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.NamesOnly && opts.Exporter != nil {
-				return cmdutil.FlagErrorf("template list", "--names and --json cannot be used together")
+				return cmdutil.FlagErrorf("--names and --json cannot be used together")
 			}
 			if runF != nil {
 				return runF(opts)

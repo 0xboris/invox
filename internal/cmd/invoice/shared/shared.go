@@ -14,20 +14,20 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// RequireInput is the usage error of command when no invoice was given as
-// the INVOICE argument or with -i, --input.
-func RequireInput(command, invoicePath string) error {
+// RequireInput is the usage error when no invoice was given as the INVOICE
+// argument or with -i, --input.
+func RequireInput(invoicePath string) error {
 	if strings.TrimSpace(invoicePath) == "" {
-		return cmdutil.FlagErrorf(command, "missing required input: INVOICE.yaml or -i, --input")
+		return cmdutil.FlagErrorf("missing required input: INVOICE.yaml or -i, --input")
 	}
 	return nil
 }
 
-// RequireExtension is the usage error of command when the -o, --output path
-// is set and does not end with ext.
-func RequireExtension(command, outputPath, ext string) error {
+// RequireExtension is the usage error when the -o, --output path is set and
+// does not end with ext.
+func RequireExtension(outputPath, ext string) error {
 	if strings.TrimSpace(outputPath) != "" && filepath.Ext(outputPath) != ext {
-		return cmdutil.FlagErrorf(command, "-o, --output must end with %s", ext)
+		return cmdutil.FlagErrorf("-o, --output must end with %s", ext)
 	}
 	return nil
 }
@@ -94,11 +94,11 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, err error, invoicePath, bas
 	)
 }
 
-// TakeInput makes the INVOICE argument, the first of args, the invoice of
-// command. It is a usage error when -i, --input names a different file, or
+// TakeInput makes the INVOICE argument, the first of args, the invoice. It
+// is a usage error when -i, --input names a different file, or
 // when more arguments follow. Paths relative to getwd count as the same
 // file as their absolute form.
-func TakeInput(command string, getwd func() (string, error), invoicePath *string, args []string) error {
+func TakeInput(getwd func() (string, error), invoicePath *string, args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
@@ -110,11 +110,11 @@ func TakeInput(command string, getwd func() (string, error), invoicePath *string
 			return err
 		}
 		if cmdutil.AbsPath(cwd, args[0]) != cmdutil.AbsPath(cwd, *invoicePath) {
-			return cmdutil.FlagErrorf(command, "the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+			return cmdutil.FlagErrorf("the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
 		}
 	}
 	if rest := args[1:]; len(rest) > 0 {
-		return cmdutil.FlagErrorf(command, "unexpected arguments: %s", strings.Join(rest, " "))
+		return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(rest, " "))
 	}
 	return nil
 }
