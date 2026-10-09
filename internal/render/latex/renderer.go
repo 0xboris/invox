@@ -1,6 +1,7 @@
 package latex
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -183,20 +184,26 @@ func (Renderer) Write(t billing.Template, source, path string) error {
 	return nil
 }
 
-// Scratch makes a temporary directory for a build.
-func (Renderer) Scratch() (string, func(), error) {
+// Build writes source with t's assets to a scratch directory, named after
+// output, compiles it there with c, and copies the PDF to output.
+func (r Renderer) Build(ctx context.Context, c billing.Compiler, t billing.Template, source, output string) error {
 	dir, err := os.MkdirTemp("", "invox-build-")
-	if err != nil {
-		return "", nil, err
-	}
-	return dir, func() { _ = os.RemoveAll(dir) }, nil
-}
-
-// Copy copies the compiled document at src to dst.
-func (Renderer) Copy(src, dst string) error {
-	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	return fsutil.WriteFile(dst, data, fsutil.Public)
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	sourcePath := filepath.Join(dir, strings.TrimSuffix(filepath.Base(output), filepath.Ext(output))+".tex")
+	if err := r.Write(t, source, sourcePath); err != nil {
+		return err
+	}
+	pdf, err := c.Compile(ctx, sourcePath)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(pdf)
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFile(output, data, fsutil.Public)
 }

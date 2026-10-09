@@ -208,20 +208,7 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	dir, remove, err := svc.Renderer.Scratch()
-	if err != nil {
-		return err
-	}
-	defer remove()
-	sourcePath := filepath.Join(dir, filepath.Base(outputPath[:len(outputPath)-len(filepath.Ext(outputPath))])+".tex")
-	if err := svc.Renderer.Write(h.templateFor(templatePath), source, sourcePath); err != nil {
-		return err
-	}
-	pdf, err := svc.Compiler.Compile(ctx, sourcePath)
-	if err != nil {
-		return err
-	}
-	return svc.Renderer.Copy(pdf, outputPath)
+	return svc.Renderer.Build(ctx, svc.Compiler, h.templateFor(templatePath), source, outputPath)
 }
 
 type compilerFunc func(ctx context.Context, sourcePath string) (string, error)

@@ -2,8 +2,6 @@ package billing
 
 import (
 	"context"
-	"path/filepath"
-	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
 )
@@ -112,7 +110,7 @@ func (s *Service) Build(ctx context.Context, req BuildRequest) (BuildResult, err
 		return result, nil
 	}
 
-	if err := s.compile(ctx, t, source, req.Output); err != nil {
+	if err := s.Renderer.Build(ctx, s.Compiler, t, source, req.Output); err != nil {
 		return BuildResult{}, err
 	}
 	if err := s.markBuilt(req.Invoice); err != nil {
@@ -126,26 +124,6 @@ func (s *Service) Build(ctx context.Context, req BuildRequest) (BuildResult, err
 		result.Archived = &archived
 	}
 	return result, nil
-}
-
-// compile writes source into a scratch directory, compiles it there, and
-// copies the PDF to output.
-func (s *Service) compile(ctx context.Context, t Template, source, output string) error {
-	dir, remove, err := s.Renderer.Scratch()
-	if err != nil {
-		return err
-	}
-	defer remove()
-
-	sourcePath := filepath.Join(dir, strings.TrimSuffix(filepath.Base(output), filepath.Ext(output))+".tex")
-	if err := s.Renderer.Write(t, source, sourcePath); err != nil {
-		return err
-	}
-	pdf, err := s.Compiler.Compile(ctx, sourcePath)
-	if err != nil {
-		return err
-	}
-	return s.Renderer.Copy(pdf, output)
 }
 
 // markBuilt sets invoice.status to built after a successful PDF build. An

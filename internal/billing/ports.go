@@ -306,11 +306,9 @@ type Renderer interface {
 	Render(t Template, inv *invoice.Context, epc EPC) (string, error)
 	// Write writes source to path and copies t's assets next to it.
 	Write(t Template, source, path string) error
-	// Scratch makes a temporary directory and returns it with the func
-	// that removes it.
-	Scratch() (string, func(), error)
-	// Copy copies the compiled document at src to dst.
-	Copy(src, dst string) error
+	// Build writes source with t's assets to a scratch directory, compiles
+	// it there with c, and copies the PDF to output.
+	Build(ctx context.Context, c Compiler, t Template, source, output string) error
 }
 
 // Compiler turns rendered source into a PDF and returns its path.
