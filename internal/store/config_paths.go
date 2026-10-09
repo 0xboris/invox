@@ -68,6 +68,10 @@ func (h Host) defaultConfigTemplate() string {
 	if strings.TrimSpace(defaultArchiveDir) == "" {
 		defaultArchiveDir = "invoices"
 	}
+	var emailPlaceholders strings.Builder
+	for _, p := range billing.EmailPlaceholders() {
+		fmt.Fprintf(&emailPlaceholders, "#       %s\n", p.Name)
+	}
 
 	return strings.TrimLeft(fmt.Sprintf(`
 # Invox user configuration.
@@ -88,18 +92,7 @@ func (h Host) defaultConfigTemplate() string {
 #   email.body
 #     Plain-text body template for the email command.
 #     Supported placeholders for email.subject and email.body:
-#       {customer_name}
-#       {email_greeting}
-#       {contact_person}
-#       {customer_id}
-#       {invoice_number}
-#       {issue_date}
-#       {due_date}
-#       {total_amount}
-#       {outstanding_amount}
-#       {payment_terms_text}
-#       {issuer_name}
-#
+%s#
 # Notes:
 # - Top-level keys must not be indented.
 # - Relative paths are resolved relative to this file.
@@ -137,7 +130,7 @@ func (h Host) defaultConfigTemplate() string {
 #     
 #     Regards,
 #     {issuer_name}
-`, defaultArchiveDir), "\n")
+`, emailPlaceholders.String(), defaultArchiveDir), "\n")
 }
 
 func (h Host) ConfigTemplate() string {

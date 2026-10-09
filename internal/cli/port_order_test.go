@@ -217,7 +217,7 @@ func TestPortOrder(t *testing.T) {
 			files:      map[string]string{"invoice.yaml": built("CUST-001-001", "built")},
 			args:       []string{"email", "invoice.yaml", "-o", "d.eml", "--subject", "{nope}"},
 			wantExit:   1,
-			wantStderr: "error: read invoice.pdf: stat invoice.pdf: {ENOENT}\n",
+			wantStderr: "error: email.subject: unknown placeholder {nope}\n",
 		},
 		{
 			name: "email-dry-run-output-exists-bad-subject",
@@ -228,7 +228,7 @@ func TestPortOrder(t *testing.T) {
 			},
 			args:       []string{"email", "invoice.yaml", "-o", "d.eml", "-n", "--subject", "{nope}"},
 			wantExit:   1,
-			wantStderr: "error: d.eml already exists; pass --force or choose another -o path\n",
+			wantStderr: "error: email.subject: unknown placeholder {nope}\n",
 		},
 	}
 

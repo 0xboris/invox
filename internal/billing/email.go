@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/money"
 )
 
 // EmailRequest says which invoice DraftEmail drafts an email for.
@@ -82,8 +81,11 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 	if subjectTemplate == "" {
 		subjectTemplate = settings.EmailSubject
 	}
-	fields := emailFields(inv)
-	subjectText, err := subject(subjectTemplate, fields)
+	if err := checkEmailTemplates(subjectTemplate, settings.EmailBody); err != nil {
+		return EmailResult{}, err
+	}
+	values := emailValues(inv)
+	subjectText, err := subject(subjectTemplate, values)
 	if err != nil {
 		return EmailResult{}, fmt.Errorf("%s: %w", invoicePath, err)
 	}
@@ -94,7 +96,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 		Message: Message{
 			To:          recipient,
 			Subject:     subjectText,
-			Body:        body(settings.EmailBody, fields),
+			Body:        body(settings.EmailBody, values),
 			FromName:    inv.Company.LegalCompanyName.Trim(),
 			FromAddress: inv.Company.Email.Trim(),
 			Attachment:  pdfPath,
@@ -126,25 +128,4 @@ func (s *Service) emailInvoice(req EmailRequest) (string, Unread, error) {
 		return "", unread, fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", req.FromPDF)
 	}
 	return invoicePath, unread, nil
-}
-
-// emailFields is what the email placeholders stand for in ctx.
-func emailFields(ctx *invoice.Context) EmailFields {
-	return EmailFields{
-		CustomerName:      ctx.Customer.DisplayName(),
-		Greeting:          ctx.Customer.Greeting(),
-		ContactPerson:     ctx.Customer.Contact(),
-		CustomerID:        ctx.CustomerID,
-		InvoiceNumber:     ctx.InvoiceNumber,
-		IssueDate:         ctx.Header.IssueDate.String(),
-		DueDate:           ctx.Header.DueDate.String(),
-		TotalAmount:       emailMoney(ctx.TotalCents, ctx.Currency),
-		OutstandingAmount: emailMoney(ctx.OutstandingCents, ctx.Currency),
-		PaymentTermsText:  ctx.Payment.PaymentTermsText.Trim(),
-		IssuerName:        ctx.Company.LegalCompanyName.Trim(),
-	}
-}
-
-func emailMoney(cents int64, currency string) string {
-	return money.FormatCents(cents) + " " + currency
 }

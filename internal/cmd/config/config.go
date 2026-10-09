@@ -4,9 +4,12 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cmd/config/edit"
 	"github.com/0xboris/invox/internal/cmd/config/paths"
@@ -53,17 +56,7 @@ Invoice numbers:
   ` + "`validate`" + ` warns about it. Run ` + "`invox increment FILE`" + ` to give it the next free number.
 
 email template placeholders:
-  {customer_name}        Customer display name
-  {email_greeting}       Customer-specific greeting, defaults to Hello,
-  {contact_person}       Customer contact person
-  {customer_id}          Customer ID from the invoice
-  {invoice_number}       Invoice number
-  {issue_date}           Invoice issue date
-  {due_date}             Invoice due date
-  {total_amount}         Invoice total with currency
-  {outstanding_amount}   Outstanding amount with currency
-  {payment_terms_text}   issuer.payment.payment_terms_text
-  {issuer_name}          issuer.company.legal_company_name
+` + emailPlaceholderList() + `  Any other {name} in email.subject, email.body or --subject fails the email command.
 
 Customer overrides:
   customers.<CUSTOMER_ID>.numbering.start  Override numbering.start for one customer
@@ -85,4 +78,13 @@ $ invox help config
 	edit.Configure(cmd, f, runF)
 	cmd.AddCommand(edit.NewCmdEdit(f, runF), paths.NewCmdPaths(f, nil))
 	return cmd
+}
+
+// emailPlaceholderList lists the email placeholders, one per line.
+func emailPlaceholderList() string {
+	var b strings.Builder
+	for _, p := range billing.EmailPlaceholders() {
+		fmt.Fprintf(&b, "  %-22s %s\n", p.Name, p.Description)
+	}
+	return b.String()
 }

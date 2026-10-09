@@ -79,7 +79,16 @@ env FAKE_OPEN_FAIL=1
 exits 1 invox email invoice.yaml -o draft6.eml
 ! stdout .
 cmp stderr want-open-failed.txt
+env FAKE_OPEN_FAIL=
 
+# A subject placeholder invox does not know fails before anything is drafted.
+exits 1 invox email invoice.yaml -o draft7.eml --subject 'Invoice {invoice_numbr}'
+! stdout .
+cmp stderr want-unknown-placeholder.txt
+! exists draft7.eml
+
+-- want-unknown-placeholder.txt --
+error: email.subject: unknown placeholder {invoice_numbr}
 -- keep.eml --
 keep me
 -- invoice.pdf --
