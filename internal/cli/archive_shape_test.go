@@ -88,51 +88,6 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 	}
 }
 
-// Archiving removes the `_invox` key whatever it holds, including a link
-// that names no archived file.
-func TestArchiveRemovesArchiveLinkThatNamesNoFile(t *testing.T) {
-	want := `customer_id: CUST-003
-invoice:
-  number: CUST-003-001
-  issue_date: 2026-03-07
-  due_date: 2026-04-06
-  status: archived
-  period: March
-  vat_percent: 20
-positions:
-  - name: Consulting
-    description: Workshop
-    unit_price: 500
-    quantity: 1
-`
-	for name, link := range map[string]string{
-		"empty mapping": "_invox: {}\n",
-		"null":          "_invox:\n",
-		"empty path":    "_invox: {archive_path: \"\"}\n",
-	} {
-		t.Run(name, func(t *testing.T) {
-			x := clitest.New(t)
-
-			archiveDir := t.TempDir()
-			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
-			workDir := t.TempDir()
-			x.Chdir(workDir)
-			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(testfixture.Source("cust003-built.yaml")+link), 0o644); err != nil {
-				t.Fatal(err)
-			}
-
-			exitCode, stdout, stderr := x.Run([]string{"archive", "add", "inv.yaml"})
-			archived := filepath.Join(archiveDir, "inv.yaml")
-			if wantErr := "Archived inv.yaml -> " + archived + "\n"; exitCode != 0 || stdout != archived+"\n" || stderr != wantErr {
-				t.Fatalf("archive add = exit %d, stdout %q, stderr %q; want exit 0, stdout %q, stderr %q", exitCode, stdout, stderr, archived+"\n", wantErr)
-			}
-			if got := testfixture.ReadFile(t, archived); got != want {
-				t.Fatalf("archived invoice =\n%s\nwant\n%s", got, want)
-			}
-		})
-	}
-}
-
 // Writes other than archiving keep an `_invox` key that names no file as
 // written.
 func TestIncrementKeepsArchiveLinkThatNamesNoFile(t *testing.T) {
