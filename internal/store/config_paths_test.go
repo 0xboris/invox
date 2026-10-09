@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestResolveDefaultPathsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
@@ -55,7 +56,7 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	opts := resolveDefaultOptions(t, h, workDir)
 
@@ -79,7 +80,7 @@ func TestResolveDefaultPathsFallbackToGlobalConfigFiles(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	workDir := filepath.Join(t.TempDir(), "work")
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
@@ -151,7 +152,7 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	opts := resolveDefaultOptions(t, h, workDir)
 
@@ -175,7 +176,7 @@ func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
 	homeDir := filepath.Join(t.TempDir(), "home")
-	h := testHost(configHome, homeDir)
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: homeDir})
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
@@ -212,7 +213,7 @@ func TestResolveArchiveDirUsesConfigOverride(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	h := testHost(configHome, homeDir)
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: homeDir})
 
 	got, err := h.ResolveArchiveDir()
 	if err != nil {
@@ -237,7 +238,7 @@ func TestResolveArchiveDirUsesRelativeConfigPath(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	got, err := h.ResolveArchiveDir()
 	if err != nil {
@@ -259,7 +260,7 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 		t.Fatalf("MkdirAll(homeDir) returned error: %v", err)
 	}
 
-	h := testHost(configHome, homeDir)
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: homeDir})
 	archiveDir := filepath.Join(homeDir, ".local", "share", "invox", "invoices")
 
 	path, err := h.editableConfigPath()
@@ -325,7 +326,7 @@ func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
 		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	want := "archive:\n  dir: ~/Documents/Invox/Invoices\n"
 	path := filepath.Join(configDir, "config.yaml")
@@ -353,7 +354,7 @@ func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
 func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) {
 	t.Parallel()
 
-	h := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
+	h := testHost(testfixture.HostWithConfig(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n"))
 
 	_, err := h.resolveSupportFile(billing.CustomersFile, t.TempDir())
 	if err == nil {

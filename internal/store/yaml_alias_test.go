@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 const (
@@ -76,18 +77,6 @@ func runAliasLoader(t *testing.T, loader, path string) string {
 	return string(stdout)
 }
 
-// billionLaughs nests nine levels of nine aliases each: 364 bytes that
-// expand to about 430 million nodes.
-func billionLaughs() string {
-	lines := []string{"customer_id: CUST-001", `a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]`}
-	previous := "a"
-	for _, name := range strings.Split("bcdefghi", "") {
-		lines = append(lines, fmt.Sprintf("%s: &%s [%s]", name, name, strings.TrimSuffix(strings.Repeat("*"+previous+",", 9), ",")))
-		previous = name
-	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
 func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -115,7 +104,7 @@ func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
 		},
 		{
 			name:    "billion laughs",
-			source:  billionLaughs(),
+			source:  testfixture.Source("billion-laughs.yaml"),
 			line:    7,
 			message: "aliases expand to more than 100000 nodes",
 		},

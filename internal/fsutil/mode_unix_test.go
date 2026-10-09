@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func assertMode(t *testing.T, path string, want fs.FileMode) {
@@ -136,7 +138,7 @@ func TestWriteFileKeepsExistingMode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "invoice.yaml")
-			writeTestFile(t, path, "old\n")
+			testfixture.WriteFile(t, path, "old\n")
 			if err := os.Chmod(path, tc.existing); err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +146,7 @@ func TestWriteFileKeepsExistingMode(t *testing.T) {
 				t.Fatalf("WriteFile returned error: %v", err)
 			}
 			assertMode(t, path, tc.existing)
-			if got := readFile(t, path); got != "new\n" {
+			if got := testfixture.ReadFile(t, path); got != "new\n" {
 				t.Fatalf("content = %q, want %q", got, "new\n")
 			}
 		})
@@ -154,7 +156,7 @@ func TestWriteFileKeepsExistingMode(t *testing.T) {
 func TestWriteFileThroughSymlinkKeepsTargetMode(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "invoice.yaml")
-	writeTestFile(t, target, "old\n")
+	testfixture.WriteFile(t, target, "old\n")
 	if err := os.Chmod(target, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +168,7 @@ func TestWriteFileThroughSymlinkKeepsTargetMode(t *testing.T) {
 	}
 	assertSymlinkTo(t, link, "invoice.yaml")
 	assertMode(t, target, 0o600)
-	if got := readFile(t, target); got != "new\n" {
+	if got := testfixture.ReadFile(t, target); got != "new\n" {
 		t.Fatalf("content = %q, want %q", got, "new\n")
 	}
 }

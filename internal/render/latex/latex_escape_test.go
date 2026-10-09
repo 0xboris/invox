@@ -5,15 +5,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestRenderInvoiceKeepsLeadingStarAndBracketAfterLineBreak(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -26,7 +28,7 @@ func TestRenderInvoiceKeepsLeadingStarAndBracketAfterLineBreak(t *testing.T) {
 		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 	rendered, err := os.ReadFile(outputPath)

@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // Regression tests for the #17 bugs that the fuzz targets in fuzz_test.go
@@ -80,13 +82,13 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-			replaceInFixture(t, invoicePath, tt.old, tt.new)
+			fx := testfixture.WriteContext(t)
+			replaceInFixture(t, fx.Invoice, tt.old, tt.new)
 			if tt.wantSubtotal != 0 {
-				replaceInFixture(t, invoicePath, "vat_percent: 20", "vat_percent: 0")
+				replaceInFixture(t, fx.Invoice, "vat_percent: 20", "vat_percent: 0")
 			}
 
-			ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+			ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, subtotal %d, total %d", ctx.SubtotalCents, ctx.TotalCents)

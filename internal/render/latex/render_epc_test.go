@@ -5,14 +5,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -29,7 +32,7 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -52,18 +55,18 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  number: CUST-001-001\n", "  number: 'INV-\\^~{}'\n", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -80,7 +83,7 @@ func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testi
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -98,9 +101,9 @@ func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testi
 func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -117,7 +120,7 @@ func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -145,9 +148,9 @@ func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -158,7 +161,7 @@ func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -188,9 +191,9 @@ func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
@@ -200,11 +203,11 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 		"    label: Zahlung per QR-Code\n"+
 		"    purpose: SUPP\n"+
 		"    information: Scan to pay this invoice\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -215,7 +218,7 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -237,19 +240,19 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.ReplaceAll(string(source), "  iban: AT611904300234573201\n", "  iban: \"AT61\u00a01904\t3002 3457 3201\"\n")
 	mutated = strings.ReplaceAll(mutated, "  bic: BKAUATWW\n", "  bic: \"BKAU\u00a0AT\tWW\"\n")
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -260,7 +263,7 @@ func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -282,18 +285,18 @@ func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing
 func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: GI75NWBK000000007099453\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -304,7 +307,7 @@ func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for Gibraltar EPC QR code: %v", err)
 	}
 
@@ -326,9 +329,9 @@ func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
@@ -339,11 +342,11 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 		"    purpose: gdDs\n"+
 		"    text: \"Invoice CUST-001-001 & Überweisung\"\n"+
 		"    information: \"Grüße €\"\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -354,7 +357,7 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 

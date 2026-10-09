@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 const childEnv = "RUN_TEST_CHILD"
@@ -27,15 +29,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func testExecutable(t *testing.T) string {
-	t.Helper()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("os.Executable() returned error: %v", err)
-	}
-	return self
-}
-
 func TestExecRunsInDirWithAddedEnv(t *testing.T) {
 	t.Setenv(childEnv, "1")
 	dir := filepath.Join(t.TempDir(), "work")
@@ -46,7 +39,7 @@ func TestExecRunsInDirWithAddedEnv(t *testing.T) {
 
 	err := Exec{}.Run(context.Background(), Cmd{
 		Dir:    dir,
-		Name:   testExecutable(t),
+		Name:   testfixture.Executable(t),
 		Args:   []string{"0", "a b"},
 		Env:    []string{"RUN_TEST_VALUE=added"},
 		Stdout: &stdout,
@@ -65,7 +58,7 @@ func TestExecRunsInDirWithAddedEnv(t *testing.T) {
 
 func TestExecReturnsExecErrorWithExitCode(t *testing.T) {
 	t.Setenv(childEnv, "1")
-	name := testExecutable(t)
+	name := testfixture.Executable(t)
 
 	err := Exec{}.Run(context.Background(), Cmd{Name: name, Args: []string{"3"}})
 

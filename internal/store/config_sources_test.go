@@ -8,17 +8,8 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/testfixture"
 )
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll returned error: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-	}
-}
 
 func archiveConfig(dir string) string {
 	return "archive:\n  dir: '" + dir + "'\n"
@@ -27,10 +18,10 @@ func archiveConfig(dir string) string {
 func TestConfigIsReadOncePerHost(t *testing.T) {
 	root := t.TempDir()
 	firstArchive := filepath.Join(root, "first-archive")
-	h := writeConfigFile(t, archiveConfig(firstArchive)+
+	h := testHost(testfixture.HostWithConfig(t, archiveConfig(firstArchive)+
 		"numbering:\n  start: 5\n  pattern: '{customer_code}_{counter:02}'\n"+
 		"email:\n  subject: 'First {invoice_number}'\n"+
-		"paths:\n  customers: '"+filepath.Join(root, "first-customers.yaml")+"'\n")
+		"paths:\n  customers: '"+filepath.Join(root, "first-customers.yaml")+"'\n"))
 
 	read := func(h Host) []string {
 		t.Helper()
@@ -76,10 +67,10 @@ func configDirs(t *testing.T) (root string, in HostInputs) {
 		filepath.Join(configHome, "invox"),
 		filepath.Join(root, "env"),
 	} {
-		writeFile(t, filepath.Join(dir, "config.yaml"), archiveConfig(filepath.Join(root, filepath.Base(dir)+"-archive")))
+		testfixture.WriteFile(t, filepath.Join(dir, "config.yaml"), archiveConfig(filepath.Join(root, filepath.Base(dir)+"-archive")))
 	}
 	explicit := filepath.Join(root, "explicit.yaml")
-	writeFile(t, explicit, archiveConfig(filepath.Join(root, "explicit-archive")))
+	testfixture.WriteFile(t, explicit, archiveConfig(filepath.Join(root, "explicit-archive")))
 	return root, HostInputs{GOOS: "linux", Home: filepath.Join(root, "home"), XDGConfigHome: configHome}
 }
 
@@ -153,9 +144,9 @@ func TestPathsReportsEachSource(t *testing.T) {
 	root, in := configDirs(t)
 	invoxDir := filepath.Join(in.XDGConfigHome, "invox")
 	work := filepath.Join(root, "work")
-	writeFile(t, filepath.Join(work, "customers.yaml"), "{}\n")
-	writeFile(t, filepath.Join(invoxDir, "template.tex"), "x\n")
-	writeFile(t, filepath.Join(invoxDir, "config.yaml"), "paths:\n  defaults: 'd.yaml'\n")
+	testfixture.WriteFile(t, filepath.Join(work, "customers.yaml"), "{}\n")
+	testfixture.WriteFile(t, filepath.Join(invoxDir, "template.tex"), "x\n")
+	testfixture.WriteFile(t, filepath.Join(invoxDir, "config.yaml"), "paths:\n  defaults: 'd.yaml'\n")
 
 	got, err := NewHost(in).paths(work)
 	if err != nil {
@@ -174,7 +165,7 @@ func TestPathsReportsEachSource(t *testing.T) {
 		t.Fatalf("Paths() =\n%+v\nwant\n%+v", got, want)
 	}
 
-	writeFile(t, filepath.Join(root, "bad.yaml"), "numbering:\n  patern: x\n")
+	testfixture.WriteFile(t, filepath.Join(root, "bad.yaml"), "numbering:\n  patern: x\n")
 	in.ConfigFile = filepath.Join(root, "bad.yaml")
 	if _, err := NewHost(in).paths(work); err == nil || !strings.Contains(err.Error(), `bad.yaml:2: unknown key "patern" in numbering`) {
 		t.Fatalf("Paths() with a broken config error = %v, want the unknown key", err)
@@ -204,13 +195,13 @@ func TestUpwardSearchIsBounded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			for _, file := range tt.files {
-				writeFile(t, filepath.Join(root, filepath.FromSlash(file)), "{}\n")
+				testfixture.WriteFile(t, filepath.Join(root, filepath.FromSlash(file)), "{}\n")
 			}
 			start := filepath.Join(root, filepath.FromSlash(tt.start))
 			if err := os.MkdirAll(start, 0o755); err != nil {
 				t.Fatalf("MkdirAll returned error: %v", err)
 			}
-			h := testHost(filepath.Join(root, "config-home"), filepath.Join(root, "home"))
+			h := testHost(testfixture.Host{ConfigHome: filepath.Join(root, "config-home"), Home: filepath.Join(root, "home")})
 
 			got, err := h.resolveSupportFile(billing.CustomersFile, start)
 			if err != nil {
@@ -241,7 +232,7 @@ func TestUpwardSearchComparesHomeIgnoringCaseOnMacOS(t *testing.T) {
 func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 	_, in := configDirs(t)
 	realHome := filepath.Join(t.TempDir(), "real-home")
-	writeFile(t, filepath.Join(realHome, ".git", "HEAD"), "ref: refs/heads/main\n")
+	testfixture.WriteFile(t, filepath.Join(realHome, ".git", "HEAD"), "ref: refs/heads/main\n")
 	// The working directory comes back with symlinks resolved, and the temp
 	// directory is itself behind one on macOS (/var) and Windows (8.3 names).
 	realHome, err := filepath.EvalSymlinks(realHome)
@@ -249,7 +240,7 @@ func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	stray := filepath.Join(realHome, "customers.yaml")
-	writeFile(t, stray, "stray\n")
+	testfixture.WriteFile(t, stray, "stray\n")
 	start := filepath.Join(realHome, "invoices", "2026")
 	if err := os.MkdirAll(start, 0o755); err != nil {
 		t.Fatal(err)
@@ -272,7 +263,7 @@ func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{year}-{counter:04}'\n  start: 5\n")
+	h := testHost(testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{year}-{counter:04}'\n  start: 5\n"))
 
 	config, err := h.Settings()
 	if err != nil {
@@ -288,7 +279,7 @@ func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
 }
 
 func TestResolveSupportFileRejectsConfigFile(t *testing.T) {
-	h := writeConfigFile(t, "")
+	h := testHost(testfixture.HostWithConfig(t, ""))
 	_, err := h.resolveSupportFile(billing.ConfigFile, t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "is not a support file") {
 		t.Fatalf("resolveSupportFile(ConfigFile) error = %v, want \"is not a support file\"", err)

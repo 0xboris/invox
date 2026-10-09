@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -13,12 +12,13 @@ import (
 	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestResolveEmailDraftPaths(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
+	h := testfixture.NewHost(t)
 	rootDir := t.TempDir()
 	yamlInput := filepath.Join(rootDir, "BL00210001.yaml")
 	pdfInput := filepath.Join(rootDir, "BL00210001.pdf")
@@ -73,7 +73,7 @@ func TestResolveEmailDraftPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			paths, err := h.emailDraftPaths(t, tt.inputPath, tt.pdfPath, tt.outputPath)
+			paths, err := emailDraftPaths(t, h, tt.inputPath, tt.pdfPath, tt.outputPath)
 			if tt.wantErrSubstr != "" {
 				if err == nil {
 					t.Fatal("ResolveEmailDraftPaths returned nil error")
@@ -103,7 +103,7 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	archivedInvoicePath := filepath.Join(archiveDir, "customer-a", "BL00210001.yaml")
 	if err := os.MkdirAll(filepath.Dir(archivedInvoicePath), 0o755); err != nil {
@@ -117,7 +117,7 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
-	paths, err := h.emailDraftPaths(t, pdfPath, "", "")
+	paths, err := emailDraftPaths(t, h, pdfPath, "", "")
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -132,37 +132,6 @@ func TestResolveEmailDraftPathsFallsBackToArchiveDir(t *testing.T) {
 	}
 }
 
-// host is a user's config home and home directory.
-type host struct {
-	configHome string
-	home       string
-}
-
-func isolatedHost(t *testing.T) host {
-	t.Helper()
-	root := t.TempDir()
-	return host{configHome: filepath.Join(root, "config-home"), home: filepath.Join(root, "home")}
-}
-
-// writeConfigFile returns a host under fresh temporary directories whose
-// config.yaml is source.
-func writeConfigFile(t *testing.T, source string) host {
-	t.Helper()
-	h := isolatedHost(t)
-	configDir := filepath.Join(h.configHome, "invox")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(source), 0o644); err != nil {
-		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
-	}
-	return h
-}
-
-func quoteYAMLString(value string) string {
-	return strconv.Quote(value)
-}
-
 // draftPaths are the invoice an email is drafted for, the PDF attached to
 // it and the draft file.
 type draftPaths struct {
@@ -174,19 +143,12 @@ type draftPaths struct {
 // emailDraftPaths runs email on input with -p pdf and -o output, each ""
 // to leave the flag out, and returns the paths the draft was made with.
 // The draft itself is recorded instead of written.
-func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPaths, error) {
+func emailDraftPaths(t *testing.T, h testfixture.Host, input, pdf, output string) (draftPaths, error) {
 	t.Helper()
-	parties := t.TempDir()
-	customersPath := filepath.Join(parties, "customers.yaml")
-	issuerPath := filepath.Join(parties, "issuer.yaml")
-	for path, source := range map[string]string{customersPath: customersYAML, issuerPath: issuerYAML} {
-		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-		}
-	}
+	parties := testfixture.WriteContext(t)
 
 	var paths draftPaths
-	f := factorytest.New(t, nil, factorytest.Options{Home: h.home, Vars: map[string]string{"XDG_CONFIG_HOME": h.configHome}})
+	f := factorytest.New(t, nil, factorytest.Options{Home: h.Home, Vars: map[string]string{"XDG_CONFIG_HOME": h.ConfigHome}})
 	ios, _, _, _ := iostreams.Test()
 	opts := &EmailOptions{
 		IO: ios,
@@ -196,12 +158,12 @@ func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPat
 			svc.Mailer = draftRecorder{Mailer: svc.Mailer, paths: &paths}
 			return svc
 		},
-		Getwd:       func() (string, error) { return parties, nil },
+		Getwd:       func() (string, error) { return parties.Dir, nil },
 		InvoicePath: input,
 		PDFPath:     pdf,
 		OutputPath:  output,
 		KeepDraft:   output != "",
-		Support:     cmdutil.SupportPaths{Customers: customersPath, Issuer: issuerPath},
+		Support:     cmdutil.SupportPaths{Customers: parties.Customers, Issuer: parties.Issuer},
 	}
 	if err := validate(opts); err != nil {
 		return draftPaths{}, err
@@ -232,38 +194,6 @@ func (r draftRecorder) Draft(_ context.Context, m billing.Message, _ bool) (stri
 	r.paths.PDFPath, r.paths.OutputPath = m.Attachment, m.Output
 	return "", nil
 }
-
-const customersYAML = `CUST-001:
-  name: Appsters GmbH
-  status: active
-  email: office@appsters.example
-  address:
-    street: Hauptstrasse 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-  tax:
-    vat_tax_id: ATU12345678
-`
-
-const issuerYAML = `company:
-  legal_company_name: Boris Consulting
-  company_registration_number: FN 123456a
-  vat_tax_id: ATU87654321
-  website: https://example.com
-  email: hello@example.com
-  address:
-    street: Ring 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-payment:
-  bank_name: Test Bank
-  iban: AT611904300234573201
-  bic: BKAUATWW
-  due_days: 30
-  payment_terms_text: Pay within 30 days
-`
 
 const builtInvoice = `customer_id: CUST-001
 invoice:

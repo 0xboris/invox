@@ -5,23 +5,26 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0\n", "  paid_amount: 252\n", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -32,7 +35,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -52,18 +55,18 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(customersPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Customers)
 	if err != nil {
 		t.Fatalf("ReadFile(customersPath) returned error: %v", err)
 	}
 	mutated := strings.TrimSpace(string(source)) + "\n  billing:\n    currency: USD\n"
-	if err := os.WriteFile(customersPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Customers, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -74,7 +77,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for non-EUR EPC QR code: %v", err)
 	}
 
@@ -94,18 +97,18 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -116,7 +119,7 @@ func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error without EPC placeholder: %v", err)
 	}
 }
@@ -124,18 +127,18 @@ func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
 func TestRenderInvoiceLeavesEPCQRAvailabilityAndLabelInactiveWithoutQRCodePlaceholder(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -152,7 +155,7 @@ After
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error when only the EPC QR label is active: %v", err)
 	}
 
@@ -178,18 +181,18 @@ After
 func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: INVALID\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -200,7 +203,7 @@ func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.renderInvoice(t, templatePath, outputPath, ctx)
+	err = renderInvoice(t, h, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for invalid eligible EPC QR data")
 	}
@@ -212,18 +215,18 @@ func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(issuerPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Issuer)
 	if err != nil {
 		t.Fatalf("ReadFile(issuerPath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  iban: AT611904300234573201\n", "  iban: BR150000000000000000000000000\n", 1)
-	if err := os.WriteFile(issuerPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Issuer, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -234,7 +237,7 @@ func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.renderInvoice(t, templatePath, outputPath, ctx)
+	err = renderInvoice(t, h, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for non-SEPA eligible EPC QR data")
 	}
@@ -246,18 +249,18 @@ func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
 func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(customersPath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Customers)
 	if err != nil {
 		t.Fatalf("ReadFile(customersPath) returned error: %v", err)
 	}
 	mutated := strings.TrimSpace(string(source)) + "\n  billing:\n    currency: USD\n"
-	if err := os.WriteFile(customersPath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Customers, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -272,7 +275,7 @@ func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for non-EUR starter template: %v", err)
 	}
 
@@ -297,18 +300,18 @@ func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0\n", "  paid_amount: 252\n", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -323,7 +326,7 @@ func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error for settled starter template: %v", err)
 	}
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
@@ -115,7 +116,7 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 			t.Parallel()
 
 			archiveDir := t.TempDir()
-			h := writeConfigFile(t, "numbering:\n  pattern: '"+tc.pattern+"'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '"+tc.pattern+"'\n  start: 1\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 			for name, source := range tc.files {
 				if err := os.WriteFile(filepath.Join(archiveDir, name), []byte(source), 0o644); err != nil {
 					t.Fatalf("WriteFile(%s) returned error: %v", name, err)
@@ -129,10 +130,10 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 				wantUnread = append(wantUnread, filepath.Join(archiveDir, name))
 			}
 
-			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-			files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}
+			draft := testfixture.WriteDraft(t)
+			files := cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}
 			workDir := t.TempDir()
-			created, err := h.service(t, files, workDir, time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, DryRun: true})
+			created, err := service(t, h, files, workDir, time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, DryRun: true})
 			if err != nil {
 				t.Fatalf("New returned error: %v", err)
 			}

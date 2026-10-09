@@ -4,25 +4,28 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t,
-		customersPath,
-		issuerPath,
-		invoicePath,
-	)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t,
+		fx.Customers,
+		fx.Issuer,
+		fx.Invoice)
+
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
+	if err := renderInvoice(t, h, fx.Template, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -54,7 +57,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 		t.Fatalf("MkdirAll(outputDir) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")}
 
 	if err := os.WriteFile(filepath.Join(configDir, "logo.png"), []byte("logo"), 0o644); err != nil {
 		t.Fatalf("WriteFile(global logo) returned error: %v", err)
@@ -70,7 +73,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 		t.Fatalf("WriteFile(template) returned error: %v", err)
 	}
 
-	if err := h.renderer(t).Write(h.template(t, templatePath), rendered, outputPath); err != nil {
+	if err := renderer(t, h).Write(template(t, h, templatePath), rendered, outputPath); err != nil {
 		t.Fatalf("copyTemplateAssets returned error: %v", err)
 	}
 

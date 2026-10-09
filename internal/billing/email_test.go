@@ -12,20 +12,21 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	t.Parallel()
 
-	h := testHost(filepath.Join(t.TempDir(), "config-home"), filepath.Join(t.TempDir(), "home"))
+	h := testfixture.NewHost(t)
 
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
@@ -35,8 +36,8 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	svc, opened := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
+	svc, opened := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -79,14 +80,14 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: archived", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
@@ -96,8 +97,8 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
+	svc, _ := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -109,7 +110,7 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 func TestCreateInvoiceEmailDraftUsesConfiguredBodyTemplate(t *testing.T) {
 	t.Parallel()
 
-	h := writeConfigFile(t, strings.TrimSpace(`
+	h := testfixture.HostWithConfig(t, strings.TrimSpace(`
 email:
   body: |
     {email_greeting}
@@ -122,13 +123,13 @@ email:
     {issuer_name}
 `)+"\n")
 
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
@@ -138,8 +139,8 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	if _, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true}); err != nil {
+	svc, _ := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	if _, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true}); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -168,18 +169,18 @@ email:
 func TestCreateInvoiceEmailDraftUsesConfiguredSubjectTemplateWithAllPlaceholders(t *testing.T) {
 	t.Parallel()
 
-	h := writeConfigFile(t, strings.TrimSpace(`
+	h := testfixture.HostWithConfig(t, strings.TrimSpace(`
 email:
   subject: "{customer_name} | {email_greeting} | {contact_person} | {customer_id} | {invoice_number} | {issue_date} | {due_date} | {total_amount} | {outstanding_amount} | {payment_terms_text} | {issuer_name}"
 `)+"\n")
 
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
@@ -189,8 +190,8 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
+	svc, _ := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -213,14 +214,14 @@ email:
 func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
@@ -230,8 +231,8 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Subject: "Invoice {invoice_number} for {contact_person}"})
+	svc, _ := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	draft, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true, Subject: "Invoice {invoice_number} for {contact_person}"})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
@@ -244,14 +245,14 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	h := testfixture.NewHost(t)
+	fx := testfixture.WriteContext(t)
 	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
 	if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nfake"), 0o644); err != nil {
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: filepath.Join(t.TempDir(), "invoice.eml"), Keep: true})
+	_, err := service(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: filepath.Join(t.TempDir(), "invoice.eml"), Keep: true})
 	if err == nil {
 		t.Fatal("CreateInvoiceEmailDraft returned nil error for non-built invoice")
 	}
@@ -264,7 +265,7 @@ func TestResolveEmailDraftPathsIgnoresAMatchOnlyInArchiveHistory(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	historyPath := filepath.Join(archiveDir, ".history", "customer-a", "BL00210001.yaml")
 	if err := os.MkdirAll(filepath.Dir(historyPath), 0o755); err != nil {
@@ -274,9 +275,9 @@ func TestResolveEmailDraftPathsIgnoresAMatchOnlyInArchiveHistory(t *testing.T) {
 		t.Fatalf("WriteFile(historyPath) returned error: %v", err)
 	}
 
-	customersPath, issuerPath, _, _, _, _ := writeContextFixtures(t)
+	fx := testfixture.WriteContext(t)
 	pdfPath := filepath.Join(t.TempDir(), "BL00210001.pdf")
-	result, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Time{}).DraftEmail(context.Background(), billing.EmailRequest{FromPDF: pdfPath, PDF: pdfPath, DryRun: true})
+	result, err := service(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Time{}).DraftEmail(context.Background(), billing.EmailRequest{FromPDF: pdfPath, PDF: pdfPath, DryRun: true})
 	want := pdfPath + ": no matching invoice YAML found next to the PDF or in archive.dir"
 	if err == nil || err.Error() != want {
 		t.Fatalf("ResolveEmailDraftPaths = %q, %v; want error %q", result.Number, err, want)

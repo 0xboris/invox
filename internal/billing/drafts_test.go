@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
@@ -16,14 +17,14 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-001")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
+	testfixture.WriteArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-001")
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
 	workDir := t.TempDir()
-	created, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	created, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -66,11 +67,11 @@ func TestCreateNewInvoicePrefillsDatesAndNumber(t *testing.T) {
 func TestCreateNewInvoicePrefillsVATFromCustomerDefaultWhenMissing(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
+	h := testfixture.NewHost(t)
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+	draft := testfixture.WriteDraft(t)
+	if err := os.WriteFile(draft.Customers, []byte(strings.TrimSpace(`
 CUST-001:
   name: Appsters GmbH
   tax:
@@ -78,7 +79,7 @@ CUST-001:
 `)+"\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
-	if err := os.WriteFile(defaultsPath, []byte(strings.TrimSpace(`
+	if err := os.WriteFile(draft.Defaults, []byte(strings.TrimSpace(`
 invoice:
   period: "Leistungszeitraum: "
 positions:
@@ -92,7 +93,7 @@ positions:
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	_, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -109,11 +110,11 @@ positions:
 func TestCreateNewInvoicePreservesSourceVATWhenCustomerHasDefault(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
+	h := testfixture.NewHost(t)
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+	draft := testfixture.WriteDraft(t)
+	if err := os.WriteFile(draft.Customers, []byte(strings.TrimSpace(`
 CUST-001:
   name: Appsters GmbH
   tax:
@@ -124,7 +125,7 @@ CUST-001:
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	_, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -147,13 +148,13 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 7\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	created, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	created, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -165,9 +166,9 @@ func TestCreateNewInvoiceStartsFromConfiguredStartWhenArchiveHasNoMatch(t *testi
 func TestNewFailsWhenAnArchivedInvoiceIsInvalidYAML(t *testing.T) {
 	t.Parallel()
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	archivePath := filepath.Join(archiveDir, "2026-03-05.yaml")
 	if err := os.WriteFile(archivePath, []byte("invoice:\n  number: CUST-001-010\n  broken: [\n"), 0o644); err != nil {
@@ -176,7 +177,7 @@ func TestNewFailsWhenAnArchivedInvoiceIsInvalidYAML(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	_, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err == nil {
 		t.Fatal("New returned nil error for an archived invoice that is not valid YAML")
 	}
@@ -194,21 +195,30 @@ func TestNewFailsWhenAnArchivedInvoiceIsInvalidYAML(t *testing.T) {
 func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 	t.Parallel()
 
-	h := isolatedHost(t)
+	h := testfixture.NewHost(t)
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeLegacyDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
+	testfixture.WriteFile(t, draft.Defaults, `invoice:
+  period_label: "Leistungszeitraum: "
+  vat_rate_percent: 20
+line_items:
+  - name: Beispielposition
+    description: Beschreibung der Leistung
+    unit_price: 100
+    quantity: 1
+`)
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 
 	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	_, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error for legacy default keys")
 	}
 	for _, want := range []string{
-		defaultsPath + ":2: unknown key \"period_label\" in invoice",
-		defaultsPath + ":3: unknown key \"vat_rate_percent\" in invoice",
-		defaultsPath + ":4: unknown key \"line_items\"",
+		draft.Defaults + ":2: unknown key \"period_label\" in invoice",
+		draft.Defaults + ":3: unknown key \"vat_rate_percent\" in invoice",
+		draft.Defaults + ":4: unknown key \"line_items\"",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
@@ -221,13 +231,13 @@ func TestCreateNewInvoiceUsesCustomerSpecificStartWhenArchiveHasNoMatch(t *testi
 
 	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixturesWithCustomerStart(t, "7")
+	draft := testfixture.WriteDraftWithStart(t, "7")
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	created, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
+	created, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -241,9 +251,9 @@ func TestCreateNewInvoiceFromLastArchivedInvoice(t *testing.T) {
 
 	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.Local)
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	olderArchivePath := filepath.Join(archiveDir, "2026-03-01.yaml")
 	if err := os.WriteFile(olderArchivePath, []byte(strings.TrimSpace(`
@@ -287,7 +297,7 @@ positions:
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	created, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true})
+	created, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, now).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true})
 	if err != nil {
 		t.Fatalf("CreateNewInvoice returned error: %v", err)
 	}
@@ -332,13 +342,13 @@ positions:
 func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T) {
 	t.Parallel()
 
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
 	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true})
+	_, err := service(t, h, cmdutil.Files{Customers: draft.Customers, Issuer: draft.Issuer, Defaults: draft.Defaults}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true})
 	if err == nil {
 		t.Fatal("CreateNewInvoice returned nil error without archived invoice match")
 	}
@@ -350,13 +360,13 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 func TestIncrementInvoiceNumberAdvancesCurrentInvoice(t *testing.T) {
 	t.Parallel()
 
-	customersPath, _, _ := writeDraftFixtures(t)
+	draft := testfixture.WriteDraft(t)
 	invoicePath := writeMinimalInvoice(t, "CUST-001-009")
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-011")
+	h := testfixture.HostWithConfig(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
+	testfixture.WriteArchivedInvoice(t, archiveDir, "2026-03-05.yaml", "CUST-001-011")
 
-	incremented, err := h.service(t, cmdutil.Files{Customers: customersPath}, filepath.Dir(invoicePath), time.Time{}).Increment(
+	incremented, err := service(t, h, cmdutil.Files{Customers: draft.Customers}, filepath.Dir(invoicePath), time.Time{}).Increment(
 		invoicePath,
 		false,
 	)

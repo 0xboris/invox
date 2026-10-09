@@ -1,7 +1,9 @@
 package store
 
-// testHost returns a Linux Host whose config directory is under configHome
-// and whose archive directory is under home/.local/share.
-func testHost(configHome, home string) Host {
-	return NewHost(HostInputs{GOOS: "linux", Home: home, XDGConfigHome: configHome})
+import "github.com/0xboris/invox/internal/testfixture"
+
+// testHost returns the Linux Host of h: its config directory is under
+// h.ConfigHome and its archive directory under h.Home/.local/share.
+func testHost(h testfixture.Host) Host {
+	return NewHost(HostInputs{GOOS: "linux", Home: h.Home, XDGConfigHome: h.ConfigHome})
 }

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestResolveEmailDraftPathsFollowsSymlinkedArchiveDir(t *testing.T) {
@@ -15,7 +17,7 @@ func TestResolveEmailDraftPathsFollowsSymlinkedArchiveDir(t *testing.T) {
 	if err := os.Symlink(realArchiveDir, archiveDir); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	archivedInvoicePath := filepath.Join(realArchiveDir, "customer-a", "BL00210001.yaml")
 	if err := os.MkdirAll(filepath.Dir(archivedInvoicePath), 0o755); err != nil {
@@ -25,7 +27,7 @@ func TestResolveEmailDraftPathsFollowsSymlinkedArchiveDir(t *testing.T) {
 		t.Fatalf("WriteFile(archivedInvoicePath) returned error: %v", err)
 	}
 
-	source, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	source, _, err := service(t, h).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -38,7 +40,7 @@ func TestResolveEmailDraftPathsSkipsArchiveHistory(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	archivedInvoicePath := filepath.Join(archiveDir, "customer-a", "BL00210001.yaml")
 	for _, path := range []string{
@@ -53,7 +55,7 @@ func TestResolveEmailDraftPathsSkipsArchiveHistory(t *testing.T) {
 		}
 	}
 
-	source, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	source, _, err := service(t, h).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err != nil {
 		t.Fatalf("ResolveEmailDraftPaths returned error: %v", err)
 	}
@@ -66,7 +68,7 @@ func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	for _, path := range []string{
 		filepath.Join(archiveDir, "customer-a", "BL00210001.yaml"),
@@ -80,7 +82,7 @@ func TestResolveEmailDraftPathsRejectsAmbiguousArchiveMatches(t *testing.T) {
 		}
 	}
 
-	_, _, err := h.service(t).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
+	_, _, err := service(t, h).Archives.Source(filepath.Join(t.TempDir(), "BL00210001.pdf"))
 	if err == nil {
 		t.Fatal("ResolveEmailDraftPaths returned nil error for ambiguous archive matches")
 	}

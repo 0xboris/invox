@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestLoadContextValidatesPaidAmount(t *testing.T) {
@@ -28,8 +30,8 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-			source, err := os.ReadFile(invoicePath)
+			fx := testfixture.WriteContext(t)
+			source, err := os.ReadFile(fx.Invoice)
 			if err != nil {
 				t.Fatalf("ReadFile(invoice.yaml) returned error: %v", err)
 			}
@@ -39,7 +41,7 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 				t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 			}
 
-			ctx, err := loadContext(t, customersPath, issuerPath, mutatedPath)
+			ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, mutatedPath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, want %q (outstanding %d)", tt.wantErr, ctx.OutstandingCents)
@@ -78,8 +80,8 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 }
 
 func TestBuildEPCPayloadRejectsOutstandingAboveTotal(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

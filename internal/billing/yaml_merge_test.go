@@ -3,14 +3,17 @@ package billing_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, invoicePath, "customer_id: CUST-001\n", "customer_id: CUST-001\nreduced: &reduced {vat_percent: 10}\n")
-	replaceInFixture(t, invoicePath, "  - name: Support\n", "  - <<: *reduced\n    name: Support\n")
+	fx := testfixture.WriteContext(t)
+	replaceInFixture(t, fx.Invoice, "customer_id: CUST-001\n", "customer_id: CUST-001\nreduced: &reduced {vat_percent: 10}\n")
+	replaceInFixture(t, fx.Invoice, "  - name: Support\n", "  - <<: *reduced\n    name: Support\n")
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -21,14 +24,14 @@ func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
 }
 
 func TestLoadContextRejectsDuplicateKeyInCustomers(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, customersPath, "  status: active\n", "  status: active\n  status: inactive\n")
+	fx := testfixture.WriteContext(t)
+	replaceInFixture(t, fx.Customers, "  status: active\n", "  status: active\n  status: inactive\n")
 
-	_, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	_, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err == nil {
 		t.Fatal("LoadContext returned nil error, want duplicate key error")
 	}
-	if want := customersPath + `:4: duplicate key "status"`; !strings.Contains(err.Error(), want) {
+	if want := fx.Customers + `:4: duplicate key "status"`; !strings.Contains(err.Error(), want) {
 		t.Fatalf("error %q does not contain %q", err.Error(), want)
 	}
 }

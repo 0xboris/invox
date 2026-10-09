@@ -11,20 +11,21 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.T) {
 	t.Parallel()
 
-	h := testHost(filepath.Join(t.TempDir(), "config-home"), filepath.Join(t.TempDir(), "home"))
+	h := testfixture.NewHost(t)
 
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 	pdfPath := filepath.Join(t.TempDir(), "invoice.pdf")
@@ -36,7 +37,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	_, err = h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
+	_, err = service(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true})
 	var exists *billing.OutputExistsError
 	if !errors.As(err, &exists) || exists.Path != outputPath {
 		t.Fatalf("CreateInvoiceEmailDraft error = %v, want *billing.OutputExistsError for %s", err, outputPath)
@@ -49,8 +50,8 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
 
-	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
-	if _, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Overwrite: true}); err != nil {
+	svc, _ := mailService(t, h, cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}, t.TempDir(), time.Now())
+	if _, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: fx.Invoice, PDF: pdfPath, Output: outputPath, Keep: true, Overwrite: true}); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft with overwrite returned error: %v", err)
 	}
 	content, err = os.ReadFile(outputPath)

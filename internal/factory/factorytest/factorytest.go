@@ -87,3 +87,11 @@ func SetStatus(path string, status invoice.Status) error {
 		return nil
 	})
 }
+
+// LoadContext loads the invoice at invoicePath with its customer and issuer,
+// as validate does, on a Factory of fresh directories.
+func LoadContext(t *testing.T, customersPath, issuerPath, invoicePath string) (*invoice.Context, error) {
+	t.Helper()
+	result, err := New(t, nil, Options{}).Service(cmdutil.Files{Customers: customersPath, Issuer: issuerPath}).Validate(invoicePath)
+	return result.Context, err
+}

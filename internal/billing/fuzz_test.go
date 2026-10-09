@@ -10,8 +10,10 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/epc"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/money"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // The fuzz targets below run their seeds, and every crasher committed under
@@ -81,33 +83,32 @@ func FuzzBuildEPCPayload(f *testing.F) {
 
 func FuzzLoadContext(f *testing.F) {
 	for _, seed := range []string{
-		fuzzInvoiceYAML,
-		strings.Replace(fuzzInvoiceYAML, "paid_amount: 0", "paid_amount: 252", 1),
-		strings.Replace(fuzzInvoiceYAML, "vat_percent: 20", "vat_percent: 0.125", 1),
+		testfixture.Source("context/invoice.yaml"),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "paid_amount: 0", "paid_amount: 252", 1),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "vat_percent: 20", "vat_percent: 0.125", 1),
 		// #17: amounts that overflowed int64 cents.
-		strings.Replace(fuzzInvoiceYAML, "unit_price: 100", `unit_price: "100000000000000000"`, 1),
-		strings.Replace(fuzzInvoiceYAML, "quantity: 2", "quantity: 1000000000000000000000000", 1),
-		strings.Replace(fuzzInvoiceYAML, "paid_amount: 0", "paid_amount: 1000000000000000000000000000000", 1),
-		strings.Replace(fuzzInvoiceYAML, "vat_percent: 20", "vat_percent: 100000000000000000000", 1),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "unit_price: 100", `unit_price: "100000000000000000"`, 1),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "quantity: 2", "quantity: 1000000000000000000000000", 1),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "paid_amount: 0", "paid_amount: 1000000000000000000000000000000", 1),
+		strings.Replace(testfixture.Source("context/invoice.yaml"), "vat_percent: 20", "vat_percent: 100000000000000000000", 1),
 		"",
 		"[]",
-		strings.Replace(strings.Replace(fuzzInvoiceYAML, "  - name: Development", "  - &dev\n    name: Development", 1),
+		strings.Replace(strings.Replace(testfixture.Source("context/invoice.yaml"), "  - name: Development", "  - &dev\n    name: Development", 1),
 			"  - name: Support\n    description: QA\n    unit_price: 10\n    quantity: 1\n", "  - *dev\n", 1),
 		// #17: an alias to its enclosing node, and a billion laughs.
 		"customer_id: CUST-001\npositions: &p [*p]\n",
-		billionLaughs(),
+		testfixture.Source("billion-laughs.yaml"),
 	} {
 		f.Add([]byte(seed))
 	}
 
-	dir := f.TempDir()
-	customersPath, issuerPath := writeFuzzCustomerAndIssuer(f, dir)
+	fx := testfixture.WriteContext(f)
 	f.Fuzz(func(t *testing.T, source []byte) {
 		invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 		if err := os.WriteFile(invoicePath, source, 0o644); err != nil {
 			t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 		}
-		ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+		ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, invoicePath)
 		if err != nil {
 			return
 		}
@@ -157,83 +158,4 @@ func checkContextTotals(t *testing.T, ctx *invoice.Context) {
 	if ctx.OutstandingCents != ctx.TotalCents-ctx.PaidAmountCents {
 		t.Fatalf("outstanding %d != total %d - paid %d", ctx.OutstandingCents, ctx.TotalCents, ctx.PaidAmountCents)
 	}
-}
-
-const fuzzInvoiceYAML = `customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  period: Leistungszeitraum
-  vat_percent: 20
-  paid_amount: 0
-positions:
-  - name: Development
-    description: Sprint work
-    unit_price: 100
-    quantity: 2
-  - name: Support
-    description: QA
-    unit_price: 10
-    quantity: 1
-`
-
-// writeFuzzCustomerAndIssuer writes the customers.yaml and issuer.yaml that
-// writeContextFixtures uses, for targets that cannot take a *testing.T.
-func writeFuzzCustomerAndIssuer(tb testing.TB, dir string) (string, string) {
-	tb.Helper()
-
-	customersPath := filepath.Join(dir, "customers.yaml")
-	issuerPath := filepath.Join(dir, "issuer.yaml")
-	files := map[string]string{
-		customersPath: `CUST-001:
-  name: Appsters GmbH
-  email: office@appsters.example
-  email_greeting: Dear Jane Doe,
-  contact_person: Jane Doe
-  address:
-    street: Hauptstrasse 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-  tax:
-    vat_tax_id: ATU12345678
-`,
-		issuerPath: `company:
-  legal_company_name: Boris Consulting
-  company_registration_number: FN 123456a
-  vat_tax_id: ATU87654321
-  website: https://example.com
-  email: hello@example.com
-  address:
-    street: Ring 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-payment:
-  bank_name: Test Bank
-  iban: AT611904300234573201
-  bic: BKAUATWW
-  due_days: 30
-  payment_terms_text: Pay within 30 days
-`,
-	}
-	for path, source := range files {
-		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-			tb.Fatalf("WriteFile(%s) returned error: %v", filepath.Base(path), err)
-		}
-	}
-	return customersPath, issuerPath
-}
-
-// billionLaughs nests nine levels of nine aliases each: 364 bytes that
-// expand to about 430 million nodes.
-func billionLaughs() string {
-	lines := []string{"customer_id: CUST-001", `a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]`}
-	previous := "a"
-	for _, name := range strings.Split("bcdefghi", "") {
-		lines = append(lines, fmt.Sprintf("%s: &%s [%s]", name, name, strings.TrimSuffix(strings.Repeat("*"+previous+",", 9), ",")))
-		previous = name
-	}
-	return strings.Join(lines, "\n") + "\n"
 }

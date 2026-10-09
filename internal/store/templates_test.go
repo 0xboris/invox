@@ -3,8 +3,11 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestListTemplatesUsesDefaultTemplateDirectoryOnly(t *testing.T) {
@@ -42,7 +45,7 @@ paths:
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	templates, err := h.listTemplates()
 	if err != nil {
@@ -57,7 +60,7 @@ paths:
 		"custom.tex\t" + filepath.Join(customDir, "custom.tex"),
 		"multi_vat.tex\t" + filepath.Join(customDir, "multi_vat.tex"),
 	} {
-		if !containsString(got, want) {
+		if !slices.Contains(got, want) {
 			t.Fatalf("template list %q does not contain %q", got, want)
 		}
 	}
@@ -65,7 +68,7 @@ paths:
 		"project.tex\t" + filepath.Join(workDir, "project.tex"),
 		"template.tex\t" + filepath.Join(configDir, "template.tex"),
 	} {
-		if containsString(got, forbidden) {
+		if slices.Contains(got, forbidden) {
 			t.Fatalf("template list %q should not contain %q", got, forbidden)
 		}
 	}
@@ -104,7 +107,7 @@ paths:
 		t.Fatalf("WriteFile(custom.tex) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	resolvedPath, err := h.resolveTemplateReference(workDir, "multi_vat.tex")
 	if err != nil {
@@ -146,7 +149,7 @@ paths:
 		t.Fatalf("WriteFile(outside.tex) returned error: %v", err)
 	}
 
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
+	h := testHost(testfixture.Host{ConfigHome: configHome, Home: filepath.Join(t.TempDir(), "home")})
 
 	_, err := h.resolveTemplateReference(workDir, "outside.tex")
 	if err == nil {

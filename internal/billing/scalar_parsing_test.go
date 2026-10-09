@@ -3,14 +3,17 @@ package billing_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/factory/factorytest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestLoadContextKeepsLeadingZeroPostalCodeAndInvoiceNumber(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, customersPath, "    postal_code: 1010\n", "    postal_code: 01067\n")
-	replaceInFixture(t, invoicePath, "  number: CUST-001-001\n", "  number: 0042\n")
+	fx := testfixture.WriteContext(t)
+	replaceInFixture(t, fx.Customers, "    postal_code: 1010\n", "    postal_code: 01067\n")
+	replaceInFixture(t, fx.Invoice, "  number: CUST-001-001\n", "  number: 0042\n")
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -23,10 +26,10 @@ func TestLoadContextKeepsLeadingZeroPostalCodeAndInvoiceNumber(t *testing.T) {
 }
 
 func TestLoadContextReadsLeadingZeroAmountsAsDecimal(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, invoicePath, "    unit_price: 100\n    quantity: 2\n", "    unit_price: 0100\n    quantity: 010\n")
+	fx := testfixture.WriteContext(t)
+	replaceInFixture(t, fx.Invoice, "    unit_price: 100\n    quantity: 2\n", "    unit_price: 0100\n    quantity: 010\n")
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -60,10 +63,10 @@ func TestLoadContextAmountGrammar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-			replaceInFixture(t, invoicePath, "    unit_price: 100\n", "    unit_price: "+tt.unitPrice+"\n")
+			fx := testfixture.WriteContext(t)
+			replaceInFixture(t, fx.Invoice, "    unit_price: 100\n", "    unit_price: "+tt.unitPrice+"\n")
 
-			ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+			ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, want %q", tt.wantErr)
@@ -98,10 +101,10 @@ func TestLoadContextQuantityAndPaidAmountGrammar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-			replaceInFixture(t, invoicePath, tt.from, tt.to)
+			fx := testfixture.WriteContext(t)
+			replaceInFixture(t, fx.Invoice, tt.from, tt.to)
 
-			_, err := loadContext(t, customersPath, issuerPath, invoicePath)
+			_, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 			if err == nil {
 				t.Fatalf("LoadContext returned nil error, want %q", tt.wantErr)
 			}

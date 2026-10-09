@@ -10,17 +10,8 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/testfixture"
 )
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll(%s): %v", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s): %v", path, err)
-	}
-}
 
 func walkPaths(t *testing.T, s store) []string {
 	t.Helper()
@@ -46,12 +37,12 @@ func TestWalkVisitsInvoiceFilesBelowTheRootInOrder(t *testing.T) {
 
 	dir := t.TempDir()
 	for _, name := range []string{"b.yaml", "a/z.YML", "notes.txt", "README.md", ".history/old.yaml", "a/.history/kept.yaml"} {
-		writeFile(t, filepath.Join(dir, filepath.FromSlash(name)), "")
+		testfixture.WriteFile(t, filepath.Join(dir, filepath.FromSlash(name)), "")
 	}
 	// Markdown with front matter is what invox used to read as an invoice.
-	writeFile(t, filepath.Join(dir, "a", "x.md"), "---\ninvoice: {}\n---\n")
-	writeFile(t, filepath.Join(dir, "a", "y.markdown"), "---\r\ninvoice: {}\r\n---\r\n")
-	writeFile(t, filepath.Join(dir, ".history", "old.md"), "---\ninvoice: {}\n---\n")
+	testfixture.WriteFile(t, filepath.Join(dir, "a", "x.md"), "---\ninvoice: {}\n---\n")
+	testfixture.WriteFile(t, filepath.Join(dir, "a", "y.markdown"), "---\r\ninvoice: {}\r\n---\r\n")
+	testfixture.WriteFile(t, filepath.Join(dir, ".history", "old.md"), "---\ninvoice: {}\n---\n")
 
 	visited, markdown := walk(t, store{Dir: dir})
 	want := []string{
@@ -74,8 +65,8 @@ func TestWalkOrderDiffersFromListOrder(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "a", "x.yaml"), "X")
-	writeFile(t, filepath.Join(dir, "a-b.yaml"), "B")
+	testfixture.WriteFile(t, filepath.Join(dir, "a", "x.yaml"), "X")
+	testfixture.WriteFile(t, filepath.Join(dir, "a-b.yaml"), "B")
 
 	if got, want := walkPaths(t, store{Dir: dir}), []string{
 		filepath.Join(dir, "a", "x.yaml"),
@@ -101,7 +92,7 @@ func TestWalkReportsPathsBelowTheSymlinkedRoot(t *testing.T) {
 	t.Parallel()
 
 	real := t.TempDir()
-	writeFile(t, filepath.Join(real, "customer-a", "first.yaml"), "")
+	testfixture.WriteFile(t, filepath.Join(real, "customer-a", "first.yaml"), "")
 	link := filepath.Join(t.TempDir(), "archive-link")
 	if err := os.Symlink(real, link); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
@@ -126,7 +117,7 @@ func TestWalkWithoutArchive(t *testing.T) {
 	}
 
 	file := filepath.Join(t.TempDir(), "archive")
-	writeFile(t, file, "")
+	testfixture.WriteFile(t, file, "")
 	_, err := store{Dir: file}.Walk(func(string) error { return nil })
 	if want := file + ": archive.dir must point to a directory"; err == nil || err.Error() != want {
 		t.Fatalf("Walk(file) error = %v, want %q", err, want)
@@ -137,10 +128,10 @@ func TestListSortsByFilenameAndSkipsWhatTheReaderRejects(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "b.yaml"), "B")
-	writeFile(t, filepath.Join(dir, "a", "c.yaml"), "C")
-	writeFile(t, filepath.Join(dir, "a-d.yaml"), "")
-	writeFile(t, filepath.Join(dir, "old.md"), "---\ncustomer_id: C\n---\n")
+	testfixture.WriteFile(t, filepath.Join(dir, "b.yaml"), "B")
+	testfixture.WriteFile(t, filepath.Join(dir, "a", "c.yaml"), "C")
+	testfixture.WriteFile(t, filepath.Join(dir, "a-d.yaml"), "")
+	testfixture.WriteFile(t, filepath.Join(dir, "old.md"), "---\ncustomer_id: C\n---\n")
 
 	entries, unread, err := store{Dir: dir}.List(func(path string) (billing.ArchiveEntry, bool, error) {
 		data, err := os.ReadFile(path)
@@ -204,7 +195,7 @@ func TestFindRequiresAFile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "first.yaml"), "")
+	testfixture.WriteFile(t, filepath.Join(dir, "first.yaml"), "")
 	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +213,7 @@ func TestFindRequiresAFile(t *testing.T) {
 	if want := filepath.Join(dir, "sub") + ": archived invoice must be a file"; err == nil || err.Error() != want {
 		t.Fatalf("Find(sub) error = %v, want %q", err, want)
 	}
-	writeFile(t, filepath.Join(dir, "old.md"), "---\ncustomer_id: C\n---\n")
+	testfixture.WriteFile(t, filepath.Join(dir, "old.md"), "---\ncustomer_id: C\n---\n")
 	_, err = s.Find("old.md")
 	if want := filepath.Join(dir, "old.md") + " is a Markdown invoice, which invox no longer reads; convert it to .yaml"; err == nil || err.Error() != want {
 		t.Fatalf("Find(old.md) error = %v, want %q", err, want)
@@ -234,7 +225,7 @@ func TestBackupKeepsEveryVersion(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "customer-a", "first.yaml")
-	writeFile(t, path, "v1")
+	testfixture.WriteFile(t, path, "v1")
 	now := time.Date(2026, 10, 5, 14, 30, 45, 0, time.FixedZone("CEST", 2*60*60))
 	s := store{Dir: dir}
 
@@ -247,7 +238,7 @@ func TestBackupKeepsEveryVersion(t *testing.T) {
 		t.Fatalf("Backup = %+v, want %+v", first, want)
 	}
 
-	writeFile(t, path, "v2")
+	testfixture.WriteFile(t, path, "v2")
 	second, err := s.Backup([]string{path}, now)
 	if err != nil {
 		t.Fatalf("second Backup returned error: %v", err)
@@ -270,7 +261,7 @@ func TestExistingFiles(t *testing.T) {
 
 	dir := t.TempDir()
 	file := filepath.Join(dir, "first.yaml")
-	writeFile(t, file, "")
+	testfixture.WriteFile(t, file, "")
 
 	if got, err := existingFile(file); err != nil || !got {
 		t.Fatalf("existingFile(file) = %v, %v; want true, nil", got, err)
@@ -299,8 +290,8 @@ func TestIsInvoiceFile(t *testing.T) {
 func TestAddWritesTheChangedInvoiceOnce(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(t.TempDir(), "a.yaml")
-	writeFile(t, src, "working copy\n")
-	writeFile(t, filepath.Join(dir, "a.yaml"), "archived\n")
+	testfixture.WriteFile(t, src, "working copy\n")
+	testfixture.WriteFile(t, filepath.Join(dir, "a.yaml"), "archived\n")
 
 	var rewritten []string
 	a := Archive{
@@ -351,7 +342,7 @@ func TestAddWritesTheChangedInvoiceOnce(t *testing.T) {
 func TestAddMovesNothingWhenTheRewriteFails(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "archive")
 	src := filepath.Join(t.TempDir(), "a.yaml")
-	writeFile(t, src, "working copy\n")
+	testfixture.WriteFile(t, src, "working copy\n")
 
 	a := Archive{
 		Locate: func() (string, error) { return dir, nil },

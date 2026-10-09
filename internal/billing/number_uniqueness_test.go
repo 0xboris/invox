@@ -11,19 +11,20 @@ import (
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	archivedPath := writeArchivedInvoice(t, archiveDir, "first.yaml", "CUST-001-001")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
+	archivedPath := testfixture.WriteArchivedInvoice(t, archiveDir, "first.yaml", "CUST-001-001")
 
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
+	_, err := service(t, h, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -44,13 +45,13 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
 	secondPath := filepath.Join(archiveDir, "second.yaml")
 	writeStatusInvoice(t, secondPath, "CUST-001-002", "archived")
 
 	workDir := t.TempDir()
-	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
+	opened, err := service(t, h, cmdutil.Files{}, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 
-	_, err = h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Now()).Archive(workingCopy, billing.ArchiveOptions{})
+	_, err = service(t, h, cmdutil.Files{}, filepath.Dir(workingCopy), time.Now()).Archive(workingCopy, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -81,28 +82,28 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 	t.Parallel()
 
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath}
+	fx := testfixture.WriteContext(t)
+	files := cmdutil.Files{Customers: fx.Customers, Issuer: fx.Issuer}
 	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 	archived := filepath.Join(archiveDir, "first.yaml")
-	if err := os.WriteFile(archived, []byte(readTestFile(t, invoicePath)), 0o644); err != nil {
+	if err := os.WriteFile(archived, []byte(testfixture.ReadFile(t, fx.Invoice)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	workDir := t.TempDir()
-	opened, err := h.service(t, files, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
+	opened, err := service(t, h, files, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchived returned error: %v", err)
 	}
 	for _, path := range []string{opened.Path, archived} {
-		result, err := h.service(t, files, filepath.Dir(path), time.Time{}).Validate(path)
+		result, err := service(t, h, files, filepath.Dir(path), time.Time{}).Validate(path)
 		if err != nil || result.Duplicate != nil {
 			t.Fatalf("Validate(%s) = duplicate %v, error %v; want neither", path, result.Duplicate, err)
 		}
 	}
 
-	result, err := h.service(t, files, filepath.Dir(invoicePath), time.Time{}).Validate(invoicePath)
+	result, err := service(t, h, files, filepath.Dir(fx.Invoice), time.Time{}).Validate(fx.Invoice)
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if err != nil || !errors.As(result.Duplicate, &duplicate) || duplicate.ArchivedPath != archived {
 		t.Fatalf("Validate(other file) = duplicate %v, error %v; want %s as the duplicate", result.Duplicate, err, archived)
@@ -118,12 +119,12 @@ func TestArchiveInvoiceChecksSymlinkedArchiveDir(t *testing.T) {
 	if err := os.Symlink(realArchiveDir, archiveDir); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	h := testfixture.HostWithConfig(t, "archive:\n  dir: "+testfixture.QuoteYAML(archiveDir)+"\n")
 
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
+	_, err := service(t, h, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)

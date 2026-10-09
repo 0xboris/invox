@@ -6,16 +6,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/money"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func TestLoadContextWithCurrentInvoice(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t,
-		customersPath,
-		issuerPath,
-		invoicePath,
-	)
+	fx := testfixture.WriteContext(t)
+	ctx, err := factorytest.LoadContext(t,
+		fx.Customers,
+		fx.Issuer,
+		fx.Invoice)
+
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -44,8 +46,8 @@ func TestLoadContextWithCurrentInvoice(t *testing.T) {
 }
 
 func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
@@ -60,11 +62,11 @@ func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
 		t.Fatalf("WriteFile(legacyPath) returned error: %v", err)
 	}
 
-	_, err = loadContext(t,
-		customersPath,
-		issuerPath,
-		legacyPath,
-	)
+	_, err = factorytest.LoadContext(t,
+		fx.Customers,
+		fx.Issuer,
+		legacyPath)
+
 	if err == nil {
 		t.Fatal("LoadContext returned nil error for legacy aliases")
 	}
@@ -80,18 +82,18 @@ func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
 }
 
 func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 
 	mutated := strings.Replace(string(source), "    quantity: 1\n", "    quantity: 1\n    vat_percent: 10\n", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -129,9 +131,9 @@ func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
 }
 
 func TestLoadContextFallsBackToCustomerDefaultVATRate(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	fx := testfixture.WriteContext(t)
 
-	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
+	if err := os.WriteFile(fx.Customers, []byte(strings.TrimSpace(`
 CUST-001:
   name: Appsters GmbH
   status: active
@@ -150,16 +152,16 @@ CUST-001:
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	source, err := os.ReadFile(invoicePath)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoicePath) returned error: %v", err)
 	}
 	mutated := strings.Replace(string(source), "  vat_percent: 20\n", "", 1)
-	if err := os.WriteFile(invoicePath, []byte(mutated), 0o644); err != nil {
+	if err := os.WriteFile(fx.Invoice, []byte(mutated), 0o644); err != nil {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
+	ctx, err := factorytest.LoadContext(t, fx.Customers, fx.Issuer, fx.Invoice)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -179,14 +181,14 @@ CUST-001:
 }
 
 func TestLoadContextRejectsMissingInvoiceNumber(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	invoicePath = writeInvoiceWithoutNumber(t, invoicePath)
+	fx := testfixture.WriteContext(t)
+	fx.Invoice = writeInvoiceWithoutNumber(t, fx.Invoice)
 
-	_, err := loadContext(t,
-		customersPath,
-		issuerPath,
-		invoicePath,
-	)
+	_, err := factorytest.LoadContext(t,
+		fx.Customers,
+		fx.Issuer,
+		fx.Invoice)
+
 	if err == nil {
 		t.Fatalf("LoadContext returned nil error for missing invoice.number")
 	}
@@ -196,8 +198,8 @@ func TestLoadContextRejectsMissingInvoiceNumber(t *testing.T) {
 }
 
 func TestLoadContextRejectsOverpaidInvoice(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	source, err := os.ReadFile(invoicePath)
+	fx := testfixture.WriteContext(t)
+	source, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatalf("ReadFile(invoice.yaml) returned error: %v", err)
 	}
@@ -208,11 +210,11 @@ func TestLoadContextRejectsOverpaidInvoice(t *testing.T) {
 		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 	}
 
-	_, err = loadContext(t,
-		customersPath,
-		issuerPath,
-		mutatedPath,
-	)
+	_, err = factorytest.LoadContext(t,
+		fx.Customers,
+		fx.Issuer,
+		mutatedPath)
+
 	if err == nil {
 		t.Fatalf("LoadContext returned nil error for overpaid invoice")
 	}
