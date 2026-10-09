@@ -158,6 +158,23 @@ type ToolMissingError struct {
 
 func (e *ToolMissingError) Error() string { return e.Tool + " not found in PATH" }
 
+// ToolFailedError means a program invox runs, such as tectonic or the
+// editor, failed. Tool names it as the message shows it. Code is its exit
+// code, or -1 when it did not exit normally; invox itself exits 1.
+type ToolFailedError struct {
+	Tool string
+	Code int
+	Err  error
+}
+
+func (e *ToolFailedError) Error() string {
+	if e.Code < 0 {
+		return fmt.Sprintf("%s failed: %v", e.Tool, e.Err)
+	}
+	return fmt.Sprintf("%s exited with status %d", e.Tool, e.Code)
+}
+func (e *ToolFailedError) Unwrap() error { return e.Err }
+
 // FileNotFoundError means no support file of its kind was found. Default is
 // where invox looks last, in the config directory.
 type FileNotFoundError struct {

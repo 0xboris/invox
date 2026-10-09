@@ -60,16 +60,19 @@ func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 	}
 }
 
-func TestBuildReturnsExecErrorWhenTectonicFails(t *testing.T) {
+func TestBuildReturnsToolFailedErrorWhenTectonicFails(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
 	stub := runtest.NewStub(t)
 	stub.Register("tectonic", func(run.Cmd) error { return &run.ExecError{Name: "tectonic", Code: 1} })
 
 	pdf, err := tectonic.New(stub, ios, "linux").Compile(context.Background(), "invoice.tex")
 
-	var execErr *run.ExecError
-	if !errors.As(err, &execErr) || execErr.Code != 1 || pdf != "" {
-		t.Fatalf("Compile = %q, %v, want \"\", *run.ExecError with Code 1", pdf, err)
+	var failed *billing.ToolFailedError
+	if !errors.As(err, &failed) || failed.Tool != "tectonic" || failed.Code != 1 || pdf != "" {
+		t.Fatalf("Compile = %q, %v, want \"\", *billing.ToolFailedError for tectonic with Code 1", pdf, err)
+	}
+	if want := "tectonic exited with status 1"; err.Error() != want {
+		t.Fatalf("Compile error = %q, want %q", err, want)
 	}
 }
 

@@ -2,11 +2,8 @@ package cmdutil
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -18,12 +15,7 @@ func OpenInEditor(ctx context.Context, ios *iostreams.IOStreams, ed *editor.Edit
 		return FlagErrorf("cannot open an editor: %s; %s", reason, nextStep)
 	}
 	defer HoldInterrupt(ctx)()
-	err := ed.Edit(ctx, path)
-	var execErr *run.ExecError
-	if errors.As(err, &execErr) {
-		return &ExecError{Program: fmt.Sprintf("editor %q", execErr.Name), Code: execErr.Code, Err: err}
-	}
-	return err
+	return ed.Edit(ctx, path)
 }
 
 // WhyNoPrompt returns why ios cannot prompt, or "" when it can.

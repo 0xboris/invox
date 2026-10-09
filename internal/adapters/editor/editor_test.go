@@ -10,6 +10,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/run/runtest"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -53,11 +54,11 @@ func TestEditReturnsTheEditorsFailure(t *testing.T) {
 
 	err := editor.New(stub, ios, "linux", getenv).Edit(context.Background(), "a.yaml")
 
-	var execErr *run.ExecError
-	if !errors.As(err, &execErr) {
-		t.Fatalf("Edit error = %v, want *run.ExecError", err)
+	var failed *billing.ToolFailedError
+	if !errors.As(err, &failed) {
+		t.Fatalf("Edit error = %v, want *billing.ToolFailedError", err)
 	}
-	if execErr.Name != "code -w" || execErr.Code != 3 || err.Error() != "exit status 3" {
-		t.Fatalf("Edit error = {Name: %q, Code: %d, %q}, want {Name: %q, Code: 3, %q}", execErr.Name, execErr.Code, err, "code -w", "exit status 3")
+	if want := `editor "code -w" exited with status 3`; failed.Code != 3 || err.Error() != want {
+		t.Fatalf("Edit error = {Code: %d, %q}, want {Code: 3, %q}", failed.Code, err, want)
 	}
 }

@@ -92,8 +92,8 @@ func TestExitCodeMapsErrorTypes(t *testing.T) {
 		{"wrapped usage error", newCmd, fmt.Errorf("parse: %w", cmdutil.FlagErrorf("bad")), 2, "error: bad\nRun 'invox new --help' for usage.\n"},
 		{"already reported", root, cmdutil.SilentError, 1, ""},
 		{"cancelled", root, cmdutil.CancelError, 2, ""},
-		{"external program", root, &cmdutil.ExecError{Program: "tectonic", Code: 3, Err: errors.New("exit status 3")}, 1, "error: tectonic exited with status 3\n"},
-		{"external program killed", root, &cmdutil.ExecError{Program: "tectonic", Code: -1, Err: errors.New("signal: killed")}, 1, "error: tectonic failed: signal: killed\n"},
+		{"external program", root, &billing.ToolFailedError{Tool: "tectonic", Code: 3, Err: errors.New("exit status 3")}, 1, "error: tectonic exited with status 3\n"},
+		{"external program killed", root, &billing.ToolFailedError{Tool: "tectonic", Code: -1, Err: errors.New("signal: killed")}, 1, "error: tectonic failed: signal: killed\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

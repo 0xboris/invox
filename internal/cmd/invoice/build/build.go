@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
@@ -124,7 +123,6 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		DryRun:   opts.DryRun,
 	})
 	var stepErr *billing.StepError
-	var execErr *run.ExecError
 	switch {
 	case errors.As(err, &stepErr) && opts.DryRun:
 		return fmt.Errorf("cannot archive %s: %w", invoiceDisplay, stepErr.Err)
@@ -134,8 +132,6 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		// Main prints only a usage error's inner message and stays silent
 		// for CancelError, so the wrap adds nothing to them.
 		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, stepErr.Err)
-	case errors.As(err, &execErr):
-		return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
 	case err != nil:
 		return cmdutil.UsageError(err)
 	}

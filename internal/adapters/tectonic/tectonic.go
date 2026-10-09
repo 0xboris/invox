@@ -27,7 +27,7 @@ func New(runner run.Runner, ios *iostreams.IOStreams, goos string) *Compiler {
 
 // Compile compiles sourcePath and returns the PDF next to it. It implements
 // latex.Compiler. It returns a *billing.ToolMissingError when tectonic is not
-// on PATH, and a *run.ExecError when tectonic fails.
+// on PATH, and a *billing.ToolFailedError when tectonic fails.
 func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, error) {
 	err := c.runner.Run(ctx, run.Cmd{
 		Dir:    filepath.Dir(sourcePath),
@@ -39,6 +39,10 @@ func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, erro
 	})
 	if errors.Is(err, run.ErrNotFound) {
 		return "", &billing.ToolMissingError{Tool: "tectonic", Hint: installHint(c.goos)}
+	}
+	var execErr *run.ExecError
+	if errors.As(err, &execErr) {
+		return "", &billing.ToolFailedError{Tool: "tectonic", Code: execErr.Code, Err: err}
 	}
 	if err != nil {
 		return "", err
