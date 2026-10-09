@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
@@ -38,16 +37,12 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	if err == nil {
 		err = helpErr()
 	}
-	var configErr *billing.ConfigError
-	if f.ConfigFile != "" && errors.As(err, &configErr) {
-		err = &configFlagError{err: err, path: f.ConfigFile}
-	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
 		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
 		err = sigErr
 	}
-	return exitCode(f.IOStreams, cmd, err)
+	return exitCode(f, cmd, err)
 }
 
 // execute runs args on root. It returns the command args named, whose help

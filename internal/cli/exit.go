@@ -4,8 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -15,12 +13,11 @@ import (
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// exitCode reports err, which cmd returned, on ios.ErrOut and returns the
+// exitCode reports err, which cmd returned, on f's stderr and returns the
 // code invox exits with. It is the only place that maps errors to exit codes.
-func exitCode(ios *iostreams.IOStreams, cmd *cobra.Command, err error) int {
+func exitCode(f *cmdutil.Factory, cmd *cobra.Command, err error) int {
 	var flagErr *cmdutil.FlagError
 	var sigErr *SignalError
 	switch {
@@ -36,38 +33,40 @@ func exitCode(ios *iostreams.IOStreams, cmd *cobra.Command, err error) int {
 		if flagErr.Root {
 			cmd = cmd.Root()
 		}
-		printError(ios.ErrOut, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, cmd.CommandPath()))
+		printError(f, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, cmd.CommandPath()))
 		return 2
 	}
 	message := err.Error()
-	if hint := errorHint(err); hint != "" {
+	if hint := errorHint(err, f.ConfigFile); hint != "" {
 		message += "\n" + hint
 	}
-	printError(ios.ErrOut, message)
+	printError(f, message)
 	return 1
 }
 
-// printError prints message with the error prefix, and with paths under the
-// working directory made relative to it. A path counts only where it starts:
-// at the start of the message or after a space, quote or parenthesis.
-func printError(w io.Writer, message string) {
-	if cwd, err := os.Getwd(); err == nil && filepath.Dir(cwd) != cwd {
+// printError prints message on f's stderr with the error prefix, and with
+// paths under f's working directory made relative to it. A path counts only
+// where it starts: at the start of the message or after a space, quote or
+// parenthesis.
+func printError(f *cmdutil.Factory, message string) {
+	if cwd, err := f.Env.Getwd(); err == nil && filepath.Dir(cwd) != cwd {
 		pathStart := regexp.MustCompile("(^|[\\s'\"`(])" + regexp.QuoteMeta(cwd+string(filepath.Separator)))
 		message = pathStart.ReplaceAllString(message, "${1}")
 	}
-	fmt.Fprintf(w, "error: %s\n", message)
+	fmt.Fprintf(f.IOStreams.ErrOut, "error: %s\n", message)
 }
 
 // errorHint returns the next step that fixes err, or "" when there is none.
-func errorHint(err error) string {
+// configFile is the --config file, which the config hint must name: `invox
+// config` alone opens the default one.
+func errorHint(err error, configFile string) string {
 	var unknownCustomer *invoice.UnknownCustomerError
 	var configErr *billing.ConfigError
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	var toolMissing *billing.ToolMissingError
-	var configFlag *configFlagError
 	switch {
-	case errors.As(err, &configFlag):
-		return fmt.Sprintf("Run '%s --config %s config' to open and fix the config file.", commandName, configFlag.path)
+	case errors.As(err, &configErr) && configFile != "":
+		return fmt.Sprintf("Run '%s --config %s config' to open and fix the config file.", commandName, configFile)
 	case errors.As(err, &unknownCustomer):
 		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
 	case len(unknownKeyHelpTopics(err)) > 0:
@@ -85,16 +84,6 @@ func errorHint(err error) string {
 	}
 	return ""
 }
-
-// configFlagError is a config error in the file named with --config, whose
-// hint must name that file: `invox config` alone opens the default one.
-type configFlagError struct {
-	err  error
-	path string
-}
-
-func (e *configFlagError) Error() string { return e.err.Error() }
-func (e *configFlagError) Unwrap() error { return e.err }
 
 // unknownKeyHelpTopics returns the help topics that document the files in
 // which err reports unknown keys, in the order the files first appear.

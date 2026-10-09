@@ -96,8 +96,8 @@ dependencies point inward, from main to the driving and driven adapters to the u
   streams), `internal/env` and `internal/build`. `env.Env` holds `GOOS`, `Getenv`, `HomeDir`,
   `Getwd` and `Now`; `env.System()` reads them from the process and everything else uses the
   `Env` it is given. `ambient_test.go` fails on any other read, apart from a short allowlist of
-  functions (`iostreams.newSystem`, `cli.printError`, and `run.Exec.Run`, whose child
-  processes inherit the environment). `Factory.Env` carries the `Env`.
+  functions (`iostreams.newSystem` and `run.Exec.Run`, whose child processes inherit the
+  environment). `Factory.Env` carries the `Env`.
 - The layering is enforced. depguard and forbidigo in `.golangci.yml` check each file, one
   depguard rule per row of the package table; `internal/archtest` checks the transitive import
   graph with `go list`. A new package or import that crosses a ring fails both; update the

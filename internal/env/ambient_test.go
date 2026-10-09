@@ -15,8 +15,7 @@ import (
 // allowedFuncs lists, per package directory, the functions that may read the
 // process environment. A method is named Type.Method.
 var allowedFuncs = map[string][]string{
-	"internal/adapters/run": {"Exec.Run"},   // child processes inherit os.Environ
-	"internal/cli":          {"printError"}, // makes paths relative to os.Getwd
+	"internal/adapters/run": {"Exec.Run"}, // child processes inherit os.Environ
 	"internal/env":          {"System"},
 	"internal/iostreams":    {"newSystem"}, // reads INVOX_FORCE_TTY
 }
