@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"io"
 	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,4 +153,83 @@ func (x *Invox) ExpectTectonicFailure(code int) {
 		_, _ = cmd.Stderr.Write([]byte("fake tectonic: forced failure\n"))
 		return &run.ExecError{Name: "tectonic", Code: code}
 	})
+}
+
+// EditedArchive is the archived invoice first.yaml, checked out with
+// archive edit into the working directory and changed there.
+type EditedArchive struct {
+	ArchiveDir   string
+	ArchivedPath string
+	// Original is the archived file's content before any replacement.
+	Original    string
+	WorkingCopy string
+}
+
+// EditArchive configures an archive holding first.yaml, CUST-001-001,
+// checks it out with archive edit into a new working directory and raises
+// its unit price there, so archiving the working copy replaces it.
+func (x *Invox) EditArchive() EditedArchive {
+	x.t.Helper()
+	archiveDir := x.t.TempDir()
+	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
+	archivedPath := testfixture.WriteNumberedInvoice(x.t, archiveDir, "first.yaml", "CUST-001-001", "archived")
+
+	workDir := x.t.TempDir()
+	x.Chdir(workDir)
+	if exitCode, _, stderr := x.Run([]string{"archive", "edit", "first.yaml"}); exitCode != 0 {
+		x.t.Fatalf("archive edit: exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	workingCopy := filepath.Join(workDir, "first.yaml")
+	testfixture.WriteFile(x.t, workingCopy, strings.Replace(testfixture.ReadFile(x.t, workingCopy), "unit_price: 100", "unit_price: 250", 1))
+	return EditedArchive{
+		ArchiveDir:   archiveDir,
+		ArchivedPath: archivedPath,
+		Original:     testfixture.ReadFile(x.t, archivedPath),
+		WorkingCopy:  workingCopy,
+	}
+}
+
+// AssertUnchanged fails t unless the archive and the working copy are as
+// EditArchive left them, with no backup written.
+func (e EditedArchive) AssertUnchanged(t *testing.T) {
+	t.Helper()
+	if got := testfixture.ReadFile(t, e.ArchivedPath); got != e.Original {
+		t.Fatalf("archived invoice changed:\n%s", got)
+	}
+	if _, err := os.Stat(e.WorkingCopy); err != nil {
+		t.Fatalf("working copy should stay in place: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(e.ArchiveDir, ".history")); !os.IsNotExist(err) {
+		t.Fatalf("no backup should be written, Stat err = %v", err)
+	}
+}
+
+// AssertReplaced fails t unless the working copy replaced the archived
+// invoice and the previous version is kept in .history, and returns the
+// backup's path.
+func (e EditedArchive) AssertReplaced(t *testing.T) string {
+	t.Helper()
+	if !strings.Contains(testfixture.ReadFile(t, e.ArchivedPath), "unit_price: 250") {
+		t.Fatalf("archived invoice was not replaced:\n%s", testfixture.ReadFile(t, e.ArchivedPath))
+	}
+	if _, err := os.Stat(e.WorkingCopy); !os.IsNotExist(err) {
+		t.Fatalf("working copy should be removed, Stat err = %v", err)
+	}
+	backups, err := filepath.Glob(filepath.Join(e.ArchiveDir, ".history", "first.*.yaml"))
+	if err != nil {
+		t.Fatalf("Glob returned error: %v", err)
+	}
+	if len(backups) != 1 {
+		t.Fatalf("backups = %q, want exactly one", backups)
+	}
+	if got := testfixture.ReadFile(t, backups[0]); got != e.Original {
+		t.Fatalf("backup = %q, want the previous version %q", got, e.Original)
+	}
+	return backups[0]
+}
+
+// ReplacedNotice is what invox prints when it replaced the archived invoice
+// and kept the previous version at backupPath.
+func (e EditedArchive) ReplacedNotice(backupPath string) string {
+	return "Replaced archived invoice " + e.ArchivedPath + "; previous version kept at " + backupPath + "\n"
 }

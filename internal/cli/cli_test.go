@@ -169,25 +169,6 @@ func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
 	}
 }
 
-func TestArchiveAddHelpShowsShortFlags(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "-h"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0", exitCode)
-	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	for _, want := range []string{
-		"INVOICE.yaml or -i, --input PATH",
-		"invox archive add [INVOICE.yaml] [flags]",
-		"$ invox archive add invoice.yaml",
-	} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout %q does not contain %q", stdout, want)
-		}
-	}
-}
-
 func TestArchiveListHelpShowsOutputFormat(t *testing.T) {
 	exitCode, stdout, stderr := captureRun(t, []string{"archive", "list", "-h"})
 	if exitCode != 0 {
@@ -222,19 +203,6 @@ func TestArchiveEditHelpShowsUsage(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
 		}
-	}
-}
-
-func TestArchiveRequiresPositionalOrFlagInput(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add"})
-	if exitCode != 2 {
-		t.Fatalf("exitCode = %d, want 2", exitCode)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if want := "error: missing required input: INVOICE.yaml or -i, --input\nRun 'invox archive add --help' for usage.\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
 
@@ -273,61 +241,6 @@ invoice:
 	}, "\n") + "\n"
 	if stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
-	}
-}
-
-func TestArchiveMovesBuiltInvoiceToArchiveDir(t *testing.T) {
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  status: built
-  period: Leistungszeitraum
-  vat_percent: 20
-  paid_amount: 0
-positions:
-  - name: Development
-    description: Sprint work
-    unit_price: 100
-    quantity: 2
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
-	}
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"archive",
-		"add",
-		invoicePath,
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-
-	archivePath := filepath.Join(archiveDir, filepath.Base(invoicePath))
-	if want := "Archived " + invoicePath + " -> " + archivePath + "\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != archivePath+"\n" {
-		t.Fatalf("stdout = %q, want %q", stdout, archivePath+"\n")
-	}
-	if _, err := os.Stat(invoicePath); err == nil {
-		t.Fatalf("source invoice should have been removed: %s", invoicePath)
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("Stat(invoicePath) returned unexpected error: %v", err)
-	}
-
-	archivedSource, err := os.ReadFile(archivePath)
-	if err != nil {
-		t.Fatalf("ReadFile(archivePath) returned error: %v", err)
-	}
-	if !strings.Contains(string(archivedSource), "status: archived") {
-		t.Fatalf("archived invoice does not contain archived status:\n%s", string(archivedSource))
 	}
 }
 
@@ -393,145 +306,6 @@ positions:
 	}
 	if _, err := os.Stat(archivedPath); err != nil {
 		t.Fatalf("archived invoice should remain in place: %v", err)
-	}
-}
-
-func TestArchiveReplacesEditedArchivedInvoice(t *testing.T) {
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	archivedPath := filepath.Join(archiveDir, "2026-03-06.yaml")
-	if err := os.WriteFile(archivedPath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  status: archived
-  period: March 2026
-  vat_percent: 20
-  paid_amount: 0
-positions:
-  - name: Development
-    description: Original archive
-    unit_price: 100
-    quantity: 2
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(archivedPath) returned error: %v", err)
-	}
-
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"archive",
-		"edit",
-		"2026-03-06.yaml",
-	})
-	if exitCode != 0 {
-		t.Fatalf("edit exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "Editing " + archivedPath + " -> 2026-03-06.yaml\n"; stderr != want {
-		t.Fatalf("edit stderr = %q, want %q", stderr, want)
-	}
-	if stdout != "2026-03-06.yaml\n" {
-		t.Fatalf("edit stdout = %q, want %q", stdout, "2026-03-06.yaml\n")
-	}
-
-	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
-	editedSource, err := os.ReadFile(editedPath)
-	if err != nil {
-		t.Fatalf("ReadFile(editedPath) returned error: %v", err)
-	}
-	mutated := strings.Replace(string(editedSource), "Original archive", "Updated archive", 1)
-	if err := os.WriteFile(editedPath, []byte(mutated), 0o644); err != nil {
-		t.Fatalf("WriteFile(editedPath) returned error: %v", err)
-	}
-
-	exitCode, stdout, stderr = captureRun(t, []string{
-		"archive",
-		"add",
-		editedPath,
-		"--yes",
-	})
-	if exitCode != 0 {
-		t.Fatalf("archive exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if !strings.HasPrefix(stderr, "Replaced archived invoice "+archivedPath+"; previous version kept at ") {
-		t.Fatalf("archive stderr = %q, want replacement notice", stderr)
-	}
-	if !strings.HasSuffix(stderr, "\nArchived 2026-03-06.yaml -> "+archivedPath+"\n") {
-		t.Fatalf("archive stderr %q does not end with the re-archive summary", stderr)
-	}
-	if stdout != archivedPath+"\n" {
-		t.Fatalf("archive stdout = %q, want %q", stdout, archivedPath+"\n")
-	}
-	if _, err := os.Stat(editedPath); err == nil {
-		t.Fatalf("edited working copy should have been removed: %s", editedPath)
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("Stat(editedPath) returned unexpected error: %v", err)
-	}
-
-	archivedSource, err := os.ReadFile(archivedPath)
-	if err != nil {
-		t.Fatalf("ReadFile(archivedPath) returned error: %v", err)
-	}
-	archivedText := string(archivedSource)
-	for _, want := range []string{
-		"status: archived",
-		"Updated archive",
-	} {
-		if !strings.Contains(archivedText, want) {
-			t.Fatalf("archived invoice does not contain %q:\n%s", want, archivedText)
-		}
-	}
-	for _, forbidden := range []string{
-		"status: editing",
-		"_invox:",
-	} {
-		if strings.Contains(archivedText, forbidden) {
-			t.Fatalf("archived invoice should not contain %q:\n%s", forbidden, archivedText)
-		}
-	}
-}
-
-func TestArchiveRejectsInvoiceWithoutBuiltStatus(t *testing.T) {
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  status: draft
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
-	}
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"archive",
-		"add",
-		invoicePath,
-	})
-	if exitCode != 1 {
-		t.Fatalf("exitCode = %d, want 1", exitCode)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if !strings.Contains(stderr, "invoice.status must be `built` before archiving") {
-		t.Fatalf("stderr %q does not contain status validation", stderr)
-	}
-	if _, err := os.Stat(invoicePath); err != nil {
-		t.Fatalf("source invoice should remain in place: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(archiveDir, filepath.Base(invoicePath))); err == nil {
-		t.Fatal("invoice should not be moved into archive dir")
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("Stat(archivePath) returned unexpected error: %v", err)
 	}
 }
 

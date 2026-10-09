@@ -515,35 +515,3 @@ func TestArchiveEditForceReplacesWorkingCopy(t *testing.T) {
 		t.Fatalf("working copy was not replaced by the archived invoice:\n%s", got)
 	}
 }
-
-// TestArchiveDryRunNeedsNoConfirmation shows that --dry-run neither asks
-// nor needs --yes, while the same run without it still does.
-func TestArchiveDryRunNeedsNoConfirmation(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		terminal bool
-		args     []string
-	}{
-		{name: "terminal", terminal: true, args: []string{"archive", "add", "first.yaml", "-n"}},
-		{name: "no terminal", terminal: false, args: []string{"archive", "add", "first.yaml", "-n"}},
-		{name: "no input", terminal: true, args: []string{"archive", "add", "first.yaml", "-n", "--no-input"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			e := setupEditedArchive(t)
-			// A prompt would read this answer and replace the archive.
-			ios := promptStreams(tc.terminal, "y\n")
-
-			exitCode, stdout, stderr := captureRunStreams(t, ios, tc.args)
-			if exitCode != 0 {
-				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-			}
-			if want := e.archivedPath + "\n"; stdout != want {
-				t.Fatalf("stdout = %q, want %q", stdout, want)
-			}
-			if strings.Contains(stderr, "[y/N]") {
-				t.Fatalf("stderr = %q, want no prompt", stderr)
-			}
-			e.assertUnchanged(t)
-		})
-	}
-}
