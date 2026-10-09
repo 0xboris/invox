@@ -46,6 +46,26 @@ func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 	}
 }
 
+func TestEditReportsAnEditorThatIsNotInstalled(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	stub := runtest.NewStub(t)
+	stub.Register("nano", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
+	getenv := func(key string) string { return map[string]string{"VISUAL": "nano"}[key] }
+
+	err := editor.New(stub, ios, "linux", getenv).Edit(context.Background(), "a.yaml")
+
+	var missing *billing.ToolMissingError
+	if !errors.As(err, &missing) {
+		t.Fatalf("Edit error = %v, want *billing.ToolMissingError", err)
+	}
+	if want := `editor "nano" not found in PATH`; err.Error() != want {
+		t.Fatalf("Edit error = %q, want %q", err, want)
+	}
+	if want := "Set VISUAL or EDITOR to an installed editor, then rerun this command."; missing.Hint != want {
+		t.Fatalf("Hint = %q, want %q", missing.Hint, want)
+	}
+}
+
 func TestEditReturnsTheEditorsFailure(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
 	stub := runtest.NewStub(t)

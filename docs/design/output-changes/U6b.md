@@ -102,3 +102,18 @@ Changed files:
 - `cmd/invox/testdata/script/email.txtar`: `want-open-failed.txt` names the opener through
   `$OPENER` (compared with `cmpenv`), and a new case with an empty PATH and
   `want-no-opener.txt` pins the second row.
+
+## An editor that is not installed
+
+`editor.Editor.Edit` returns a `*billing.ToolMissingError` naming the editor setting when the
+program is not on PATH, with a hint, instead of the exec error. Exit code 1, before and after.
+No script reaches the editor (it needs a terminal); `TestConfigReportsAnEditorThatIsNotInstalled`
+pins the row.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `VISUAL=nano invox config` on a terminal, nano not installed | `error: failed to open /cfg/config.yaml: exec: "nano": executable file not found in $PATH` | `error: failed to open /cfg/config.yaml: editor "nano" not found in PATH` and `Set VISUAL or EDITOR to an installed editor, then rerun this command.` |
+
+The same holds for the other commands that open the editor, `new -e` and `customer edit`.
+
+No testscript golden, `docs/cli` or `share/man` page changed.
