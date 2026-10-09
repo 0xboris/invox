@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	completioncmd "github.com/0xboris/invox/internal/cmd/completion"
 	configcmd "github.com/0xboris/invox/internal/cmd/config"
 	customercmd "github.com/0xboris/invox/internal/cmd/customer"
 	initcmd "github.com/0xboris/invox/internal/cmd/init"
@@ -123,7 +124,7 @@ $ invox archive edit 2026-0001.yaml
 		archivecmd.NewCmdArchive(f),
 		configcmd.NewCmdConfig(f, nil),
 		buildcmd.NewCmdBuild(f, nil),
-		newCmdCompletion(),
+		completioncmd.NewCmdCompletion(f, nil),
 		customercmd.NewCmdCustomer(f),
 		emailcmd.NewCmdEmail(f, nil),
 		incrementcmd.NewCmdIncrement(f, nil),

@@ -1,4 +1,5 @@
-package cli
+// Package completion is the `invox completion` command.
+package completion
 
 import (
 	"io"
@@ -7,20 +8,29 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// completionShells maps each shell `invox completion` supports to the cobra
-// generator of its script.
-var completionShells = map[string]func(root *cobra.Command, w io.Writer) error{
+// shells maps each shell `invox completion` supports to the cobra generator
+// of its script.
+var shells = map[string]func(root *cobra.Command, w io.Writer) error{
 	"bash":       func(root *cobra.Command, w io.Writer) error { return root.GenBashCompletionV2(w, true) },
 	"zsh":        (*cobra.Command).GenZshCompletion,
 	"fish":       func(root *cobra.Command, w io.Writer) error { return root.GenFishCompletion(w, true) },
 	"powershell": (*cobra.Command).GenPowerShellCompletionWithDesc,
 }
 
-// newCmdCompletion returns the completion command. Without a shell it
-// prints its help.
-func newCmdCompletion() *cobra.Command {
+type CompletionOptions struct {
+	IO *iostreams.IOStreams
+	// Root is the command tree the script completes.
+	Root  *cobra.Command
+	Shell string
+}
+
+// NewCmdCompletion returns the completion command. Without a shell it
+// prints its help. runF replaces completionRun in tests.
+func NewCmdCompletion(f *cmdutil.Factory, runF func(*CompletionOptions) error) *cobra.Command {
+	opts := &CompletionOptions{IO: f.IOStreams}
 	return &cobra.Command{
 		Use:   "completion <shell>",
 		Short: "Generate shell completion scripts",
@@ -69,11 +79,19 @@ $ invox completion bash > ~/.local/share/bash-completion/completions/invox
 			case len(args) > 1:
 				return cmdutil.FlagErrorf("completion", "unexpected arguments: %s", strings.Join(args, " "))
 			}
-			generate, ok := completionShells[args[0]]
-			if !ok {
+			if _, ok := shells[args[0]]; !ok {
 				return cmdutil.FlagErrorf("completion", "unsupported shell %q", args[0])
 			}
-			return generate(cmd.Root(), cmd.OutOrStdout())
+			opts.Root = cmd.Root()
+			opts.Shell = args[0]
+			if runF != nil {
+				return runF(opts)
+			}
+			return completionRun(opts)
 		},
 	}
+}
+
+func completionRun(opts *CompletionOptions) error {
+	return shells[opts.Shell](opts.Root, opts.IO.Out)
 }
