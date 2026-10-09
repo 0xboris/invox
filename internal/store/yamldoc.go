@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
-
-	"github.com/0xboris/invox/internal/fsutil"
 )
 
 func loadYAMLDocument(path string) (*yaml.Node, error) {
@@ -32,15 +30,6 @@ func parseYAMLDocumentSource(source []byte, label string) (*yaml.Node, error) {
 		return nil, err
 	}
 	return &document, nil
-}
-
-// writeYAMLDocument replaces path with document, keeping the file's mode.
-func writeYAMLDocument(path string, document *yaml.Node) error {
-	data, err := encodeYAMLDocument(document)
-	if err != nil {
-		return err
-	}
-	return fsutil.WriteFile(path, data, fsutil.Public)
 }
 
 func encodeYAMLDocument(document *yaml.Node) ([]byte, error) {

@@ -1,11 +1,13 @@
-package store
+package billing_test
 
 import (
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -122,7 +124,7 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 				wantSkipped = append(wantSkipped, filepath.Join(archiveDir, name))
 			}
 
-			number, skipped, err := h.NextInvoiceNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
+			number, skipped, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
 			if err != nil {
 				t.Fatalf("NextInvoiceNumber returned error: %v", err)
 			}

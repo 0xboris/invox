@@ -1,12 +1,16 @@
-package store
+package billing_test
 
 import (
+	"context"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
@@ -30,18 +34,18 @@ func TestCreateInvoiceEmailDraftIncludesAttachmentAndHeaders(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
+	draft, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
-	if draft.OutputPath != outputPath {
-		t.Fatalf("OutputPath = %q, want %q", draft.OutputPath, outputPath)
+	if draft.Draft.Path != outputPath {
+		t.Fatalf("OutputPath = %q, want %q", draft.Draft.Path, outputPath)
 	}
-	if draft.Recipient != "office@appsters.example" {
-		t.Fatalf("Recipient = %q, want %q", draft.Recipient, "office@appsters.example")
+	if draft.Message.To != "office@appsters.example" {
+		t.Fatalf("Recipient = %q, want %q", draft.Message.To, "office@appsters.example")
 	}
-	if draft.Subject != "Invoice CUST-001-001" {
-		t.Fatalf("Subject = %q, want %q", draft.Subject, "Invoice CUST-001-001")
+	if draft.Message.Subject != "Invoice CUST-001-001" {
+		t.Fatalf("Subject = %q, want %q", draft.Message.Subject, "Invoice CUST-001-001")
 	}
 
 	eml, err := os.ReadFile(outputPath)
@@ -87,12 +91,12 @@ func TestCreateInvoiceEmailDraftAllowsArchivedInvoiceStatus(t *testing.T) {
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
+	draft, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
-	if draft.OutputPath != outputPath {
-		t.Fatalf("OutputPath = %q, want %q", draft.OutputPath, outputPath)
+	if draft.Draft.Path != outputPath {
+		t.Fatalf("OutputPath = %q, want %q", draft.Draft.Path, outputPath)
 	}
 }
 
@@ -128,7 +132,7 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	if _, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false); err != nil {
+	if _, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true}); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
@@ -178,14 +182,14 @@ email:
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
+	draft, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
 	wantSubject := "Appsters GmbH | Dear Jane Doe, | Jane Doe | CUST-001 | CUST-001-001 | 2026-03-06 | 2026-04-05 | 252,00 EUR | 252,00 EUR | Pay within 30 days | Boris Consulting"
-	if draft.Subject != wantSubject {
-		t.Fatalf("Subject = %q, want %q", draft.Subject, wantSubject)
+	if draft.Message.Subject != wantSubject {
+		t.Fatalf("Subject = %q, want %q", draft.Message.Subject, wantSubject)
 	}
 
 	eml, err := os.ReadFile(outputPath)
@@ -218,13 +222,13 @@ func TestCreateInvoiceEmailDraftExpandsSubjectOverridePlaceholders(t *testing.T)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.eml")
 
-	draft, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath, Subject: "Invoice {invoice_number} for {contact_person}"}, outputPath, false)
+	draft, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Subject: "Invoice {invoice_number} for {contact_person}"})
 	if err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft returned error: %v", err)
 	}
 
-	if draft.Subject != "Invoice CUST-001-001 for Jane Doe" {
-		t.Fatalf("Subject = %q, want %q", draft.Subject, "Invoice CUST-001-001 for Jane Doe")
+	if draft.Message.Subject != "Invoice CUST-001-001 for Jane Doe" {
+		t.Fatalf("Subject = %q, want %q", draft.Message.Subject, "Invoice CUST-001-001 for Jane Doe")
 	}
 }
 
@@ -238,11 +242,34 @@ func TestCreateInvoiceEmailDraftRejectsInvoiceWithoutSendableStatus(t *testing.T
 		t.Fatalf("WriteFile(pdfPath) returned error: %v", err)
 	}
 
-	_, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, filepath.Join(t.TempDir(), "invoice.eml"), false)
+	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: filepath.Join(t.TempDir(), "invoice.eml"), Keep: true})
 	if err == nil {
 		t.Fatal("CreateInvoiceEmailDraft returned nil error for non-built invoice")
 	}
 	if !strings.Contains(err.Error(), "invoice.status must be `built` or `archived` before creating an email draft") {
 		t.Fatalf("error %q does not contain sendable status validation", err.Error())
+	}
+}
+
+func TestResolveEmailDraftPathsIgnoresAMatchOnlyInArchiveHistory(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+
+	historyPath := filepath.Join(archiveDir, ".history", "customer-a", "BL00210001.yaml")
+	if err := os.MkdirAll(filepath.Dir(historyPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(filepath.Dir(historyPath)) returned error: %v", err)
+	}
+	if err := os.WriteFile(historyPath, []byte("invoice:\n  number: BL00210001\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(historyPath) returned error: %v", err)
+	}
+
+	customersPath, issuerPath, _, _, _, _ := writeContextFixtures(t)
+	pdfPath := filepath.Join(t.TempDir(), "BL00210001.pdf")
+	result, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Time{}).DraftEmail(context.Background(), billing.EmailRequest{FromPDF: pdfPath, PDF: pdfPath, DryRun: true})
+	want := pdfPath + ": no matching invoice YAML found next to the PDF or in archive.dir"
+	if err == nil || err.Error() != want {
+		t.Fatalf("ResolveEmailDraftPaths = %q, %v; want error %q", result.Number, err, want)
 	}
 }

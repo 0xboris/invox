@@ -1,10 +1,12 @@
-package store
+package billing_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 func TestLoadContextValidatesPaidAmount(t *testing.T) {
@@ -37,7 +39,7 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 				t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 			}
 
-			ctx, err := LoadContext(customersPath, issuerPath, mutatedPath)
+			ctx, err := loadContext(t, customersPath, issuerPath, mutatedPath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, want %q (outstanding %d)", tt.wantErr, ctx.OutstandingCents)
@@ -57,13 +59,13 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 				t.Fatalf("OutstandingCents %d exceeds TotalCents %d", ctx.OutstandingCents, ctx.TotalCents)
 			}
 
-			if !epcQRCodeEligible(ctx) {
+			if code := billing.EPCFor(ctx); code.Payload == nil && code.Err == nil {
 				if tt.wantEPCAmount != "" {
 					t.Fatalf("epcQRCodeEligible = false, want an EPC payload with %s", tt.wantEPCAmount)
 				}
 				return
 			}
-			payload, err := buildEPCPayload(ctx)
+			payload, err := billing.EPCPayload(ctx)
 			if err != nil {
 				t.Fatalf("buildEPCPayload returned error: %v", err)
 			}
@@ -77,14 +79,14 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 
 func TestBuildEPCPayloadRejectsOutstandingAboveTotal(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 	ctx.PaidAmountCents = -50000
 	ctx.OutstandingCents = ctx.TotalCents - ctx.PaidAmountCents
 
-	payload, err := buildEPCPayload(ctx)
+	payload, err := billing.EPCPayload(ctx)
 	if err == nil {
 		t.Fatalf("buildEPCPayload returned nil error, payload %q", payload)
 	}

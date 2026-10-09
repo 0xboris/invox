@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"os"
@@ -11,7 +11,7 @@ import (
 
 func TestLoadContextWithCurrentInvoice(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := loadContext(t,
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -60,7 +60,7 @@ func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
 		t.Fatalf("WriteFile(legacyPath) returned error: %v", err)
 	}
 
-	_, err = LoadContext(
+	_, err = loadContext(t,
 		customersPath,
 		issuerPath,
 		legacyPath,
@@ -91,7 +91,7 @@ func TestLoadContextSupportsPerPositionVATOverrides(t *testing.T) {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -159,7 +159,7 @@ CUST-001:
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestLoadContextRejectsMissingInvoiceNumber(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	invoicePath = writeInvoiceWithoutNumber(t, invoicePath)
 
-	_, err := LoadContext(
+	_, err := loadContext(t,
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -208,7 +208,7 @@ func TestLoadContextRejectsOverpaidInvoice(t *testing.T) {
 		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 	}
 
-	_, err = LoadContext(
+	_, err = loadContext(t,
 		customersPath,
 		issuerPath,
 		mutatedPath,

@@ -16,7 +16,7 @@ import (
 	"github.com/0xboris/invox/internal/store"
 )
 
-// Now is the clock of the Factory New returns.
+// Now is the clock of the Factory New returns, unless Options.Now is set.
 var Now = time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)
 
 // Options say what New's environment has. Vars are the environment
@@ -31,10 +31,12 @@ type Options struct {
 	Vars      map[string]string
 	Getwd     func() (string, error)
 	Runner    run.Runner
+	// Now is the clock; the zero time means the package's Now.
+	Now time.Time
 }
 
-// New returns a Factory on ios whose environment is opts, with the clock at
-// Now. A nil Runner runs nothing: it is a run.Stub.
+// New returns a Factory on ios whose environment is opts. A nil Runner runs
+// nothing: it is a run.Stub.
 func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory {
 	t.Helper()
 	if ios == nil {
@@ -48,6 +50,9 @@ func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory 
 	}
 	if opts.Runner == nil {
 		opts.Runner = run.NewStub(t)
+	}
+	if opts.Now.IsZero() {
+		opts.Now = Now
 	}
 	if opts.Getwd == nil {
 		work := t.TempDir()
@@ -68,7 +73,7 @@ func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory 
 			return opts.Home, nil
 		},
 		Getwd: opts.Getwd,
-		Now:   func() time.Time { return Now },
+		Now:   func() time.Time { return opts.Now },
 	}
 	return factory.New(ios, opts.Runner, e)
 }

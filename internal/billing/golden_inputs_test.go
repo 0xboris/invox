@@ -1,12 +1,17 @@
-package store
+package billing_test
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "rewrite testdata/golden/*/want-* from the current code")
@@ -22,7 +27,11 @@ func TestGoldenInputs(t *testing.T) {
 	}
 	templates := map[string]string{
 		"want-all.tex":     filepath.Join(root, "all_placeholders.tex"),
-		"want-starter.tex": filepath.Join("starter", "template.tex"),
+		"want-starter.tex": filepath.Join("..", "store", "starter", "template.tex"),
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -39,12 +48,19 @@ func TestGoldenInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			tmp := t.TempDir()
-			h := NewHost(HostInputs{GOOS: "linux", Home: filepath.Join(tmp, "home"), XDGConfigHome: filepath.Join(tmp, "config"), ConfigFile: configFile})
+			f := factorytest.New(t, nil, factorytest.Options{
+				Home:  filepath.Join(tmp, "home"),
+				Vars:  map[string]string{"XDG_CONFIG_HOME": filepath.Join(tmp, "config")},
+				Getwd: func() (string, error) { return cwd, nil },
+			})
+			f.ConfigFile = configFile
+			svc := f.Service(cmdutil.Files{Customers: customersPath, Issuer: issuerPath})
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			result, err := svc.Validate(invoicePath)
 			if err != nil {
 				t.Fatalf("LoadContext: %v", err)
 			}
+			ctx := result.Context
 			checkGolden(t, filepath.Join(dir, "want-summary.txt"), fmt.Sprintf(
 				"customer_id=%s\nnumber=%s\ncurrency=%s\nemail=%s\nitems=%d\nsubtotal=%d\nvat=%d\ntotal=%d\npaid=%d\noutstanding=%d\n",
 				ctx.CustomerID, ctx.InvoiceNumber, ctx.Currency, ctx.CustomerEmail, len(ctx.LineItems),
@@ -62,7 +78,7 @@ func TestGoldenInputs(t *testing.T) {
 					t.Fatal(err)
 				}
 				outputPath := filepath.Join(tmp, want)
-				if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+				if _, err := svc.Render(billing.RenderRequest{Invoice: invoicePath, Template: templatePath, Output: outputPath}); err != nil {
 					t.Fatalf("RenderInvoice(%s): %v", templatePath, err)
 				}
 				rendered, err := os.ReadFile(outputPath)
@@ -77,11 +93,12 @@ func TestGoldenInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			var email string
-			message, err := h.PrepareInvoiceEmail(EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath})
+			drafted, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, DryRun: true})
 			if err != nil {
 				email = "error: " + strings.ReplaceAll(err.Error(), dir+string(filepath.Separator), "") + "\n"
 			} else {
-				email = fmt.Sprintf("to=%s\nfrom=%s <%s>\nsubject=%s\n\n%s", message.Recipient, message.SenderName, message.SenderAddress, message.Subject, message.Body)
+				message := drafted.Message
+				email = fmt.Sprintf("to=%s\nfrom=%s <%s>\nsubject=%s\n\n%s", message.To, message.FromName, message.FromAddress, message.Subject, message.Body)
 			}
 			checkGolden(t, filepath.Join(dir, "want-email.txt"), email)
 		})

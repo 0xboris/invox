@@ -1,9 +1,10 @@
-package store
+package billing_test
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -85,7 +86,7 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 				replaceInFixture(t, invoicePath, "vat_percent: 20", "vat_percent: 0")
 			}
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, subtotal %d, total %d", ctx.SubtotalCents, ctx.TotalCents)
@@ -134,7 +135,7 @@ func TestBuildEPCPayloadRejectsNonPositiveAmountAndInvalidUTF8(t *testing.T) {
 				},
 				Header: invoice.Header{Number: "CUST-001-001"},
 			}
-			payload, err := buildEPCPayload(ctx)
+			payload, err := billing.EPCPayload(ctx)
 			if err == nil {
 				t.Fatalf("buildEPCPayload returned nil error, payload %q", payload)
 			}

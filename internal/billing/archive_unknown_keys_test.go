@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"os"
@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 // An archived invoice is a record: `new --from-last` copies keys invox does
@@ -39,23 +42,27 @@ positions:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	if _, err := h.CreateNewInvoice(NewInvoiceParams{Now: time.Now(), WorkDir: t.TempDir(), DefaultsPath: defaultsPath, OutputPath: outputPath, CustomersPath: customersPath, IssuerPath: issuerPath, CustomerID: "CUST-001", FromLast: true}); err != nil {
+	workDir := t.TempDir()
+	if _, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true}); err != nil {
 		t.Fatalf("CreateNewInvoice --from-last returned error: %v", err)
 	}
 	if created := readTestFile(t, outputPath); !strings.Contains(created, "\nnotes: call before invoicing\n") {
 		t.Fatalf("new invoice does not keep notes:\n%s", created)
 	}
 
-	workingCopy, _, err := h.EditArchivedInvoice("2026-03-08.yaml", t.TempDir(), EditArchiveOptions{})
+	workDir = t.TempDir()
+	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("2026-03-08.yaml", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
+	workingCopy := opened.Path
 	if edited := readTestFile(t, workingCopy); !strings.Contains(edited, "\nnotes: call before invoicing\n") {
 		t.Fatalf("working copy does not keep notes:\n%s", edited)
 	}
 
 	replaceInFixture(t, defaultsPath, "invoice:\n", "notes: x\ninvoice:\n")
-	_, err = h.CreateNewInvoice(NewInvoiceParams{Now: time.Now(), WorkDir: t.TempDir(), DefaultsPath: defaultsPath, OutputPath: filepath.Join(t.TempDir(), "next.yaml"), CustomersPath: customersPath, IssuerPath: issuerPath, CustomerID: "CUST-001"})
+	workDir = t.TempDir()
+	_, err = h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: filepath.Join(t.TempDir(), "next.yaml")})
 	if want := defaultsPath + `:1: unknown key "notes"`; err == nil || err.Error() != want {
 		t.Fatalf("CreateNewInvoice from defaults error = %v, want %q", err, want)
 	}

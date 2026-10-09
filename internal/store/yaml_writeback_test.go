@@ -33,12 +33,12 @@ func TestInvoiceWritesKeepComments(t *testing.T) {
 	}{
 		{
 			name:  "MarkInvoiceBuilt",
-			write: MarkInvoiceBuilt,
+			write: func(path string) error { return setInvoiceStatus(path, string(invoice.Built)) },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: built #", 1),
 		},
 		{
 			name:  "SetInvoiceStatus",
-			write: func(path string) error { return SetInvoiceStatus(path, "archived") },
+			write: func(path string) error { return setInvoiceStatus(path, "archived") },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: archived #", 1),
 		},
 		{
@@ -93,4 +93,20 @@ func TestArchivedMarkdownInvoiceUsesTheInvoiceDecoder(t *testing.T) {
 	if want := path + `:3: unknown key "notes"`; err == nil || err.Error() != want {
 		t.Fatalf("strict decode error = %v, want %q", err, want)
 	}
+}
+
+// writeInvoiceNumber and setInvoiceStatus write one header field through
+// Store.Update, as the use cases do.
+func writeInvoiceNumber(path, invoiceNumber string) error {
+	return (&Store{}).Update(path, func(inv *invoice.Invoice) error {
+		inv.Header.Number = invoice.Text(invoiceNumber)
+		return nil
+	})
+}
+
+func setInvoiceStatus(path, status string) error {
+	return (&Store{}).Update(path, func(inv *invoice.Invoice) error {
+		inv.Header.Status = invoice.Text(status)
+		return nil
+	})
 }

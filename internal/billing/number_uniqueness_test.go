@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -21,7 +23,7 @@ func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := h.ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
+	_, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -47,15 +49,17 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 	secondPath := filepath.Join(archiveDir, "second.yaml")
 	writeStatusInvoice(t, secondPath, "CUST-001-002", "archived")
 
-	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir(), EditArchiveOptions{})
+	workDir := t.TempDir()
+	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	if err := writeInvoiceNumber(workingCopy, "CUST-001-002"); err != nil {
+	workingCopy := opened.Path
+	if err := setInvoiceNumber(workingCopy, "CUST-001-002"); err != nil {
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 
-	_, err = h.ArchiveInvoice(time.Now(), workingCopy, ArchiveOptions{})
+	_, err = h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Now()).Archive(workingCopy, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)
@@ -79,14 +83,16 @@ func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
 	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
 
-	workingCopy, _, err := h.EditArchivedInvoice("first.yaml", t.TempDir(), EditArchiveOptions{})
+	workDir := t.TempDir()
+	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	if err := h.CheckArchivedNumberUnique(workingCopy); err != nil {
+	workingCopy := opened.Path
+	if err := h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Time{}).CheckNumberUnique(workingCopy); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(working copy) = %v, want nil", err)
 	}
-	if err := h.CheckArchivedNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
+	if err := h.service(t, cmdutil.Files{}, archiveDir, time.Time{}).CheckNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
 		t.Fatalf("CheckArchivedNumberUnique(archived file) = %v, want nil", err)
 	}
 }
@@ -105,7 +111,7 @@ func TestArchiveInvoiceChecksSymlinkedArchiveDir(t *testing.T) {
 	invoicePath := filepath.Join(t.TempDir(), "second.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-001", "built")
 
-	_, err := h.ArchiveInvoice(time.Now(), invoicePath, ArchiveOptions{})
+	_, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Now()).Archive(invoicePath, billing.ArchiveOptions{})
 	var duplicate *invoice.DuplicateInvoiceNumberError
 	if !errors.As(err, &duplicate) {
 		t.Fatalf("ArchiveInvoice error = %v, want *DuplicateInvoiceNumberError", err)

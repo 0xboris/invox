@@ -10,21 +10,6 @@ import (
 	"github.com/0xboris/invox/internal/invoice"
 )
 
-func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, invoicePath, "customer_id: CUST-001\n", "customer_id: CUST-001\nreduced: &reduced {vat_percent: 10}\n")
-	replaceInFixture(t, invoicePath, "  - name: Support\n", "  - <<: *reduced\n    name: Support\n")
-
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
-	if err != nil {
-		t.Fatalf("LoadContext returned error: %v", err)
-	}
-	// 200.00 at the invoice's 20% plus 10.00 at the merged 10%.
-	if got := ctx.TotalCents; got != 25100 {
-		t.Fatalf("total = %d cents, want 25100", got)
-	}
-}
-
 // mergeItem is the schema of `item` in the merge key cases. The `<<` field
 // reads a quoted "<<" key, which is a plain key and not a merge.
 type mergeItem struct {
@@ -218,19 +203,6 @@ func TestLoadYAMLDocumentRejectsDuplicateKeys(t *testing.T) {
 	}
 }
 
-func TestLoadContextRejectsDuplicateKeyInCustomers(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	replaceInFixture(t, customersPath, "  status: active\n", "  status: active\n  status: inactive\n")
-
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
-	if err == nil {
-		t.Fatal("LoadContext returned nil error, want duplicate key error")
-	}
-	if want := customersPath + `:4: duplicate key "status"`; !strings.Contains(err.Error(), want) {
-		t.Fatalf("error %q does not contain %q", err.Error(), want)
-	}
-}
-
 func TestArchivedInvoiceIdentityReportsMarkdownFileLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "invoice.md")
 	source := "---\ninvoice:\n  number: A-1\n  number: A-2\n---\n# Invoice\n"
@@ -254,7 +226,7 @@ func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
 		write func(path string) error
 	}{
 		{name: "writeInvoiceNumber", write: func(path string) error { return writeInvoiceNumber(path, "A-2") }},
-		{name: "writeInvoiceStringField", write: func(path string) error { return writeInvoiceStringField(path, "status", "sent") }},
+		{name: "writeInvoiceStringField", write: func(path string) error { return setInvoiceStatus(path, "sent") }},
 	}
 
 	for _, tt := range tests {

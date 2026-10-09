@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/epc"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/money"
@@ -16,7 +17,7 @@ import (
 // The fuzz targets below run their seeds, and every crasher committed under
 // testdata/fuzz/<Target>/, as part of `go test`. Run one for longer with
 //
-//	go test -run='^$' -fuzz='^FuzzLoadContext$' -fuzztime=60s ./internal/store
+//	go test -run='^$' -fuzz='^FuzzLoadContext$' -fuzztime=60s ./internal/billing
 //
 // or all of them with `make fuzz`.
 
@@ -52,7 +53,7 @@ func FuzzBuildEPCPayload(f *testing.F) {
 			},
 			Header: invoice.Header{Number: "CUST-001-001"},
 		}
-		payload, err := buildEPCPayload(ctx)
+		payload, err := billing.EPCPayload(ctx)
 		if err != nil {
 			return
 		}
@@ -106,7 +107,7 @@ func FuzzLoadContext(f *testing.F) {
 		if err := os.WriteFile(invoicePath, source, 0o644); err != nil {
 			t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 		}
-		ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+		ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 		if err != nil {
 			return
 		}
@@ -223,4 +224,16 @@ payment:
 		}
 	}
 	return customersPath, issuerPath
+}
+
+// billionLaughs nests nine levels of nine aliases each: 364 bytes that
+// expand to about 430 million nodes.
+func billionLaughs() string {
+	lines := []string{"customer_id: CUST-001", `a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]`}
+	previous := "a"
+	for _, name := range strings.Split("bcdefghi", "") {
+		lines = append(lines, fmt.Sprintf("%s: &%s [%s]", name, name, strings.TrimSuffix(strings.Repeat("*"+previous+",", 9), ",")))
+		previous = name
+	}
+	return strings.Join(lines, "\n") + "\n"
 }

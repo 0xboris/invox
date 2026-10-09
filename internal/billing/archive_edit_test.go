@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"os"
@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
@@ -43,10 +46,11 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 	}
 
 	workDir := t.TempDir()
-	outputPath, archivePath, err := h.EditArchivedInvoice("customer-a/2026-03-06.md", workDir, EditArchiveOptions{})
+	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("customer-a/2026-03-06.md", workDir, billing.EditOptions{})
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
+	outputPath, archivePath := opened.Path, opened.Archived
 	if archivePath != archivedMarkdownPath {
 		t.Fatalf("archivePath = %q, want %q", archivePath, archivedMarkdownPath)
 	}
@@ -76,7 +80,7 @@ func TestEditArchivedMarkdownInvoiceAndRearchiveAsYAML(t *testing.T) {
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	result, err := h.ArchiveInvoice(time.Now(), outputPath, ArchiveOptions{Replace: true})
+	result, err := h.service(t, cmdutil.Files{}, filepath.Dir(outputPath), time.Now()).Archive(outputPath, billing.ArchiveOptions{Replace: true})
 	if err != nil {
 		t.Fatalf("ArchiveInvoice returned error: %v", err)
 	}
@@ -145,7 +149,8 @@ line_items:
 		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
 	}
 
-	_, _, err := h.EditArchivedInvoice("2026-03-06.yaml", t.TempDir(), EditArchiveOptions{})
+	workDir := t.TempDir()
+	_, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("2026-03-06.yaml", workDir, billing.EditOptions{})
 	if err == nil {
 		t.Fatal("EditArchivedInvoice returned nil error for legacy keys")
 	}

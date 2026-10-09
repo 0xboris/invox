@@ -1,6 +1,7 @@
-package store
+package billing_test
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -8,6 +9,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.T) {
@@ -33,7 +37,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("WriteFile(outputPath) returned error: %v", err)
 	}
 
-	_, err = createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, false)
+	_, err = h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("CreateInvoiceEmailDraft error = %v, want fs.ErrExist", err)
 	}
@@ -45,7 +49,7 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
 
-	if _, err := createEmailDraft(h, time.Now(), EmailParams{CustomersPath: customersPath, IssuerPath: issuerPath, InvoicePath: invoicePath, PDFPath: pdfPath}, outputPath, true); err != nil {
+	if _, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Overwrite: true}); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft with overwrite returned error: %v", err)
 	}
 	content, err = os.ReadFile(outputPath)

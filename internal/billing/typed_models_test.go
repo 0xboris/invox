@@ -1,4 +1,4 @@
-package store
+package billing_test
 
 import (
 	"errors"
@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 )
 
 // #17: customer_id: 1001 is the ID "1001", not a missing value.
@@ -17,7 +21,7 @@ func TestLoadContextReadsNumericCustomerID(t *testing.T) {
 			replaceInFixture(t, customersPath, "CUST-001:\n", id+":\n")
 			replaceInFixture(t, invoicePath, "customer_id: CUST-001\n", "customer_id: "+id+"\n")
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 			if err != nil {
 				t.Fatalf("LoadContext returned error: %v", err)
 			}
@@ -60,7 +64,7 @@ func TestLoadContextRejectsValuesOfTheWrongKind(t *testing.T) {
 			path := map[string]string{"customers": customersPath, "issuer": issuerPath, "invoice": invoicePath}[tt.file]
 			replaceInFixture(t, path, tt.from, tt.to)
 
-			_, err := LoadContext(customersPath, issuerPath, invoicePath)
+			_, err := loadContext(t, customersPath, issuerPath, invoicePath)
 			want := fmt.Sprintf(tt.wantErr, path)
 			if err == nil || !strings.Contains(err.Error(), want) {
 				t.Fatalf("error = %v, want it to contain %q", err, want)
@@ -68,9 +72,9 @@ func TestLoadContextRejectsValuesOfTheWrongKind(t *testing.T) {
 			if strings.Contains(err.Error(), "map[") {
 				t.Fatalf("error %q contains a Go map string", err)
 			}
-			var decodeErr *DecodeError
+			var decodeErr *billing.DecodeError
 			if !errors.As(err, &decodeErr) {
-				t.Fatalf("error %v is not a *DecodeError", err)
+				t.Fatalf("error %v is not a *billing.DecodeError", err)
 			}
 		})
 	}
@@ -102,7 +106,7 @@ func TestLoadContextRejectsUnknownKeys(t *testing.T) {
 			path := map[string]string{"customers": customersPath, "issuer": issuerPath, "invoice": invoicePath}[tt.file]
 			replaceInFixture(t, path, tt.from, tt.to)
 
-			_, err := LoadContext(customersPath, issuerPath, invoicePath)
+			_, err := loadContext(t, customersPath, issuerPath, invoicePath)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("LoadContext returned error: %v", err)
@@ -121,7 +125,7 @@ func TestLoadContextRejectsAKeyMergedIntoAPosition(t *testing.T) {
 	replaceInFixture(t, invoicePath, "customer_id: CUST-001\n", "customer_id: CUST-001\nextra: &extra {unit: h}\n")
 	replaceInFixture(t, invoicePath, "  - name: Support\n", "  - <<: *extra\n    name: Support\n")
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if want := invoicePath + `:2: unknown key "unit" in positions[2]`; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
 	}
@@ -134,7 +138,7 @@ func TestLoadContextReportsEveryDecodeProblemInFileOrder(t *testing.T) {
 	replaceInFixture(t, invoicePath, "  issue_date: 2026-03-06\n", "  issue_date: 06.03.2026\n")
 	replaceInFixture(t, invoicePath, "    unit_price: 10\n", "    unit_price: ten\n")
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	want := strings.Join([]string{
 		customersPath + ":3: customer.status: expected a string, got a list",
 		issuerPath + ":16: issuer.payment.due_days: expected an integer, got `soon`",
@@ -159,7 +163,7 @@ func TestLoadContextDecodesOnlyTheInvoicesCustomer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := LoadContext(customersPath, issuerPath, invoicePath); err != nil {
+	if _, err := loadContext(t, customersPath, issuerPath, invoicePath); err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 }
@@ -171,11 +175,11 @@ func TestListCustomersIgnoresUnknownKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	customers, err := ListCustomers(path)
+	list, err := isolatedHost(t).service(t, cmdutil.Files{Customers: path}, t.TempDir(), time.Time{}).ListCustomers()
 	if err != nil {
 		t.Fatalf("ListCustomers returned error: %v", err)
 	}
-	got := fmt.Sprint(customers)
+	got := fmt.Sprint(list.Customers)
 	if want := "[{A Ay GmbH active billing@ay.example EUR} {B Bee KG   USD}]"; got != want {
 		t.Fatalf("customers = %s, want %s", got, want)
 	}
@@ -187,7 +191,7 @@ func TestListCustomersRejectsAValueOfTheWrongKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := ListCustomers(path)
+	_, err := isolatedHost(t).service(t, cmdutil.Files{Customers: path}, t.TempDir(), time.Time{}).ListCustomers()
 	if want := path + ":2: customer.name: expected a string, got a list"; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
 	}

@@ -36,10 +36,6 @@ func TestConfigIsReadOncePerHost(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveArchiveDir returned error: %v", err)
 		}
-		numbering, err := h.ResolveNumberingSettings()
-		if err != nil {
-			t.Fatalf("ResolveNumberingSettings returned error: %v", err)
-		}
 		settings, err := h.Settings()
 		if err != nil {
 			t.Fatalf("Settings returned error: %v", err)
@@ -49,7 +45,7 @@ func TestConfigIsReadOncePerHost(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveSupportFile returned error: %v", err)
 		}
-		return []string{archiveDir, numbering.Pattern, subject, filepath.Base(customers.Path)}
+		return []string{archiveDir, settings.Numbering.Pattern, subject, filepath.Base(customers.Path)}
 	}
 	want := []string{firstArchive, "{customer_code}_{counter:02}", "First C-01", "first-customers.yaml"}
 
@@ -372,5 +368,23 @@ func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 	}
 	if got.Path == stray {
 		t.Fatalf("ResolveSupportFile found %s in the symlinked home; want the search to stop below it", stray)
+	}
+}
+
+func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
+	t.Parallel()
+
+	h := writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{year}-{counter:04}'\n  start: 5\n")
+
+	config, err := h.Settings()
+	if err != nil {
+		t.Fatalf("ResolveNumberingSettings returned error: %v", err)
+	}
+	settings := config.Numbering
+	if settings.Pattern != "{customer_id}-{year}-{counter:04}" {
+		t.Fatalf("Pattern = %q, want %q", settings.Pattern, "{customer_id}-{year}-{counter:04}")
+	}
+	if settings.Start != 5 {
+		t.Fatalf("Start = %d, want %d", settings.Start, 5)
 	}
 }
