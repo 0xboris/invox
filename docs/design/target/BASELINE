@@ -12,3 +12,7 @@ Round 2, ports v2 (2026-10-09): docs/design/ports-v2.md is normative for the por
 test no longer requires a billing.Compiler; render/latex owns the Compiler interface and
 adapters/tectonic implements it.
 
+Round 2, verifier fix (2026-10-09): listed and removed call grep on the ledger files directly;
+the cat | grep -q pipeline gave random false failures under pipefail. README rows for store and
+tectonic updated for the removals and the Compiler move.
+

@@ -23,8 +23,10 @@ if [ -z "$base" ]; then
 fi
 changes=docs/design/output-changes.md
 # A unit records its changes in its own file so parallel units don't conflict.
-listed() { cat "$changes" docs/design/output-changes/*.md 2>/dev/null | grep -qF -- "$1"; }
-removed() { cat docs/design/target-removed-tests.md docs/design/removed-tests/*.md 2>/dev/null | grep -q -- "^- $1:"; }
+# grep reads the files itself: piping cat into grep -q under pipefail fails at
+# random when grep exits early and cat dies of SIGPIPE.
+listed() { grep -qF -- "$1" "$changes" docs/design/output-changes/*.md 2>/dev/null; }
+removed() { grep -q -- "^- $1:" docs/design/target-removed-tests.md docs/design/removed-tests/*.md 2>/dev/null; }
 
 failures=()
 fail() { echo "FAIL: $*" >&2; failures+=("$*"); }
