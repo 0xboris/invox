@@ -177,18 +177,24 @@ func (e *ToolFailedError) Unwrap() error { return e.Err }
 
 // FileNotFoundError means a support file is missing: the one named for
 // this run, at Path, or, when Path is "", any file of its kind. Default is
-// where invox looks last, in the config directory.
+// where invox looks last, in the config directory. Config is the config
+// file whose paths.* setting named Path, or "". The store wraps that one
+// in a *ConfigError.
 type FileNotFoundError struct {
 	File    File
 	Path    string
 	Default string
+	Config  string
 }
 
 func (e *FileNotFoundError) Error() string {
-	if e.Path != "" {
-		return fmt.Sprintf("%s file %s does not exist", e.File, e.Path)
+	switch {
+	case e.Path == "":
+		return fmt.Sprintf("%s file not found", e.File)
+	case e.Config != "":
+		return fmt.Sprintf("%s file %s does not exist; paths.%s in %s sets it", e.File, e.Path, e.File, e.Config)
 	}
-	return fmt.Sprintf("%s file not found", e.File)
+	return fmt.Sprintf("%s file %s does not exist", e.File, e.Path)
 }
 
 // TemplateLookupError is a template reference that could not be resolved:

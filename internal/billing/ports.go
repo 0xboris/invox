@@ -94,7 +94,7 @@ type Source int
 
 const (
 	SourceNone     Source = iota // nothing found
-	SourceExplicit               // the config file the user named
+	SourceExplicit               // named on the command line: --config, or a support file flag
 	SourceEnvDir                 // the config directory the user chose, or a file in it
 	SourceDefault                // the OS default directory, or a file in it
 	SourceProject                // found by the upward search from the working directory
@@ -119,7 +119,8 @@ type Directory interface {
 	// Locate returns the support file f: the one named for this run, else
 	// the one the project search, config.yaml or the config directory
 	// finds. Finding none, or a file named for this run that does not
-	// exist, is a *FileNotFoundError.
+	// exist, is a *FileNotFoundError; a missing file that a paths.*
+	// setting names is a *ConfigError that wraps one.
 	Locate(f File) (string, error)
 	Customer(id string) (invoice.Customer, error)
 	// Customers decodes every entry of customers.yaml, sorted by ID.

@@ -66,7 +66,7 @@ func (s *Service) ListTemplates(withDefault bool) (TemplateList, error) {
 	}
 	def, err := s.Directory.Locate(TemplateFile)
 	var notFound *FileNotFoundError
-	if errors.As(err, &notFound) {
+	if errors.As(err, &notFound) && notFound.Path == "" {
 		def, err = "", nil
 	}
 	if err != nil {

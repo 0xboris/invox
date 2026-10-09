@@ -43,43 +43,53 @@ func (s *Store) workDir() (string, error) {
 }
 
 // Locate returns the absolute path of the support file f: the one named
-// for this run, which must exist, else the one found from the working
-// directory.
+// for this run, else the one found from the working directory. A file
+// named for this run or by a paths.* setting must exist; a missing one
+// named by the setting is a problem with config.yaml.
 func (s *Store) Locate(f billing.File) (string, error) {
-	path, err := s.locate(f)
-	if err != nil || strings.TrimSpace(s.Files[f]) == "" {
-		return path, err
-	}
-	if err := mustExist(f, path); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// locate is Locate without the check that a file named for this run
-// exists.
-func (s *Store) locate(f billing.File) (string, error) {
-	baseDir, err := s.workDir()
+	found, err := s.locate(f)
 	if err != nil {
 		return "", err
 	}
-	path := s.Files[f]
-	if strings.TrimSpace(path) == "" {
-		found, err := s.Host.resolveSupportFile(f, baseDir)
-		if err != nil {
-			return "", err
-		}
-		path = found.Path
+	missing := mustExist(f, found.Path)
+	if missing == nil {
+		return found.Path, nil
 	}
-	if strings.TrimSpace(path) == "" {
-		return "", &billing.FileNotFoundError{File: f, Default: s.Host.globalPath(f)}
+	if found.Source != billing.SourceConfig {
+		return "", missing
 	}
-	return fsutil.Abs(baseDir, path), nil
+	cfg, err := s.Host.config()
+	if err != nil {
+		return "", err
+	}
+	missing.Config = cfg.File
+	return "", &billing.ConfigError{Err: missing}
 }
 
-// mustExist returns a *billing.FileNotFoundError when path, the support
-// file f named for this run, does not exist.
-func mustExist(f billing.File, path string) error {
+// locate is Locate without the check that the file exists. A file named
+// for this run has SourceExplicit.
+func (s *Store) locate(f billing.File) (resolved, error) {
+	baseDir, err := s.workDir()
+	if err != nil {
+		return resolved{}, err
+	}
+	found := resolved{Path: s.Files[f], Source: billing.SourceExplicit}
+	if strings.TrimSpace(found.Path) == "" {
+		found, err = s.Host.resolveSupportFile(f, baseDir)
+		if err != nil {
+			return resolved{}, err
+		}
+	}
+	if strings.TrimSpace(found.Path) == "" {
+		return resolved{}, &billing.FileNotFoundError{File: f, Default: s.Host.globalPath(f)}
+	}
+	found.Path = fsutil.Abs(baseDir, found.Path)
+	return found, nil
+}
+
+// mustExist returns a *billing.FileNotFoundError when path, the file f,
+// does not exist, and nil otherwise.
+func mustExist(f billing.File, path string) *billing.FileNotFoundError {
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		return &billing.FileNotFoundError{File: f, Path: path}
 	}
@@ -206,7 +216,8 @@ func (s *Store) EditablePath(f billing.File) (string, error) {
 	if f == billing.ConfigFile {
 		return s.Host.editableConfigPath()
 	}
-	return s.locate(f)
+	found, err := s.locate(f)
+	return found.Path, err
 }
 
 // Init creates the config directory and the starter files it lacks.

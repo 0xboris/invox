@@ -23,6 +23,12 @@ exits 1 invox validate -i invoice.yaml
 scrubpaths stderr got.txt
 cmp got.txt want-validate.txt
 
+# A paths.* setting that names a missing file names the file and the
+# setting, and suggests `invox config` too.
+exits 1 invox --config missing-paths.yaml validate -i invoice.yaml
+! stdout .
+cmp stderr want-missing-paths.txt
+
 -- home/.config/invox/config.yaml --
 archive:
   dir: [unclosed
@@ -37,6 +43,9 @@ CUST-001:
 customer_id: CUST-001
 invoice:
   number: CUST-001-001
+-- missing-paths.yaml --
+paths:
+  issuer: nope.yaml
 -- want-init.txt --
 Initialized $WORK/home/.config/invox
 exists config.yaml
@@ -49,3 +58,6 @@ CUST-001	Appsters GmbH	active
 -- want-validate.txt --
 error: home/.config/invox/config.yaml: yaml: line 1: did not find expected ',' or ']'
 Run 'invox config' to open and fix the config file.
+-- want-missing-paths.txt --
+error: issuer file nope.yaml does not exist; paths.issuer in missing-paths.yaml sets it
+Run 'invox --config missing-paths.yaml config' to open and fix the config file.
