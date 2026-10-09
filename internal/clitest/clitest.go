@@ -7,6 +7,7 @@ package clitest
 
 import (
 	"bytes"
+	"io"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -95,6 +96,16 @@ func (x *Invox) Run(args []string) (int, string, string) {
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }
 
+// Stdin makes the next Run read input from stdin. With terminal set, stdin
+// and stderr are terminals, so invox may prompt.
+func (x *Invox) Stdin(terminal bool, input string) {
+	ios, in, _, _ := iostreams.Test()
+	ios.SetStdinTTY(terminal)
+	ios.SetStderrTTY(terminal)
+	in.WriteString(input)
+	x.IO = ios
+}
+
 // ExpectEditor makes the next Run's stdin and stderr terminals, so the
 // editor may open, and expects one editor run that returns err. It returns
 // where the path the editor opens is recorded.
@@ -121,9 +132,13 @@ func (x *Invox) ExpectOpener(err error) *string {
 }
 
 // ExpectTectonic expects one tectonic run, which writes an empty PDF next to
-// the .tex file it compiles, as tectonic does.
+// the .tex file it compiles, as tectonic does. Like a real child process it
+// is handed invox's stdin, so input the test gave is gone after it.
 func (x *Invox) ExpectTectonic() {
 	x.Stub.Register("tectonic", func(cmd run.Cmd) error {
+		if cmd.Stdin != nil {
+			_, _ = io.Copy(io.Discard, cmd.Stdin)
+		}
 		pdf := strings.TrimSuffix(cmd.Args[0], filepath.Ext(cmd.Args[0])) + ".pdf"
 		testfixture.WriteFile(x.t, filepath.Join(cmd.Dir, pdf), "")
 		return nil

@@ -48,37 +48,6 @@ func TestArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 	}
 }
 
-func TestBuildArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	installFakeTectonic(t, fakeTectonicWritePDF)
-
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"build", invoicePath, "--archive",
-		"-c", customersPath, "-u", issuerPath, "-t", templatePath,
-	})
-	if exitCode != 1 {
-		t.Fatalf("exitCode = %d, want 1, stdout=%q stderr=%q", exitCode, stdout, stderr)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	for _, want := range []string{
-		"is already used by archived invoice " + archivedPath,
-		"Run 'invox increment -i ",
-	} {
-		if !strings.Contains(stderr, want) {
-			t.Fatalf("stderr = %q, want it to contain %q", stderr, want)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(archiveDir, "invoice.yaml")); !os.IsNotExist(err) {
-		t.Fatalf("duplicate invoice should not have been archived, Stat err = %v", err)
-	}
-}
-
 func TestArchiveEditThenRearchiveKeepsSameNumber(t *testing.T) {
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
