@@ -1,0 +1,17 @@
+customer_id: CUST-001
+invoice:
+  number: CUST-001-001
+  issue_date: 2026-03-06
+  due_date: 2026-04-05
+  period: Leistungszeitraum
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Development
+    description: Sprint work
+    unit_price: 100
+    quantity: 2
+  - name: Support
+    description: QA
+    unit_price: 10
+    quantity: 1

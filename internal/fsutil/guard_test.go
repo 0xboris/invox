@@ -27,6 +27,8 @@ var fileWrites = map[string][]string{
 // TestOnlyFsutilWritesFiles fails when non-test code under cmd/ or internal/
 // outside internal/fsutil uses one of fileWrites. Everything else writes
 // through fsutil, so writes stay atomic and keep modes and symlinks.
+// internal/testfixture is test support: it writes the fixtures tests start
+// from, and the release binary does not import it.
 func TestOnlyFsutilWritesFiles(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +44,7 @@ func TestOnlyFsutilWritesFiles(t *testing.T) {
 				return err
 			}
 			if entry.IsDir() {
-				if filepath.ToSlash(rel) == "internal/fsutil" {
+				if rel := filepath.ToSlash(rel); rel == "internal/fsutil" || rel == "internal/testfixture" {
 					return filepath.SkipDir
 				}
 				return nil
