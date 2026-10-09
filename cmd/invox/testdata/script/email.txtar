@@ -80,10 +80,21 @@ exits 1 invox email invoice.yaml -p missing.pdf -o draft5.eml
 ! stdout .
 stderr '^error: read missing\.pdf: '
 env FAKE_OPEN_FAIL=1
+env OPENER=xdg-open
+[darwin] env OPENER=open
+[windows] env OPENER=cmd
 exits 1 invox email invoice.yaml -o draft6.eml
 ! stdout .
-cmp stderr want-open-failed.txt
+cmpenv stderr want-open-failed.txt
 env FAKE_OPEN_FAIL=
+env SAVEDPATH=$PATH
+mkdir empty
+env PATH=$WORK${/}empty
+exits 1 $BIN${/}invox$exe email invoice.yaml -o draft8.eml
+! stdout .
+cmpenv stderr want-no-opener.txt
+exists draft8.eml
+env PATH=$SAVEDPATH
 
 # A subject placeholder invox does not know fails before anything is drafted.
 exits 1 invox email invoice.yaml -o draft7.eml --subject 'Invoice {invoice_numbr}'
@@ -128,7 +139,9 @@ Run 'invox email --help' for usage.
 error: draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
 -- want-open-failed.txt --
 fake open: forced failure
-error: created draft6.eml but failed to open it: exit status 1
+error: created draft6.eml but failed to open it: $OPENER exited with status 1
+-- want-no-opener.txt --
+error: created draft8.eml but failed to open it: $OPENER not found in PATH
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

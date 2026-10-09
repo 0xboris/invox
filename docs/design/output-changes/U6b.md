@@ -83,3 +83,22 @@ Changed files:
 
 - `cmd/invox/testdata/script/email_macos.txtar`: a new case and `want-osascript-failed.txt`
   pin the row. `FAKE_OPEN_FAIL` now makes the fake osascript fail too.
+
+## The OS opener's failures name the program
+
+`opener.Opener.Open` returns a `*billing.ToolMissingError` when `open`, `xdg-open` or `cmd`
+is not on PATH, and a `*billing.ToolFailedError` when it fails, instead of the bare exec
+error. The email mailer still says what it did with the draft first. Exit code 1, before and
+after; the missing opener has no hint line.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `invox email inv.yaml -o d.eml`, xdg-open exits 1 | `error: created d.eml but failed to open it: exit status 1` | `error: created d.eml but failed to open it: xdg-open exited with status 1` (`open` on macOS, `cmd` on Windows) |
+| `invox email inv.yaml -o d.eml`, xdg-open not installed | `error: created d.eml but failed to open it: exec: "xdg-open": executable file not found in $PATH` | `error: created d.eml but failed to open it: xdg-open not found in PATH` |
+| `invox email inv.yaml`, xdg-open not installed | `error: failed to open email draft: exec: "xdg-open": executable file not found in $PATH` | `error: failed to open email draft: xdg-open not found in PATH` |
+
+Changed files:
+
+- `cmd/invox/testdata/script/email.txtar`: `want-open-failed.txt` names the opener through
+  `$OPENER` (compared with `cmpenv`), and a new case with an empty PATH and
+  `want-no-opener.txt` pins the second row.

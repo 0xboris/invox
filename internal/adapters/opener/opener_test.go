@@ -2,6 +2,7 @@ package opener_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -9,8 +10,39 @@ import (
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/run/runtest"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
+
+// The opener names the program in its errors: a *billing.ToolMissingError
+// when it is not installed, a *billing.ToolFailedError when it fails.
+func TestOpenReportsTheOpenersFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"not installed", fmt.Errorf("exec: %w", run.ErrNotFound), "xdg-open not found in PATH"},
+		{"fails", &run.ExecError{Name: "xdg-open", Code: 4}, "xdg-open exited with status 4"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, _ := iostreams.Test()
+			stub := runtest.NewStub(t)
+			stub.Register("xdg-open", func(run.Cmd) error { return tc.err })
+
+			err := opener.New(stub, ios, "linux").Open(context.Background(), "draft.eml")
+
+			var missing *billing.ToolMissingError
+			var failed *billing.ToolFailedError
+			if !errors.As(err, &missing) && !errors.As(err, &failed) {
+				t.Fatalf("Open error = %v, want a *billing.ToolMissingError or *billing.ToolFailedError", err)
+			}
+			if err.Error() != tc.want {
+				t.Fatalf("Open error = %q, want %q", err, tc.want)
+			}
+		})
+	}
+}
 
 func TestOpenRunsTheOSOpener(t *testing.T) {
 	tests := []struct {
