@@ -227,10 +227,21 @@ linters:
             - "**/internal/iostreams/**"
             - "**/internal/env/**"
             - "**/internal/build/**"
+            - "!**/internal/adapters/run/runtest/**"
             - "!$test"
           allow:
             - $gostd
             - gopkg.in/yaml.v3
+        # runtest is test support: a Runner stub on run and the standard
+        # library.
+        test-support:
+          list-mode: strict
+          files:
+            - "**/internal/adapters/run/runtest/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/adapters/run$
         # Only the CLI knows about flags. A test may define a flag such as
         # -update.
         flags-in-the-cli:
@@ -263,6 +274,16 @@ linters:
           deny:
             - pkg: github.com/0xboris/invox/internal/docs/gen
               desc: the release binary must not import the docs generator
+        # Only tests and factorytest use the Runner stub; the release binary
+        # must not contain it.
+        runtest-is-for-tests:
+          files:
+            - $all
+            - "!**/internal/factory/factorytest/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/0xboris/invox/internal/adapters/run/runtest
+              desc: the Runner stub is for tests; the release binary must not import it
 
     errcheck:
       exclude-functions:

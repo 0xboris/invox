@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
@@ -20,23 +21,23 @@ const (
 	testOpener = "xdg-open"
 )
 
-func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
+func testFactory(t *testing.T) (*cmdutil.Factory, *runtest.Stub) {
 	t.Helper()
 	return testFactoryEnv(t, nil)
 }
 
 // testFactoryEnv is testFactory with the variables in vars set.
-func testFactoryEnv(t *testing.T, vars map[string]string) (*cmdutil.Factory, *run.Stub) {
+func testFactoryEnv(t *testing.T, vars map[string]string) (*cmdutil.Factory, *runtest.Stub) {
 	t.Helper()
 	return testFactoryOn(t, testGOOS, vars)
 }
 
 // testFactoryOn is testFactoryEnv on the OS goos.
-func testFactoryOn(t *testing.T, goos string, vars map[string]string) (*cmdutil.Factory, *run.Stub) {
+func testFactoryOn(t *testing.T, goos string, vars map[string]string) (*cmdutil.Factory, *runtest.Stub) {
 	t.Helper()
 
 	ios, _, _, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	e := env.System()
 	e.GOOS = goos
 	e.Getenv = func(key string) string {
@@ -55,7 +56,7 @@ func testFactoryOn(t *testing.T, goos string, vars map[string]string) (*cmdutil.
 
 // expectEditor makes f's stdin and stderr terminals, so the editor may open,
 // and expects one editor run that returns err.
-func expectEditor(f *cmdutil.Factory, stub *run.Stub, err error) *string {
+func expectEditor(f *cmdutil.Factory, stub *runtest.Stub, err error) *string {
 	f.IOStreams.SetStdinTTY(true)
 	f.IOStreams.SetStderrTTY(true)
 	opened := new(string)
@@ -66,7 +67,7 @@ func expectEditor(f *cmdutil.Factory, stub *run.Stub, err error) *string {
 	return opened
 }
 
-func expectOpener(stub *run.Stub, err error) *string {
+func expectOpener(stub *runtest.Stub, err error) *string {
 	opened := new(string)
 	stub.Register(testOpener, func(cmd run.Cmd) error {
 		*opened = cmd.Args[0]

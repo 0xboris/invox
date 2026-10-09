@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -18,7 +19,7 @@ import (
 func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 	ios, stdin, stdout, stderr := iostreams.Test()
 	stdin.WriteString("answer\n")
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	var got run.Cmd
 	var input []byte
 	stub.Register("tectonic", func(cmd run.Cmd) error {
@@ -56,7 +57,7 @@ func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 
 func TestBuildReturnsExecErrorWhenTectonicFails(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	stub.Register("tectonic", func(run.Cmd) error { return &run.ExecError{Name: "tectonic", Code: 1} })
 
 	err := tectonic.New(stub, ios, "linux").Build(context.Background(), "invoice.tex")
@@ -79,7 +80,7 @@ func TestBuildReportsMissingTectonicWithAnInstallHint(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.goos, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
-			stub := run.NewStub(t)
+			stub := runtest.NewStub(t)
 			stub.Register("tectonic", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
 
 			err := tectonic.New(stub, ios, tc.goos).Build(context.Background(), "invoice.tex")

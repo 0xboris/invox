@@ -1,4 +1,5 @@
-package run
+// Package runtest provides Stub, a run.Runner for tests.
+package runtest
 
 import (
 	"context"
@@ -7,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/0xboris/invox/internal/adapters/run"
 )
 
 // T is the part of testing.TB a Stub uses.
@@ -27,7 +30,7 @@ type Stub struct {
 type stubCall struct {
 	name string
 	at   string
-	fn   func(Cmd) error
+	fn   func(run.Cmd) error
 	done bool
 }
 
@@ -40,7 +43,7 @@ func NewStub(t T) *Stub {
 		defer s.mu.Unlock()
 		for _, call := range s.calls {
 			if !call.done {
-				t.Errorf("run.Stub: %s registered at %s was never run", call.name, call.at)
+				t.Errorf("runtest.Stub: %s registered at %s was never run", call.name, call.at)
 			}
 		}
 	})
@@ -49,7 +52,7 @@ func NewStub(t T) *Stub {
 
 // Register expects one run of the program name. fn receives the Cmd and
 // returns the result of the run.
-func (s *Stub) Register(name string, fn func(Cmd) error) {
+func (s *Stub) Register(name string, fn func(run.Cmd) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls = append(s.calls, &stubCall{name: name, at: testCaller(), fn: fn})
@@ -78,7 +81,7 @@ func testCaller() string {
 	}
 }
 
-func (s *Stub) Run(_ context.Context, cmd Cmd) error {
+func (s *Stub) Run(_ context.Context, cmd run.Cmd) error {
 	s.mu.Lock()
 	var match *stubCall
 	for _, call := range s.calls {
@@ -90,7 +93,7 @@ func (s *Stub) Run(_ context.Context, cmd Cmd) error {
 	}
 	s.mu.Unlock()
 	if match == nil {
-		panic(fmt.Sprintf("run.Stub: unregistered command %s %q", cmd.Name, cmd.Args))
+		panic(fmt.Sprintf("runtest.Stub: unregistered command %s %q", cmd.Name, cmd.Args))
 	}
 	return match.fn(cmd)
 }

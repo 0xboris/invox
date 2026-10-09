@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
@@ -36,7 +37,7 @@ type Options struct {
 }
 
 // New returns a Factory on ios whose environment is opts. A nil Runner runs
-// nothing: it is a run.Stub.
+// nothing: it is a runtest.Stub.
 func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory {
 	t.Helper()
 	if ios == nil {
@@ -49,7 +50,7 @@ func New(t *testing.T, ios *iostreams.IOStreams, opts Options) *cmdutil.Factory 
 		opts.Home = t.TempDir()
 	}
 	if opts.Runner == nil {
-		opts.Runner = run.NewStub(t)
+		opts.Runner = runtest.NewStub(t)
 	}
 	if opts.Now.IsZero() {
 		opts.Now = Now

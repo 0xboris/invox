@@ -8,6 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -25,7 +26,7 @@ func TestOpenRunsTheOSOpener(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.goos, func(t *testing.T) {
 			ios, _, stdout, stderr := iostreams.Test()
-			stub := run.NewStub(t)
+			stub := runtest.NewStub(t)
 			var got run.Cmd
 			stub.Register(tc.name, func(cmd run.Cmd) error {
 				got = cmd

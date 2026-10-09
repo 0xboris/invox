@@ -9,13 +9,14 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 	ios, stdin, stdout, stderr := iostreams.Test()
 	stdin.WriteString(":wq\n")
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	var got run.Cmd
 	var input []byte
 	stub.Register("vi", func(cmd run.Cmd) error {
@@ -46,7 +47,7 @@ func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 
 func TestEditReturnsTheEditorsFailure(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
 	getenv := func(key string) string { return map[string]string{"EDITOR": "code -w"}[key] }
 

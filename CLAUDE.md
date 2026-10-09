@@ -126,7 +126,7 @@ Settled decisions (#9):
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
   must be restored with `t.Cleanup`.
 - Tests that reach the editor, the opener or Apple Mail use `testFactory(t)` and
-  `captureRunFactory`. Its `run.Stub` panics on any program the test did not register with
+  `captureRunFactory`. Its `runtest.Stub` panics on any program the test did not register with
   `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs.
 - The e2e suite (`cmd/invox/script_test.go`, scripts in `cmd/invox/testdata/script/*.txtar`)
   pins every command's stdout, stderr and exit code with testscript. Run it with

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/opener"
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
@@ -192,7 +192,7 @@ func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPat
 	ios, _, _, _ := iostreams.Test()
 	opts := &EmailOptions{
 		IO:     ios,
-		Opener: opener.New(run.NewStub(t), ios, "linux"),
+		Opener: opener.New(runtest.NewStub(t), ios, "linux"),
 		Service: func(files cmdutil.Files) *billing.Service {
 			svc := f.Service(files)
 			svc.Invoices = loadRecorder{Invoices: svc.Invoices, path: &paths.InvoicePath}

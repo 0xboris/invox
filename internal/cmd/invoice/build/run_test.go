@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
@@ -29,7 +30,7 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
 			ios, _, out, _ := iostreams.Test()
-			stub := run.NewStub(t)
+			stub := runtest.NewStub(t)
 			stub.Register("tectonic", func(cmd run.Cmd) error {
 				pdf := strings.TrimSuffix(cmd.Args[0], ".tex") + ".pdf"
 				return os.WriteFile(filepath.Join(cmd.Dir, pdf), []byte("%PDF\n"), 0o644)

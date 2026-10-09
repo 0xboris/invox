@@ -44,6 +44,7 @@ var (
 	ringDriving   = []string{mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/tableprinter", mod + "internal/adapters/editor", mod + "internal/adapters/opener"}
 	ringLibraries = []string{mod + "internal/config", mod + "internal/fsutil", mod + "internal/adapters/run", mod + "internal/iostreams", mod + "internal/env", mod + "internal/build"}
 	ringMain      = []string{mod + "internal/factory/...", mod + "cmd/...", mod + "internal/docs/..."}
+	testSupport   = []string{mod + "internal/adapters/run/runtest"}
 	frameworkPkgs = []string{"github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "gopkg.in/yaml.v3"}
 	diskPkgs      = []string{"os", "io/fs", "os/exec", "os/signal", "net/...", "syscall"}
 )
@@ -72,7 +73,7 @@ var rules = []rule{
 	{
 		name: "the core depends on no adapter, library, framework, CLI or main package, even indirectly",
 		pkgs: ringCore,
-		deny: concat(ringDriven, ringDriving, ringLibraries, ringMain, frameworkPkgs),
+		deny: concat(ringDriven, ringDriving, ringLibraries, ringMain, testSupport, frameworkPkgs),
 	},
 	{
 		name: "driven: store imports the core, config, fsutil and yaml.v3",
@@ -115,9 +116,14 @@ var rules = []rule{
 		only: []string{"gopkg.in/yaml.v3"},
 	},
 	{
-		name: "the release binary does not contain the docs generator",
+		name: "test support: runtest imports only run",
+		pkgs: testSupport,
+		only: []string{mod + "internal/adapters/run"},
+	},
+	{
+		name: "the release binary contains neither the docs generator nor runtest",
 		pkgs: []string{mod + "cmd/invox"},
-		deny: []string{mod + "internal/docs/gen/..."},
+		deny: concat([]string{mod + "internal/docs/gen/..."}, testSupport),
 	},
 	{
 		name:   "only the CLI and main know about commands and flag parsing",

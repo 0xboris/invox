@@ -8,12 +8,13 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestComposePassesTheMessageAsArguments(t *testing.T) {
 	ios, _, stdout, stderr := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	var got run.Cmd
 	stub.Register("osascript", func(cmd run.Cmd) error {
 		got = cmd

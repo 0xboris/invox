@@ -10,6 +10,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
@@ -37,7 +38,7 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	}
 
 	ios, _, out, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	var opened string
 	stub.Register("xdg-open", func(cmd run.Cmd) error {
 		opened = cmd.Args[0]
@@ -85,7 +86,7 @@ func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	// The Factory's runner has nothing registered, so a Compose call would
 	// fail the test.
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	opts := &EmailOptions{
 		IO:          ios,
 		Opener:      opener.New(stub, ios, "darwin"),
