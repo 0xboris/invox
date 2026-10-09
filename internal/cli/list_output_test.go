@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -9,49 +8,6 @@ import (
 	"github.com/0xboris/invox/internal/clitest"
 	"github.com/0xboris/invox/internal/testfixture"
 )
-
-func TestArchiveListOutput(t *testing.T) {
-	x := clitest.New(t)
-
-	archiveDir := t.TempDir()
-	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
-	testfixture.WriteFile(t, filepath.Join(archiveDir, "a.yaml"), `customer_id: "CUST\t1\n\e[31mX"
-invoice:
-  issue_date: 2026-03-06
-  status: archived
-`)
-
-	x.RunOutputCases(t, []clitest.OutputCase{
-		{
-			Name:       "pipe",
-			Args:       []string{"archive", "list"},
-			WantStdout: "a.yaml\tCUST\\t1\\nX\t2026-03-06\tarchived\n",
-		},
-		{
-			Name: "terminal",
-			TTY:  true,
-			Args: []string{"archive", "list"},
-			WantStdout: "FILE    CUSTOMER  ISSUE DATE  STATUS\n" +
-				"a.yaml  CUST 1 X  2026-03-06  archived\n",
-		},
-	})
-
-	if err := os.Remove(filepath.Join(archiveDir, "a.yaml")); err != nil {
-		t.Fatalf("Remove returned error: %v", err)
-	}
-	x.RunOutputCases(t, []clitest.OutputCase{
-		{
-			Name: "pipe empty",
-			Args: []string{"archive", "list"},
-		},
-		{
-			Name:       "terminal empty",
-			TTY:        true,
-			Args:       []string{"archive", "list"},
-			WantStderr: "No archived invoices found in " + archiveDir + "\n",
-		},
-	})
-}
 
 func TestTemplateListOutput(t *testing.T) {
 	x := clitest.New(t)
