@@ -95,9 +95,9 @@ func TestLoadContextRejectsUnknownKeys(t *testing.T) {
 		{name: "invoice header", file: "invoice", from: "  period: Leistungszeitraum\n", to: "  period: Leistungszeitraum\n  currency: EUR\n", wantErr: `%s:7: unknown key "currency" in invoice`},
 		{name: "position", file: "invoice", from: "    quantity: 2\n", to: "    quantity: 2\n    unit: h\n", wantErr: `%s:14: unknown key "unit" in positions[1]`},
 		{name: "anchor holder", file: "invoice", from: "customer_id: CUST-001\n", to: "customer_id: CUST-001\nextra: &extra {unit: h}\n", wantErr: ""},
-		{name: "removed line_items", file: "invoice", from: "positions:\n", to: "line_items: []\npositions:\n", wantErr: "%s:9: line_items: unsupported key; use positions"},
-		{name: "removed period_label", file: "invoice", from: "  period: Leistungszeitraum\n", to: "  period: Leistungszeitraum\n  period_label: March\n", wantErr: "%s:7: invoice.period_label: unsupported key; use invoice.period"},
-		{name: "removed vat_rate_percent", file: "invoice", from: "  vat_percent: 20\n", to: "  vat_percent: 20\n  vat_rate_percent: 20\n", wantErr: "%s:8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent"},
+		{name: "removed line_items", file: "invoice", from: "positions:\n", to: "line_items: []\npositions:\n", wantErr: "%s:9: unknown key \"line_items\""},
+		{name: "removed period_label", file: "invoice", from: "  period: Leistungszeitraum\n", to: "  period: Leistungszeitraum\n  period_label: March\n", wantErr: "%s:7: unknown key \"period_label\" in invoice"},
+		{name: "removed vat_rate_percent", file: "invoice", from: "  vat_percent: 20\n", to: "  vat_percent: 20\n  vat_rate_percent: 20\n", wantErr: "%s:8: unknown key \"vat_rate_percent\" in invoice"},
 	}
 
 	for _, tt := range tests {

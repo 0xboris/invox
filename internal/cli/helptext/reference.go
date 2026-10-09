@@ -223,14 +223,6 @@ var invoiceDefaultsFieldGroups = []struct {
 			{Path: "positions[].vat_percent", Description: "Optional per-line VAT override"},
 		},
 	},
-	{
-		Title: "Unsupported legacy keys",
-		Entries: []invoiceDefaultsField{
-			{Path: "line_items", Description: "Unsupported; use positions"},
-			{Path: "invoice.period_label", Description: "Unsupported; use invoice.period"},
-			{Path: "invoice.vat_rate_percent", Description: "Unsupported; use invoice.vat_percent"},
-		},
-	},
 }
 
 const customerYAMLExample = `CUST-001:

@@ -69,9 +69,9 @@ func TestLoadContextRejectsLegacyInvoiceAliases(t *testing.T) {
 		t.Fatal("LoadContext returned nil error for legacy aliases")
 	}
 	for _, want := range []string{
-		"invoice.period_label: unsupported key; use invoice.period",
-		"invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		"line_items: unsupported key; use positions",
+		legacyPath + ":6: unknown key \"period_label\" in invoice",
+		legacyPath + ":7: unknown key \"vat_rate_percent\" in invoice",
+		legacyPath + ":9: unknown key \"line_items\"",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)

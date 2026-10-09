@@ -93,8 +93,8 @@ error: customers-unknown.yaml:4: unknown key "phone" in customer
 customers-unknown.yaml:10: unknown key "floor" in customer.address
 issuer-unknown.yaml:1: issuer.company must be a mapping, got a string
 issuer-unknown.yaml:6: issuer.payment.due_days: expected an integer, got `thirty`
-unknown.yaml:2: line_items: unsupported key; use positions
-unknown.yaml:8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent
+unknown.yaml:2: unknown key "line_items"
+unknown.yaml:8: unknown key "vat_rate_percent" in invoice
 unknown.yaml:9: unknown key "notes" in invoice
 unknown.yaml:12: positions[1].description: expected a string, got a list
 unknown.yaml:15: positions[2] must be a mapping, got a string

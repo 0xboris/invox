@@ -390,8 +390,6 @@ func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
 		"invoice.number",
 		"invoice.vat_percent",
 		"positions[].unit_price",
-		"Unsupported legacy keys:",
-		"line_items",
 		"Rules:",
 		"`new` sets customer_id, invoice.number, invoice.issue_date, invoice.due_date, invoice.status, and invoice.paid_amount.",
 		"invoice_defaults.yaml example:",

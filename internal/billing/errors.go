@@ -54,7 +54,7 @@ type DecodeError struct {
 	Path    string
 	Problem string
 	// Field is the field that did not decode, which validation then
-	// skips. It is "" for an unknown or removed key.
+	// skips. It is "" for an unknown key.
 	Field string
 	// UnknownKey is set when the problem is a key the schema does not
 	// define. Schema then names the kind of file: "customers", "issuer" or

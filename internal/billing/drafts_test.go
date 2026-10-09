@@ -206,9 +206,9 @@ func TestCreateNewInvoiceRejectsLegacyDefaultKeys(t *testing.T) {
 		t.Fatal("CreateNewInvoice returned nil error for legacy default keys")
 	}
 	for _, want := range []string{
-		defaultsPath + ":2: invoice.period_label: unsupported key; use invoice.period",
-		defaultsPath + ":3: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		defaultsPath + ":4: line_items: unsupported key; use positions",
+		defaultsPath + ":2: unknown key \"period_label\" in invoice",
+		defaultsPath + ":3: unknown key \"vat_rate_percent\" in invoice",
+		defaultsPath + ":4: unknown key \"line_items\"",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not contain %q", err.Error(), want)
@@ -344,50 +344,6 @@ func TestCreateNewInvoiceFromLastRequiresArchivedInvoiceForCustomer(t *testing.T
 	}
 	if !strings.Contains(err.Error(), "no archived invoice found for customer_id `CUST-001`") {
 		t.Fatalf("error %q does not contain missing archived invoice message", err.Error())
-	}
-}
-
-func TestCreateNewInvoiceFromLastRejectsLegacyArchivedInvoiceKeys(t *testing.T) {
-	t.Parallel()
-
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	archiveDir := t.TempDir()
-	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	archivePath := filepath.Join(archiveDir, "2026-03-08.yaml")
-	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-002
-  issue_date: 2026-03-08
-  due_date: 2026-04-07
-  status: archived
-  period_label: March 2026
-  vat_rate_percent: 10
-  paid_amount: 999
-line_items:
-  - name: Latest position
-    description: From latest invoice
-    unit_price: 120
-    quantity: 2
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(archivePath) returned error: %v", err)
-	}
-
-	outputPath := filepath.Join(t.TempDir(), "invoice.yaml")
-	workDir := t.TempDir()
-	_, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: outputPath, FromLast: true})
-	if err == nil {
-		t.Fatal("CreateNewInvoice returned nil error for legacy archived invoice keys")
-	}
-	for _, want := range []string{
-		archivePath + ":7: invoice.period_label: unsupported key; use invoice.period",
-		archivePath + ":8: invoice.vat_rate_percent: unsupported key; use invoice.vat_percent",
-		archivePath + ":10: line_items: unsupported key; use positions",
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not contain %q", err.Error(), want)
-		}
 	}
 }
 

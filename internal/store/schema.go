@@ -109,13 +109,3 @@ var schemaKeys = map[reflect.Type]map[string]string{
 		"archive_path": "ArchivePath",
 	},
 }
-
-// removedKeys lists, for each schema struct, the keys invox no longer reads
-// and the key that took each one's place.
-var removedKeys = map[reflect.Type]map[string]string{
-	reflect.TypeFor[invoice.Invoice](): {"line_items": "positions"},
-	reflect.TypeFor[invoice.Header](): {
-		"period_label":     "invoice.period",
-		"vat_rate_percent": "invoice.vat_percent",
-	},
-}

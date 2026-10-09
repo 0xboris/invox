@@ -67,3 +67,56 @@ positions:
 		t.Fatalf("CreateNewInvoice from defaults error = %v, want %q", err, want)
 	}
 }
+
+// The keys old versions of invox wrote are unknown keys like any other: an
+// archived invoice that has them still opens, the copy keeps them, and the
+// copy fails validation, naming each one.
+func TestLegacyKeysOfArchivedInvoicesAreUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	archiveDir := t.TempDir()
+	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	archivePath := filepath.Join(archiveDir, "2026-03-08.yaml")
+	if err := os.WriteFile(archivePath, []byte(strings.TrimSpace(`
+customer_id: CUST-001
+invoice:
+  number: CUST-001-002
+  issue_date: 2026-03-08
+  due_date: 2026-04-07
+  status: archived
+  period_label: March 2026
+  vat_rate_percent: 10
+  paid_amount: 0
+line_items:
+  - name: Latest position
+    description: From latest invoice
+    unit_price: 120
+    quantity: 2
+`)+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}
+
+	workDir := t.TempDir()
+	created, err := h.service(t, files, workDir, time.Now()).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, Output: filepath.Join(workDir, "next.yaml"), FromLast: true})
+	if err != nil {
+		t.Fatalf("New --from-last returned error: %v", err)
+	}
+	_, err = h.service(t, files, workDir, time.Time{}).Validate(created.Path)
+	if want := created.Path + `:7: unknown key "period_label" in invoice` + "\n" +
+		created.Path + `:8: unknown key "vat_rate_percent" in invoice` + "\n" +
+		created.Path + `:10: unknown key "line_items"`; err == nil || !strings.HasPrefix(err.Error(), want) {
+		t.Fatalf("Validate of the new invoice: error = %v, want it to start with %q", err, want)
+	}
+
+	workDir = t.TempDir()
+	opened, err := h.service(t, files, workDir, time.Time{}).EditArchived("2026-03-08.yaml", workDir, billing.EditOptions{})
+	if err != nil {
+		t.Fatalf("EditArchived returned error: %v", err)
+	}
+	_, err = h.service(t, files, workDir, time.Time{}).Validate(opened.Path)
+	if want := opened.Path + `:7: unknown key "period_label" in invoice`; err == nil || !strings.HasPrefix(err.Error(), want) {
+		t.Fatalf("Validate of the working copy: error = %v, want it to start with %q", err, want)
+	}
+}

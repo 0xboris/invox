@@ -265,11 +265,9 @@ func (d *yamlDecoder) decodeStruct(n *yaml.Node, out reflect.Value, path string)
 			fieldPath = path + "." + key
 		}
 		index, ok := fields[key]
-		switch replacement := removedKeys[out.Type()][key]; {
+		switch {
 		case ok:
 			d.decode(pair.value, out.Field(index), fieldPath)
-		case replacement != "":
-			d.errs = append(d.errs, &billing.DecodeError{File: d.label, Line: pair.key.Line, Path: fieldPath, Problem: "unsupported key; use " + replacement})
 		// A top-level key whose value defines an anchor holds a definition
 		// for aliases elsewhere, as in `reduced: &reduced {vat_percent: 10}`.
 		case d.strict && !(n == d.root && pair.value.Anchor != ""):
