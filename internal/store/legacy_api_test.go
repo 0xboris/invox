@@ -129,6 +129,7 @@ type wrapped struct {
 }
 
 func (w *wrapped) Error() string { return w.file + ": " + w.err.Error() }
+
 func (w *wrapped) Unwrap() error { return w.err }
 
 func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOptions) (ArchiveResult, error) {
@@ -174,11 +175,6 @@ func (h Host) templateFor(path string) billing.Template {
 	return (&Store{Host: h}).template(path)
 }
 
-// RenderTeX checks the template at templatePath and fills it in with ctx.
-func RenderTeX(templatePath string, ctx *invoice.Context) (string, error) {
-	return NewHost(HostInputs{GOOS: "linux"}).renderTeX(templatePath, ctx)
-}
-
 func (h Host) renderTeX(templatePath string, ctx *invoice.Context) (string, error) {
 	return latex.Renderer{}.Render(h.templateFor(templatePath), ctx, billing.EPCFor(ctx))
 }
@@ -189,34 +185,6 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *invoice.Contex
 		return err
 	}
 	return latex.Renderer{}.Write(h.templateFor(templatePath), source, outputPath)
-}
-
-func (h Host) copyTemplateAssets(templatePath, outputPath, rendered string) error {
-	return latex.Renderer{}.Write(h.templateFor(templatePath), rendered, outputPath)
-}
-
-// BuildInvoicePDF renders the invoice into a temporary directory, runs
-// compile on the .tex file there, and copies the PDF to outputPath, as
-// billing.Service.Build does.
-func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Context, texPath string) error, templatePath, outputPath string, inv *invoice.Context) error {
-	svc := h.service(Files{}, cwd(), time.Time{})
-	svc.Compiler = compilerFunc(func(ctx context.Context, sourcePath string) (string, error) {
-		if err := compile(ctx, sourcePath); err != nil {
-			return "", err
-		}
-		return sourcePath[:len(sourcePath)-len(filepath.Ext(sourcePath))] + ".pdf", nil
-	})
-	source, err := h.renderTeX(templatePath, inv)
-	if err != nil {
-		return err
-	}
-	return svc.Renderer.Build(ctx, svc.Compiler, h.templateFor(templatePath), source, outputPath)
-}
-
-type compilerFunc func(ctx context.Context, sourcePath string) (string, error)
-
-func (f compilerFunc) Compile(ctx context.Context, sourcePath string) (string, error) {
-	return f(ctx, sourcePath)
 }
 
 func buildEPCPayload(ctx *invoice.Context) ([]byte, error) { return billing.EPCPayload(ctx) }

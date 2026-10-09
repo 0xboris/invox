@@ -1,4 +1,4 @@
-package store
+package latex_test
 
 import (
 	"context"
@@ -7,11 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/render/latex"
 )
 
 func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	inv, err := LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -31,7 +35,7 @@ func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 		return os.WriteFile(strings.TrimSuffix(path, ".tex")+".pdf", []byte("%PDF-1.4 compiled\n"), 0o644)
 	}
 
-	if err := isolatedHost(t).BuildInvoicePDF(context.Background(), compile, templatePath, outputPath, inv); err != nil {
+	if err := isolatedHost(t).buildInvoicePDF(t, context.Background(), compile, templatePath, outputPath, inv); err != nil {
 		t.Fatalf("BuildInvoicePDF returned error: %v", err)
 	}
 
@@ -55,14 +59,14 @@ func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 
 func TestBuildInvoicePDFReturnsTheCompileError(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	inv, err := LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.pdf")
 	compileErr := errors.New("tectonic exploded")
 
-	err = isolatedHost(t).BuildInvoicePDF(context.Background(), func(context.Context, string) error { return compileErr }, templatePath, outputPath, inv)
+	err = isolatedHost(t).buildInvoicePDF(t, context.Background(), func(context.Context, string) error { return compileErr }, templatePath, outputPath, inv)
 
 	if !errors.Is(err, compileErr) {
 		t.Fatalf("BuildInvoicePDF error = %v, want %v", err, compileErr)
@@ -70,4 +74,27 @@ func TestBuildInvoicePDFReturnsTheCompileError(t *testing.T) {
 	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(outputPath) error = %v, want no PDF", err)
 	}
+}
+
+// buildInvoicePDF renders inv into the template at templatePath and builds
+// it to outputPath, running compile on the .tex file as tectonic would.
+func (h host) buildInvoicePDF(t *testing.T, ctx context.Context, compile func(ctx context.Context, texPath string) error, templatePath, outputPath string, inv *invoice.Context) error {
+	t.Helper()
+	tmpl := h.template(t, templatePath)
+	source, err := latex.Renderer{}.Render(tmpl, inv, billing.EPCFor(inv))
+	if err != nil {
+		return err
+	}
+	return latex.Renderer{}.Build(ctx, compilerFunc(func(ctx context.Context, sourcePath string) (string, error) {
+		if err := compile(ctx, sourcePath); err != nil {
+			return "", err
+		}
+		return strings.TrimSuffix(sourcePath, filepath.Ext(sourcePath)) + ".pdf", nil
+	}), tmpl, source, outputPath)
+}
+
+type compilerFunc func(ctx context.Context, sourcePath string) (string, error)
+
+func (f compilerFunc) Compile(ctx context.Context, sourcePath string) (string, error) {
+	return f(ctx, sourcePath)
 }

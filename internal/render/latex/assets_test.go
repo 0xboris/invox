@@ -1,9 +1,11 @@
-package store
+package latex_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/render/latex"
 )
 
 func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
@@ -11,7 +13,7 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := loadContext(t,
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -22,7 +24,7 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -67,7 +69,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 	outputPath := filepath.Join(outputDir, "invoice.tex")
 	rendered := "\\setmainfont{Ubuntu}[Path=fonts/,UprightFont=Ubuntu-Regular.ttf]\n\\includegraphics{logo.png}\n"
 
-	if err := h.copyTemplateAssets(templatePath, outputPath, rendered); err != nil {
+	if err := (latex.Renderer{}).Write(h.template(t, templatePath), rendered, outputPath); err != nil {
 		t.Fatalf("copyTemplateAssets returned error: %v", err)
 	}
 

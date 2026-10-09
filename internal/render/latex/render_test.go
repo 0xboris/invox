@@ -1,4 +1,4 @@
-package store
+package latex_test
 
 import (
 	"os"
@@ -12,7 +12,7 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := loadContext(t,
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -22,7 +22,7 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestRenderInvoiceRendersSplitCityAndPostalCodePlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := loadContext(t,
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -70,7 +70,7 @@ Customer: @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -103,7 +103,7 @@ func TestRenderInvoiceRendersVATSummaryRowsAndPerLineVATRows(t *testing.T) {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -119,7 +119,7 @@ Totals:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -154,7 +154,7 @@ func TestRenderInvoiceRendersCustomLineItemBlockWithoutDescriptionColumn(t *test
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -171,7 +171,7 @@ Rows:
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestRenderInvoiceCustomLineItemBlockDoesNotLeaveBlankLineBeforeFollowingCon
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -219,7 +219,7 @@ After
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -241,7 +241,7 @@ func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -283,7 +283,7 @@ func TestRenderInvoiceUsesCustomVATLabelInSummaryRows(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -298,7 +298,7 @@ Label: @@VAT_LABEL@@
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -322,7 +322,7 @@ func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -339,7 +339,7 @@ Total: & @@TOTAL@@\\
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 
@@ -361,7 +361,7 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -372,7 +372,7 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.RenderInvoice(templatePath, outputPath, ctx)
+	err = h.renderInvoice(t, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy VAT placeholders")
 	}
@@ -391,7 +391,7 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.RenderInvoice(templatePath, outputPath, ctx)
+	err = h.renderInvoice(t, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy city/postal placeholders")
 	}
@@ -421,7 +421,7 @@ func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -432,7 +432,7 @@ func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.RenderInvoice(templatePath, outputPath, ctx)
+	err = h.renderInvoice(t, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for unmatched line-item block placeholder")
 	}
@@ -447,7 +447,7 @@ func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T
 	}
 
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	err = h.RenderInvoice(templatePath, outputPath, ctx)
+	err = h.renderInvoice(t, templatePath, outputPath, ctx)
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for line-item placeholder outside custom block")
 	}

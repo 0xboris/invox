@@ -1,4 +1,4 @@
-package store
+package latex_test
 
 import (
 	"os"
@@ -13,7 +13,7 @@ func TestRenderInvoiceKeepsLeadingStarAndBracketAfterLineBreak(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestRenderInvoiceKeepsLeadingStarAndBracketAfterLineBreak(t *testing.T) {
 		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
 	}
 	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {
+	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
 		t.Fatalf("RenderInvoice returned error: %v", err)
 	}
 	rendered, err := os.ReadFile(outputPath)
