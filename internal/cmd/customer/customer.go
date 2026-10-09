@@ -19,7 +19,7 @@ func NewCmdCustomer(f *cmdutil.Factory) *cobra.Command {
 		Long: `Customer-related commands.
 
 Default lookup:
-  customers.yaml: upward project search, then {{.GlobalCustomersPath}}
+  customers.yaml: upward project search, then {{.Customers}}
 
 Documentation:
   Run ` + "`" + `invox help customers` + "`" + ` for the customers.yaml schema reference.

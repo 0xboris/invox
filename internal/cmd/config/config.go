@@ -31,7 +31,7 @@ Behavior:
   Existing config.yaml files are left unchanged.
 
 Config paths:
-  default: {{.GlobalConfigPath}}
+  default: {{.ConfigFile}}
   --config PATH and INVOX_CONFIG_DIR change them; see ` + "`invox help environment`" + `.
   ` + "`invox config paths`" + ` shows the config file and the support files in use.
 

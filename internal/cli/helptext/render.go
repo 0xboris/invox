@@ -8,14 +8,14 @@ import (
 // The lines of a command's "Default lookup:" section. Like every Long, they
 // are templates that Render fills in from the user's directories.
 const (
-	LookupCustomers = "  customers.yaml: upward project search, then {{.GlobalCustomersPath}}\n" +
+	LookupCustomers = "  customers.yaml: upward project search, then {{.Customers}}\n" +
 		"  schema/docs: run `invox help customers`\n"
-	LookupIssuer = "  issuer.yaml: upward project search, then {{.GlobalIssuerPath}}\n" +
+	LookupIssuer = "  issuer.yaml: upward project search, then {{.Issuer}}\n" +
 		"  schema/docs: run `invox help issuer`\n"
-	LookupDefaults = "  invoice_defaults.yaml: upward project search, then {{.GlobalInvoiceDefaultsPath}}\n" +
+	LookupDefaults = "  invoice_defaults.yaml: upward project search, then {{.Defaults}}\n" +
 		"  schema/docs: run `invox help defaults`\n"
-	LookupTemplate = "  template.tex: upward project search, then {{.GlobalTemplatePath}}\n"
-	LookupArchive  = "  archive.dir: config.yaml, then {{.DefaultArchiveDir}}\n"
+	LookupTemplate = "  template.tex: upward project search, then {{.Template}}\n"
+	LookupArchive  = "  archive.dir: config.yaml, then {{.ArchiveDir}}\n"
 )
 
 // ReplacingArchived is the section on replacing an archived invoice, for
@@ -49,23 +49,11 @@ type Locations struct {
 }
 
 // Render writes text, a command's Long, with its {{...}} actions filled in
-// from l. They can read the fields of Locations and call the methods of
-// data.
+// from the fields of l.
 func Render(w io.Writer, text string, l Locations) error {
-	tmpl, err := template.New("").Option("missingkey=error").Parse(text)
+	tmpl, err := template.New("").Parse(text)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, data{l})
+	return tmpl.Execute(w, l)
 }
-
-type data struct {
-	Locations
-}
-
-func (d data) GlobalConfigPath() string          { return d.ConfigFile }
-func (d data) GlobalCustomersPath() string       { return d.Customers }
-func (d data) GlobalIssuerPath() string          { return d.Issuer }
-func (d data) GlobalInvoiceDefaultsPath() string { return d.Defaults }
-func (d data) GlobalTemplatePath() string        { return d.Template }
-func (d data) DefaultArchiveDir() string         { return d.ArchiveDir }

@@ -37,10 +37,10 @@ func newRootCmd(f *cmdutil.Factory) (*cobra.Command, func() error) {
 		Long: `invox generates LaTeX and PDF invoices from YAML data.
 
 Defaults:
-  customers.yaml: upward project search, then {{.GlobalCustomersPath}}
-  issuer.yaml: upward project search, then {{.GlobalIssuerPath}}
-  invoice_defaults.yaml: upward project search, then {{.GlobalInvoiceDefaultsPath}}
-  template.tex: upward project search, then {{.GlobalTemplatePath}}
+  customers.yaml: upward project search, then {{.Customers}}
+  issuer.yaml: upward project search, then {{.Issuer}}
+  invoice_defaults.yaml: upward project search, then {{.Defaults}}
+  template.tex: upward project search, then {{.Template}}
   new output: ./<invoice.number>.yaml
   render output: ./invoice.tex
   email draft path: <input name>.eml in a new temporary directory, removed after 24 hours
