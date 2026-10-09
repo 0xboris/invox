@@ -99,6 +99,35 @@ func WriteArchivedInvoice(t T, dir, name, number string) string {
 	return path
 }
 
+// WriteNumberedInvoice writes dir/name, an invoice of CUST-001 with number,
+// status and one position, and returns its path.
+func WriteNumberedInvoice(t T, dir, name, number, status string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	WriteFile(t, path, strings.Join([]string{
+		"customer_id: CUST-001",
+		"invoice:",
+		"  number: " + number,
+		"  issue_date: \"2026-03-06\"",
+		"  due_date: \"2026-04-05\"",
+		"  status: " + status,
+		"  vat_percent: 20",
+		"  paid_amount: 0",
+		"positions:",
+		"  - name: Development",
+		"    unit_price: 100",
+		"    quantity: 1",
+		"",
+	}, "\n"))
+	return path
+}
+
+// NumberedInvoiceSource is an invoice of customerID that has only a number
+// and an issue date.
+func NumberedInvoiceSource(customerID, number, issueDate string) string {
+	return "customer_id: " + customerID + "\ninvoice:\n  number: " + number + "\n  issue_date: \"" + issueDate + "\"\n"
+}
+
 // Host is a user's config home and home directory: where invox finds
 // config.yaml and, by default, the archive.
 type Host struct {

@@ -492,31 +492,6 @@ func TestForceNeverReplacesArchivedFile(t *testing.T) {
 	}
 }
 
-func TestNewForceReplacesExistingOutput(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	workDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-	outputPath := filepath.Join(workDir, "mine.yaml")
-	if err := os.WriteFile(outputPath, []byte("keep\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile returned error: %v", err)
-	}
-	chdirForTest(t, workDir)
-
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath, "-o", "mine.yaml", "--force"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "mine.yaml\n"; stdout != want {
-		t.Fatalf("stdout = %q, want %q", stdout, want)
-	}
-	if want := "Created mine.yaml for CUST-001 (CUST-001-002)\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if got := readFileForTest(t, outputPath); !strings.Contains(got, "number: CUST-001-002") {
-		t.Fatalf("mine.yaml was not replaced:\n%s", got)
-	}
-}
-
 func TestArchiveEditForceReplacesWorkingCopy(t *testing.T) {
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")

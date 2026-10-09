@@ -7,65 +7,6 @@ import (
 	"testing"
 )
 
-func TestNewTwiceWithoutArchivingAllocatesDifferentNumbers(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
-
-	for _, tc := range []struct {
-		output     string
-		wantStdout string
-		wantStderr string
-	}{
-		{output: "a.yaml", wantStdout: "a.yaml\n", wantStderr: "Created a.yaml for CUST-001 (CUST-001-001)\n"},
-		{output: "b.yaml", wantStdout: "b.yaml\n", wantStderr: "Created b.yaml for CUST-001 (CUST-001-002)\n"},
-		{output: "", wantStdout: "CUST-001-003.yaml\n", wantStderr: "Created CUST-001-003.yaml for CUST-001 (CUST-001-003)\n"},
-	} {
-		args := []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath}
-		if tc.output != "" {
-			args = append(args, "-o", tc.output)
-		}
-		exitCode, stdout, stderr := captureRun(t, args)
-		if exitCode != 0 {
-			t.Fatalf("new -o %q: exitCode = %d, want 0, stderr=%q", tc.output, exitCode, stderr)
-		}
-		if stderr != tc.wantStderr {
-			t.Fatalf("new -o %q: stderr = %q, want %q", tc.output, stderr, tc.wantStderr)
-		}
-		if stdout != tc.wantStdout {
-			t.Fatalf("new -o %q: stdout = %q, want %q", tc.output, stdout, tc.wantStdout)
-		}
-	}
-}
-
-func TestNewSkipsNumbersOfDraftsInOutputDirectory(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	chdirForTest(t, t.TempDir())
-
-	outputDir := t.TempDir()
-	writeNumberedInvoice(t, outputDir, "built.yaml", "CUST-001-004", "built")
-	writeNumberedInvoice(t, outputDir, "editing.yaml", "CUST-001-009", "editing")
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"new", "CUST-001",
-		"-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath,
-		"-o", filepath.Join(outputDir, "next.yaml"),
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if !strings.Contains(stderr, "(CUST-001-005)") {
-		t.Fatalf("stderr = %q, want number CUST-001-005", stderr)
-	}
-	if want := filepath.Join(outputDir, "next.yaml") + "\n"; stdout != want {
-		t.Fatalf("stdout = %q, want %q", stdout, want)
-	}
-}
-
 func TestArchiveRefusesDuplicateInvoiceNumber(t *testing.T) {
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
@@ -202,41 +143,6 @@ func TestValidateDoesNotWarnForUniqueNumber(t *testing.T) {
 	}
 	if want := "Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-}
-
-func TestNewIgnoresUnrelatedAndOversizedYAMLInWorkingDirectory(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
-
-	for name, source := range map[string]string{
-		"broken.yaml":    "invoice: [unclosed\n",
-		"customers.yaml": "CUST-001:\n  name: Appsters GmbH\n",
-		"list.yml":       "- one\n- two\n",
-		"other.yaml":     "customer_id: CUST-002\ninvoice:\n  number: CUST-002-007\n  status: draft\n",
-	} {
-		if err := os.WriteFile(filepath.Join(workDir, name), []byte(source), 0o644); err != nil {
-			t.Fatalf("WriteFile(%s) returned error: %v", name, err)
-		}
-	}
-	oversized := readFileForTest(t, writeNumberedInvoice(t, workDir, "huge.yaml", "CUST-001-009", "draft")) +
-		"# " + strings.Repeat("x", 1<<20) + "\n"
-	if err := os.WriteFile(filepath.Join(workDir, "huge.yaml"), []byte(oversized), 0o644); err != nil {
-		t.Fatalf("WriteFile(huge.yaml) returned error: %v", err)
-	}
-
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "Created CUST-001-001.yaml for CUST-001 (CUST-001-001)\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if want := "CUST-001-001.yaml\n"; stdout != want {
-		t.Fatalf("stdout = %q, want %q", stdout, want)
 	}
 }
 
