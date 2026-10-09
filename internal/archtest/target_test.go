@@ -124,21 +124,22 @@ var ports = map[string][]string{
 	"Directory": {"Customer", "Customers", "Issuer", "Defaults", "Template", "Templates", "Paths", "EditablePath", "Init"},
 	"Archive":   {"Entries", "Add", "Checkout"},
 	"Renderer":  {"Render"},
-	"Compiler":  {"Compile"},
 	"Mailer":    {"Draft"},
 }
 
 var useCases = []string{"New", "Increment", "Validate", "Render", "Build", "Archive", "EditArchived", "DraftEmail", "ListCustomers", "ListArchive", "Paths", "Init", "ListTemplates", "EditablePath"}
 
-// implementations lists which package implements which port.
-var implementations = []struct{ pkg, port string }{
-	{"internal/store", "Invoices"},
-	{"internal/store", "Directory"},
-	{"internal/archive", "Archive"},
-	{"internal/render/latex", "Renderer"},
-	{"internal/adapters/tectonic", "Compiler"},
-	{"internal/email", "Mailer"},
-	{"internal/adapters/applemail", "Mailer"},
+// implementations lists which package implements which interface, and the
+// package that owns the interface. Compiler belongs to render/latex, the only
+// package that calls it; billing never sees a compiler.
+var implementations = []struct{ pkg, owner, port string }{
+	{"internal/store", "internal/billing", "Invoices"},
+	{"internal/store", "internal/billing", "Directory"},
+	{"internal/archive", "internal/billing", "Archive"},
+	{"internal/render/latex", "internal/billing", "Renderer"},
+	{"internal/adapters/tectonic", "internal/render/latex", "Compiler"},
+	{"internal/email", "internal/billing", "Mailer"},
+	{"internal/adapters/applemail", "internal/billing", "Mailer"},
 }
 
 // sourceImporter is shared so that every check sees one copy of each package;
@@ -170,6 +171,9 @@ func methodNames(typ types.Type) []string {
 
 func TestTargetPorts(t *testing.T) {
 	billing := typecheck(t, "internal/billing")
+	if billing.Scope().Lookup("Compiler") != nil {
+		t.Error("billing.Compiler exists; the compiler interface belongs to render/latex")
+	}
 	for name, want := range ports {
 		t.Run(name, func(t *testing.T) {
 			tn := lookupType(billing, name)
@@ -224,16 +228,16 @@ func TestTargetService(t *testing.T) {
 }
 
 func TestTargetImplementations(t *testing.T) {
-	billing := typecheck(t, "internal/billing")
 	for _, impl := range implementations {
 		t.Run(impl.pkg+" implements "+impl.port, func(t *testing.T) {
-			port := lookupType(billing, impl.port)
+			owner := typecheck(t, impl.owner)
+			port := lookupType(owner, impl.port)
 			if port == nil {
-				t.Fatalf("billing.%s is not declared", impl.port)
+				t.Fatalf("%s.%s is not declared", owner.Name(), impl.port)
 			}
 			iface, ok := port.Type().Underlying().(*types.Interface)
 			if !ok {
-				t.Fatalf("billing.%s is not an interface", impl.port)
+				t.Fatalf("%s.%s is not an interface", owner.Name(), impl.port)
 			}
 			p := typecheck(t, impl.pkg)
 			for _, name := range p.Scope().Names() {
@@ -245,7 +249,7 @@ func TestTargetImplementations(t *testing.T) {
 					return
 				}
 			}
-			t.Fatalf("no exported concrete type in %s implements billing.%s", impl.pkg, impl.port)
+			t.Fatalf("no exported concrete type in %s implements %s.%s", impl.pkg, owner.Name(), impl.port)
 		})
 	}
 }

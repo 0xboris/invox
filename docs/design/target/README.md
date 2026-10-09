@@ -53,6 +53,11 @@ The diagram illustrates this table. Where they differ, the table wins. "Core" me
 
 ## The six interfaces
 
+Round 2 note: `docs/design/ports-v2.md` supersedes the draft below and is normative for the
+ports, with one change made by the coordinator: `Compiler` is not a billing port. The renderer is
+its only caller, so `render/latex` declares it and `factory` gives the renderer a compiler;
+`billing.Service` has no `Compiler` field.
+
 Owned by `billing`. The method names are fixed (the target test checks them). The signatures are a
 first draft: change parameter and result types when the implementation shows a better shape, but
 keep them in core types.

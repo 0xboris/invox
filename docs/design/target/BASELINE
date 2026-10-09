@@ -7,3 +7,8 @@ change to make the code clean, as long as every change is listed in
 docs/design/output-changes.md. Legacy support is dropped: the invoice-tool
 directory, the deprecated command forms of #106, and Markdown archived invoices
 (with a stderr warning naming the skipped files).
+
+Round 2, ports v2 (2026-10-09): docs/design/ports-v2.md is normative for the ports. The target
+test no longer requires a billing.Compiler; render/latex owns the Compiler interface and
+adapters/tectonic implements it.
+
