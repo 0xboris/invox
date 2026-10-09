@@ -1,0 +1,9 @@
+Baseline for scripts/verify-target.sh. The script compares the frozen files
+(docs/design/target/, internal/archtest/target_test.go, scripts/verify-target.sh)
+with the last commit that touched this file, and lists output changes since then.
+
+Round 2 (2026-10-09): the maintainer lifted byte-identical output. CLI behavior may
+change to make the code clean, as long as every change is listed in
+docs/design/output-changes.md. Legacy support is dropped: the invoice-tool
+directory, the deprecated command forms of #106, and Markdown archived invoices
+(with a stderr warning naming the skipped files).
