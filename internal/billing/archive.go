@@ -72,19 +72,16 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if err := s.numberUnique(path, head); err != nil {
 		return ArchiveResult{}, err
 	}
-	result, err := s.Archives.Add(path, place, AddOptions{Replace: opts.Replace, DryRun: opts.DryRun, Now: s.Now()})
-	if err != nil || opts.DryRun {
-		return result, err
-	}
-	err = s.Invoices.Update(result.Path, func(inv *invoice.Invoice) error {
-		inv.Header.Status = invoice.Text(invoice.Archived)
-		inv.Archive = nil
-		return nil
+	return s.Archives.Add(path, place, AddOptions{
+		Replace: opts.Replace,
+		DryRun:  opts.DryRun,
+		Now:     s.Now(),
+		Change: func(inv *invoice.Invoice) error {
+			inv.Header.Status = invoice.Text(invoice.Archived)
+			inv.Archive = nil
+			return nil
+		},
 	})
-	if err != nil {
-		return ArchiveResult{}, err
-	}
-	return result, nil
 }
 
 // archivable returns why the invoice at path, whose head is head, cannot be

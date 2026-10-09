@@ -246,17 +246,27 @@ func headerFields(h *invoice.Header) []headerField {
 // change set to a different value are written, and an archive link it
 // clears is removed; every other key, comment and anchor stays as it is.
 func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
-	document, err := loadYAMLDocument(path)
+	data, err := s.Rewrite(path, change)
 	if err != nil {
 		return err
+	}
+	return fsutil.WriteFile(path, data, fsutil.Public)
+}
+
+// Rewrite returns the invoice at path with change applied, as Update
+// writes it.
+func (s *Store) Rewrite(path string, change func(*invoice.Invoice) error) ([]byte, error) {
+	document, err := loadYAMLDocument(path)
+	if err != nil {
+		return nil, err
 	}
 	root, err := documentRootMapping(document, path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	invoiceNode, err := invoiceMapping(root, path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Values that do not decode read as unset; change leaves them alone.
 	var before invoice.Invoice
@@ -277,7 +287,7 @@ func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
 		after.Archive = &link
 	}
 	if err := change(&after); err != nil {
-		return err
+		return nil, err
 	}
 
 	if after.CustomerID != before.CustomerID {
@@ -292,7 +302,7 @@ func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
 	if !sameLink(after.Archive, before.Archive) {
 		setArchiveLink(root, after.Archive)
 	}
-	return writeYAMLDocument(path, document)
+	return encodeYAMLDocument(document)
 }
 
 func sameLink(a, b *invoice.ArchiveLink) bool {

@@ -34,7 +34,7 @@ func (h Host) service(files Files, workDir string, now time.Time) *billing.Servi
 	return &billing.Service{
 		Invoices:  st,
 		Directory: st,
-		Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: ReadArchived},
+		Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: ReadArchived, Rewrite: st.Rewrite},
 		Renderer:  latex.Renderer{},
 		Mailer:    email.Mailer{},
 		Settings:  h.Settings,

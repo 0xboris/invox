@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -283,5 +285,82 @@ func TestIsInvoiceFile(t *testing.T) {
 		if got := isInvoiceFile(path); got != want {
 			t.Errorf("isInvoiceFile(%q) = %v, want %v", path, got, want)
 		}
+	}
+}
+
+// Re-archiving backs up the archived file, then writes the source over it
+// once, with the change applied, and removes the source.
+func TestAddWritesTheChangedInvoiceOnce(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(t.TempDir(), "a.yaml")
+	writeFile(t, src, "working copy\n")
+	writeFile(t, filepath.Join(dir, "a.yaml"), "archived\n")
+
+	var rewritten []string
+	a := Archive{
+		Locate: func() (string, error) { return dir, nil },
+		Rewrite: func(path string, change func(*invoice.Invoice) error) ([]byte, error) {
+			rewritten = append(rewritten, path)
+			var inv invoice.Invoice
+			if err := change(&inv); err != nil {
+				return nil, err
+			}
+			return []byte("rewritten " + string(inv.CustomerID) + "\n"), nil
+		},
+	}
+	p := billing.Placement{Path: filepath.Join(dir, "a.yaml"), Overwrite: true, HistoryDir: filepath.Join(dir, ".history")}
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
+	result, err := a.Add(src, p, billing.AddOptions{Replace: true, Now: now, Change: func(inv *invoice.Invoice) error {
+		inv.CustomerID = "C-1"
+		return nil
+	}})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	backup := filepath.Join(dir, ".history", "a.20260306T120000Z.yaml")
+	want := billing.ArchiveResult{
+		Path:       p.Path,
+		Replaced:   []billing.Backup{{Path: p.Path, BackupPath: backup}},
+		HistoryDir: p.HistoryDir,
+	}
+	if !reflect.DeepEqual(result, want) {
+		t.Fatalf("Add = %+v, want %+v", result, want)
+	}
+	if !reflect.DeepEqual(rewritten, []string{src}) {
+		t.Fatalf("Rewrite read %v, want only the source", rewritten)
+	}
+	for path, content := range map[string]string{p.Path: "rewritten C-1\n", backup: "archived\n"} {
+		if got, err := os.ReadFile(path); err != nil || string(got) != content {
+			t.Fatalf("%s = %q, %v; want %q", path, got, err, content)
+		}
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Fatalf("source should be removed, Stat err = %v", err)
+	}
+}
+
+// When the invoice cannot be rewritten, Add moves nothing: the source
+// stays, and the archive directory is not even created.
+func TestAddMovesNothingWhenTheRewriteFails(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "archive")
+	src := filepath.Join(t.TempDir(), "a.yaml")
+	writeFile(t, src, "working copy\n")
+
+	a := Archive{
+		Locate: func() (string, error) { return dir, nil },
+		Rewrite: func(string, func(*invoice.Invoice) error) ([]byte, error) {
+			return nil, errors.New("a.yaml: root value must be a mapping")
+		},
+	}
+	p := billing.Placement{Path: filepath.Join(dir, "a.yaml"), HistoryDir: filepath.Join(dir, ".history")}
+	_, err := a.Add(src, p, billing.AddOptions{Change: func(*invoice.Invoice) error { return nil }})
+	if err == nil || err.Error() != "a.yaml: root value must be a mapping" {
+		t.Fatalf("Add error = %v, want the rewrite error", err)
+	}
+	if got, err := os.ReadFile(src); err != nil || string(got) != "working copy\n" {
+		t.Fatalf("source = %q, %v; want it unchanged", got, err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("archive directory should not be created, Stat err = %v", err)
 	}
 }

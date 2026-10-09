@@ -19,6 +19,9 @@ type Archive struct {
 	Locate func() (string, error)
 	// Read reads what an archived invoice says about itself.
 	Read Reader
+	// Rewrite returns the invoice at path with change applied, keeping its
+	// comments and layout.
+	Rewrite func(path string, change func(*invoice.Invoice) error) ([]byte, error)
 }
 
 var _ billing.Archive = Archive{}
@@ -135,8 +138,8 @@ func (a Archive) Checkout(ref, workDir string) (billing.Checkout, error) {
 	}, nil
 }
 
-// Add writes the invoice at src to p.Path, after backing up the archived
-// files it replaces, then removes p.Remove and src.
+// Add writes the invoice at src to p.Path with opts.Change applied, after
+// backing up the archived files it replaces, then removes p.Remove and src.
 func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (billing.ArchiveResult, error) {
 	var replaced []string
 	if p.Overwrite {
@@ -155,6 +158,10 @@ func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (
 		}
 		return result, nil
 	}
+	data, err := a.Rewrite(src, opts.Change)
+	if err != nil {
+		return billing.ArchiveResult{}, err
+	}
 	s, err := a.store()
 	if err != nil {
 		return billing.ArchiveResult{}, err
@@ -163,10 +170,6 @@ func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (
 		return billing.ArchiveResult{}, err
 	}
 	backups, err := s.Backup(replaced, opts.Now)
-	if err != nil {
-		return billing.ArchiveResult{}, err
-	}
-	data, err := os.ReadFile(src)
 	if err != nil {
 		return billing.ArchiveResult{}, err
 	}

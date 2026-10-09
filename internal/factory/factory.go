@@ -51,7 +51,7 @@ func New(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *cmdutil.Factor
 		return &billing.Service{
 			Invoices:  st,
 			Directory: st,
-			Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived},
+			Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived, Rewrite: st.Rewrite},
 			Renderer:  latex.Renderer{},
 			Compiler:  compiler,
 			Mailer:    mailer,

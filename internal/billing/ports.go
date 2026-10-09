@@ -264,6 +264,9 @@ type AddOptions struct {
 	// result's backups have no BackupPath.
 	DryRun bool
 	Now    time.Time
+	// Change is applied to the invoice as it is archived, keeping its
+	// comments and layout, so the archived file is written once.
+	Change func(*invoice.Invoice) error
 }
 
 // Checkout is where the working copy of an archived invoice goes.
@@ -293,9 +296,9 @@ type Archive interface {
 	// files it replaces. It returns "" when there is none, when head has
 	// no number, or when there is no archive directory.
 	Duplicate(src string, head Head) (string, error)
-	// Add moves the invoice at src into the archive at p, after backing up
-	// the archived files it replaces. Without opts.Replace it refuses to
-	// replace any.
+	// Add moves the invoice at src into the archive at p with opts.Change
+	// applied, in one write, after backing up the archived files it
+	// replaces. Without opts.Replace it refuses to replace any.
 	Add(src string, p Placement, opts AddOptions) (ArchiveResult, error)
 	// Checkout resolves ref, an archived invoice relative to the archive
 	// directory, and says where its working copy in workDir goes.
