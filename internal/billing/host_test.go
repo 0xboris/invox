@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
@@ -63,6 +65,25 @@ func (h host) service(t *testing.T, files cmdutil.Files, workDir string, now tim
 		Getwd: func() (string, error) { return workDir, nil },
 		Now:   now,
 	}).Service(files)
+}
+
+// mailService is service with a runner whose opener records the drafts it
+// is asked to open instead of starting the mail app.
+func (h host) mailService(t *testing.T, files cmdutil.Files, workDir string, now time.Time) (*billing.Service, *[]string) {
+	t.Helper()
+	stub := runtest.NewStub(t)
+	opened := new([]string)
+	stub.Register("xdg-open", func(cmd run.Cmd) error {
+		*opened = append(*opened, cmd.Args[0])
+		return nil
+	})
+	return factorytest.New(t, nil, factorytest.Options{
+		Home:   h.home,
+		Vars:   map[string]string{"XDG_CONFIG_HOME": h.configHome},
+		Getwd:  func() (string, error) { return workDir, nil },
+		Now:    now,
+		Runner: stub,
+	}).Service(files), opened
 }
 
 // loadContext loads the invoice at invoicePath with its customer and

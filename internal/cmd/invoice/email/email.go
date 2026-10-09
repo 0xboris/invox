@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
@@ -19,11 +18,10 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// EmailOptions is what email needs: its streams, the program that shows the
-// draft, the use cases and the parsed flags.
+// EmailOptions is what email needs: its streams, the use cases and the
+// parsed flags. The mailer the use cases get opens the draft.
 type EmailOptions struct {
 	IO      *iostreams.IOStreams
-	Opener  *opener.Opener
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
@@ -40,7 +38,7 @@ type EmailOptions struct {
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
 func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
-	opts := &EmailOptions{IO: f.IOStreams, Opener: f.Opener, Service: f.Service, Getwd: f.Env.Getwd}
+	opts := &EmailOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:        "email [INVOICE.yaml | INVOICE.pdf]",
 		SuggestFor: []string{"send"},
@@ -171,16 +169,6 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 			fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(message.Output, baseDir))
 		}
 		return nil
-	}
-
-	if draft := result.Draft; draft.Path != "" {
-		if err := opts.Opener.Open(ctx, draft.Path); err != nil {
-			if draft.Discard == nil {
-				return fmt.Errorf("created %s but failed to open it: %w", cmdutil.DisplayPath(draft.Path, baseDir), err)
-			}
-			draft.Discard()
-			return fmt.Errorf("failed to open email draft: %w", err)
-		}
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "Opened email draft for %s (%s) to %s\n", result.CustomerID, result.Number, message.To)

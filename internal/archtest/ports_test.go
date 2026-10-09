@@ -24,7 +24,7 @@ var (
 		"Directory": {"Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "Locate", "Paths", "Template", "Templates"},
 		"Archive":   {"Add", "Checkout", "Duplicate", "Entries", "Source"},
 		"Renderer":  {"Build", "Render", "Write"},
-		"Mailer":    {"Check", "CheckAttachment", "Draft"},
+		"Mailer":    {"Draft"},
 	}
 	serviceMethods = []string{
 		"Archive", "Build", "CheckNumberUnique", "DefaultTemplate", "DraftEmail",

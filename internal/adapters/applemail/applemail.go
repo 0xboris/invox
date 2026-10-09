@@ -75,7 +75,13 @@ func (c *Composer) Compose(ctx context.Context, msg Message) error {
 
 // Draft opens m in an Apple Mail compose window with the PDF attached. It
 // implements billing.Mailer; the draft has no file.
-func (c *Composer) Draft(ctx context.Context, m billing.Message) (billing.Draft, error) {
+func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
+	if _, err := os.Stat(m.Attachment); err != nil {
+		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
+	}
+	if dryRun {
+		return "", nil
+	}
 	err := c.Compose(ctx, Message{
 		To:         m.To,
 		Subject:    m.Subject,
@@ -84,16 +90,7 @@ func (c *Composer) Draft(ctx context.Context, m billing.Message) (billing.Draft,
 		Sender:     m.FromAddress,
 	})
 	if err != nil {
-		return billing.Draft{}, fmt.Errorf("failed to open editable email draft: %w", err)
+		return "", fmt.Errorf("failed to open editable email draft: %w", err)
 	}
-	return billing.Draft{}, nil
+	return "", nil
 }
-
-// CheckAttachment returns why the file at path cannot be attached.
-func (c *Composer) CheckAttachment(path string) error {
-	_, err := os.Stat(path)
-	return err
-}
-
-// Check has nothing to check: Apple Mail writes no file.
-func (c *Composer) Check(billing.Message) error { return nil }

@@ -37,3 +37,16 @@ the file goes when it is added, so the archive directory is read later.
 Pinned by the `exists-vs-duplicate`, `dir-error-before-status` and
 `archive-aliased-header-and-duplicate` cases of `TestPortOrder` and the `add dry-run alias`
 case of `TestArchiveRefusesInvoiceKeyThatIsNotAMapping`.
+
+## One `Mailer.Draft`
+
+The mailer checks the PDF, writes the draft and opens it in one call; the `email` command no
+longer opens the `.eml` file itself.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `email` with a PDF that cannot be read and a recipient or subject error too | the PDF error (`read X: stat X: ...`) | the recipient or subject error; the PDF error comes after them, with the same message. Inferred from the code: validation catches a missing customer email first, so no run reached this order |
+
+The messages for a draft that was written but could not be opened (`created X but failed to
+open it: ...`, and `failed to open email draft: ...` for a temporary one, which is removed)
+are unchanged; `email.txtar` and the email tests of `internal/cli` pin them.

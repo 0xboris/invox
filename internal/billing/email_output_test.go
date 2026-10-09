@@ -49,7 +49,8 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 		t.Fatalf("outputPath content = %q, want it untouched", content)
 	}
 
-	if _, err := h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Overwrite: true}); err != nil {
+	svc, _ := h.mailService(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now())
+	if _, err := svc.DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true, Overwrite: true}); err != nil {
 		t.Fatalf("CreateInvoiceEmailDraft with overwrite returned error: %v", err)
 	}
 	content, err = os.ReadFile(outputPath)

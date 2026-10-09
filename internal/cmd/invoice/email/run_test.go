@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
@@ -22,7 +21,13 @@ import (
 // was given, which need not be the process's own.
 func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
-	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	stub := runtest.NewStub(t)
+	var opened string
+	stub.Register("xdg-open", func(cmd run.Cmd) error {
+		opened = cmd.Args[0]
+		return nil
+	})
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }, Runner: stub})
 	svc := f.Service(cmdutil.Files{})
 	if _, err := svc.Init(); err != nil {
 		t.Fatal(err)
@@ -38,15 +43,8 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	}
 
 	ios, _, out, _ := iostreams.Test()
-	stub := runtest.NewStub(t)
-	var opened string
-	stub.Register("xdg-open", func(cmd run.Cmd) error {
-		opened = cmd.Args[0]
-		return nil
-	})
 	opts := &EmailOptions{
 		IO:          ios,
-		Opener:      opener.New(stub, ios, "linux"),
 		Service:     f.Service,
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",
@@ -83,13 +81,11 @@ func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ios, _, out, _ := iostreams.Test()
 	// The Factory's runner has nothing registered, so a Compose call would
 	// fail the test.
-	stub := runtest.NewStub(t)
+	ios, _, out, _ := iostreams.Test()
 	opts := &EmailOptions{
 		IO:          ios,
-		Opener:      opener.New(stub, ios, "darwin"),
 		Service:     f.Service,
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",

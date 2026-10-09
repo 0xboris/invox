@@ -21,40 +21,57 @@ const (
 	draftMaxAge = 24 * time.Hour
 )
 
-// Mailer writes drafts as .eml files. It implements billing.Mailer.
-type Mailer struct{}
+// Mailer writes drafts as .eml files and opens them. It implements
+// billing.Mailer.
+type Mailer struct {
+	// Open opens a draft in the user's mail app.
+	Open func(ctx context.Context, path string) error
+}
 
 var _ billing.Mailer = Mailer{}
 
-// Check returns an *billing.OutputIsDirError when m.Output is a directory,
-// and an error matching fs.ErrExist when the draft would replace an
-// existing file and m.Overwrite is not set.
-func (Mailer) Check(m billing.Message) error {
-	return checkOutput(m.Output, m.Overwrite)
-}
-
-// Draft writes m as an .eml file: to m.Output, or, for a temporary draft,
-// to a new temporary directory that a draft a day later removes. Unless
-// m.Overwrite is set, an existing file is left untouched and the error
-// matches fs.ErrExist.
-func (Mailer) Draft(_ context.Context, m billing.Message) (billing.Draft, error) {
+// Draft writes m as an .eml file and opens it: to m.Output, or, for a
+// temporary draft, to a new temporary directory that a draft a day later
+// removes. It returns an *billing.OutputIsDirError when m.Output is a
+// directory and, unless m.Overwrite is set, leaves an existing file
+// untouched with an error matching fs.ErrExist. With dryRun it runs the
+// same checks and writes nothing.
+func (mailer Mailer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
+	if _, err := os.Stat(m.Attachment); err != nil {
+		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
+	}
+	if dryRun {
+		if m.Temporary {
+			return "", nil
+		}
+		return "", checkOutput(m.Output, m.Overwrite)
+	}
 	if !m.Temporary {
-		return billing.Draft{Path: m.Output}, write(m, m.Output, m.Overwrite)
+		if err := write(m, m.Output, m.Overwrite); err != nil {
+			return "", err
+		}
+		if err := mailer.Open(ctx, m.Output); err != nil {
+			return "", fmt.Errorf("created %s but failed to open it: %w", m.Output, err)
+		}
+		return m.Output, nil
 	}
 	pruneDrafts(os.TempDir(), m.Date.Add(-draftMaxAge))
 	dir, err := os.MkdirTemp("", draftDirPrefix+"*")
 	if err != nil {
-		return billing.Draft{}, fmt.Errorf("create temporary draft directory: %w", err)
+		return "", fmt.Errorf("create temporary draft directory: %w", err)
 	}
-	discard := func() { _ = os.RemoveAll(dir) }
 	path := filepath.Join(dir, filepath.Base(m.Output))
 	if err := write(m, path, false); err != nil {
-		discard()
-		return billing.Draft{}, err
+		_ = os.RemoveAll(dir)
+		return "", err
 	}
 	// The draft stays in its temporary directory: the mail app can read it
 	// after the opener returns, so invox cannot know when to delete it.
-	return billing.Draft{Path: path, Discard: discard}, nil
+	if err := mailer.Open(ctx, path); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", fmt.Errorf("failed to open email draft: %w", err)
+	}
+	return path, nil
 }
 
 func write(m billing.Message, path string, overwrite bool) error {
@@ -81,12 +98,6 @@ func write(m billing.Message, path string, overwrite bool) error {
 		writeFile = fsutil.WriteFile
 	}
 	return writeFile(path, message, fsutil.Public)
-}
-
-// CheckAttachment returns why the file at path cannot be attached.
-func (Mailer) CheckAttachment(path string) error {
-	_, err := os.Stat(path)
-	return err
 }
 
 func checkOutput(path string, overwrite bool) error {

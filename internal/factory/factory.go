@@ -3,6 +3,7 @@
 package factory
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -45,7 +46,7 @@ func New(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *cmdutil.Factor
 	}
 	f.Service = func(files cmdutil.Files) *billing.Service {
 		h := host()
-		var mailer billing.Mailer = email.Mailer{}
+		var mailer billing.Mailer = email.Mailer{Open: func(ctx context.Context, path string) error { return f.Opener.Open(ctx, path) }}
 		if mailApp != nil && !files.EmailOutput {
 			mailer = mailApp
 		}

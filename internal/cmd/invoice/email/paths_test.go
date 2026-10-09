@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/opener"
-	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
@@ -191,8 +189,7 @@ func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPat
 	f := factorytest.New(t, nil, factorytest.Options{Home: h.home, Vars: map[string]string{"XDG_CONFIG_HOME": h.configHome}})
 	ios, _, _, _ := iostreams.Test()
 	opts := &EmailOptions{
-		IO:     ios,
-		Opener: opener.New(runtest.NewStub(t), ios, "linux"),
+		IO: ios,
 		Service: func(files cmdutil.Files) *billing.Service {
 			svc := f.Service(files)
 			svc.Invoices = loadRecorder{Invoices: svc.Invoices, path: &paths.InvoicePath}
@@ -231,9 +228,9 @@ type draftRecorder struct {
 	paths *draftPaths
 }
 
-func (r draftRecorder) Draft(_ context.Context, m billing.Message) (billing.Draft, error) {
+func (r draftRecorder) Draft(_ context.Context, m billing.Message, _ bool) (string, error) {
 	r.paths.PDFPath, r.paths.OutputPath = m.Attachment, m.Output
-	return billing.Draft{}, nil
+	return "", nil
 }
 
 const customersYAML = `CUST-001:

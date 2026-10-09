@@ -273,20 +273,11 @@ type Message struct {
 	Date      time.Time
 }
 
-// Draft is where Mailer.Draft put the draft.
-type Draft struct {
-	// Path is the .eml file, "" when a mail app opened the draft.
-	Path string
-	// Discard removes a temporary draft; nil for one that is kept.
-	Discard func()
-}
-
 // Mailer drafts an email with the PDF attached.
 type Mailer interface {
-	Draft(ctx context.Context, m Message) (Draft, error)
-	// Check runs the checks Draft runs on m.Output without writing.
-	Check(m Message) error
-	// CheckAttachment returns why the file at path cannot be attached, or
-	// nil.
-	CheckAttachment(path string) error
+	// Draft checks that m's attachment can be read and, for a kept draft,
+	// that its file can be written, then drafts m and opens it unless
+	// dryRun is set. It returns the draft's file, "" when a mail app holds
+	// the draft or in a dry run.
+	Draft(ctx context.Context, m Message, dryRun bool) (string, error)
 }

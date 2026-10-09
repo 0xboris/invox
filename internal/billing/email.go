@@ -36,8 +36,9 @@ type EmailResult struct {
 	CustomerID string
 	Number     string
 	Message    Message
-	// Draft is where the draft went; unset in a dry run.
-	Draft Draft
+	// Draft is the draft's file, "" when a mail app holds it or in a dry
+	// run.
+	Draft string
 	// Unread is what the archive walk for the PDF's invoice could not read.
 	Unread Unread
 }
@@ -64,9 +65,6 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 			return EmailResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft", invoicePath)
 		}
 		return EmailResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", invoicePath, status)
-	}
-	if err := s.Mailer.CheckAttachment(pdfPath); err != nil {
-		return EmailResult{}, fmt.Errorf("read %s: %w", pdfPath, err)
 	}
 
 	recipient := strings.TrimSpace(req.To)
@@ -107,15 +105,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 		},
 		Unread: unread,
 	}
-	if req.DryRun {
-		if req.Keep {
-			if err := s.Mailer.Check(result.Message); err != nil {
-				return EmailResult{}, err
-			}
-		}
-		return result, nil
-	}
-	result.Draft, err = s.Mailer.Draft(ctx, result.Message)
+	result.Draft, err = s.Mailer.Draft(ctx, result.Message, req.DryRun)
 	if err != nil {
 		return EmailResult{}, err
 	}
