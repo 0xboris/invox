@@ -48,13 +48,7 @@ None yet.
 Edge cases where the refactor changes output and no test pins it. Each is a
 candidate for a follow-up fix.
 
-- `invoice:` with no value (YAML null): `archive add` and `archive edit`
-  said "`invoice` must be a mapping" and now say "missing `invoice`
-  mapping". The decoder reads null as an absent mapping, and billing only
-  sees the decoded invoice.
-- `_invox: {}` (an empty link) on an invoice that is archived: archiving
-  removed the key and now keeps it, because `Invoices.Update` writes back
-  only fields that changed and an empty link reads the same as none.
+None.
 
 ## Log
 

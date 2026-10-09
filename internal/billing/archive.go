@@ -139,7 +139,7 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	}
 	err = s.Invoices.Update(archivePath, func(inv *invoice.Invoice) error {
 		inv.Header.Status = invoice.Text(invoice.Archived)
-		inv.Archive = invoice.ArchiveLink{}
+		inv.Archive = nil
 		return nil
 	})
 	if err != nil {
@@ -155,13 +155,22 @@ func (s *Service) headWithInvoice(path string) (Head, error) {
 	if err != nil && !isDecodeError(err) {
 		return Head{}, err
 	}
-	if !head.HasHeader {
-		if failedFields(err)["invoice"] {
-			return Head{}, fmt.Errorf("%s: `invoice` must be a mapping", path)
-		}
-		return Head{}, fmt.Errorf("%s: missing `invoice` mapping", path)
+	if err := requireHeader(path, head); err != nil {
+		return Head{}, err
 	}
 	return head, nil
+}
+
+// requireHeader returns why the `invoice` key of the invoice at path is not
+// a mapping, or nil.
+func requireHeader(path string, head Head) error {
+	switch head.Header {
+	case HeaderMissing:
+		return fmt.Errorf("%s: missing `invoice` mapping", path)
+	case HeaderOther:
+		return fmt.Errorf("%s: `invoice` must be a mapping", path)
+	}
+	return nil
 }
 
 // CheckNumberUnique returns a *invoice.DuplicateInvoiceNumberError when
@@ -324,15 +333,15 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 	}
 	// The working copy keeps keys invox does not know, so opening an
 	// archived invoice never fails over them; validate reports them.
-	archived, err := s.Invoices.LoadArchived(checkout.Archived)
+	archived, err := s.Invoices.ArchivedHead(checkout.Archived)
 	if err != nil && !isDecodeError(err) {
 		return Edited{}, err
 	}
 	if err := lenient(err); err != nil {
 		return Edited{}, err
 	}
-	if archived.Header == nil {
-		return Edited{}, fmt.Errorf("%s: missing `invoice` mapping", checkout.Archived)
+	if err := requireHeader(checkout.Archived, archived); err != nil {
+		return Edited{}, err
 	}
 	if err := s.Invoices.CheckOutput(checkout.Path, opts.Overwrite); err != nil {
 		return Edited{}, err
@@ -342,7 +351,7 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 	}
 	err = s.Invoices.Create(checkout.Path, checkout.Archived, invoice.Invoice{
 		Header:  &invoice.Header{Status: invoice.Text(invoice.Editing)},
-		Archive: checkout.Link,
+		Archive: &checkout.Link,
 	}, CreateOptions{Overwrite: opts.Overwrite, DryRun: opts.DryRun, Check: CheckNone})
 	if err != nil {
 		return Edited{}, err

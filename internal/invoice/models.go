@@ -84,12 +84,13 @@ type EPCQR struct {
 }
 
 // Invoice is an invoice: a working file, invoice_defaults.yaml, or an
-// archived invoice. Header is nil when the file has no `invoice` mapping.
+// archived invoice. Header is nil when the file has no `invoice` mapping,
+// and Archive when it has no `_invox` mapping.
 type Invoice struct {
 	CustomerID Text
 	Header     *Header
 	Positions  []Position
-	Archive    ArchiveLink
+	Archive    *ArchiveLink
 }
 
 type Header struct {

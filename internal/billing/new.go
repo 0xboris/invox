@@ -148,7 +148,7 @@ func (s *Service) newSource(defaultsPath, customerID string, fromLast bool) (str
 	if !ok {
 		return "", fmt.Errorf("no archived invoice found for customer_id `%s`", customerID)
 	}
-	if _, err := s.Invoices.LoadArchived(archivePath); err != nil && !isDecodeError(err) {
+	if _, err := s.Invoices.ArchivedHead(archivePath); err != nil && !isDecodeError(err) {
 		return "", err
 	}
 	return archivePath, nil

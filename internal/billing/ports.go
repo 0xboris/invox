@@ -30,13 +30,25 @@ type Head struct {
 	Number     string
 	IssueDate  string
 	Status     invoice.Status
-	// HasHeader is false when the file has no `invoice` mapping.
+	// HasHeader is false when the `invoice` key is missing or null.
 	HasHeader bool
+	// Header is what the `invoice` key holds as written. Archiving rewrites
+	// that mapping in place, so an alias to a mapping is HeaderOther.
+	Header HeaderShape
 	// ArchivePath and ReplacePath are the `_invox` link of a working copy
 	// from `archive edit`, relative to the archive, "" when it has none.
 	ArchivePath string
 	ReplacePath string
 }
+
+// HeaderShape is what the `invoice` key of an invoice file holds.
+type HeaderShape int
+
+const (
+	HeaderMissing HeaderShape = iota // no `invoice` key
+	HeaderMapping                    // a mapping
+	HeaderOther                      // null, a scalar, a list or an alias
+)
 
 // Check says how Create checks the invoice it writes.
 type Check int
@@ -65,9 +77,10 @@ type Invoices interface {
 	// Load decodes the invoice at path strictly. Values that do not fit
 	// come back as joined *DecodeError values, with the rest decoded.
 	Load(path string) (invoice.Invoice, error)
-	// LoadArchived is Load for an archived invoice, which may be the front
-	// matter of a Markdown file.
-	LoadArchived(path string) (invoice.Invoice, error)
+	// ArchivedHead is Head for an archived invoice, which may be the front
+	// matter of a Markdown file. It decodes the whole invoice strictly, as
+	// Load does, and returns those errors.
+	ArchivedHead(path string) (Head, error)
 	// Head reads what numbering and the archive need of the invoice at
 	// path. Values that do not decode are left unset and reported as
 	// *DecodeError values.

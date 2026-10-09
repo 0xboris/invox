@@ -22,19 +22,23 @@ func (s *Store) Load(path string) (invoice.Invoice, error) {
 	return inv, err
 }
 
-// LoadArchived decodes the archived invoice at path strictly: a YAML file,
-// or the front matter of a Markdown file.
-func (s *Store) LoadArchived(path string) (invoice.Invoice, error) {
+// ArchivedHead reads the head of the archived invoice at path, a YAML file
+// or the front matter of a Markdown file, and decodes it strictly.
+func (s *Store) ArchivedHead(path string) (billing.Head, error) {
 	document, ok, err := loadArchivedInvoiceDocument(path)
 	if err != nil {
-		return invoice.Invoice{}, err
+		return billing.Head{}, err
 	}
 	if !ok {
-		return invoice.Invoice{}, fmt.Errorf("%s: archived invoice could not be loaded", path)
+		return billing.Head{}, fmt.Errorf("%s: archived invoice could not be loaded", path)
 	}
-	var inv invoice.Invoice
-	err = decodeYAMLDocument(document, path, &inv, true)
-	return inv, err
+	err = decodeYAMLDocument(document, path, &invoice.Invoice{}, true)
+	if err != nil && !isDecodeError(err) {
+		return billing.Head{}, err
+	}
+	// The lenient decode's errors are among the strict decode's.
+	head, _ := documentHead(document, path)
+	return head, err
 }
 
 // Head reads the identity and the archive link of the invoice at path.
@@ -43,14 +47,32 @@ func (s *Store) Head(path string) (billing.Head, error) {
 	if err != nil {
 		return billing.Head{}, err
 	}
+	return documentHead(document, path)
+}
+
+func documentHead(document *yaml.Node, path string) (billing.Head, error) {
 	var identity invoiceIdentity
-	err = decodeYAMLDocument(document, path, &identity, false)
+	err := decodeYAMLDocument(document, path, &identity, false)
 	if err != nil && !isDecodeError(err) {
 		return billing.Head{}, err
 	}
 	head := identity.head()
-	head.ArchivePath, head.ReplacePath = archiveMetadata(document.Content[0])
+	root := document.Content[0]
+	head.Header = headerShape(root)
+	head.ArchivePath, head.ReplacePath = archiveMetadata(root)
 	return head, err
+}
+
+// headerShape is what the `invoice` key of root holds, the node itself
+// rather than what an alias points to, as invoiceMapping reads it.
+func headerShape(root *yaml.Node) billing.HeaderShape {
+	switch node := findMappingValue(root, "invoice"); {
+	case node == nil:
+		return billing.HeaderMissing
+	case node.Kind == yaml.MappingNode:
+		return billing.HeaderMapping
+	}
+	return billing.HeaderOther
 }
 
 func (identity invoiceIdentity) head() billing.Head {
@@ -138,11 +160,7 @@ func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.Crea
 	if err != nil {
 		return err
 	}
-	if link := inv.Archive; link == (invoice.ArchiveLink{}) {
-		deleteMappingKey(root, internalMetadataKey)
-	} else {
-		setArchiveMetadata(root, string(link.ArchivePath), string(link.ArchiveReplacePath))
-	}
+	setArchiveLink(root, inv.Archive)
 	if inv.CustomerID.IsSet() {
 		setMappingString(root, "customer_id", string(inv.CustomerID))
 	}
@@ -247,9 +265,18 @@ func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
 	if before.Header == nil {
 		before.Header = &invoice.Header{}
 	}
+	// A null `_invox` decodes as no link, but it is a key that clearing
+	// the link removes.
+	if before.Archive == nil && findMappingValue(root, internalMetadataKey) != nil {
+		before.Archive = &invoice.ArchiveLink{}
+	}
 	after := before
 	header := *before.Header
 	after.Header = &header
+	if before.Archive != nil {
+		link := *before.Archive
+		after.Archive = &link
+	}
 	if err := change(&after); err != nil {
 		return err
 	}
@@ -263,14 +290,27 @@ func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
 			setMappingString(invoiceNode, field.key, field.value)
 		}
 	}
-	if after.Archive != before.Archive {
-		if after.Archive == (invoice.ArchiveLink{}) {
-			deleteMappingKey(root, internalMetadataKey)
-		} else {
-			setArchiveMetadata(root, string(after.Archive.ArchivePath), string(after.Archive.ArchiveReplacePath))
-		}
+	if !sameLink(after.Archive, before.Archive) {
+		setArchiveLink(root, after.Archive)
 	}
 	return writeYAMLDocument(path, document)
+}
+
+func sameLink(a, b *invoice.ArchiveLink) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+// setArchiveLink writes link as the `_invox` mapping of root, or removes the
+// key when link is nil.
+func setArchiveLink(root *yaml.Node, link *invoice.ArchiveLink) {
+	if link == nil {
+		deleteMappingKey(root, internalMetadataKey)
+		return
+	}
+	setArchiveMetadata(root, string(link.ArchivePath), string(link.ArchiveReplacePath))
 }
 
 // ReadArchived reads what the archive lists of the invoice at path. ok is
