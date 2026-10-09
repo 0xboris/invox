@@ -68,8 +68,8 @@ dependencies point inward, from main to the driving and driven adapters to the u
   `internal/adapters/editor` and `internal/adapters/opener`. They never import a driven
   adapter, `config`, `fsutil` or `factory`.
   - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the check that
-    rejects single-dash long flags, help routing, help groups), exit codes (`exit.go`), signals, the help page
-    renderer (`usage.go`) and `completion.go`. Help is generated from each command's `Short`,
+    rejects single-dash long flags, help routing, help groups), exit codes (`exit.go`), signals and the help page
+    renderer (`usage.go`); the `completion` command is in `internal/cmd/completion`. Help is generated from each command's `Short`,
     `Long` and `Example`; a `Long` is a text/template filled in from `helptext.Locations`,
     which `cmdutil.Factory.Locations` returns.
     `helptext` holds the shared help content: the topic pages, reference tables and lookup
