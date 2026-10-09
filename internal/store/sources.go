@@ -5,52 +5,43 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/config"
 )
 
-// SupportFile is one of the files a command reads besides the invoice.
-type SupportFile int
-
-const (
-	Customers SupportFile = iota
-	Issuer
-	Defaults
-	Template
-)
-
-// supportFiles is the one description of each support file: its name in
-// `config paths`, the names the upward search and the config directory look
-// for, and its paths.* setting.
+// supportFiles is the one description of each support file, the files a
+// command reads besides the invoice: the names the upward search and the
+// config directory look for, and its paths.* setting. Its name in `config
+// paths` is the billing.File's.
 var supportFiles = [...]struct {
-	name        string
 	localNames  []string
 	globalNames []string
 	configured  func(*config.Config) config.Path
 }{
-	Customers: {"customers", []string{"customers.yaml"}, []string{"customers.yaml"}, func(c *config.Config) config.Path { return c.Paths.Customers }},
-	Issuer:    {"issuer", []string{"issuer.yaml"}, []string{"issuer.yaml"}, func(c *config.Config) config.Path { return c.Paths.Issuer }},
-	Defaults:  {"defaults", []string{"invoice_defaults.yaml"}, []string{"invoice_defaults.yaml"}, func(c *config.Config) config.Path { return c.Paths.Defaults }},
-	Template:  {"template", []string{"invoice_template.tex", "template.tex"}, []string{"template.tex", "invoice_template.tex"}, func(c *config.Config) config.Path { return c.Paths.Template }},
+	billing.CustomersFile: {[]string{"customers.yaml"}, []string{"customers.yaml"}, func(c *config.Config) config.Path { return c.Paths.Customers }},
+	billing.IssuerFile:    {[]string{"issuer.yaml"}, []string{"issuer.yaml"}, func(c *config.Config) config.Path { return c.Paths.Issuer }},
+	billing.DefaultsFile:  {[]string{"invoice_defaults.yaml"}, []string{"invoice_defaults.yaml"}, func(c *config.Config) config.Path { return c.Paths.Defaults }},
+	billing.TemplateFile:  {[]string{"invoice_template.tex", "template.tex"}, []string{"template.tex", "invoice_template.tex"}, func(c *config.Config) config.Path { return c.Paths.Template }},
 }
 
-// ResolveSupportFile finds kind for a command run in start: the upward
-// project search wins, then paths.* in the config file, then the config
-// directory. Path is "" when nothing is found.
-func (h Host) ResolveSupportFile(kind SupportFile, start string) (Resolved, error) {
+// resolveSupportFile finds the support file kind for a command run in
+// start: the upward project search wins, then paths.* in the config file,
+// then the config directory. Path is "" when nothing is found.
+func (h Host) resolveSupportFile(kind billing.File, start string) (resolved, error) {
 	file := supportFiles[kind]
 	for _, dir := range h.projectDirs(start) {
 		for _, name := range file.localNames {
 			if path := filepath.Join(dir, name); fileExists(path) {
-				return Resolved{Path: path, Source: SourceProject}, nil
+				return resolved{Path: path, Source: billing.SourceProject}, nil
 			}
 		}
 	}
-	cfg, err := h.Config()
+	cfg, err := h.config()
 	if err != nil {
-		return Resolved{}, err
+		return resolved{}, err
 	}
 	if p := file.configured(cfg); p.IsSet() {
-		return Resolved{Path: cfg.Resolve(p, h.home), Source: SourceConfig}, nil
+		return resolved{Path: cfg.Resolve(p, h.home), Source: billing.SourceConfig}, nil
 	}
 	return h.findInConfigDir(false, file.globalNames...)
 }
@@ -60,51 +51,47 @@ func (h Host) ResolveArchiveDir() (string, error) {
 	return dir.Path, err
 }
 
-func (h Host) archiveDir() (Resolved, error) {
-	cfg, err := h.Config()
+func (h Host) archiveDir() (resolved, error) {
+	cfg, err := h.config()
 	if err != nil {
-		return Resolved{}, err
+		return resolved{}, err
 	}
 	if cfg.Archive.Dir.IsSet() {
-		return Resolved{Path: cfg.Resolve(cfg.Archive.Dir, h.home), Source: SourceConfig}, nil
+		return resolved{Path: cfg.Resolve(cfg.Archive.Dir, h.home), Source: billing.SourceConfig}, nil
 	}
 	if dir := h.DefaultArchiveDir(); dir != "" {
-		return Resolved{Path: dir, Source: SourceDefault}, nil
+		return resolved{Path: dir, Source: billing.SourceDefault}, nil
 	}
-	return Resolved{}, nil
+	return resolved{}, nil
 }
 
-type PathReport struct {
-	Name string
-	Resolved
+func (r resolved) report(name string) billing.PathReport {
+	return billing.PathReport{Name: name, Path: r.Path, Source: r.Source}
 }
 
-// Paths reports what each resolver returns for a command run in start, in a
+// paths reports what each resolver returns for a command run in start, in a
 // fixed order: config-dir, config, then the support files, then archive.
-func (h Host) Paths(start string) ([]PathReport, error) {
+func (h Host) paths(start string) ([]billing.PathReport, error) {
 	file, err := h.configFileResolved()
 	if err != nil {
 		return nil, err
 	}
-	if _, err := h.Config(); err != nil {
+	if _, err := h.config(); err != nil {
 		return nil, err
 	}
-	reports := []PathReport{
-		{Name: "config-dir", Resolved: h.configDir},
-		{Name: "config", Resolved: file},
-	}
+	reports := []billing.PathReport{h.configDir.report("config-dir"), file.report("config")}
 	for kind := range supportFiles {
-		got, err := h.ResolveSupportFile(SupportFile(kind), start)
+		got, err := h.resolveSupportFile(billing.File(kind), start)
 		if err != nil {
 			return nil, err
 		}
-		reports = append(reports, PathReport{Name: supportFiles[kind].name, Resolved: got})
+		reports = append(reports, got.report(billing.File(kind).String()))
 	}
 	archive, err := h.archiveDir()
 	if err != nil {
 		return nil, err
 	}
-	return append(reports, PathReport{Name: "archive", Resolved: archive}), nil
+	return append(reports, archive.report("archive")), nil
 }
 
 // projectMarkers end the upward search in the directory that holds one.

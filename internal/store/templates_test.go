@@ -44,9 +44,9 @@ paths:
 
 	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	templates, err := h.ListTemplates()
+	templates, err := h.listTemplates()
 	if err != nil {
-		t.Fatalf("ListTemplates returned error: %v", err)
+		t.Fatalf("listTemplates returned error: %v", err)
 	}
 
 	got := make([]string, 0, len(templates))
@@ -106,9 +106,9 @@ paths:
 
 	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	resolvedPath, err := h.ResolveTemplateReference(workDir, "multi_vat.tex")
+	resolvedPath, err := h.resolveTemplateReference(workDir, "multi_vat.tex")
 	if err != nil {
-		t.Fatalf("ResolveTemplateReference returned error: %v", err)
+		t.Fatalf("resolveTemplateReference returned error: %v", err)
 	}
 	if resolvedPath != templatePath {
 		t.Fatalf("resolvedPath = %q, want %q", resolvedPath, templatePath)
@@ -148,9 +148,9 @@ paths:
 
 	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
 
-	_, err := h.ResolveTemplateReference(workDir, "outside.tex")
+	_, err := h.resolveTemplateReference(workDir, "outside.tex")
 	if err == nil {
-		t.Fatal("ResolveTemplateReference returned nil error for template outside default template directory")
+		t.Fatal("resolveTemplateReference returned nil error for template outside default template directory")
 	}
 	if !strings.Contains(err.Error(), "template \"outside.tex\" not found") {
 		t.Fatalf("error %q does not contain not-found message", err.Error())

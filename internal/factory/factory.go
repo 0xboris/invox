@@ -50,7 +50,11 @@ func New(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *cmdutil.Factor
 		if mailApp != nil && !files.EmailOutput {
 			mailer = mailApp
 		}
-		st := &store.Store{Host: h, Getwd: e.Getwd, Files: store.Files{Customers: files.Customers, Issuer: files.Issuer, Defaults: files.Defaults}}
+		st := &store.Store{Host: h, Getwd: e.Getwd, Files: map[billing.File]string{
+			billing.CustomersFile: files.Customers,
+			billing.IssuerFile:    files.Issuer,
+			billing.DefaultsFile:  files.Defaults,
+		}}
 		archived := archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived, Rewrite: st.Rewrite, Now: e.Now}
 		st.Protected = archived.Protects
 		return &billing.Service{

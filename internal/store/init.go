@@ -5,18 +5,16 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
 //go:embed starter/customers.yaml starter/issuer.yaml starter/invoice_defaults.yaml starter/template.tex
 var starterFiles embed.FS
 
-type InitFileResult struct {
-	Path    string
-	Created bool
-}
-
-func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
+// initConfigDir creates the config directory and the starter files it
+// lacks, and returns the directory.
+func (h Host) initConfigDir() (string, []billing.InitFile, error) {
 	configDir := h.ConfigDir()
 	if strings.TrimSpace(configDir) == "" {
 		return "", nil, errors.New("config directory is unavailable")
@@ -25,13 +23,13 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 		return "", nil, err
 	}
 
-	results := make([]InitFileResult, 0, 5)
+	results := make([]billing.InitFile, 0, 5)
 
 	created, err := ensureStarterFile(h.GlobalConfigPath(), []byte(h.defaultConfigTemplate()), fsutil.Public)
 	if err != nil {
 		return "", nil, err
 	}
-	results = append(results, InitFileResult{Path: h.GlobalConfigPath(), Created: created})
+	results = append(results, billing.InitFile{Path: h.GlobalConfigPath(), Created: created})
 
 	for _, file := range []struct {
 		path string
@@ -51,7 +49,7 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 		if err != nil {
 			return "", nil, err
 		}
-		results = append(results, InitFileResult{Path: file.path, Created: created})
+		results = append(results, billing.InitFile{Path: file.path, Created: created})
 	}
 
 	return configDir, results, nil

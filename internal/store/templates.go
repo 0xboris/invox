@@ -11,13 +11,10 @@ import (
 	"github.com/0xboris/invox/internal/billing"
 )
 
-type TemplateSummary struct {
-	Name string
-	Path string
-}
-
-func (h Host) ListTemplates() ([]TemplateSummary, error) {
-	templateDir, err := h.TemplateCatalogDir()
+// listTemplates lists the .tex files of the template catalog, sorted by
+// name.
+func (h Host) listTemplates() ([]billing.Template, error) {
+	templateDir, err := h.templateCatalogDir()
 	if err != nil {
 		return nil, err
 	}
@@ -30,12 +27,12 @@ func (h Host) ListTemplates() ([]TemplateSummary, error) {
 		return nil, err
 	}
 
-	templates := make([]TemplateSummary, 0, len(entries))
+	templates := make([]billing.Template, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".tex" {
 			continue
 		}
-		templates = append(templates, TemplateSummary{
+		templates = append(templates, billing.Template{
 			Name: entry.Name(),
 			Path: filepath.Join(templateDir, entry.Name()),
 		})
@@ -50,7 +47,7 @@ func (h Host) ListTemplates() ([]TemplateSummary, error) {
 	return templates, nil
 }
 
-func (h Host) ResolveTemplateReference(start, reference string) (string, error) {
+func (h Host) resolveTemplateReference(start, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
 		return "", nil
@@ -65,12 +62,12 @@ func (h Host) ResolveTemplateReference(start, reference string) (string, error) 
 		return h.resolveTemplatePath(startDir, reference)
 	}
 
-	templates, err := h.ListTemplates()
+	templates, err := h.listTemplates()
 	if err != nil {
 		return "", err
 	}
 
-	matches := make([]TemplateSummary, 0, 1)
+	matches := make([]billing.Template, 0, 1)
 	for _, template := range templates {
 		if template.Name == reference {
 			matches = append(matches, template)
@@ -87,10 +84,10 @@ func (h Host) ResolveTemplateReference(start, reference string) (string, error) 
 	}
 }
 
-// TemplateCatalogDir returns the directory template list reads: the
+// templateCatalogDir returns the directory template list reads: the
 // directory of the configured, project or global template.
-func (h Host) TemplateCatalogDir() (string, error) {
-	cfg, err := h.Config()
+func (h Host) templateCatalogDir() (string, error) {
+	cfg, err := h.config()
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +95,7 @@ func (h Host) TemplateCatalogDir() (string, error) {
 		return filepath.Dir(cfg.Resolve(cfg.Paths.Template, h.home)), nil
 	}
 
-	found, err := h.findInConfigDir(false, supportFiles[Template].globalNames...)
+	found, err := h.findInConfigDir(false, supportFiles[billing.TemplateFile].globalNames...)
 	if err != nil {
 		return "", err
 	}

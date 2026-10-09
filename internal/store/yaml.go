@@ -17,17 +17,17 @@ import (
 // few hundred bytes reaches hundreds of millions.
 const maxYAMLAliasNodes = 100_000
 
-// YAMLAliasError reports an alias that the decoder cannot expand: one
+// yamlAliasError reports an alias that the decoder cannot expand: one
 // that refers to a node containing it, or one that takes the document past
 // maxYAMLAliasNodes nodes reached through aliases.
-type YAMLAliasError struct {
+type yamlAliasError struct {
 	Label     string
 	Line      int
 	Alias     string
 	Recursive bool
 }
 
-func (e *YAMLAliasError) Error() string {
+func (e *yamlAliasError) Error() string {
 	if e.Recursive {
 		return fmt.Sprintf("%s:%d: alias *%s refers to a node that contains it", e.Label, e.Line, e.Alias)
 	}
@@ -95,7 +95,7 @@ func checkYAMLAliases(document *yaml.Node, label string) error {
 		}
 		if node.Kind == yaml.AliasNode {
 			if enclosing[node.Alias] {
-				return &YAMLAliasError{Label: label, Line: node.Line, Alias: node.Value, Recursive: true}
+				return &yamlAliasError{Label: label, Line: node.Line, Alias: node.Value, Recursive: true}
 			}
 			if outerAlias == nil {
 				outerAlias = node
@@ -105,7 +105,7 @@ func checkYAMLAliases(document *yaml.Node, label string) error {
 		if outerAlias != nil {
 			reached++
 			if reached > maxYAMLAliasNodes {
-				return &YAMLAliasError{Label: label, Line: outerAlias.Line, Alias: outerAlias.Value}
+				return &yamlAliasError{Label: label, Line: outerAlias.Line, Alias: outerAlias.Value}
 			}
 		}
 		enclosing[node] = true

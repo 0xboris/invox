@@ -36,7 +36,7 @@ type Host struct {
 	home       string
 	configBase string
 	dataBase   string
-	configDir  Resolved
+	configDir  resolved
 	configFile string
 	config     func() (*config.Config, error)
 }
@@ -70,9 +70,9 @@ func NewHost(in HostInputs) Host {
 
 	switch {
 	case in.ConfigDir != "":
-		h.configDir = Resolved{Path: in.ConfigDir, Source: SourceEnvDir}
+		h.configDir = resolved{Path: in.ConfigDir, Source: billing.SourceEnvDir}
 	case h.configBase != "":
-		h.configDir = Resolved{Path: filepath.Join(h.configBase, configDirName), Source: SourceDefault}
+		h.configDir = resolved{Path: filepath.Join(h.configBase, configDirName), Source: billing.SourceDefault}
 	}
 
 	loader := h
@@ -80,13 +80,8 @@ func NewHost(in HostInputs) Host {
 	return h
 }
 
-// Config returns the parsed config file, reading it on the first call only.
-// No config file gives the zero Config. It never returns nil with a nil
-// error.
-func (h Host) Config() (*config.Config, error) {
-	return h.config()
-}
-
+// loadConfig reads the config file; config calls it once. No config file
+// gives the zero Config. It never returns nil with a nil error.
 func (h Host) loadConfig() (*config.Config, error) {
 	file, err := h.configFileResolved()
 	if err != nil {
@@ -96,7 +91,7 @@ func (h Host) loadConfig() (*config.Config, error) {
 		return &config.Config{}, nil
 	}
 	c, err := loadConfigFile(file.Path)
-	if file.Source == SourceExplicit && errors.Is(err, fs.ErrNotExist) {
+	if file.Source == billing.SourceExplicit && errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("config file %s does not exist", file.Path)
 	}
 	return c, err
@@ -136,9 +131,9 @@ func decodeConfig(source []byte, path string, c *config.Config) error {
 
 // configFileResolved returns the config file to read: the explicit one, or
 // config.yaml from the config directories. Path is "" when there is none.
-func (h Host) configFileResolved() (Resolved, error) {
+func (h Host) configFileResolved() (resolved, error) {
 	if h.configFile != "" {
-		return Resolved{Path: h.configFile, Source: SourceExplicit}, nil
+		return resolved{Path: h.configFile, Source: billing.SourceExplicit}, nil
 	}
 	return h.findInConfigDir(false, "config.yaml")
 }
@@ -150,40 +145,29 @@ func (h Host) ConfigDir() string {
 // findInConfigDir returns the first of names, as a file or as a directory,
 // in the config directory. An explicitly chosen config directory that does
 // not exist is an error.
-func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
+func (h Host) findInConfigDir(isDir bool, names ...string) (resolved, error) {
 	dir := h.configDir
-	if dir.Source == SourceEnvDir {
+	if dir.Source == billing.SourceEnvDir {
 		if info, err := os.Stat(dir.Path); err != nil || !info.IsDir() {
-			return Resolved{}, &billing.ConfigDirNotFoundError{Dir: dir.Path}
+			return resolved{}, &billing.ConfigDirNotFoundError{Dir: dir.Path}
 		}
 	}
 	if dir.Path == "" {
-		return Resolved{}, nil
+		return resolved{}, nil
 	}
 	for _, name := range names {
 		candidate := filepath.Join(dir.Path, name)
 		if pathExists(candidate, isDir) {
-			return Resolved{Path: candidate, Source: dir.Source}, nil
+			return resolved{Path: candidate, Source: dir.Source}, nil
 		}
 	}
-	return Resolved{}, nil
+	return resolved{}, nil
 }
 
-// Source says where a resolved path came from.
-type Source = billing.Source
-
-const (
-	SourceNone     = billing.SourceNone
-	SourceExplicit = billing.SourceExplicit
-	SourceEnvDir   = billing.SourceEnvDir
-	SourceDefault  = billing.SourceDefault
-	SourceProject  = billing.SourceProject
-	SourceConfig   = billing.SourceConfig
-)
-
-type Resolved struct {
-	Path   string // "" only with SourceNone
-	Source Source
+// resolved is a path and where it came from.
+type resolved struct {
+	Path   string // "" only with billing.SourceNone
+	Source billing.Source
 }
 
 const (

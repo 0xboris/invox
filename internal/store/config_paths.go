@@ -29,11 +29,11 @@ func (h Host) GlobalConfigPath() string {
 	return filepath.Join(h.ConfigDir(), "config.yaml")
 }
 
-// EditableConfigPath returns the config file to open in an editor, creating
+// editableConfigPath returns the config file to open in an editor, creating
 // it from the template when it does not exist: the explicit config file, else
 // config.yaml where Config reads it, else config.yaml in the config
 // directory.
-func (h Host) EditableConfigPath() (string, error) {
+func (h Host) editableConfigPath() (string, error) {
 	path := h.configFile
 	if path == "" {
 		found, err := h.findInConfigDir(false, "config.yaml")

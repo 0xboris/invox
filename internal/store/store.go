@@ -11,14 +11,6 @@ import (
 	"github.com/0xboris/invox/internal/numbering"
 )
 
-// Files are the support files named for one run, relative to the working
-// directory or absolute, or "" to look them up.
-type Files struct {
-	Customers string
-	Issuer    string
-	Defaults  string
-}
-
 // Store reads and writes invox's files. It implements billing.Directory and
 // billing.Invoices.
 type Store struct {
@@ -27,20 +19,15 @@ type Store struct {
 	// Protected reports whether path is an archived invoice, which Create
 	// never overwrites.
 	Protected func(path string) (bool, error)
-	Files     Files
+	// Files are the support files named for this run, relative to the
+	// working directory or absolute. A file missing or "" is looked up.
+	Files map[billing.File]string
 }
 
 var (
 	_ billing.Directory = (*Store)(nil)
 	_ billing.Invoices  = (*Store)(nil)
 )
-
-var supportKinds = map[billing.File]SupportFile{
-	billing.CustomersFile: Customers,
-	billing.IssuerFile:    Issuer,
-	billing.DefaultsFile:  Defaults,
-	billing.TemplateFile:  Template,
-}
 
 func (s *Store) workDir() (string, error) {
 	cwd, err := s.Getwd()
@@ -50,18 +37,6 @@ func (s *Store) workDir() (string, error) {
 	return filepath.Clean(cwd), nil
 }
 
-func (s *Store) override(f billing.File) string {
-	switch f {
-	case billing.CustomersFile:
-		return s.Files.Customers
-	case billing.IssuerFile:
-		return s.Files.Issuer
-	case billing.DefaultsFile:
-		return s.Files.Defaults
-	}
-	return ""
-}
-
 // Locate returns the absolute path of the support file f: the one named
 // for this run, else the one found from the working directory.
 func (s *Store) Locate(f billing.File) (string, error) {
@@ -69,9 +44,9 @@ func (s *Store) Locate(f billing.File) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := s.override(f)
+	path := s.Files[f]
 	if strings.TrimSpace(path) == "" {
-		found, err := s.Host.ResolveSupportFile(supportKinds[f], baseDir)
+		found, err := s.Host.resolveSupportFile(f, baseDir)
 		if err != nil {
 			return "", err
 		}
@@ -103,7 +78,7 @@ func (s *Store) Customer(id string) (invoice.Customer, error) {
 	if err != nil {
 		return invoice.Customer{}, err
 	}
-	return LoadCustomer(path, id)
+	return loadCustomer(path, id)
 }
 
 // Customers reads customers.yaml.
@@ -144,32 +119,23 @@ func (s *Store) Template(ref string) (billing.Template, error) {
 			return billing.Template{}, err
 		}
 	}
-	path, err := s.Host.ResolveTemplateReference(baseDir, ref)
+	path, err := s.Host.resolveTemplateReference(baseDir, ref)
 	if err != nil {
 		return billing.Template{}, &billing.TemplateLookupError{Err: err}
 	}
-	return s.template(fsutil.Abs(baseDir, path)), nil
-}
-
-func (s *Store) template(path string) billing.Template {
-	return billing.Template{Name: filepath.Base(path), Path: path}
+	path = fsutil.Abs(baseDir, path)
+	return billing.Template{Name: filepath.Base(path), Path: path}, nil
 }
 
 // Templates lists the template catalog and returns its directory.
 func (s *Store) Templates() ([]billing.Template, string, error) {
-	summaries, err := s.Host.ListTemplates()
+	templates, err := s.Host.listTemplates()
 	if err != nil {
 		return nil, "", err
 	}
-	dir, err := s.Host.TemplateCatalogDir()
+	dir, err := s.Host.templateCatalogDir()
 	if err != nil {
 		return nil, "", err
-	}
-	templates := make([]billing.Template, 0, len(summaries))
-	for _, summary := range summaries {
-		t := s.template(summary.Path)
-		t.Name = summary.Name
-		templates = append(templates, t)
 	}
 	return templates, dir, nil
 }
@@ -181,41 +147,25 @@ func (s *Store) Paths() ([]billing.PathReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	reports, err := s.Host.Paths(start)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]billing.PathReport, 0, len(reports))
-	for _, r := range reports {
-		out = append(out, billing.PathReport{Name: r.Name, Path: r.Path, Source: r.Source})
-	}
-	return out, nil
+	return s.Host.paths(start)
 }
 
 // EditablePath returns f for an editor.
 func (s *Store) EditablePath(f billing.File) (string, error) {
 	if f == billing.ConfigFile {
-		return s.Host.EditableConfigPath()
+		return s.Host.editableConfigPath()
 	}
 	return s.Locate(f)
 }
 
 // Init creates the config directory and the starter files it lacks.
 func (s *Store) Init() (string, []billing.InitFile, error) {
-	dir, results, err := s.Host.InitializeConfigDir()
-	if err != nil {
-		return "", nil, err
-	}
-	files := make([]billing.InitFile, 0, len(results))
-	for _, r := range results {
-		files = append(files, billing.InitFile(r))
-	}
-	return dir, files, nil
+	return s.Host.initConfigDir()
 }
 
 // Settings reads the parts of config.yaml the use cases need.
 func (h Host) Settings() (billing.Settings, error) {
-	cfg, err := h.Config()
+	cfg, err := h.config()
 	if err != nil {
 		return billing.Settings{}, err
 	}

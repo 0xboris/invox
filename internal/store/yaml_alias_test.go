@@ -142,11 +142,11 @@ func TestYAMLLoadersRejectRecursiveAndExplosiveAliases(t *testing.T) {
 func TestParseYAMLDocumentSourceAliasErrorIsTyped(t *testing.T) {
 	_, err := parseYAMLDocumentSource([]byte("positions: &p [*p]\n"), "invoice.yaml")
 
-	var aliasErr *YAMLAliasError
+	var aliasErr *yamlAliasError
 	if !errors.As(err, &aliasErr) {
-		t.Fatalf("error = %v, want a *YAMLAliasError", err)
+		t.Fatalf("error = %v, want a *yamlAliasError", err)
 	}
-	want := YAMLAliasError{Label: "invoice.yaml", Line: 1, Alias: "p", Recursive: true}
+	want := yamlAliasError{Label: "invoice.yaml", Line: 1, Alias: "p", Recursive: true}
 	if *aliasErr != want {
 		t.Fatalf("error = %+v, want %+v", *aliasErr, want)
 	}

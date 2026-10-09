@@ -58,8 +58,8 @@ func (t customerTable) Lookup(customerID string, strict bool) (customer invoice.
 	return customer, true, err
 }
 
-// LoadCustomer decodes the entry of customerID in customers.yaml.
-func LoadCustomer(customersPath, customerID string) (invoice.Customer, error) {
+// loadCustomer decodes the entry of customerID in customers.yaml.
+func loadCustomer(customersPath, customerID string) (invoice.Customer, error) {
 	customers, err := loadCustomerTable(customersPath)
 	if err != nil {
 		return invoice.Customer{}, err

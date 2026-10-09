@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 func TestResolveDefaultPathsPreferLocalProjectFilesOverGlobalConfig(t *testing.T) {
@@ -260,14 +262,14 @@ func TestEditableConfigPathCreatesCommentedTemplate(t *testing.T) {
 	h := testHost(configHome, homeDir)
 	archiveDir := filepath.Join(homeDir, ".local", "share", "invox", "invoices")
 
-	path, err := h.EditableConfigPath()
+	path, err := h.editableConfigPath()
 	if err != nil {
-		t.Fatalf("EditableConfigPath returned error: %v", err)
+		t.Fatalf("editableConfigPath returned error: %v", err)
 	}
 
 	wantPath := filepath.Join(configHome, "invox", "config.yaml")
 	if path != wantPath {
-		t.Fatalf("EditableConfigPath() = %q, want %q", path, wantPath)
+		t.Fatalf("editableConfigPath() = %q, want %q", path, wantPath)
 	}
 
 	source, err := os.ReadFile(path)
@@ -331,12 +333,12 @@ func TestEditableConfigPathPreservesExistingConfig(t *testing.T) {
 		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
 	}
 
-	gotPath, err := h.EditableConfigPath()
+	gotPath, err := h.editableConfigPath()
 	if err != nil {
-		t.Fatalf("EditableConfigPath returned error: %v", err)
+		t.Fatalf("editableConfigPath returned error: %v", err)
 	}
 	if gotPath != path {
-		t.Fatalf("EditableConfigPath() = %q, want %q", gotPath, path)
+		t.Fatalf("editableConfigPath() = %q, want %q", gotPath, path)
 	}
 
 	got, err := os.ReadFile(path)
@@ -353,9 +355,9 @@ func TestResolveDefaultCustomersPathRejectsIndentedTopLevelConfig(t *testing.T) 
 
 	h := writeConfigFile(t, " numbering:\n  pattern: '{customer_id}-{counter:03}'\npaths:\n  customers: '~/customers.yaml'\n")
 
-	_, err := h.ResolveSupportFile(Customers, t.TempDir())
+	_, err := h.resolveSupportFile(billing.CustomersFile, t.TempDir())
 	if err == nil {
-		t.Fatalf("ResolveSupportFile returned nil error for indented top-level config")
+		t.Fatalf("resolveSupportFile returned nil error for indented top-level config")
 	}
 	if !strings.Contains(err.Error(), "top-level keys must not be indented") {
 		t.Fatalf("error %q does not contain top-level indentation message", err.Error())
@@ -374,16 +376,16 @@ func resolveDefaultOptions(t *testing.T, h Host, start string) supportPaths {
 	var opts supportPaths
 	for _, resolve := range []struct {
 		path *string
-		kind SupportFile
+		kind billing.File
 	}{
-		{&opts.CustomersPath, Customers},
-		{&opts.IssuerPath, Issuer},
-		{&opts.DefaultsPath, Defaults},
-		{&opts.TemplatePath, Template},
+		{&opts.CustomersPath, billing.CustomersFile},
+		{&opts.IssuerPath, billing.IssuerFile},
+		{&opts.DefaultsPath, billing.DefaultsFile},
+		{&opts.TemplatePath, billing.TemplateFile},
 	} {
-		found, err := h.ResolveSupportFile(resolve.kind, start)
+		found, err := h.resolveSupportFile(resolve.kind, start)
 		if err != nil {
-			t.Fatalf("ResolveSupportFile returned error: %v", err)
+			t.Fatalf("resolveSupportFile returned error: %v", err)
 		}
 		*resolve.path = found.Path
 	}

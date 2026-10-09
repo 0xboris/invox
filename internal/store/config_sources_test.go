@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -41,9 +43,9 @@ func TestConfigIsReadOncePerHost(t *testing.T) {
 			t.Fatalf("Settings returned error: %v", err)
 		}
 		subject := strings.ReplaceAll(settings.EmailSubject, "{invoice_number}", "C-01")
-		customers, err := h.ResolveSupportFile(Customers, t.TempDir())
+		customers, err := h.resolveSupportFile(billing.CustomersFile, t.TempDir())
 		if err != nil {
-			t.Fatalf("ResolveSupportFile returned error: %v", err)
+			t.Fatalf("resolveSupportFile returned error: %v", err)
 		}
 		return []string{archiveDir, settings.Numbering.Pattern, subject, filepath.Base(customers.Path)}
 	}
@@ -124,9 +126,9 @@ func TestConfigLocationErrors(t *testing.T) {
 
 	missingFile := in
 	missingFile.ConfigFile = filepath.Join(root, "missing.yaml")
-	_, err := NewHost(missingFile).Config()
+	_, err := NewHost(missingFile).config()
 	if want := "config file " + missingFile.ConfigFile + " does not exist"; err == nil || err.Error() != want {
-		t.Fatalf("Config() with a missing explicit file error = %v, want %q", err, want)
+		t.Fatalf("config() with a missing explicit file error = %v, want %q", err, want)
 	}
 
 	missingDir := in
@@ -155,18 +157,18 @@ func TestPathsReportsEachSource(t *testing.T) {
 	writeFile(t, filepath.Join(invoxDir, "template.tex"), "x\n")
 	writeFile(t, filepath.Join(invoxDir, "config.yaml"), "paths:\n  defaults: 'd.yaml'\n")
 
-	got, err := NewHost(in).Paths(work)
+	got, err := NewHost(in).paths(work)
 	if err != nil {
 		t.Fatalf("Paths returned error: %v", err)
 	}
-	want := []PathReport{
-		{"config-dir", Resolved{invoxDir, SourceDefault}},
-		{"config", Resolved{filepath.Join(invoxDir, "config.yaml"), SourceDefault}},
-		{"customers", Resolved{filepath.Join(work, "customers.yaml"), SourceProject}},
-		{"issuer", Resolved{}},
-		{"defaults", Resolved{filepath.Join(invoxDir, "d.yaml"), SourceConfig}},
-		{"template", Resolved{filepath.Join(invoxDir, "template.tex"), SourceDefault}},
-		{"archive", Resolved{filepath.Join(in.Home, ".local", "share", "invox", "invoices"), SourceDefault}},
+	want := []billing.PathReport{
+		{Name: "config-dir", Path: invoxDir, Source: billing.SourceDefault},
+		{Name: "config", Path: filepath.Join(invoxDir, "config.yaml"), Source: billing.SourceDefault},
+		{Name: "customers", Path: filepath.Join(work, "customers.yaml"), Source: billing.SourceProject},
+		{Name: "issuer"},
+		{Name: "defaults", Path: filepath.Join(invoxDir, "d.yaml"), Source: billing.SourceConfig},
+		{Name: "template", Path: filepath.Join(invoxDir, "template.tex"), Source: billing.SourceDefault},
+		{Name: "archive", Path: filepath.Join(in.Home, ".local", "share", "invox", "invoices"), Source: billing.SourceDefault},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Paths() =\n%+v\nwant\n%+v", got, want)
@@ -174,7 +176,7 @@ func TestPathsReportsEachSource(t *testing.T) {
 
 	writeFile(t, filepath.Join(root, "bad.yaml"), "numbering:\n  patern: x\n")
 	in.ConfigFile = filepath.Join(root, "bad.yaml")
-	if _, err := NewHost(in).Paths(work); err == nil || !strings.Contains(err.Error(), `bad.yaml:2: unknown key "patern" in numbering`) {
+	if _, err := NewHost(in).paths(work); err == nil || !strings.Contains(err.Error(), `bad.yaml:2: unknown key "patern" in numbering`) {
 		t.Fatalf("Paths() with a broken config error = %v, want the unknown key", err)
 	}
 }
@@ -210,16 +212,16 @@ func TestUpwardSearchIsBounded(t *testing.T) {
 			}
 			h := testHost(filepath.Join(root, "config-home"), filepath.Join(root, "home"))
 
-			got, err := h.ResolveSupportFile(Customers, start)
+			got, err := h.resolveSupportFile(billing.CustomersFile, start)
 			if err != nil {
-				t.Fatalf("ResolveSupportFile returned error: %v", err)
+				t.Fatalf("resolveSupportFile returned error: %v", err)
 			}
-			want := Resolved{}
+			want := resolved{}
 			if tt.want != "" {
-				want = Resolved{Path: filepath.Join(root, filepath.FromSlash(tt.want)), Source: SourceProject}
+				want = resolved{Path: filepath.Join(root, filepath.FromSlash(tt.want)), Source: billing.SourceProject}
 			}
 			if got != want {
-				t.Fatalf("ResolveSupportFile(Customers, %s) = %+v, want %+v", tt.start, got, want)
+				t.Fatalf("resolveSupportFile(billing.CustomersFile, %s) = %+v, want %+v", tt.start, got, want)
 			}
 		})
 	}
@@ -258,12 +260,12 @@ func TestUpwardSearchStopsBelowASymlinkedHome(t *testing.T) {
 	}
 	in.Home = linkedHome
 
-	got, err := NewHost(in).ResolveSupportFile(Customers, start)
+	got, err := NewHost(in).resolveSupportFile(billing.CustomersFile, start)
 	if err != nil {
-		t.Fatalf("ResolveSupportFile returned error: %v", err)
+		t.Fatalf("resolveSupportFile returned error: %v", err)
 	}
 	if got.Path == stray {
-		t.Fatalf("ResolveSupportFile found %s in the symlinked home; want the search to stop below it", stray)
+		t.Fatalf("resolveSupportFile found %s in the symlinked home; want the search to stop below it", stray)
 	}
 }
 
