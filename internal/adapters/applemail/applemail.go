@@ -3,6 +3,7 @@ package applemail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -50,7 +51,8 @@ var script = []string{
 
 // Draft opens m in an Apple Mail compose window with the PDF attached. It
 // implements billing.Mailer; the draft has no file. An empty m.FromAddress
-// leaves the sender to Mail's default account.
+// leaves the sender to Mail's default account. It returns a
+// *billing.ToolFailedError when osascript fails.
 func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
 	if _, err := os.Stat(m.Attachment); err != nil {
 		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
@@ -69,8 +71,9 @@ func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (s
 		Stdout: c.ios.ErrOut,
 		Stderr: c.ios.ErrOut,
 	})
-	if err != nil {
-		return "", fmt.Errorf("failed to open editable email draft: %w", err)
+	var execErr *run.ExecError
+	if errors.As(err, &execErr) {
+		return "", &billing.ToolFailedError{Tool: "osascript", Code: execErr.Code, Err: err}
 	}
-	return "", nil
+	return "", err
 }

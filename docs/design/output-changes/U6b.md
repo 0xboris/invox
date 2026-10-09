@@ -68,3 +68,18 @@ Changed files (each pins its command's row with a `missing.yaml` case; `validate
 - `cmd/invox/testdata/script/increment.txtar`
 - `cmd/invox/testdata/script/archive.txtar`
 - `cmd/invox/testdata/script/json.txtar`
+
+## Apple Mail failures are a billing.ToolFailedError
+
+`applemail.Composer.Draft` returns a `*billing.ToolFailedError` for osascript when the
+program fails, like tectonic and the editor, instead of wrapping the bare exit status. Exit
+code 1, before and after. osascript's own output still comes first on stderr.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `invox email inv.yaml` on macOS, osascript exits 1 | `error: failed to open editable email draft: exit status 1` | `error: osascript exited with status 1` |
+
+Changed files:
+
+- `cmd/invox/testdata/script/email_macos.txtar`: a new case and `want-osascript-failed.txt`
+  pin the row. `FAKE_OPEN_FAIL` now makes the fake osascript fail too.

@@ -224,8 +224,13 @@ func fakeOpen(args []string) int {
 
 // fakeOsascript stands in for the Apple Mail AppleScript that `invox email`
 // runs on macOS. invox passes the message after "--" as recipient, subject,
-// body, attachment and sender.
+// body, attachment and sender. Like fakeOpen, it fails when FAKE_OPEN_FAIL
+// is set.
 func fakeOsascript(args []string) int {
+	if os.Getenv(fakeOpenFailEnv) != "" {
+		fmt.Fprintln(os.Stderr, "fake osascript: forced failure")
+		return 1
+	}
 	for i, arg := range args {
 		if arg != "--" {
 			continue

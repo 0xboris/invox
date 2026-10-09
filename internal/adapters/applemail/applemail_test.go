@@ -2,6 +2,7 @@ package applemail_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,5 +80,22 @@ func TestComposePassesTheMessageAsArguments(t *testing.T) {
 	}
 	if stdout.String() != "" || stderr.String() != "osascript: note\n" {
 		t.Fatalf("stdout, stderr = %q, %q, want \"\", %q", stdout.String(), stderr.String(), "osascript: note\n")
+	}
+}
+
+func TestDraftReturnsToolFailedErrorWhenOsascriptFails(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	stub := runtest.NewStub(t)
+	stub.Register("osascript", func(run.Cmd) error { return &run.ExecError{Name: "osascript", Code: 1} })
+	pdf := filepath.Join(t.TempDir(), "invoice.pdf")
+	if err := os.WriteFile(pdf, []byte("%PDF-1.4\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := applemail.New(stub, ios).Draft(context.Background(), billing.Message{To: "office@appsters.example", Attachment: pdf}, false)
+
+	var failed *billing.ToolFailedError
+	if !errors.As(err, &failed) || err.Error() != "osascript exited with status 1" {
+		t.Fatalf("Draft error = %v, want *billing.ToolFailedError \"osascript exited with status 1\"", err)
 	}
 }
