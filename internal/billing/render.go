@@ -110,7 +110,7 @@ func (s *Service) Build(ctx context.Context, req BuildRequest) (BuildResult, err
 		return result, nil
 	}
 
-	if err := s.Renderer.Build(ctx, s.Compiler, t, source, req.Output); err != nil {
+	if err := s.Renderer.Build(ctx, t, source, req.Output); err != nil {
 		return BuildResult{}, err
 	}
 	if err := s.markBuilt(req.Invoice); err != nil {

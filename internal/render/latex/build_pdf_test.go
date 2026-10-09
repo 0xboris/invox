@@ -10,7 +10,6 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
-	"github.com/0xboris/invox/internal/render/latex"
 )
 
 func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
@@ -81,16 +80,18 @@ func TestBuildInvoicePDFReturnsTheCompileError(t *testing.T) {
 func (h host) buildInvoicePDF(t *testing.T, ctx context.Context, compile func(ctx context.Context, texPath string) error, templatePath, outputPath string, inv *invoice.Context) error {
 	t.Helper()
 	tmpl := h.template(t, templatePath)
-	source, err := latex.Renderer{}.Render(tmpl, inv, billing.EPCFor(inv))
+	renderer := h.renderer(t)
+	source, err := renderer.Render(tmpl, inv, billing.EPCFor(inv))
 	if err != nil {
 		return err
 	}
-	return latex.Renderer{}.Build(ctx, compilerFunc(func(ctx context.Context, sourcePath string) (string, error) {
+	renderer.Compiler = compilerFunc(func(ctx context.Context, sourcePath string) (string, error) {
 		if err := compile(ctx, sourcePath); err != nil {
 			return "", err
 		}
 		return strings.TrimSuffix(sourcePath, filepath.Ext(sourcePath)) + ".pdf", nil
-	}), tmpl, source, outputPath)
+	})
+	return renderer.Build(ctx, tmpl, source, outputPath)
 }
 
 type compilerFunc func(ctx context.Context, sourcePath string) (string, error)

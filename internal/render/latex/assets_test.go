@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/0xboris/invox/internal/render/latex"
 )
 
 func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
@@ -69,7 +67,7 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 	outputPath := filepath.Join(outputDir, "invoice.tex")
 	rendered := "\\setmainfont{Ubuntu}[Path=fonts/,UprightFont=Ubuntu-Regular.ttf]\n\\includegraphics{logo.png}\n"
 
-	if err := (latex.Renderer{}).Write(h.template(t, templatePath), rendered, outputPath); err != nil {
+	if err := h.renderer(t).Write(h.template(t, templatePath), rendered, outputPath); err != nil {
 		t.Fatalf("copyTemplateAssets returned error: %v", err)
 	}
 

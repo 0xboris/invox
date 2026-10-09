@@ -87,10 +87,6 @@ type CustomerTable interface {
 type Template struct {
 	Name string
 	Path string
-	// FindAsset returns the file or directory rel that the template uses:
-	// next to the template, else in the config directories. It returns ""
-	// when there is none.
-	FindAsset func(rel string, dir bool) string
 }
 
 // Source says where a resolved path came from.
@@ -250,20 +246,14 @@ type EPC struct {
 	Label string
 }
 
-// Renderer turns an invoice into the source the Compiler reads.
+// Renderer turns an invoice into a document: source to write, or a PDF.
 type Renderer interface {
 	// Render checks template t and fills it in. It writes nothing.
 	Render(t Template, inv *invoice.Context, epc EPC) (string, error)
 	// Write writes source to path and copies t's assets next to it.
 	Write(t Template, source, path string) error
-	// Build writes source with t's assets to a scratch directory, compiles
-	// it there with c, and copies the PDF to output.
-	Build(ctx context.Context, c Compiler, t Template, source, output string) error
-}
-
-// Compiler turns rendered source into a PDF and returns its path.
-type Compiler interface {
-	Compile(ctx context.Context, sourcePath string) (string, error)
+	// Build compiles source, with t's assets, into a PDF at output.
+	Build(ctx context.Context, t Template, source, output string) error
 }
 
 // Message is an invoice email with the PDF to attach.

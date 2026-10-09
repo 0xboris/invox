@@ -50,6 +50,13 @@ func loadContext(t *testing.T, customersPath, issuerPath, invoicePath string) (*
 }
 
 // template resolves the template at path as render and build do.
+// renderer is the renderer factory builds, which finds assets next to the
+// template and in h's config directory.
+func (h host) renderer(t *testing.T) latex.Renderer {
+	t.Helper()
+	return h.service(t, cmdutil.Files{}).Renderer.(latex.Renderer)
+}
+
 func (h host) template(t *testing.T, path string) billing.Template {
 	t.Helper()
 	tmpl, err := h.service(t, cmdutil.Files{}).Directory.Template(path)
@@ -64,11 +71,11 @@ func (h host) template(t *testing.T, path string) billing.Template {
 func (h host) renderInvoice(t *testing.T, templatePath, outputPath string, ctx *invoice.Context) error {
 	t.Helper()
 	tmpl := h.template(t, templatePath)
-	source, err := latex.Renderer{}.Render(tmpl, ctx, billing.EPCFor(ctx))
+	source, err := h.renderer(t).Render(tmpl, ctx, billing.EPCFor(ctx))
 	if err != nil {
 		return err
 	}
-	return latex.Renderer{}.Write(tmpl, source, outputPath)
+	return h.renderer(t).Write(tmpl, source, outputPath)
 }
 
 func writeContextFixtures(t *testing.T) (string, string, string, string, string, string) {

@@ -96,8 +96,21 @@ const (
 	epcQRCodePlaceholder      = "@@EPC_QR_CODE@@"
 )
 
+// Compiler turns LaTeX source into a PDF and returns its path. The renderer
+// is its only caller, so it is declared here rather than in billing.
+type Compiler interface {
+	Compile(ctx context.Context, sourcePath string) (string, error)
+}
+
 // Renderer fills LaTeX templates in. It implements billing.Renderer.
-type Renderer struct{}
+type Renderer struct {
+	// FindAsset returns the file or directory rel that the template at
+	// template uses: next to it, else in the config directory. It returns
+	// "" when there is none.
+	FindAsset func(template, rel string, dir bool) string
+	// Compiler compiles what Build writes.
+	Compiler Compiler
+}
 
 var _ billing.Renderer = Renderer{}
 
@@ -135,7 +148,7 @@ func (Renderer) Render(t billing.Template, ctx *invoice.Context, epc billing.EPC
 
 // Write writes source to path and copies the assets it uses from next to
 // the template, or from the config directories, next to path.
-func (Renderer) Write(t billing.Template, source, path string) error {
+func (r Renderer) Write(t billing.Template, source, path string) error {
 	if err := fsutil.WriteFile(path, []byte(source), fsutil.Public); err != nil {
 		return err
 	}
@@ -144,7 +157,7 @@ func (Renderer) Write(t billing.Template, source, path string) error {
 		return nil
 	}
 	for _, relDir := range AssetDirs(source) {
-		sourceDir := t.FindAsset(relDir, true)
+		sourceDir := r.FindAsset(t.Path, relDir, true)
 		if sourceDir == "" {
 			continue
 		}
@@ -153,7 +166,7 @@ func (Renderer) Write(t billing.Template, source, path string) error {
 		}
 	}
 	for _, relFile := range AssetFiles(source) {
-		sourceFile := t.FindAsset(relFile, false)
+		sourceFile := r.FindAsset(t.Path, relFile, false)
 		if sourceFile == "" {
 			continue
 		}
@@ -169,8 +182,8 @@ func (Renderer) Write(t billing.Template, source, path string) error {
 }
 
 // Build writes source with t's assets to a scratch directory, named after
-// output, compiles it there with c, and copies the PDF to output.
-func (r Renderer) Build(ctx context.Context, c billing.Compiler, t billing.Template, source, output string) error {
+// output, compiles it there with r.Compiler, and copies the PDF to output.
+func (r Renderer) Build(ctx context.Context, t billing.Template, source, output string) error {
 	dir, err := os.MkdirTemp("", "invox-build-")
 	if err != nil {
 		return err
@@ -181,7 +194,7 @@ func (r Renderer) Build(ctx context.Context, c billing.Compiler, t billing.Templ
 	if err := r.Write(t, source, sourcePath); err != nil {
 		return err
 	}
-	pdf, err := c.Compile(ctx, sourcePath)
+	pdf, err := r.Compiler.Compile(ctx, sourcePath)
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/render/latex"
 )
 
 // archiveBackupTime is the time the replacement tests archive at, so the
@@ -208,7 +209,9 @@ func TestMarkInvoiceBuiltKeepsArchivedStatus(t *testing.T) {
 			replaceInFixture(t, path, "  paid_amount: 0\n", "  paid_amount: 0\n  status: "+tc.status+"\n")
 
 			svc := isolatedHost(t).service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Time{})
-			svc.Compiler = writePDF{}
+			renderer := svc.Renderer.(latex.Renderer)
+			renderer.Compiler = writePDF{}
+			svc.Renderer = renderer
 			if _, err := svc.Build(context.Background(), billing.BuildRequest{Invoice: path, Template: templatePath, Output: filepath.Join(t.TempDir(), "invoice.pdf")}); err != nil {
 				t.Fatalf("MarkInvoiceBuilt returned error: %v", err)
 			}

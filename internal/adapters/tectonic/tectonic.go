@@ -44,7 +44,7 @@ func (c *Compiler) Build(ctx context.Context, texPath string) error {
 }
 
 // Compile compiles sourcePath and returns the PDF next to it. It
-// implements billing.Compiler.
+// implements latex.Compiler.
 func (c *Compiler) Compile(ctx context.Context, sourcePath string) (string, error) {
 	if err := c.Build(ctx, sourcePath); err != nil {
 		return "", err

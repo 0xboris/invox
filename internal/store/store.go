@@ -152,13 +152,7 @@ func (s *Store) Template(ref string) (billing.Template, error) {
 }
 
 func (s *Store) template(path string) billing.Template {
-	return billing.Template{
-		Name: filepath.Base(path),
-		Path: path,
-		FindAsset: func(rel string, dir bool) string {
-			return s.Host.findAsset(path, rel, dir)
-		},
-	}
+	return billing.Template{Name: filepath.Base(path), Path: path}
 }
 
 // Templates lists the template catalog and returns its directory.

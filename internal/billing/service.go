@@ -27,7 +27,6 @@ type Service struct {
 	Directory Directory
 	Archives  Archive // not "Archive": Service has an Archive method
 	Renderer  Renderer
-	Compiler  Compiler
 	Mailer    Mailer
 	// Settings reads config.yaml; it is called only by the use cases that
 	// need a setting.
