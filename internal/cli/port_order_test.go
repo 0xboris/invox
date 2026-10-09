@@ -90,9 +90,33 @@ func TestPortOrder(t *testing.T) {
 				portOrderArchive + "invoice.yaml": built("X-1", "built"),
 				portOrderArchive + "other.yaml":   built("CUST-001-001", "built"),
 			},
+			args:     []string{"archive", "add", "invoice.yaml"},
+			wantExit: 1,
+			// The duplicate number is a rule; where the file goes is
+			// decided when it is added.
+			wantStderr: "error: invoice.yaml: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/other.yaml\n" +
+				"Run 'invox increment -i invoice.yaml' to give it the next free number, then archive it again.\n",
+		},
+		{
+			name: "dir-error-before-status",
+			files: map[string]string{
+				"invoice.yaml":                  built("CUST-001-001", "draft"),
+				portOrderConfig + "config.yaml": "archive: [\n",
+			},
 			args:       []string{"archive", "add", "invoice.yaml"},
 			wantExit:   1,
-			wantStderr: "error: home/.config/invox/archive/invoice.yaml already exists\n",
+			wantStderr: "error: invoice.yaml: invoice.status must be `built` before archiving, got `draft`\n",
+		},
+		{
+			name: "archive-aliased-header-and-duplicate",
+			files: map[string]string{
+				"invoice.yaml":                  "customer_id: CUST-001\nbase: &base\n  number: CUST-001-001\n  status: built\ninvoice: *base\n",
+				portOrderArchive + "other.yaml": built("CUST-001-001", "built"),
+			},
+			args:     []string{"archive", "add", "invoice.yaml"},
+			wantExit: 1,
+			wantStderr: "error: invoice.yaml: invoice number CUST-001-001 is already used by archived invoice home/.config/invox/archive/other.yaml\n" +
+				"Run 'invox increment -i invoice.yaml' to give it the next free number, then archive it again.\n",
 		},
 		{
 			name:       "already-in-archive",

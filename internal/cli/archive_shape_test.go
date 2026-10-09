@@ -46,6 +46,7 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 	tests := []struct {
 		name    string
 		command string
+		flags   []string
 		invoice string
 		want    string
 	}{
@@ -53,6 +54,7 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 		{name: "add tilde", command: "add", invoice: "invoice: ~\n", want: ": missing `invoice` mapping"},
 		{name: "add scalar", command: "add", invoice: "invoice: 5\n", want: ":2: invoice must be a mapping, got an integer"},
 		{name: "add alias", command: "add", invoice: archiveShapeAlias, want: ": `invoice` must be a mapping"},
+		{name: "add dry-run alias", command: "add", flags: []string{"--dry-run"}, invoice: archiveShapeAlias, want: ": `invoice` must be a mapping"},
 		{name: "add missing", command: "add", invoice: "", want: ": missing `invoice` mapping"},
 		{name: "edit null", command: "edit", invoice: "invoice:\n", want: ": missing `invoice` mapping"},
 		{name: "edit alias", command: "edit", invoice: archiveShapeAlias, want: ": `invoice` must be a mapping"},
@@ -78,7 +80,7 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 				label = path
 			}
 
-			exitCode, stdout, stderr := captureRun(t, []string{"archive", tt.command, arg})
+			exitCode, stdout, stderr := captureRun(t, append([]string{"archive", tt.command, arg}, tt.flags...))
 			if want := "error: " + label + tt.want + "\n"; exitCode != 1 || stdout != "" || stderr != want {
 				t.Fatalf("archive %s = exit %d, stdout %q, stderr %q; want exit 1, no stdout, stderr %q", tt.command, exitCode, stdout, stderr, want)
 			}

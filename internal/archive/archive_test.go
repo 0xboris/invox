@@ -311,21 +311,22 @@ func TestAddWritesTheChangedInvoiceOnce(t *testing.T) {
 			}
 			return []byte("rewritten " + string(inv.CustomerID) + "\n"), nil
 		},
+		Now: func() time.Time { return time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC) },
 	}
-	p := billing.Placement{Path: filepath.Join(dir, "a.yaml"), Overwrite: true, HistoryDir: filepath.Join(dir, ".history")}
-	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
-	result, err := a.Add(src, p, billing.AddOptions{Replace: true, Now: now, Change: func(inv *invoice.Invoice) error {
+	workingCopy := invoice.Invoice{Archive: &invoice.ArchiveLink{ArchivePath: "a.yaml"}}
+	result, err := a.Add(src, workingCopy, billing.AddOptions{Replace: true, Change: func(inv *invoice.Invoice) error {
 		inv.CustomerID = "C-1"
 		return nil
 	}})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
+	archived := filepath.Join(dir, "a.yaml")
 	backup := filepath.Join(dir, ".history", "a.20260306T120000Z.yaml")
 	want := billing.ArchiveResult{
-		Path:       p.Path,
-		Replaced:   []billing.Backup{{Path: p.Path, BackupPath: backup}},
-		HistoryDir: p.HistoryDir,
+		Path:       archived,
+		Replaced:   []billing.Backup{{Path: archived, BackupPath: backup}},
+		HistoryDir: filepath.Join(dir, ".history"),
 	}
 	if !reflect.DeepEqual(result, want) {
 		t.Fatalf("Add = %+v, want %+v", result, want)
@@ -333,7 +334,7 @@ func TestAddWritesTheChangedInvoiceOnce(t *testing.T) {
 	if !reflect.DeepEqual(rewritten, []string{src}) {
 		t.Fatalf("Rewrite read %v, want only the source", rewritten)
 	}
-	for path, content := range map[string]string{p.Path: "rewritten C-1\n", backup: "archived\n"} {
+	for path, content := range map[string]string{archived: "rewritten C-1\n", backup: "archived\n"} {
 		if got, err := os.ReadFile(path); err != nil || string(got) != content {
 			t.Fatalf("%s = %q, %v; want %q", path, got, err, content)
 		}
@@ -356,8 +357,7 @@ func TestAddMovesNothingWhenTheRewriteFails(t *testing.T) {
 			return nil, errors.New("a.yaml: root value must be a mapping")
 		},
 	}
-	p := billing.Placement{Path: filepath.Join(dir, "a.yaml"), HistoryDir: filepath.Join(dir, ".history")}
-	_, err := a.Add(src, p, billing.AddOptions{Change: func(*invoice.Invoice) error { return nil }})
+	_, err := a.Add(src, invoice.Invoice{}, billing.AddOptions{Change: func(*invoice.Invoice) error { return nil }})
 	if err == nil || err.Error() != "a.yaml: root value must be a mapping" {
 		t.Fatalf("Add error = %v, want the rewrite error", err)
 	}

@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `increment`, `validate`, `render`, `build`, `email` and `archive add` accept the `INVOICE` argument together with `-i, --input` when both resolve to the same file, such as `inv.yaml` and its absolute path. When they name different files, the command exits 2 with a usage error. Without an invoice, `increment`, `validate` and `render` report `missing required input: INVOICE.yaml or -i, --input`, as `build` does. ([#106](https://github.com/0xboris/invox/pull/106))
 - Help, the generated docs and shell completion list only the new command forms. `invox email --help` no longer lists the `send` alias. ([#106](https://github.com/0xboris/invox/pull/106))
 - `new` checks its output file after the customer, the issuer and the numbering, so an unknown customer or a bad `payment.due_days` is reported before `... already exists`. `archive add` and `archive edit` report `invoice:` with no value as a missing `invoice` mapping, and a scalar `invoice:` with its line. `increment` names the line of a malformed `invoice.issue_date`.
+- `archive add` and `build --archive` check the invoice's status and number before the archive directory: a draft is reported as not built even when `config.yaml` is broken, and a duplicate number is reported before `... already exists` or an aliased `invoice` mapping.
 
 ### Added
 

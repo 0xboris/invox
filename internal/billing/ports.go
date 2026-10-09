@@ -188,16 +188,6 @@ type ArchiveResult struct {
 	Unread Unread
 }
 
-// Placement is where Archive.Add puts an invoice. Archive.Place makes it.
-type Placement struct {
-	// Path is the archived file to write.
-	Path string
-	// Overwrite allows Path to exist, when a working copy is re-archived.
-	Overwrite bool
-	// HistoryDir is where replaced files' previous versions are kept.
-	HistoryDir string
-}
-
 // AddOptions control Archive.Add.
 type AddOptions struct {
 	// Replace allows writing over archived files. Without it, Add returns
@@ -206,7 +196,6 @@ type AddOptions struct {
 	// DryRun runs every check and returns the result without writing. The
 	// result's backups have no BackupPath.
 	DryRun bool
-	Now    time.Time
 	// Change is applied to the invoice as it is archived, keeping its
 	// comments and layout, so the archived file is written once.
 	Change func(*invoice.Invoice) error
@@ -227,23 +216,19 @@ type Archive interface {
 	// Entries reads every archived invoice, sorted by Filename, and
 	// returns what the archive holds that invox no longer reads.
 	Entries() ([]ArchiveEntry, Unread, error)
-	// Dir returns the archive directory, "" when there is none.
-	Dir() (string, error)
-	// Place says where archiving inv, the invoice at src, writes it: over
-	// the archived file a working copy names, else under src's name in the
-	// archive directory, which must not exist yet. It refuses src when it
-	// is that file already.
-	Place(src string, inv invoice.Invoice) (Placement, error)
 	// Duplicate returns the archived invoice, in file name order, that has
 	// inv's number, other than src and, for a working copy, the archived
 	// file it replaces. It returns "" when there is none, when inv has no
 	// number, or when there is no archive directory, and what its walk
 	// could not read.
 	Duplicate(src string, inv invoice.Invoice) (string, Unread, error)
-	// Add moves the invoice at src into the archive at p with opts.Change
-	// applied, in one write, after backing up the archived files it
-	// replaces. Without opts.Replace it refuses to replace any.
-	Add(src string, p Placement, opts AddOptions) (ArchiveResult, error)
+	// Add moves inv, the invoice at src, into the archive with opts.Change
+	// applied, in one write: over the archived file a working copy names,
+	// after backing it up, else under src's name, which must not exist
+	// yet. It refuses src when it is that file already, and an archive
+	// directory that is not configured. Without opts.Replace it refuses to
+	// replace an archived file.
+	Add(src string, inv invoice.Invoice, opts AddOptions) (ArchiveResult, error)
 	// Checkout resolves ref, an archived invoice relative to the archive
 	// directory, and says where its working copy in workDir goes.
 	Checkout(ref, workDir string) (Checkout, error)

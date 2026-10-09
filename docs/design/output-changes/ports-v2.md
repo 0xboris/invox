@@ -21,3 +21,19 @@ lenient identity reader. `new` checks its output file when it writes it.
 Pinned by `TestArchiveRefusesInvoiceKeyThatIsNotAMapping`, `TestIncrementNeedsOnlyTheFieldsNumberingReads`
 and the `new-default-exists-and-bad-due` case of `TestPortOrder`. A bad value in a field
 `increment` does not read, such as `paid_amount: lots`, still does not stop it.
+
+## Archive placement inside `Add`
+
+`archive add` and `build --archive` check the invoice's status and number first, and where
+the file goes when it is added, so the archive directory is read later.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `archive add` with a broken `config.yaml` or unusable `archive.dir` and an invoice that is not built | the config or directory error | ``error: invoice.yaml: invoice.status must be `built` before archiving, got `draft` `` |
+| `archive add` when a file of that name is already in the archive and an archived invoice has the same number | `error: <archive>/invoice.yaml already exists` | the duplicate-number error and its `invox increment` hint |
+| `archive add` of an invoice whose `invoice:` is an alias, when an archived invoice has the same number | ``error: invoice.yaml: `invoice` must be a mapping`` | the duplicate-number error |
+| `archive add --dry-run` of an invoice whose `invoice:` is an alias | ``error: invoice.yaml: `invoice` must be a mapping`` | unchanged: the dry run rewrites the invoice in memory, as the real run does |
+
+Pinned by the `exists-vs-duplicate`, `dir-error-before-status` and
+`archive-aliased-header-and-duplicate` cases of `TestPortOrder` and the `add dry-run alias`
+case of `TestArchiveRefusesInvoiceKeyThatIsNotAMapping`.

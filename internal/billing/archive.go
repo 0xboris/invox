@@ -58,28 +58,16 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if opts.AssumeBuilt {
 		status, _ = status.Apply(invoice.Building)
 	}
-	dir, err := s.Archives.Dir()
-	if err != nil {
-		return ArchiveResult{}, err
-	}
-	if strings.TrimSpace(dir) == "" {
-		return ArchiveResult{}, errors.New("archive directory is unavailable")
-	}
 	if err := archivable(path, inv, status); err != nil {
-		return ArchiveResult{}, err
-	}
-	place, err := s.Archives.Place(path, inv)
-	if err != nil {
 		return ArchiveResult{}, err
 	}
 	unread, err := s.numberUnique(path, inv)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	result, err := s.Archives.Add(path, place, AddOptions{
+	result, err := s.Archives.Add(path, inv, AddOptions{
 		Replace: opts.Replace,
 		DryRun:  opts.DryRun,
-		Now:     s.Now(),
 		Change: func(inv *invoice.Invoice) error {
 			inv.Header.Status = invoice.Text(invoice.Archived)
 			inv.Archive = nil
@@ -196,11 +184,7 @@ func (s *Service) ListArchive() (ArchiveList, error) {
 	if err != nil {
 		return ArchiveList{}, err
 	}
-	dir, err := s.Archives.Dir()
-	if err != nil {
-		return ArchiveList{}, err
-	}
-	return ArchiveList{Dir: dir, Entries: entries, Unread: unread}, nil
+	return ArchiveList{Dir: unread.Dir, Entries: entries, Unread: unread}, nil
 }
 
 // EditOptions control EditArchived.

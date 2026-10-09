@@ -22,7 +22,7 @@ var (
 	narrowPorts = map[string][]string{
 		"Invoices":  {"Create", "Drafts", "Load", "Update"},
 		"Directory": {"Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "Locate", "Paths", "Template", "Templates"},
-		"Archive":   {"Add", "Checkout", "Dir", "Duplicate", "Entries", "Place", "Source"},
+		"Archive":   {"Add", "Checkout", "Duplicate", "Entries", "Source"},
 		"Renderer":  {"Build", "Render", "Write"},
 		"Compiler":  {"Compile"},
 		"Mailer":    {"Check", "CheckAttachment", "Draft"},
