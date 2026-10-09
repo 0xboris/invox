@@ -23,7 +23,7 @@ type EditOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	CustomersPath string
+	Support cmdutil.SupportPaths
 }
 
 // NewCmdEdit returns the customer edit command. runF replaces editRun in
@@ -55,8 +55,7 @@ $ invox customer edit -c customers.yaml
 			return editRun(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	return cmd
 }
 
@@ -66,7 +65,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	customersPath, err := svc.EditablePath(billing.CustomersFile)
 	if err != nil {
 		return cmdutil.UsageError(err)

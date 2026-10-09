@@ -25,15 +25,14 @@ type EmailOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	InvoicePath   string
-	PDFPath       string
-	OutputPath    string
-	CustomersPath string
-	IssuerPath    string
-	To            string
-	Subject       string
-	Force         bool
-	DryRun        bool
+	InvoicePath string
+	PDFPath     string
+	OutputPath  string
+	Support     cmdutil.SupportPaths
+	To          string
+	Subject     string
+	Force       bool
+	DryRun      bool
 }
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
@@ -88,8 +87,7 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML or PDF file")
 	cmd.Flags().StringVarP(&opts.PDFPath, "pdf", "p", "", "Path to the invoice PDF (default: the input with .pdf)")
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Write the draft to this .eml file instead of a temporary one (must end with .eml)")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile)
 	cmd.Flags().StringVar(&opts.To, "to", "", "Recipient email override")
 	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override, supports placeholders")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
@@ -98,8 +96,6 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("pdf", "pdf")
 	_ = cmd.MarkFlagFilename("output", "eml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	_ = cmd.RegisterFlagCompletionFunc("to", cobra.NoFileCompletions)
 	_ = cmd.RegisterFlagCompletionFunc("subject", cobra.NoFileCompletions)
 	return cmd
@@ -130,11 +126,9 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{
-		Customers:   cmdutil.AbsFlag(baseDir, opts.CustomersPath),
-		Issuer:      cmdutil.AbsFlag(baseDir, opts.IssuerPath),
-		EmailOutput: explicitOutput,
-	})
+	files := opts.Support.Files(baseDir)
+	files.EmailOutput = explicitOutput
+	svc := opts.Service(files)
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 	pdfPath := cmdutil.AbsPath(baseDir, orDefault(opts.PDFPath, cmdutil.ReplaceExt(opts.InvoicePath, ".pdf")))
 	outputPath := cmdutil.AbsPath(baseDir, orDefault(opts.OutputPath, cmdutil.ReplaceExt(opts.InvoicePath, ".eml")))

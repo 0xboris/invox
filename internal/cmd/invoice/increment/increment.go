@@ -19,10 +19,10 @@ type IncrementOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	InvoicePath   string
-	CustomersPath string
-	DryRun        bool
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	Support     cmdutil.SupportPaths
+	DryRun      bool
+	Exporter    *cmdutil.Exporter
 }
 
 // incrementJSON is the --json output of increment: the invoice and its old
@@ -66,11 +66,10 @@ $ invox increment invoice.yaml --json number,previousNumber
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the old and new number and change nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, incrementJSON{})
 	return cmd
 }
@@ -81,7 +80,7 @@ func incrementRun(opts *IncrementOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
 	incremented, err := svc.Increment(invoicePath, opts.DryRun)

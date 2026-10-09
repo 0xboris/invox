@@ -25,12 +25,12 @@ func TestNewCmdNewParsing(t *testing.T) {
 		{
 			name: "every flag, after the positional",
 			args: []string{" CUST-001 ", "-o", "out.yaml", "--defaults", "d.yaml", "-c", "c.yaml", "-u", "i.yaml", "-e", "--from-last"},
-			want: NewOptions{CustomerID: "CUST-001", OutputPath: "out.yaml", DefaultsPath: "d.yaml", CustomersPath: "c.yaml", IssuerPath: "i.yaml", Edit: true, FromLast: true},
+			want: NewOptions{CustomerID: "CUST-001", OutputPath: "out.yaml", Support: cmdutil.SupportPaths{Defaults: "d.yaml", Customers: "c.yaml", Issuer: "i.yaml"}, Edit: true, FromLast: true},
 		},
 		{
 			name: "long flags",
 			args: []string{"--output=out.yaml", "--defaults=d.yaml", "--customers", "c.yaml", "--issuer", "i.yaml", "--edit", "CUST-001"},
-			want: NewOptions{CustomerID: "CUST-001", OutputPath: "out.yaml", DefaultsPath: "d.yaml", CustomersPath: "c.yaml", IssuerPath: "i.yaml", Edit: true},
+			want: NewOptions{CustomerID: "CUST-001", OutputPath: "out.yaml", Support: cmdutil.SupportPaths{Defaults: "d.yaml", Customers: "c.yaml", Issuer: "i.yaml"}, Edit: true},
 		},
 		{name: "removed -s", args: []string{"CUST-001", "-s", "d.yaml"}, wantErr: "unknown shorthand flag: -s"},
 		{name: "removed --source", args: []string{"--source", "d.yaml", "CUST-001"}, wantErr: "unknown flag: --source; did you mean --force?"},
@@ -67,7 +67,7 @@ func TestNewCmdNewParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := NewOptions{CustomerID: got.CustomerID, OutputPath: got.OutputPath, DefaultsPath: got.DefaultsPath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath, FromLast: got.FromLast, Edit: got.Edit}
+			parsed := NewOptions{CustomerID: got.CustomerID, OutputPath: got.OutputPath, Support: got.Support, FromLast: got.FromLast, Edit: got.Edit}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

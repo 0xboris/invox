@@ -24,7 +24,7 @@ func TestNewCmdEmailParsing(t *testing.T) {
 		wantErr string
 	}{
 		{name: "positional pdf", args: []string{"x.pdf"}, want: EmailOptions{InvoicePath: "x.pdf"}},
-		{name: "every flag", args: []string{"x.yaml", "-p", "p.pdf", "-o", "d.eml", "--force", "-c", "c.yaml", "-u", "u.yaml", "--to", "a@b.example", "--subject", "Hi"}, want: EmailOptions{InvoicePath: "x.yaml", PDFPath: "p.pdf", OutputPath: "d.eml", Force: true, CustomersPath: "c.yaml", IssuerPath: "u.yaml", To: "a@b.example", Subject: "Hi"}},
+		{name: "every flag", args: []string{"x.yaml", "-p", "p.pdf", "-o", "d.eml", "--force", "-c", "c.yaml", "-u", "u.yaml", "--to", "a@b.example", "--subject", "Hi"}, want: EmailOptions{InvoicePath: "x.yaml", PDFPath: "p.pdf", OutputPath: "d.eml", Force: true, Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml"}, To: "a@b.example", Subject: "Hi"}},
 		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input"},
 		{name: "bad input extension", args: []string{"x.txt"}, wantErr: "input must end with .yaml, .yml, or .pdf"},
 		{name: "upper-case input extension", args: []string{"X.YAML"}, want: EmailOptions{InvoicePath: "X.YAML"}},
@@ -62,7 +62,7 @@ func TestNewCmdEmailParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := EmailOptions{InvoicePath: got.InvoicePath, PDFPath: got.PDFPath, OutputPath: got.OutputPath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath, To: got.To, Subject: got.Subject, Force: got.Force}
+			parsed := EmailOptions{InvoicePath: got.InvoicePath, PDFPath: got.PDFPath, OutputPath: got.OutputPath, Support: got.Support, To: got.To, Subject: got.Subject, Force: got.Force}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

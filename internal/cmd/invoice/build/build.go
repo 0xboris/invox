@@ -26,15 +26,13 @@ type BuildOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	InvoicePath   string
-	OutputPath    string
-	CustomersPath string
-	IssuerPath    string
-	TemplatePath  string
-	Archive       bool
-	Yes           bool
-	DryRun        bool
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	OutputPath  string
+	Support     cmdutil.SupportPaths
+	Archive     bool
+	Yes         bool
+	DryRun      bool
+	Exporter    *cmdutil.Exporter
 }
 
 // buildJSON is the --json output of build: the PDF it wrote, the invoice it
@@ -90,18 +88,13 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output PDF path (must end with .pdf; default: the input with .pdf)")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
-	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile, billing.TemplateFile)
 	cmd.Flags().BoolVar(&opts.Archive, "archive", false, "Archive the invoice after a successful build")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print what would be built and archived, and change nothing (does not run Tectonic)")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "pdf")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
-	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, buildJSON{})
 	return cmd
 }
@@ -112,10 +105,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{
-		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
-		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
-	})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 	outputPath := cmdutil.ReplaceExt(invoicePath, ".pdf")
 	if strings.TrimSpace(opts.OutputPath) != "" {
@@ -126,7 +116,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 
 	result, err := svc.Build(ctx, billing.BuildRequest{
 		Invoice:  invoicePath,
-		Template: opts.TemplatePath,
+		Template: opts.Support.Template,
 		Output:   outputPath,
 		Archive:  opts.Archive,
 		Replace:  opts.Yes,

@@ -25,16 +25,14 @@ type NewOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	CustomerID    string
-	OutputPath    string
-	DefaultsPath  string
-	CustomersPath string
-	IssuerPath    string
-	FromLast      bool
-	Edit          bool
-	Force         bool
-	DryRun        bool
-	Exporter      *cmdutil.Exporter
+	CustomerID string
+	OutputPath string
+	Support    cmdutil.SupportPaths
+	FromLast   bool
+	Edit       bool
+	Force      bool
+	DryRun     bool
+	Exporter   *cmdutil.Exporter
 }
 
 // newJSON is the --json output of new: the invoice it created.
@@ -84,18 +82,13 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml
 		},
 	}
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path (must end with .yaml)")
-	cmd.Flags().StringVar(&opts.DefaultsPath, "defaults", "", "Path to invoice_defaults.yaml")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile, billing.DefaultsFile)
 	cmd.Flags().BoolVarP(&opts.Edit, "edit", "e", false, "Open the created invoice in your editor")
 	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the number and path the invoice would get and write nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
 	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("defaults", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, newJSON{})
 	return cmd
 }
@@ -106,11 +99,7 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{
-		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
-		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
-		Defaults:  cmdutil.AbsFlag(baseDir, opts.DefaultsPath),
-	})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	outputPath := ""
 	if strings.TrimSpace(opts.OutputPath) != "" {
 		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)

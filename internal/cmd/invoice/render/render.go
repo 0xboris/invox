@@ -20,13 +20,11 @@ type RenderOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	InvoicePath   string
-	OutputPath    string
-	CustomersPath string
-	IssuerPath    string
-	TemplatePath  string
-	DryRun        bool
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	OutputPath  string
+	Support     cmdutil.SupportPaths
+	DryRun      bool
+	Exporter    *cmdutil.Exporter
 }
 
 // renderJSON is the --json output of render: the TeX file it wrote and the
@@ -78,16 +76,11 @@ $ invox render invoice.yaml --json path
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output TeX path (must end with .tex; default invoice.tex)")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
-	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile, billing.TemplateFile)
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print the output path and write nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "tex")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
-	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, renderJSON{})
 	return cmd
 }
@@ -98,17 +91,14 @@ func renderRun(opts *RenderOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{
-		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
-		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
-	})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	outputPath := filepath.Join(baseDir, "invoice.tex")
 	if strings.TrimSpace(opts.OutputPath) != "" {
 		outputPath = cmdutil.AbsPath(baseDir, opts.OutputPath)
 	}
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := svc.Render(billing.RenderRequest{Invoice: invoicePath, Template: opts.TemplatePath, Output: outputPath, DryRun: opts.DryRun})
+	ctx, err := svc.Render(billing.RenderRequest{Invoice: invoicePath, Template: opts.Support.Template, Output: outputPath, DryRun: opts.DryRun})
 	if err != nil {
 		return cmdutil.UsageError(err)
 	}

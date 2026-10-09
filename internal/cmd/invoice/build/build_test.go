@@ -24,7 +24,7 @@ func TestNewCmdBuildParsing(t *testing.T) {
 		wantErr string
 	}{
 		{name: "positional input", args: []string{"x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
-		{name: "flags after the positional", args: []string{"x.yaml", "-o", "o.pdf", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain", "--archive", "--yes"}, want: BuildOptions{InvoicePath: "x.yaml", OutputPath: "o.pdf", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "plain", Archive: true, Yes: true}},
+		{name: "flags after the positional", args: []string{"x.yaml", "-o", "o.pdf", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain", "--archive", "--yes"}, want: BuildOptions{InvoicePath: "x.yaml", OutputPath: "o.pdf", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml", Template: "plain"}, Archive: true, Yes: true}},
 		{name: "input flag", args: []string{"--input", "x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
 		{name: "input flag and positional", args: []string{"-i", "x.yaml", "y.yaml"}, wantErr: "the INVOICE argument y.yaml and -i, --input x.yaml name different files; pass only one"},
 		{name: "input flag naming the positional", args: []string{"-i", "x.yaml", "x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
@@ -63,7 +63,7 @@ func TestNewCmdBuildParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := BuildOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath, TemplatePath: got.TemplatePath, Archive: got.Archive, Yes: got.Yes}
+			parsed := BuildOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, Support: got.Support, Archive: got.Archive, Yes: got.Yes}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

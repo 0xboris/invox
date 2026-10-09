@@ -20,10 +20,9 @@ type ValidateOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	InvoicePath   string
-	CustomersPath string
-	IssuerPath    string
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	Support     cmdutil.SupportPaths
+	Exporter    *cmdutil.Exporter
 }
 
 // NewCmdValidate returns the validate command. runF replaces validateRun in
@@ -64,12 +63,9 @@ $ invox validate invoice.yaml --json valid,total,currency,errors
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile)
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, validationJSON{})
 	return cmd
 }
@@ -80,10 +76,7 @@ func validateRun(opts *ValidateOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{
-		Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath),
-		Issuer:    cmdutil.AbsFlag(baseDir, opts.IssuerPath),
-	})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
 	result, err := svc.Validate(invoicePath)

@@ -22,8 +22,8 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 		want    IncrementOptions
 		wantErr string
 	}{
-		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
-		{name: "long", args: []string{"--input=x.yaml", "--customers", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
+		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml"}}},
+		{name: "long", args: []string{"--input=x.yaml", "--customers", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml"}}},
 		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml or -i, --input"},
 		{name: "positional input", args: []string{"x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
 		{name: "positional and input naming it", args: []string{"x.yaml", "-i", "x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
@@ -61,7 +61,7 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := IncrementOptions{InvoicePath: got.InvoicePath, CustomersPath: got.CustomersPath}
+			parsed := IncrementOptions{InvoicePath: got.InvoicePath, Support: got.Support}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

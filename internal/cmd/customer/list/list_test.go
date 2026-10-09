@@ -56,8 +56,8 @@ func TestNewCmdListParsing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute returned error: %v", err)
 			}
-			if got == nil || got.CustomersPath != tc.wantCustomers {
-				t.Fatalf("opts = %+v, want CustomersPath %q", got, tc.wantCustomers)
+			if got == nil || got.Support.Customers != tc.wantCustomers {
+				t.Fatalf("opts = %+v, want customers %q", got, tc.wantCustomers)
 			}
 		})
 	}
@@ -72,10 +72,10 @@ func TestListRun(t *testing.T) {
 
 	ios, _, out, errOut := iostreams.Test()
 	opts := &ListOptions{
-		IO:            ios,
-		Service:       f.Service,
-		Getwd:         func() (string, error) { return work, nil },
-		CustomersPath: "c.yaml",
+		IO:      ios,
+		Service: f.Service,
+		Getwd:   func() (string, error) { return work, nil },
+		Support: cmdutil.SupportPaths{Customers: "c.yaml"},
 	}
 	if err := listRun(opts); err != nil {
 		t.Fatalf("listRun returned error: %v", err)

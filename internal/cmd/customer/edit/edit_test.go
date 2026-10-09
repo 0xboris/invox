@@ -48,8 +48,8 @@ func TestNewCmdEditParsing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute returned error: %v", err)
 			}
-			if got == nil || got.CustomersPath != tc.wantCustomers || got.Editor == nil {
-				t.Fatalf("opts = %+v, want CustomersPath %q and an editor", got, tc.wantCustomers)
+			if got == nil || got.Support.Customers != tc.wantCustomers || got.Editor == nil {
+				t.Fatalf("opts = %+v, want customers %q and an editor", got, tc.wantCustomers)
 			}
 			if errOut.String() != "" {
 				t.Errorf("stderr = %q, want empty", errOut.String())

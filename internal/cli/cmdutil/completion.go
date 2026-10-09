@@ -22,7 +22,7 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		flagValue, _ := cmd.Flags().GetString("customers")
+		flagValue, _ := cmd.Flags().GetString(supportFlags[billing.CustomersFile].name)
 		list, err := completionService(f, cmd, Files{Customers: AbsFlag(cwd, flagValue)}).ListCustomers()
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp

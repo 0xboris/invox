@@ -22,8 +22,8 @@ func TestNewCmdValidateParsing(t *testing.T) {
 		want    ValidateOptions
 		wantErr string
 	}{
-		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml", "-u", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml", IssuerPath: "u.yaml"}},
-		{name: "long", args: []string{"--input", "x.yaml", "--customers=c.yaml", "--issuer", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml", IssuerPath: "u.yaml"}},
+		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml", "-u", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml"}}},
+		{name: "long", args: []string{"--input", "x.yaml", "--customers=c.yaml", "--issuer", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml"}}},
 		{name: "misspelt archive", args: []string{"--archiv"}, wantErr: "unknown flag: --archiv"},
 		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml or -i, --input"},
 		{name: "positional input", args: []string{"x.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml"}},
@@ -62,7 +62,7 @@ func TestNewCmdValidateParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := ValidateOptions{InvoicePath: got.InvoicePath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath}
+			parsed := ValidateOptions{InvoicePath: got.InvoicePath, Support: got.Support}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

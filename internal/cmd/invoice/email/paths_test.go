@@ -196,12 +196,11 @@ func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPat
 			svc.Mailer = draftRecorder{Mailer: svc.Mailer, paths: &paths}
 			return svc
 		},
-		Getwd:         func() (string, error) { return parties, nil },
-		InvoicePath:   input,
-		PDFPath:       pdf,
-		OutputPath:    output,
-		CustomersPath: customersPath,
-		IssuerPath:    issuerPath,
+		Getwd:       func() (string, error) { return parties, nil },
+		InvoicePath: input,
+		PDFPath:     pdf,
+		OutputPath:  output,
+		Support:     cmdutil.SupportPaths{Customers: customersPath, Issuer: issuerPath},
 	}
 	if err := validate(opts); err != nil {
 		return draftPaths{}, err

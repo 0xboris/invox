@@ -18,8 +18,8 @@ type ListOptions struct {
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	CustomersPath string
-	Exporter      *cmdutil.Exporter
+	Support  cmdutil.SupportPaths
+	Exporter *cmdutil.Exporter
 }
 
 // customerJSON is a customer in --json output.
@@ -55,8 +55,7 @@ $ invox customer list --json id,email
 			return listRun(opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, customerJSON{})
 	return cmd
 }
@@ -67,7 +66,7 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	svc := opts.Service(cmdutil.Files{Customers: cmdutil.AbsFlag(baseDir, opts.CustomersPath)})
+	svc := opts.Service(opts.Support.Files(baseDir))
 	list, err := svc.ListCustomers()
 	if err != nil {
 		return cmdutil.UsageError(err)
