@@ -196,8 +196,15 @@ type TemplateLookupError struct {
 func (e *TemplateLookupError) Error() string { return e.Err.Error() }
 func (e *TemplateLookupError) Unwrap() error { return e.Err }
 
-// isDecodeError reports whether err holds a *DecodeError.
+// isDecodeError reports whether err holds a *DecodeError of the file just
+// read, whose other values can still be checked. A *DecodeError inside a
+// *ConfigError does not count: it is a problem with config.yaml, which
+// stops the use case.
 func isDecodeError(err error) bool {
+	var configErr *ConfigError
+	if errors.As(err, &configErr) {
+		return false
+	}
 	var decodeErr *DecodeError
 	return errors.As(err, &decodeErr)
 }
