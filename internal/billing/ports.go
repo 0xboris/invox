@@ -118,7 +118,8 @@ type InitFile struct {
 type Directory interface {
 	// Locate returns the support file f: the one named for this run, else
 	// the one the project search, config.yaml or the config directory
-	// finds. Finding none is a *FileNotFoundError.
+	// finds. Finding none, or a file named for this run that does not
+	// exist, is a *FileNotFoundError.
 	Locate(f File) (string, error)
 	Customer(id string) (invoice.Customer, error)
 	// Customers decodes every entry of customers.yaml, sorted by ID.
@@ -137,7 +138,8 @@ type Directory interface {
 	// Paths reports where each file comes from for this run.
 	Paths() ([]PathReport, error)
 	// EditablePath returns f for an editor, creating config.yaml from its
-	// template when f is ConfigFile and it does not exist.
+	// template when f is ConfigFile and it does not exist. A file named for
+	// this run need not exist yet.
 	EditablePath(f File) (string, error)
 	// Init creates the config directory and the starter files it lacks,
 	// and returns the directory.

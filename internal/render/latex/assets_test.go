@@ -66,6 +66,9 @@ func TestCopyTemplateAssetsFallsBackToGlobalConfig(t *testing.T) {
 	templatePath := filepath.Join(templateDir, "invoice_template.tex")
 	outputPath := filepath.Join(outputDir, "invoice.tex")
 	rendered := "\\setmainfont{Ubuntu}[Path=fonts/,UprightFont=Ubuntu-Regular.ttf]\n\\includegraphics{logo.png}\n"
+	if err := os.WriteFile(templatePath, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("WriteFile(template) returned error: %v", err)
+	}
 
 	if err := h.renderer(t).Write(h.template(t, templatePath), rendered, outputPath); err != nil {
 		t.Fatalf("copyTemplateAssets returned error: %v", err)

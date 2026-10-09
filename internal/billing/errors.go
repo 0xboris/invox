@@ -175,14 +175,19 @@ func (e *ToolFailedError) Error() string {
 }
 func (e *ToolFailedError) Unwrap() error { return e.Err }
 
-// FileNotFoundError means no support file of its kind was found. Default is
+// FileNotFoundError means a support file is missing: the one named for
+// this run, at Path, or, when Path is "", any file of its kind. Default is
 // where invox looks last, in the config directory.
 type FileNotFoundError struct {
 	File    File
+	Path    string
 	Default string
 }
 
 func (e *FileNotFoundError) Error() string {
+	if e.Path != "" {
+		return fmt.Sprintf("%s file %s does not exist", e.File, e.Path)
+	}
 	return fmt.Sprintf("%s file not found", e.File)
 }
 

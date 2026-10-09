@@ -1,7 +1,10 @@
 package store
 
 import (
+	"errors"
+	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -40,8 +43,22 @@ func (s *Store) workDir() (string, error) {
 }
 
 // Locate returns the absolute path of the support file f: the one named
-// for this run, else the one found from the working directory.
+// for this run, which must exist, else the one found from the working
+// directory.
 func (s *Store) Locate(f billing.File) (string, error) {
+	path, err := s.locate(f)
+	if err != nil || strings.TrimSpace(s.Files[f]) == "" {
+		return path, err
+	}
+	if err := mustExist(f, path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// locate is Locate without the check that a file named for this run
+// exists.
+func (s *Store) locate(f billing.File) (string, error) {
 	baseDir, err := s.workDir()
 	if err != nil {
 		return "", err
@@ -58,6 +75,15 @@ func (s *Store) Locate(f billing.File) (string, error) {
 		return "", &billing.FileNotFoundError{File: f, Default: s.Host.globalPath(f)}
 	}
 	return fsutil.Abs(baseDir, path), nil
+}
+
+// mustExist returns a *billing.FileNotFoundError when path, the support
+// file f named for this run, does not exist.
+func mustExist(f billing.File, path string) error {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		return &billing.FileNotFoundError{File: f, Path: path}
+	}
+	return nil
 }
 
 func (h Host) globalPath(f billing.File) string {
@@ -132,7 +158,8 @@ func (s *Store) Template(ref string) (billing.Template, error) {
 	if err != nil {
 		return billing.Template{}, err
 	}
-	if strings.TrimSpace(ref) == "" {
+	named := strings.TrimSpace(ref) != ""
+	if !named {
 		ref, err = s.Locate(billing.TemplateFile)
 		if err != nil {
 			return billing.Template{}, err
@@ -143,6 +170,11 @@ func (s *Store) Template(ref string) (billing.Template, error) {
 		return billing.Template{}, &billing.TemplateLookupError{Err: err}
 	}
 	path = fsutil.Abs(baseDir, path)
+	if named {
+		if err := mustExist(billing.TemplateFile, path); err != nil {
+			return billing.Template{}, err
+		}
+	}
 	return billing.Template{Name: filepath.Base(path), Path: path}, nil
 }
 
@@ -174,7 +206,7 @@ func (s *Store) EditablePath(f billing.File) (string, error) {
 	if f == billing.ConfigFile {
 		return s.Host.editableConfigPath()
 	}
-	return s.Locate(f)
+	return s.locate(f)
 }
 
 // Init creates the config directory and the starter files it lacks.

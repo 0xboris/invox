@@ -88,12 +88,14 @@ func (s supportFlag) flags() string {
 }
 
 // UsageError returns err as a usage error when it is about a file the
-// command line can name: a support file that was not found, which
-// names the ways to provide it, or a template reference that resolves to
-// nothing. Any other err comes back as it is.
+// command line can name: a support file that was not found, which names
+// the ways to provide it, or a template reference that resolves to
+// nothing. Any other err comes back as it is, such as a file the command
+// line named that does not exist: like a missing --config file, its usage
+// would not fix it.
 func UsageError(err error) error {
 	var notFound *billing.FileNotFoundError
-	if errors.As(err, &notFound) {
+	if errors.As(err, &notFound) && notFound.Path == "" {
 		s := supportFlags[notFound.File]
 		return FlagErrorf("%s file not found; pass %s, set %s in config.yaml, or place %s at %s", notFound.File, s.flags(), s.key, s.file, notFound.Default)
 	}
