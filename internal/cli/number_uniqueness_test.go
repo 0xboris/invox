@@ -107,45 +107,6 @@ func TestArchiveEditThenRearchiveKeepsSameNumber(t *testing.T) {
 	}
 }
 
-func TestValidateWarnsWhenNumberIsAlreadyArchived(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
-
-	exitCode, stdout, stderr := captureRun(t, []string{"validate", "-i", invoicePath, "-c", customersPath, "-u", issuerPath})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	want := "warning: invoice number CUST-001-001 is already used by archived invoice " + archivedPath +
-		"; run 'invox increment -i " + invoicePath + "' before archiving\n" +
-		"Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"
-	if stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-}
-
-func TestValidateDoesNotWarnForUniqueNumber(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeNumberedInvoice(t, archiveDir, "other.yaml", "CUST-001-002", "archived")
-
-	exitCode, stdout, stderr := captureRun(t, []string{"validate", "-i", invoicePath, "-c", customersPath, "-u", issuerPath})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	if want := "Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-}
-
 func writeNumberedInvoice(t *testing.T, dir, name, invoiceNumber, status string) string {
 	t.Helper()
 

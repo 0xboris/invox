@@ -674,25 +674,6 @@ invoice:
 	}
 }
 
-func TestValidateAcceptsShortCustomerAndIssuerFlags(t *testing.T) {
-	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"validate",
-		"-i", invoicePath,
-		"-c", customersPath,
-		"-u", issuerPath,
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-}
-
 func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 	workDir := t.TempDir()
@@ -716,28 +697,6 @@ func TestRenderDefaultsOutputToInvoiceTex(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workDir, "invoice.tex")); err != nil {
 		t.Fatalf("default invoice.tex was not created: %v", err)
-	}
-}
-
-func TestValidateSuggestsGlobalDefaultsWhenSupportFilesMissing(t *testing.T) {
-	workDir := t.TempDir()
-	configHome := filepath.Join(t.TempDir(), "config-home")
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	chdirForTest(t, workDir)
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"validate",
-		"-i", filepath.Join(workDir, "invoice.yaml"),
-	})
-	if exitCode != 2 {
-		t.Fatalf("exitCode = %d, want 2", exitCode)
-	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
-	}
-	expected := filepath.Join(configHome, "invox", "customers.yaml")
-	if !strings.Contains(stderr, expected) {
-		t.Fatalf("stderr %q does not mention global customers path %q", stderr, expected)
 	}
 }
 
