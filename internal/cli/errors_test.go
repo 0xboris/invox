@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,30 +14,6 @@ import (
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
-
-func TestEmailReportsPDFWithoutInvoiceAsRuntimeError(t *testing.T) {
-	isolateUserDirs(t)
-	customersPath, issuerPath, _ := writeBuiltEmailFixture(t)
-	f, _ := testFactory(t)
-	dir := t.TempDir()
-	chdirForTest(t, dir)
-	if err := os.WriteFile(filepath.Join(dir, "orphan.pdf"), []byte("%PDF-1.4\nfake"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"email", "orphan.pdf", "-c", customersPath, "-u", issuerPath})
-
-	if exitCode != 1 {
-		t.Errorf("exit code = %d, want 1", exitCode)
-	}
-	if stdout != "" {
-		t.Errorf("stdout = %q, want empty", stdout)
-	}
-	want := "error: orphan.pdf: no matching invoice YAML found next to the PDF or in archive.dir\n"
-	if stderr != want {
-		t.Errorf("stderr = %q, want %q", stderr, want)
-	}
-}
 
 func TestExitCodeMapsErrorTypes(t *testing.T) {
 	root := &cobra.Command{Use: "invox"}

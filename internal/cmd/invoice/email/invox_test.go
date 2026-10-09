@@ -486,3 +486,27 @@ func TestEmailImplicitDraftOpenFailureRemovesDraftDirectory(t *testing.T) {
 		t.Fatalf("Stat(draft directory) error = %v, want not exists", err)
 	}
 }
+
+func TestEmailReportsPDFWithoutInvoiceAsRuntimeError(t *testing.T) {
+	x := clitest.New(t)
+
+	fx := testfixture.WriteBuiltContext(t)
+	dir := t.TempDir()
+	x.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, "orphan.pdf"), []byte("%PDF-1.4\nfake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	exitCode, stdout, stderr := x.Run([]string{"email", "orphan.pdf", "-c", fx.Customers, "-u", fx.Issuer})
+
+	if exitCode != 1 {
+		t.Errorf("exit code = %d, want 1", exitCode)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty", stdout)
+	}
+	want := "error: orphan.pdf: no matching invoice YAML found next to the PDF or in archive.dir\n"
+	if stderr != want {
+		t.Errorf("stderr = %q, want %q", stderr, want)
+	}
+}
