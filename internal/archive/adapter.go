@@ -167,10 +167,29 @@ func inDir(path string, dir os.FileInfo) bool {
 	}
 }
 
-// FindFile returns the archived file named one of names: one directly in
+// Source returns the invoice YAML file the PDF at pdf was built from: next
+// to it, else in the archive.
+func (a Archive) Source(pdf string) (string, error) {
+	base := strings.TrimSuffix(pdf, filepath.Ext(pdf))
+	candidates := []string{base + ".yaml", base + ".yml"}
+	for _, candidate := range candidates {
+		if isFile(candidate) {
+			return candidate, nil
+		}
+	}
+	return a.findFile(filepath.Base(candidates[0]), filepath.Base(candidates[1]))
+}
+
+// isFile reports whether path is a file.
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// findFile returns the archived file named one of names: one directly in
 // the archive directory, else the only one below it. It returns "" when
 // there is none or no archive directory, and an error when several match.
-func (a Archive) FindFile(names ...string) (string, error) {
+func (a Archive) findFile(names ...string) (string, error) {
 	s, err := a.store()
 	if err != nil {
 		return "", err

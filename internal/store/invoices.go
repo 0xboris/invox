@@ -152,12 +152,6 @@ func (s *Store) Destination(path, workDir, number string, overwrite bool) (strin
 // Exists reports whether path is a file.
 func (s *Store) Exists(path string) bool { return fileExists(path) }
 
-// Stat returns why path cannot be read, or nil.
-func (s *Store) Stat(path string) error {
-	_, err := os.Stat(path)
-	return err
-}
-
 // Create writes a new invoice to path from the document at from.
 func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.CreateOptions) error {
 	document, err := loadSourceDocument(from)

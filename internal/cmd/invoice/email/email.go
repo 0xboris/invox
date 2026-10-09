@@ -147,8 +147,8 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	pdfPath := cmdutil.AbsPath(baseDir, orDefault(opts.PDFPath, cmdutil.ReplaceExt(opts.InvoicePath, ".pdf")))
 	outputPath := cmdutil.AbsPath(baseDir, orDefault(opts.OutputPath, cmdutil.ReplaceExt(opts.InvoicePath, ".eml")))
 
-	result, err := svc.DraftEmail(ctx, billing.EmailRequest{
-		Input:     invoicePath,
+	request := billing.EmailRequest{
+		Invoice:   invoicePath,
 		PDF:       pdfPath,
 		Output:    outputPath,
 		Keep:      explicitOutput,
@@ -156,7 +156,11 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		Subject:   opts.Subject,
 		Overwrite: opts.Force,
 		DryRun:    opts.DryRun,
-	})
+	}
+	if strings.EqualFold(filepath.Ext(invoicePath), ".pdf") {
+		request.Invoice, request.FromPDF = "", invoicePath
+	}
+	result, err := svc.DraftEmail(ctx, request)
 	if err != nil {
 		return outputExists(cmdutil.UsageError("email", err), baseDir)
 	}

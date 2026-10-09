@@ -6,8 +6,10 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/0xboris/invox/internal/archive"
@@ -263,9 +265,39 @@ type EmailDraftPaths struct {
 	OutputPath  string
 }
 
+// ResolveEmailDraftPaths derives the invoice, PDF and draft of an email for
+// input as the email command does: the PDF and draft default to input's
+// name, and the invoice of a PDF is looked up next to it or in the archive.
 func (h Host) ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (EmailDraftPaths, error) {
-	invoicePath, pdf, output, err := h.service(Files{}, cwd(), time.Time{}).EmailPaths(inputPath, pdfPath, outputPath)
-	return EmailDraftPaths{InvoicePath: invoicePath, PDFPath: pdf, OutputPath: output}, err
+	paths := EmailDraftPaths{InvoicePath: inputPath, PDFPath: pdfPath, OutputPath: outputPath}
+	if paths.OutputPath == "" {
+		paths.OutputPath = replaceExt(inputPath, ".eml")
+	}
+	switch strings.ToLower(filepath.Ext(inputPath)) {
+	case ".pdf":
+		found, err := h.service(Files{}, cwd(), time.Time{}).Archives.Source(inputPath)
+		if err != nil {
+			return EmailDraftPaths{}, err
+		}
+		if found == "" {
+			return EmailDraftPaths{}, fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", inputPath)
+		}
+		paths.InvoicePath = found
+		if paths.PDFPath == "" {
+			paths.PDFPath = inputPath
+		}
+	case ".yaml", ".yml":
+		if paths.PDFPath == "" {
+			paths.PDFPath = replaceExt(inputPath, ".pdf")
+		}
+	default:
+		return EmailDraftPaths{}, fmt.Errorf("%s: input must end with .yaml, .yml, or .pdf", inputPath)
+	}
+	return paths, nil
+}
+
+func replaceExt(path, ext string) string {
+	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
 }
 
 type EmailParams struct {
@@ -286,9 +318,13 @@ type EmailMessage struct {
 
 func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
 	svc := h.service(Files{Customers: p.CustomersPath, Issuer: p.IssuerPath}, cwd(), time.Time{})
+	pdf := p.PDFPath
+	if pdf == "" {
+		pdf = replaceExt(p.InvoicePath, ".pdf")
+	}
 	result, err := svc.DraftEmail(context.Background(), billing.EmailRequest{
-		Input:   p.InvoicePath,
-		PDF:     p.PDFPath,
+		Invoice: p.InvoicePath,
+		PDF:     pdf,
 		To:      p.Recipient,
 		Subject: p.Subject,
 		DryRun:  true,

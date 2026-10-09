@@ -83,6 +83,12 @@ func write(m billing.Message, path string, overwrite bool) error {
 	return writeFile(path, message, fsutil.Public)
 }
 
+// CheckAttachment returns why the file at path cannot be attached.
+func (Mailer) CheckAttachment(path string) error {
+	_, err := os.Stat(path)
+	return err
+}
+
 func checkOutput(path string, overwrite bool) error {
 	if info, err := os.Stat(path); err == nil && info.IsDir() {
 		return &billing.OutputIsDirError{Path: path}

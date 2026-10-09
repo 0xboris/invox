@@ -13,16 +13,16 @@ import (
 // explains each method; a new one belongs there first.
 var (
 	narrowPorts = map[string][]string{
-		"Invoices":  {"ArchivedHead", "Create", "Destination", "Drafts", "Exists", "Head", "Load", "Stat", "Update"},
+		"Invoices":  {"ArchivedHead", "Create", "Destination", "Drafts", "Exists", "Head", "Load", "Update"},
 		"Directory": {"CopyLegacy", "Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "LegacyFiles", "LegacyFilesUsed", "Locate", "Locations", "Paths", "Template", "Templates"},
-		"Archive":   {"Add", "Checkout", "Dir", "Entries", "Existing", "FindFile", "HistoryDir", "Protects", "Resolve"},
+		"Archive":   {"Add", "Checkout", "Dir", "Entries", "Existing", "HistoryDir", "Protects", "Resolve", "Source"},
 		"Renderer":  {"Build", "Render", "Write"},
 		"Compiler":  {"Compile"},
-		"Mailer":    {"Check", "Draft"},
+		"Mailer":    {"Check", "CheckAttachment", "Draft"},
 	}
 	serviceMethods = []string{
 		"Archive", "Build", "CheckNumberUnique", "CopyLegacyFiles", "DefaultTemplate", "DraftEmail",
-		"EditArchived", "EditablePath", "EmailPaths", "Increment", "Init", "LegacyFiles", "LegacyFilesUsed",
+		"EditArchived", "EditablePath", "Increment", "Init", "LegacyFiles", "LegacyFilesUsed",
 		"ListArchive", "ListCustomers", "ListTemplates", "Locations", "New", "NextNumber", "Paths",
 		"Render", "Validate",
 	}

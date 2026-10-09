@@ -3,7 +3,6 @@ package billing
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/0xboris/invox/internal/invoice"
@@ -12,9 +11,11 @@ import (
 
 // EmailRequest says which invoice DraftEmail drafts an email for.
 type EmailRequest struct {
-	// Input is the invoice, or its built PDF, whose invoice is found next
-	// to it or in the archive.
-	Input string
+	// Invoice is the invoice file. It is "" when the user named the built
+	// PDF instead: FromPDF is then that PDF, and the invoice is the YAML
+	// file with its name next to it, else in the archive.
+	Invoice string
+	FromPDF string
 	// PDF is the attachment, Output the .eml draft.
 	PDF    string
 	Output string
@@ -46,10 +47,11 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 	if err != nil {
 		return EmailResult{}, err
 	}
-	invoicePath, pdfPath, outputPath, err := s.EmailPaths(req.Input, req.PDF, req.Output)
+	invoicePath, err := s.emailInvoice(req)
 	if err != nil {
 		return EmailResult{}, err
 	}
+	pdfPath, outputPath := req.PDF, req.Output
 	inv, err := s.loadContext(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return EmailResult{}, err
@@ -61,7 +63,7 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 		}
 		return EmailResult{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", invoicePath, status)
 	}
-	if err := s.Invoices.Stat(pdfPath); err != nil {
+	if err := s.Mailer.CheckAttachment(pdfPath); err != nil {
 		return EmailResult{}, fmt.Errorf("read %s: %w", pdfPath, err)
 	}
 
@@ -117,58 +119,20 @@ func (s *Service) DraftEmail(ctx context.Context, req EmailRequest) (EmailResult
 	return result, nil
 }
 
-// EmailPaths returns the invoice, PDF and draft of an email for input, an
-// invoice YAML file or its PDF.
-func (s *Service) EmailPaths(input, pdf, output string) (string, string, string, error) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return "", "", "", fmt.Errorf("input path is required")
+// emailInvoice returns the invoice of req: the one it names, else the one
+// its PDF was built from.
+func (s *Service) emailInvoice(req EmailRequest) (string, error) {
+	if req.Invoice != "" {
+		return req.Invoice, nil
 	}
-	pdf, output = strings.TrimSpace(pdf), strings.TrimSpace(output)
-
-	var invoicePath string
-	switch strings.ToLower(filepath.Ext(input)) {
-	case ".pdf":
-		resolved, err := s.invoiceForPDF(input)
-		if err != nil {
-			return "", "", "", err
-		}
-		invoicePath = resolved
-		if pdf == "" {
-			pdf = input
-		}
-	case ".yaml", ".yml":
-		invoicePath = input
-		if pdf == "" {
-			pdf = replaceExt(input, ".pdf")
-		}
-	default:
-		return "", "", "", fmt.Errorf("%s: input must end with .yaml, .yml, or .pdf", input)
-	}
-	if output == "" {
-		output = replaceExt(input, ".eml")
-	}
-	return invoicePath, pdf, output, nil
-}
-
-// invoiceForPDF finds the invoice of the PDF at pdfPath: next to it, else in
-// the archive.
-func (s *Service) invoiceForPDF(pdfPath string) (string, error) {
-	base := strings.TrimSuffix(pdfPath, filepath.Ext(pdfPath))
-	candidates := []string{base + ".yaml", base + ".yml"}
-	for _, candidate := range candidates {
-		if s.Invoices.Exists(candidate) {
-			return candidate, nil
-		}
-	}
-	archived, err := s.Archives.FindFile(filepath.Base(candidates[0]), filepath.Base(candidates[1]))
+	invoicePath, err := s.Archives.Source(req.FromPDF)
 	if err != nil {
 		return "", err
 	}
-	if archived != "" {
-		return archived, nil
+	if invoicePath == "" {
+		return "", fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", req.FromPDF)
 	}
-	return "", fmt.Errorf("%s: no matching invoice YAML found next to the PDF or in archive.dir", pdfPath)
+	return invoicePath, nil
 }
 
 // emailFields is what the email placeholders stand for in ctx.
@@ -190,9 +154,4 @@ func emailFields(ctx *invoice.Context) EmailFields {
 
 func emailMoney(cents int64, currency string) string {
 	return money.FormatCents(cents) + " " + currency
-}
-
-// replaceExt returns path with its extension replaced by ext.
-func replaceExt(path, ext string) string {
-	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
 }

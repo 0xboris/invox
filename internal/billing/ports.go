@@ -105,8 +105,6 @@ type Invoices interface {
 	Update(path string, change func(*invoice.Invoice) error) error
 	// Exists reports whether path is a file.
 	Exists(path string) bool
-	// Stat returns why path cannot be read, or nil.
-	Stat(path string) error
 }
 
 // CustomerTable is customers.yaml. An entry is decoded only when it is
@@ -287,9 +285,11 @@ type Archive interface {
 	// Protects reports whether path is an existing file inside the archive
 	// directory, which nothing but re-archiving overwrites.
 	Protects(path string) (bool, error)
-	// FindFile returns the archived file with one of names, "" when there
-	// is none, and an error when there are several.
-	FindFile(names ...string) (string, error)
+	// Source returns the invoice YAML file the PDF at pdf was built from:
+	// the one with its name next to it, else the one in the archive. It
+	// returns "" when there is none, and an error when the archive has
+	// several.
+	Source(pdf string) (string, error)
 }
 
 // EPC is what a template's EPC QR code placeholders need.
@@ -349,4 +349,7 @@ type Mailer interface {
 	Draft(ctx context.Context, m Message) (Draft, error)
 	// Check runs the checks Draft runs on m.Output without writing.
 	Check(m Message) error
+	// CheckAttachment returns why the file at path cannot be attached, or
+	// nil.
+	CheckAttachment(path string) error
 }

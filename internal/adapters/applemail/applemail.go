@@ -4,6 +4,7 @@ package applemail
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/billing"
@@ -86,6 +87,12 @@ func (c *Composer) Draft(ctx context.Context, m billing.Message) (billing.Draft,
 		return billing.Draft{}, fmt.Errorf("failed to open editable email draft: %w", err)
 	}
 	return billing.Draft{}, nil
+}
+
+// CheckAttachment returns why the file at path cannot be attached.
+func (c *Composer) CheckAttachment(path string) error {
+	_, err := os.Stat(path)
+	return err
 }
 
 // Check has nothing to check: Apple Mail writes no file.
