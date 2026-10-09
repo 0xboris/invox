@@ -44,7 +44,7 @@ var (
 	ringDriving   = []string{mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/tableprinter", mod + "internal/adapters/editor", mod + "internal/adapters/opener"}
 	ringLibraries = []string{mod + "internal/config", mod + "internal/fsutil", mod + "internal/adapters/run", mod + "internal/iostreams", mod + "internal/env", mod + "internal/build"}
 	ringMain      = []string{mod + "internal/factory/...", mod + "cmd/...", mod + "internal/docs/..."}
-	testSupport   = []string{mod + "internal/adapters/run/runtest", mod + "internal/testfixture"}
+	testSupport   = []string{mod + "internal/adapters/run/runtest", mod + "internal/testfixture", mod + "internal/clitest"}
 	frameworkPkgs = []string{"github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "gopkg.in/yaml.v3"}
 	diskPkgs      = []string{"os", "io/fs", "os/exec", "os/signal", "net/...", "syscall"}
 )
@@ -126,6 +126,11 @@ var rules = []rule{
 		only: []string{},
 	},
 	{
+		name: "test support: clitest runs the CLI on factorytest, runtest and testfixture",
+		pkgs: []string{mod + "internal/clitest"},
+		only: []string{mod + "internal/cli", mod + "internal/factory/factorytest", mod + "internal/adapters/run", mod + "internal/adapters/run/runtest", mod + "internal/iostreams", mod + "internal/testfixture"},
+	},
+	{
 		name: "the release binary contains neither the docs generator nor the test support packages",
 		pkgs: []string{mod + "cmd/invox"},
 		deny: concat([]string{mod + "internal/docs/gen/..."}, testSupport),
@@ -133,7 +138,7 @@ var rules = []rule{
 	{
 		name:   "only the CLI and main know about commands and flag parsing",
 		pkgs:   []string{mod + "..."},
-		except: concat(ringDriving, ringMain, []string{mod + "internal/archtest"}),
+		except: concat(ringDriving, ringMain, []string{mod + "internal/archtest", mod + "internal/clitest"}),
 		deny:   []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
 	},
 	{

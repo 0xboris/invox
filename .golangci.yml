@@ -288,13 +288,37 @@ linters:
           files:
             - $all
             - "!**/internal/factory/factorytest/**"
+            - "!**/internal/clitest/**"
             - "!$test"
           deny:
             - pkg: github.com/0xboris/invox/internal/adapters/run/runtest
               desc: the Runner stub is for tests; the release binary must not import it
+        # clitest is test support: it runs the CLI on a Factory from
+        # factorytest.
+        test-cli:
+          list-mode: strict
+          files:
+            - "**/internal/clitest/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/cli$
+            - github.com/0xboris/invox/internal/factory/factorytest$
+            - github.com/0xboris/invox/internal/adapters/run$
+            - github.com/0xboris/invox/internal/adapters/run/runtest$
+            - github.com/0xboris/invox/internal/iostreams$
+            - github.com/0xboris/invox/internal/testfixture$
+        clitest-is-for-tests:
+          files:
+            - $all
+            - "!$test"
+          deny:
+            - pkg: github.com/0xboris/invox/internal/clitest
+              desc: clitest is for tests; the release binary must not import it
         testfixture-is-for-tests:
           files:
             - $all
+            - "!**/internal/clitest/**"
             - "!$test"
           deny:
             - pkg: github.com/0xboris/invox/internal/testfixture
