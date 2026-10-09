@@ -10,16 +10,30 @@ import (
 )
 
 const (
-	lineItemsBeginPlaceholder      = "@@LINE_ITEMS_BEGIN@@"
-	lineItemsEndPlaceholder        = "@@LINE_ITEMS_END@@"
-	lineItemNamePlaceholder        = "@@LINE_ITEM_NAME@@"
-	lineItemDescriptionPlaceholder = "@@LINE_ITEM_DESCRIPTION@@"
-	lineItemUnitPricePlaceholder   = "@@LINE_ITEM_UNIT_PRICE@@"
-	lineItemQuantityPlaceholder    = "@@LINE_ITEM_QUANTITY@@"
-	lineItemVATRatePlaceholder     = "@@LINE_ITEM_VAT_RATE@@"
-	lineItemLineTotalPlaceholder   = "@@LINE_ITEM_LINE_TOTAL@@"
-	lineItemRulePlaceholder        = "@@LINE_ITEM_RULE@@"
+	lineItemsBeginPlaceholder = "@@LINE_ITEMS_BEGIN@@"
+	lineItemsEndPlaceholder   = "@@LINE_ITEMS_END@@"
 )
+
+// lineItemPlaceholders are filled once per position inside a line item
+// block, with their values. rule is the separator after the position.
+var lineItemPlaceholders = []struct {
+	name  string
+	value func(item invoice.LineItem, currency, rule string) string
+}{
+	{"@@LINE_ITEM_NAME@@", func(item invoice.LineItem, _, _ string) string { return Escape(item.Name) }},
+	{"@@LINE_ITEM_DESCRIPTION@@", func(item invoice.LineItem, _, _ string) string { return Escape(item.Description) }},
+	{"@@LINE_ITEM_UNIT_PRICE@@", func(item invoice.LineItem, currency, _ string) string {
+		return formatUnitPrice(item.UnitPrice, currency)
+	}},
+	{"@@LINE_ITEM_QUANTITY@@", func(item invoice.LineItem, _, _ string) string {
+		return Escape(money.FormatQuantity(item.Quantity))
+	}},
+	{"@@LINE_ITEM_VAT_RATE@@", func(item invoice.LineItem, _, _ string) string { return formatVATRate(item.VATRatePercent) }},
+	{"@@LINE_ITEM_LINE_TOTAL@@", func(item invoice.LineItem, currency, _ string) string {
+		return FormatCurrency(item.LineTotalCents, currency)
+	}},
+	{"@@LINE_ITEM_RULE@@", func(_ invoice.LineItem, _, rule string) string { return rule }},
+}
 
 var (
 	lineItemsBlockPattern    = regexp.MustCompile(`(?s)` + regexp.QuoteMeta(lineItemsBeginPlaceholder) + `(.*?)` + regexp.QuoteMeta(lineItemsEndPlaceholder))
@@ -54,17 +68,9 @@ func validateLineItemBlockPlaceholders(template string, validationErrors *[]stri
 
 func validateLineItemPlaceholdersOutsideBlocks(template string, validationErrors *[]string) {
 	stripped := lineItemsBlockPattern.ReplaceAllString(template, "")
-	for _, placeholder := range []string{
-		lineItemNamePlaceholder,
-		lineItemDescriptionPlaceholder,
-		lineItemUnitPricePlaceholder,
-		lineItemQuantityPlaceholder,
-		lineItemVATRatePlaceholder,
-		lineItemLineTotalPlaceholder,
-		lineItemRulePlaceholder,
-	} {
-		if strings.Contains(stripped, placeholder) {
-			*validationErrors = append(*validationErrors, fmt.Sprintf("%s: only supported inside %s ... %s", placeholder, lineItemsBeginPlaceholder, lineItemsEndPlaceholder))
+	for _, p := range lineItemPlaceholders {
+		if strings.Contains(stripped, p.name) {
+			*validationErrors = append(*validationErrors, fmt.Sprintf("%s: only supported inside %s ... %s", p.name, lineItemsBeginPlaceholder, lineItemsEndPlaceholder))
 		}
 	}
 }
@@ -192,14 +198,9 @@ func renderLineItemTemplateBlock(body string, items []invoice.LineItem, currency
 }
 
 func renderLineItemTemplate(body string, item invoice.LineItem, currency, rule string, templatePairs []string) string {
-	pairs := []string{
-		lineItemNamePlaceholder, Escape(item.Name),
-		lineItemDescriptionPlaceholder, Escape(item.Description),
-		lineItemUnitPricePlaceholder, formatUnitPrice(item.UnitPrice, currency),
-		lineItemQuantityPlaceholder, Escape(money.FormatQuantity(item.Quantity)),
-		lineItemVATRatePlaceholder, formatVATRate(item.VATRatePercent),
-		lineItemLineTotalPlaceholder, FormatCurrency(item.LineTotalCents, currency),
-		lineItemRulePlaceholder, rule,
+	pairs := make([]string, 0, 2*len(lineItemPlaceholders)+len(templatePairs))
+	for _, p := range lineItemPlaceholders {
+		pairs = append(pairs, p.name, p.value(item, currency, rule))
 	}
 	return strings.NewReplacer(append(pairs, templatePairs...)...).Replace(body)
 }

@@ -12,43 +12,56 @@ import (
 	"github.com/0xboris/invox/internal/invoice"
 )
 
+// invoicePlaceholders are the template placeholders filled from the invoice
+// alone, with their values. Placeholders lists them with the others.
+var invoicePlaceholders = []struct {
+	name  string
+	value func(*invoice.Context) string
+}{
+	{"@@ISSUER_NAME@@", func(c *invoice.Context) string { return Escape(string(c.Company.LegalCompanyName)) }},
+	{"@@ISSUER_COMPANY_REG_NO@@", func(c *invoice.Context) string { return Escape(string(c.Company.CompanyRegistrationNumber)) }},
+	{"@@ISSUER_VAT_TAX_ID@@", func(c *invoice.Context) string { return Escape(string(c.Company.VATTaxID)) }},
+	{"@@ISSUER_WEBSITE@@", func(c *invoice.Context) string { return Escape(string(c.Company.Website)) }},
+	{"@@ISSUER_EMAIL@@", func(c *invoice.Context) string { return Escape(string(c.Company.Email)) }},
+	{"@@ISSUER_STREET@@", func(c *invoice.Context) string { return Escape(string(c.Company.Address.Street)) }},
+	{"@@ISSUER_CITY@@", func(c *invoice.Context) string { return Escape(string(c.Company.Address.City)) }},
+	{"@@ISSUER_POSTAL_CODE@@", func(c *invoice.Context) string { return Escape(string(c.Company.Address.PostalCode)) }},
+	{"@@ISSUER_COUNTRY@@", func(c *invoice.Context) string { return Escape(string(c.Company.Address.Country)) }},
+	{"@@CUSTOMER_NAME@@", func(c *invoice.Context) string { return Escape(c.Customer.DisplayName()) }},
+	{"@@CUSTOMER_STREET@@", func(c *invoice.Context) string { return Escape(string(c.Customer.Address.Street)) }},
+	{"@@CUSTOMER_CITY@@", func(c *invoice.Context) string { return Escape(string(c.Customer.Address.City)) }},
+	{"@@CUSTOMER_POSTAL_CODE@@", func(c *invoice.Context) string { return Escape(string(c.Customer.Address.PostalCode)) }},
+	{"@@CUSTOMER_COUNTRY@@", func(c *invoice.Context) string { return Escape(string(c.Customer.Address.Country)) }},
+	{"@@CUSTOMER_VAT_TAX_ID@@", func(c *invoice.Context) string { return Escape(string(c.Customer.Tax.VATTaxID)) }},
+	{"@@CUSTOMER_EMAIL@@", func(c *invoice.Context) string { return Escape(c.CustomerEmail) }},
+	{"@@INVOICE_NUMBER@@", func(c *invoice.Context) string { return Escape(string(c.Header.Number)) }},
+	{"@@ISSUE_DATE@@", func(c *invoice.Context) string { return Escape(c.Header.IssueDate.Display()) }},
+	{"@@DUE_DATE@@", func(c *invoice.Context) string { return Escape(c.Header.DueDate.Display()) }},
+	{"@@PERIOD_LABEL@@", func(c *invoice.Context) string { return Escape(string(c.Header.Period)) }},
+	{"@@LINE_ITEMS_ROWS@@", func(c *invoice.Context) string { return LineItemRows(c.LineItems, c.Currency) }},
+	{"@@LINE_ITEMS_ROWS_WITH_VAT@@", func(c *invoice.Context) string { return LineItemRowsWithVAT(c.LineItems, c.Currency) }},
+	{"@@SUBTOTAL@@", func(c *invoice.Context) string { return FormatCurrency(c.SubtotalCents, c.Currency) }},
+	{"@@VAT_SUMMARY_ROWS@@", func(c *invoice.Context) string {
+		return VATSummaryRows(c.Payment.VATName(), c.VATBreakdowns, c.Currency)
+	}},
+	{"@@TOTAL@@", func(c *invoice.Context) string { return FormatCurrency(c.TotalCents, c.Currency) }},
+	{"@@PAID_AMOUNT@@", func(c *invoice.Context) string { return FormatCurrency(c.PaidAmountCents, c.Currency) }},
+	{"@@OUTSTANDING_AMOUNT@@", func(c *invoice.Context) string { return FormatCurrency(c.OutstandingCents, c.Currency) }},
+	{"@@INVOICE_TOTAL@@", func(c *invoice.Context) string { return FormatCurrency(c.TotalCents, c.Currency) }},
+	{"@@OUTSTANDING_TOTAL@@", func(c *invoice.Context) string { return FormatCurrency(c.OutstandingCents, c.Currency) }},
+	{"@@PAYMENT_TERMS_TEXT@@", func(c *invoice.Context) string { return Escape(string(c.Payment.PaymentTermsText)) }},
+	{"@@VAT_LABEL@@", func(c *invoice.Context) string { return Escape(c.Payment.VATName()) }},
+	{"@@BANK_NAME@@", func(c *invoice.Context) string { return Escape(string(c.Payment.BankName)) }},
+	{"@@IBAN@@", func(c *invoice.Context) string { return Escape(string(c.Payment.IBAN)) }},
+	{"@@BIC@@", func(c *invoice.Context) string { return Escape(string(c.Payment.BIC)) }},
+}
+
 func buildTemplateValues(ctx *invoice.Context) map[string]string {
-	return map[string]string{
-		"@@ISSUER_NAME@@":              Escape(string(ctx.Company.LegalCompanyName)),
-		"@@ISSUER_COMPANY_REG_NO@@":    Escape(string(ctx.Company.CompanyRegistrationNumber)),
-		"@@ISSUER_VAT_TAX_ID@@":        Escape(string(ctx.Company.VATTaxID)),
-		"@@ISSUER_WEBSITE@@":           Escape(string(ctx.Company.Website)),
-		"@@ISSUER_EMAIL@@":             Escape(string(ctx.Company.Email)),
-		"@@ISSUER_STREET@@":            Escape(string(ctx.Company.Address.Street)),
-		"@@ISSUER_CITY@@":              Escape(string(ctx.Company.Address.City)),
-		"@@ISSUER_POSTAL_CODE@@":       Escape(string(ctx.Company.Address.PostalCode)),
-		"@@ISSUER_COUNTRY@@":           Escape(string(ctx.Company.Address.Country)),
-		"@@INVOICE_NUMBER@@":           Escape(string(ctx.Header.Number)),
-		"@@ISSUE_DATE@@":               Escape(ctx.Header.IssueDate.Display()),
-		"@@DUE_DATE@@":                 Escape(ctx.Header.DueDate.Display()),
-		"@@INVOICE_TOTAL@@":            FormatCurrency(ctx.TotalCents, ctx.Currency),
-		"@@OUTSTANDING_TOTAL@@":        FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@CUSTOMER_NAME@@":            Escape(ctx.Customer.DisplayName()),
-		"@@CUSTOMER_STREET@@":          Escape(string(ctx.Customer.Address.Street)),
-		"@@CUSTOMER_CITY@@":            Escape(string(ctx.Customer.Address.City)),
-		"@@CUSTOMER_POSTAL_CODE@@":     Escape(string(ctx.Customer.Address.PostalCode)),
-		"@@CUSTOMER_COUNTRY@@":         Escape(string(ctx.Customer.Address.Country)),
-		"@@CUSTOMER_VAT_TAX_ID@@":      Escape(string(ctx.Customer.Tax.VATTaxID)),
-		"@@CUSTOMER_EMAIL@@":           Escape(ctx.CustomerEmail),
-		"@@LINE_ITEMS_ROWS@@":          LineItemRows(ctx.LineItems, ctx.Currency),
-		"@@LINE_ITEMS_ROWS_WITH_VAT@@": LineItemRowsWithVAT(ctx.LineItems, ctx.Currency),
-		"@@PERIOD_LABEL@@":             Escape(string(ctx.Header.Period)),
-		"@@PAYMENT_TERMS_TEXT@@":       Escape(string(ctx.Payment.PaymentTermsText)),
-		"@@VAT_LABEL@@":                Escape(ctx.Payment.VATName()),
-		"@@SUBTOTAL@@":                 FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_SUMMARY_ROWS@@":         VATSummaryRows(ctx.Payment.VATName(), ctx.VATBreakdowns, ctx.Currency),
-		"@@TOTAL@@":                    FormatCurrency(ctx.TotalCents, ctx.Currency),
-		"@@PAID_AMOUNT@@":              FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
-		"@@OUTSTANDING_AMOUNT@@":       FormatCurrency(ctx.OutstandingCents, ctx.Currency),
-		"@@BANK_NAME@@":                Escape(string(ctx.Payment.BankName)),
-		"@@IBAN@@":                     Escape(string(ctx.Payment.IBAN)),
-		"@@BIC@@":                      Escape(string(ctx.Payment.BIC)),
+	values := make(map[string]string, len(invoicePlaceholders))
+	for _, p := range invoicePlaceholders {
+		values[p.name] = p.value(ctx)
 	}
+	return values
 }
 
 func epcQRAvailabilityLiteral(wantAvailable, available bool) string {
@@ -120,7 +133,7 @@ func (Renderer) Render(t billing.Template, ctx *invoice.Context, epc billing.EPC
 	if err != nil {
 		return "", err
 	}
-	template := MigrateLegacyPlaceholders(string(content))
+	template := string(content)
 	if err := ValidateTemplate(template); err != nil {
 		return "", fmt.Errorf("%s: %w", t.Path, err)
 	}

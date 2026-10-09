@@ -2,24 +2,40 @@ package latex
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
 
-// ValidateTemplate reports every unsupported placeholder and malformed line
+// placeholderPattern matches every token written like a placeholder.
+var placeholderPattern = regexp.MustCompile(`@@[A-Z0-9_]+@@`)
+
+// Placeholders returns every placeholder a template may use: the ones
+// filled from the invoice, the line item block and its placeholders, and
+// the EPC QR ones.
+func Placeholders() []string {
+	names := make([]string, 0, len(invoicePlaceholders)+len(lineItemPlaceholders)+5)
+	for _, p := range invoicePlaceholders {
+		names = append(names, p.name)
+	}
+	names = append(names, lineItemsBeginPlaceholder, lineItemsEndPlaceholder)
+	for _, p := range lineItemPlaceholders {
+		names = append(names, p.name)
+	}
+	return append(names, epcQRAvailablePlaceholder, epcQRLabelPlaceholder, epcQRCodePlaceholder)
+}
+
+// ValidateTemplate reports every unknown placeholder and malformed line
 // item block in template, one per line.
 func ValidateTemplate(template string) error {
 	var validationErrors []string
-	for placeholder, replacement := range map[string]string{
-		"@@VAT_RATE@@":                      "@@VAT_SUMMARY_ROWS@@",
-		"@@VAT_AMOUNT@@":                    "@@VAT_SUMMARY_ROWS@@",
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@":   "@@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@": "@@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
-	} {
-		if strings.Contains(template, placeholder) {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: unsupported placeholder; use %s", placeholder, replacement))
+	known := Placeholders()
+	var unknown []string
+	for _, name := range placeholderPattern.FindAllString(template, -1) {
+		if !slices.Contains(known, name) && !slices.Contains(unknown, name) {
+			unknown = append(unknown, name)
+			validationErrors = append(validationErrors, name+": unknown placeholder")
 		}
 	}
 	if validateLineItemBlockPlaceholders(template, &validationErrors) {
@@ -29,13 +45,6 @@ func ValidateTemplate(template string) error {
 		return errors.New(strings.Join(validationErrors, "\n"))
 	}
 	return nil
-}
-
-// MigrateLegacyPlaceholders replaces the single VAT row of older starter
-// templates with @@VAT_SUMMARY_ROWS@@.
-func MigrateLegacyPlaceholders(template string) string {
-	legacyVATRowPattern := regexp.MustCompile(`(?m)^([ \t]*)VAT \(@@VAT_RATE@@\\%\): & @@VAT_AMOUNT@@\\\\[ \t]*$`)
-	return legacyVATRowPattern.ReplaceAllString(template, `${1}@@VAT_SUMMARY_ROWS@@`)
 }
 
 // sortedReplacementPairs flattens placeholder values into strings.NewReplacer

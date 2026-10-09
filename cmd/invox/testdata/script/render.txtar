@@ -37,6 +37,16 @@ scrubpaths stderr got.txt
 cmp got.txt want-foreign.txt
 ! exists foreign.tex
 
+# A placeholder the renderer does not know fails; nothing is written.
+exits 1 invox render -i invoice.yaml -o typo.tex -t ./misspelt.tex
+! stdout .
+cmp stderr want-misspelt.txt
+! exists typo.tex
+
+-- misspelt.tex --
+@@INVOICE_NUMBER@@ for @@CUSTOMR_NAME@@
+-- want-misspelt.txt --
+error: misspelt.tex: @@CUSTOMR_NAME@@: unknown placeholder
 -- atat.yaml --
 customer_id: CUST-001
 invoice:

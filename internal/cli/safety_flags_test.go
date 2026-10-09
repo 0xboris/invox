@@ -317,7 +317,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			workDir := t.TempDir()
 			chdirForTest(t, workDir)
 			return []string{"render", "-i", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath}, []string{workDir, filepath.Dir(invoicePath)}
-		}, wantStderr: "@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder"},
+		}, wantStderr: "@@ISSUER_CITY_AND_POSTAL_CODE@@: unknown placeholder"},
 		{name: "build with a broken template", wantExit: 1, setup: func(t *testing.T) ([]string, []string) {
 			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 			if err := os.WriteFile(templatePath, []byte("@@ISSUER_CITY_AND_POSTAL_CODE@@\n"), 0o644); err != nil {
@@ -327,7 +327,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			workDir := t.TempDir()
 			chdirForTest(t, workDir)
 			return []string{"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath}, []string{workDir, filepath.Dir(invoicePath)}
-		}, wantStderr: "@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder"},
+		}, wantStderr: "@@ISSUER_CITY_AND_POSTAL_CODE@@: unknown placeholder"},
 		{name: "build --archive with a duplicate number", wantExit: 1, realRunWrites: true, setup: func(t *testing.T) ([]string, []string) {
 			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
 			installFakeTectonic(t, fakeTectonicWritePDF)

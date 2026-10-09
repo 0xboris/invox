@@ -23,8 +23,7 @@ Description:
 
 Important rules:
   Placeholder names are case-sensitive and must match exactly.
-  Unknown placeholders are left unchanged in the rendered TeX.
-  @@VAT_RATE@@ and @@VAT_AMOUNT@@ are unsupported; use @@VAT_SUMMARY_ROWS@@.
+  An unknown placeholder fails render and build; the error names it.
   Most placeholders are LaTeX-escaped automatically.
   Dates render as DD.MM.YYYY.
   Money renders as 1.234,56 \euro for EUR, or with the currency code otherwise.

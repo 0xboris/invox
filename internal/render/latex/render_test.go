@@ -317,45 +317,6 @@ Label: @@VAT_LABEL@@
 	}
 }
 
-func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
-	t.Parallel()
-
-	h := isolatedHost(t)
-	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := loadContext(t, customersPath, issuerPath, invoicePath)
-	if err != nil {
-		t.Fatalf("LoadContext returned error: %v", err)
-	}
-
-	templatePath := filepath.Join(t.TempDir(), "invoice_template.tex")
-	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
-\begin{tabular}{lr}
-Subtotal: & @@SUBTOTAL@@\\
-VAT (@@VAT_RATE@@\%): & @@VAT_AMOUNT@@\\
-Total: & @@TOTAL@@\\
-\end{tabular}
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(templatePath) returned error: %v", err)
-	}
-
-	outputPath := filepath.Join(t.TempDir(), "invoice.tex")
-	if err := h.renderInvoice(t, templatePath, outputPath, ctx); err != nil {
-		t.Fatalf("RenderInvoice returned error: %v", err)
-	}
-
-	rendered, err := os.ReadFile(outputPath)
-	if err != nil {
-		t.Fatalf("ReadFile(outputPath) returned error: %v", err)
-	}
-	text := string(rendered)
-	if strings.Contains(text, "@@VAT_RATE@@") || strings.Contains(text, "@@VAT_AMOUNT@@") {
-		t.Fatalf("rendered output still contains legacy VAT placeholders: %q", text)
-	}
-	if !strings.Contains(text, "VAT (20\\%): & 42,00 \\euro\\\\") {
-		t.Fatalf("rendered output %q does not contain migrated VAT summary row", text)
-	}
-}
-
 func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 	t.Parallel()
 
@@ -376,13 +337,8 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy VAT placeholders")
 	}
-	for _, want := range []string{
-		"@@VAT_RATE@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
-		"@@VAT_AMOUNT@@: unsupported placeholder; use @@VAT_SUMMARY_ROWS@@",
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not contain %q", err.Error(), want)
-		}
+	if want := templatePath + ": @@VAT_RATE@@: unknown placeholder\n@@VAT_AMOUNT@@: unknown placeholder"; err.Error() != want {
+		t.Fatalf("error = %q, want %q", err.Error(), want)
 	}
 }
 
@@ -406,13 +362,8 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 	if err == nil {
 		t.Fatal("RenderInvoice returned nil error for legacy city/postal placeholders")
 	}
-	for _, want := range []string{
-		"@@ISSUER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@ISSUER_POSTAL_CODE@@ @@ISSUER_CITY@@",
-		"@@CUSTOMER_CITY_AND_POSTAL_CODE@@: unsupported placeholder; use @@CUSTOMER_POSTAL_CODE@@ @@CUSTOMER_CITY@@",
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not contain %q", err.Error(), want)
-		}
+	if want := templatePath + ": @@ISSUER_CITY_AND_POSTAL_CODE@@: unknown placeholder\n@@CUSTOMER_CITY_AND_POSTAL_CODE@@: unknown placeholder"; err.Error() != want {
+		t.Fatalf("error = %q, want %q", err.Error(), want)
 	}
 }
 
