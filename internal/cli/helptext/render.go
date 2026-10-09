@@ -1,6 +1,7 @@
 package helptext
 
 import (
+	_ "embed"
 	"io"
 	"text/template"
 )
@@ -48,10 +49,22 @@ type Locations struct {
 	ConfigTemplate string
 }
 
-// Render writes text, a command's Long, with its {{...}} actions filled in
-// from the fields of l.
+//go:embed reference.tmpl
+var reference string
+
+// shared holds the sections of reference.tmpl. Render parses each text
+// into a clone of it, so a text can include them with {{template}}.
+var shared = template.Must(template.New("reference.tmpl").Funcs(template.FuncMap{
+	"customerFields":       func() []group { return customerFields },
+	"issuerFields":         func() []group { return issuerFields },
+	"defaultsFields":       func() []group { return defaultsFields },
+	"templatePlaceholders": func() []group { return templatePlaceholders },
+}).Parse(reference))
+
+// Render writes text, a command's Long or a topic page, with its {{...}}
+// actions filled in: the fields of l, and the sections of reference.tmpl.
 func Render(w io.Writer, text string, l Locations) error {
-	tmpl, err := template.New("").Parse(text)
+	tmpl, err := template.Must(shared.Clone()).New("").Parse(text)
 	if err != nil {
 		return err
 	}

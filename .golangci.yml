@@ -372,11 +372,6 @@ linters:
       - path: ^internal/fsutil/umask_unix\.go$
         linters: [gosec]
         text: G115
-      # The template placeholder table names its column Token; the values
-      # are placeholders such as @@EPC_QR_CODE@@, not credentials.
-      - path: ^internal/cli/helptext/reference\.go$
-        linters: [gosec]
-        text: G101
       # SilentError and CancelError keep gh's cmdutil names.
       - path: ^internal/cli/cmdutil/errors\.go$
         linters: [staticcheck]

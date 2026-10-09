@@ -19,11 +19,10 @@ func writeHelp(w io.Writer, cmd *cobra.Command, l helptext.Locations) error {
 	if description == "" {
 		description = cmd.Short + "."
 	}
-	var page strings.Builder
-	if err := helptext.Render(&page, description, l); err != nil {
+	text, err := render(description, l)
+	if err != nil {
 		return fmt.Errorf("help for %s: %w", cmd.CommandPath(), err)
 	}
-	text := strings.TrimRight(page.String(), "\n") + "\n"
 	section := func(title, body string) {
 		if body != "" {
 			text += "\n" + title + ":\n" + body
@@ -54,8 +53,18 @@ func writeHelp(w io.Writer, cmd *cobra.Command, l helptext.Locations) error {
 		section("Learn more", "  Run `invox help <command>` for more information about a command.\n"+
 			"  Run `invox help <topic>` to read a help topic.\n")
 	}
-	_, err := io.WriteString(w, text)
+	_, err = io.WriteString(w, text)
 	return err
+}
+
+// render fills in a Long or a topic page and ends it with exactly one
+// newline.
+func render(text string, l helptext.Locations) (string, error) {
+	var page strings.Builder
+	if err := helptext.Render(&page, text, l); err != nil {
+		return "", err
+	}
+	return strings.TrimRight(page.String(), "\n") + "\n", nil
 }
 
 func usageLines(cmd *cobra.Command) string {
@@ -121,9 +130,15 @@ func helpTopic(w io.Writer, root *cobra.Command, l helptext.Locations, args []st
 	if len(args) == 0 {
 		return writeHelp(w, root, l)
 	}
-	if topic, ok := helptext.LookupTopic(args[0]); ok && len(args) == 1 && topic.Print != nil {
-		topic.Print(w, l)
-		return nil
+	if topic, ok := helptext.LookupTopic(args[0]); ok && len(args) == 1 {
+		if page, ok := topic.Page(); ok {
+			text, err := render(page, l)
+			if err != nil {
+				return fmt.Errorf("help topic %s: %w", topic.Name, err)
+			}
+			_, err = io.WriteString(w, text)
+			return err
+		}
 	}
 	cmd, rest, err := root.Find(args)
 	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() {
@@ -147,7 +162,7 @@ func helpCompletions(root *cobra.Command, args []string) []cobra.Completion {
 	}
 	if cmd == root {
 		for _, topic := range helptext.Topics {
-			if topic.Print != nil {
+			if _, ok := topic.Page(); ok {
 				names = append(names, cobra.CompletionWithDesc(topic.Name, topic.Short))
 			}
 		}

@@ -1,0 +1,30 @@
+customers.yaml reference.
+
+Usage:
+  invox help customers
+
+Behavior:
+  Shows the supported customers.yaml shape used by new, validate, render, build, and email.
+  `invox customer edit` opens the resolved file for editing.
+
+Formatting:
+  Top-level customer IDs must start at column 1 with no leading spaces.
+
+{{template "customer-fields"}}
+
+Rules:
+  Preferred display name path is <customer>.name; <customer>.legal_company_name is also accepted.
+  Email lookup order is billing.send_invoice_to, billing.email, then email.
+  email_greeting defaults to Hello, when omitted.
+  billing.currency defaults to EUR.
+  numbering.code feeds {customer_code}; numbering.start overrides config.numbering.start for one customer.
+
+Lookup:
+  customers.yaml: upward project search, then {{.Customers}}
+
+Examples:
+  invox help customers
+  invox customer edit
+  invox new CUST-001 -c customers.yaml
+
+{{template "customer-example"}}

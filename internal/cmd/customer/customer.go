@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/customer/edit"
 	"github.com/0xboris/invox/internal/cmd/customer/list"
 )
@@ -24,10 +23,8 @@ Default lookup:
 Documentation:
   Run ` + "`" + `invox help customers` + "`" + ` for the customers.yaml schema reference.
 
-` +
-			helptext.CustomerFieldReference() +
-			"\n" +
-			helptext.CustomerYAMLExample(),
+{{template "customer-fields"}}
+{{template "customer-example"}}`,
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
 $ invox customer edit

@@ -42,11 +42,9 @@ func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) err
 
 Default lookup:
 ` +
-			helptext.LookupCustomers +
-			"\n" +
-			helptext.CustomerFieldReference() +
-			"\n" +
-			helptext.CustomerYAMLExample(),
+			helptext.LookupCustomers + `
+{{template "customer-fields"}}
+{{template "customer-example"}}`,
 		Example: `$ invox customer edit
 $ invox customer edit -c customers.yaml
 `,

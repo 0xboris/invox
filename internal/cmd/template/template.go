@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/template/list"
 )
 
@@ -48,8 +47,7 @@ Template workflow:
   Run ` + "`" + `invox build invoice.yaml` + "`" + ` after the rendered LaTeX looks correct.
   Run ` + "`" + `invox template list` + "`" + ` to discover templates addressable by name with -t/--template.
 
-` +
-			helptext.TemplatePlaceholderReference(),
+{{template "template-placeholders"}}`,
 		Example: `$ invox template list
 $ invox template list --names
 $ invox render -i invoice.yaml -t multi_vat.tex

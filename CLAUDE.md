@@ -70,10 +70,12 @@ dependencies point inward, from main to the driving and driven adapters to the u
   - `internal/cli`: `Main`, the cobra root (`root.go`: global flags, the check that
     rejects single-dash long flags, help routing, help groups), exit codes (`exit.go`), signals and the help page
     renderer (`usage.go`); the `completion` command is in `internal/cmd/completion`. Help is generated from each command's `Short`,
-    `Long` and `Example`; a `Long` is a text/template filled in from `helptext.Locations`,
-    which `cmdutil.Factory.Locations` returns.
-    `helptext` holds the shared help content: the topic pages, reference tables and lookup
-    lines. `cmdutil` holds the `Factory`, `Files`, the error types, `UsageError` (which words
+    `Long` and `Example`; a `Long` is a text/template that `helptext.Render` fills in from
+    the fields of `helptext.Locations` (`{{.Customers}}`), which `cmdutil.Factory.Locations`
+    returns. `helptext` holds the shared help content: the topic pages
+    (`topics/<name>.tmpl`, each registered by one line in `Topics`), the sections in
+    `reference.tmpl` that a `Long` or page includes with `{{template "customer-fields"}}`,
+    the reference tables they range over (`reference.go`) and the lookup lines. `cmdutil` holds the `Factory`, `Files`, the error types, `UsageError` (which words
     a missing support file or template as a usage error), `FlagErrorFunc`, the `Args`
     checks (`NoArgs`, `ExactArgs`, `MaximumArgs`), `AddSupportFlags` (the `-c`, `-u`,
     `--defaults` and `-t` flags from one table, into `SupportPaths`), the path display

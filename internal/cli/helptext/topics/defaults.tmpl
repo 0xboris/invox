@@ -1,0 +1,30 @@
+invoice_defaults.yaml reference.
+
+Usage:
+  invox help defaults
+  invox help invoice-defaults
+
+Behavior:
+  Shows the supported invoice_defaults.yaml shape used by `invox new`.
+  `invox init` writes a starter invoice_defaults.yaml with this structure.
+  `invox new --from-last` bypasses invoice_defaults.yaml and clones the latest archived invoice for that customer.
+
+Formatting:
+  Top-level keys must start at column 1 with no leading spaces.
+
+{{template "defaults-fields"}}
+
+Rules:
+  `new` sets customer_id, invoice.number, invoice.issue_date, invoice.due_date, invoice.status, and invoice.paid_amount.
+  If positions is omitted, `new` creates an empty list.
+  The final invoice used by validate/render/build/email still needs a non-empty positions list.
+  Canonical keys are positions, invoice.period, and invoice.vat_percent.
+
+Lookup:
+  invoice_defaults.yaml: upward project search, then {{.Defaults}}
+
+Examples:
+  invox help defaults
+  invox new CUST-001 --defaults invoice_defaults.yaml
+
+{{template "defaults-example"}}

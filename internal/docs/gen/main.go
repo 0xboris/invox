@@ -52,7 +52,7 @@ func generate(dir string) error {
 	pages := commandPages(cli.NewRootCmd(newFactory()))
 	root := pages[0]
 	for _, topic := range helptext.Topics {
-		if topic.Print == nil {
+		if _, ok := topic.Page(); !ok {
 			continue
 		}
 		topicPage := &page{words: []string{topic.Name}, short: topic.Short, related: []*page{root}}
@@ -127,7 +127,11 @@ func (p *page) isTopic() bool {
 		return false
 	}
 	topic, ok := helptext.LookupTopic(p.words[0])
-	return ok && topic.Print != nil
+	if !ok {
+		return false
+	}
+	_, ok = topic.Page()
+	return ok
 }
 
 // helpText runs `invox help WORDS` and returns what it prints.

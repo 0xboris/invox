@@ -1,7 +1,6 @@
 package factory_test
 
 import (
-	"regexp"
 	"slices"
 	"testing"
 
@@ -12,11 +11,7 @@ import (
 // The placeholder table in the help is written by hand; the renderer's
 // table decides what a template may use. They must list the same names.
 func TestPlaceholderDocsMatch(t *testing.T) {
-	var documented []string
-	row := regexp.MustCompile(`(?m)^    (@@[A-Z0-9_]+@@) `)
-	for _, match := range row.FindAllStringSubmatch(helptext.TemplatePlaceholderReference(), -1) {
-		documented = append(documented, match[1])
-	}
+	documented := helptext.TemplatePlaceholders()
 	known := latex.Placeholders()
 	for _, name := range known {
 		if !slices.Contains(documented, name) {

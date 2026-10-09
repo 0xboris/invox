@@ -134,7 +134,7 @@ func TestHelpEnvironmentDocumentsEveryVariableRead(t *testing.T) {
 	}
 	slices.Sort(missing)
 	if len(missing) > 0 {
-		t.Fatalf("add these to environmentVariables in internal/cli/helptext/topics.go:\n%s", strings.Join(missing, "\n"))
+		t.Fatalf("add these to internal/cli/helptext/topics/environment.tmpl:\n%s", strings.Join(missing, "\n"))
 	}
 }
 
