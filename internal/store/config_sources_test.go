@@ -286,3 +286,11 @@ func TestResolveNumberingSettingsUsesConfigAndDefaults(t *testing.T) {
 		t.Fatalf("Start = %d, want %d", settings.Start, 5)
 	}
 }
+
+func TestResolveSupportFileRejectsConfigFile(t *testing.T) {
+	h := writeConfigFile(t, "")
+	_, err := h.resolveSupportFile(billing.ConfigFile, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "is not a support file") {
+		t.Fatalf("resolveSupportFile(ConfigFile) error = %v, want \"is not a support file\"", err)
+	}
+}

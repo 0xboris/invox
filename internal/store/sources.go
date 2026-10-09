@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,9 @@ var supportFiles = [...]struct {
 // start: the upward project search wins, then paths.* in the config file,
 // then the config directory. Path is "" when nothing is found.
 func (h Host) resolveSupportFile(kind billing.File, start string) (resolved, error) {
+	if kind < 0 || int(kind) >= len(supportFiles) {
+		return resolved{}, fmt.Errorf("%s is not a support file", kind)
+	}
 	file := supportFiles[kind]
 	for _, dir := range h.projectDirs(start) {
 		for _, name := range file.localNames {
