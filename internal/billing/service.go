@@ -34,8 +34,3 @@ type Service struct {
 	Settings func() (Settings, error)
 	Now      func() time.Time
 }
-
-// Locations are where invox keeps its files by default.
-func (s *Service) Locations() Locations {
-	return s.Directory.Locations()
-}

@@ -21,7 +21,7 @@ import (
 var (
 	narrowPorts = map[string][]string{
 		"Invoices":  {"ArchivedHead", "Create", "Destination", "Drafts", "Head", "Load", "Update"},
-		"Directory": {"Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "Locate", "Locations", "Paths", "Template", "Templates"},
+		"Directory": {"Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "Locate", "Paths", "Template", "Templates"},
 		"Archive":   {"Add", "Checkout", "Dir", "Duplicate", "Entries", "Place", "Protects", "Source"},
 		"Renderer":  {"Build", "Render", "Write"},
 		"Compiler":  {"Compile"},
@@ -30,7 +30,7 @@ var (
 	serviceMethods = []string{
 		"Archive", "Build", "CheckNumberUnique", "DefaultTemplate", "DraftEmail",
 		"EditArchived", "EditablePath", "Increment", "Init",
-		"ListArchive", "ListCustomers", "ListTemplates", "Locations", "New", "NextNumber", "Paths",
+		"ListArchive", "ListCustomers", "ListTemplates", "New", "NextNumber", "Paths",
 		"Render", "Validate",
 	}
 )

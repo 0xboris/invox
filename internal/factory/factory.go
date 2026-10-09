@@ -15,6 +15,7 @@ import (
 	"github.com/0xboris/invox/internal/archive"
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/email"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/fsutil"
@@ -58,6 +59,19 @@ func New(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *cmdutil.Factor
 			Mailer:    mailer,
 			Settings:  h.Settings,
 			Now:       e.Now,
+		}
+	}
+	f.Locations = func() helptext.Locations {
+		h := host()
+		return helptext.Locations{
+			ConfigDir:      h.ConfigDir(),
+			ConfigFile:     h.GlobalConfigPath(),
+			Customers:      h.GlobalCustomersPath(),
+			Issuer:         h.GlobalIssuerPath(),
+			Defaults:       h.GlobalInvoiceDefaultsPath(),
+			Template:       h.GlobalTemplatePath(),
+			ArchiveDir:     h.DefaultArchiveDir(),
+			ConfigTemplate: h.ConfigTemplate(),
 		}
 	}
 	return f

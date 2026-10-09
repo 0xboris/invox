@@ -94,7 +94,7 @@ $ invox archive edit 2026-0001.yaml
 			return helpCompletions(root, args), cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return helpTopic(cmd.OutOrStdout(), root, f.Service(cmdutil.Files{}).Locations(), args)
+			return helpTopic(cmd.OutOrStdout(), root, f.Locations(), args)
 		},
 	}
 	root.SetHelpCommand(help)
@@ -110,7 +110,7 @@ $ invox archive edit 2026-0001.yaml
 		if cmd == help {
 			cmd = root
 		}
-		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Service(cmdutil.Files{}).Locations()); err != nil {
+		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Locations()); err != nil {
 			helpErr = err
 		}
 	})

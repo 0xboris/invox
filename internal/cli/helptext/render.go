@@ -3,8 +3,6 @@ package helptext
 import (
 	"io"
 	"text/template"
-
-	"github.com/0xboris/invox/internal/billing"
 )
 
 // The lines of a command's "Default lookup:" section. Like every Long, they
@@ -36,10 +34,24 @@ func ReplacingArchived(withArchiveFlag bool) string {
 		"  --yes only answers the question; every other check still applies.\n"
 }
 
+// Locations are where invox keeps its files by default, for help texts.
+// They come from the environment only; nothing is read.
+type Locations struct {
+	ConfigDir  string
+	ConfigFile string
+	Customers  string
+	Issuer     string
+	Defaults   string
+	Template   string
+	ArchiveDir string
+	// ConfigTemplate is the text a new config.yaml starts with.
+	ConfigTemplate string
+}
+
 // Render writes text, a command's Long, with its {{...}} actions filled in
-// from l. They can read the fields of billing.Locations and call the
-// methods of data.
-func Render(w io.Writer, text string, l billing.Locations) error {
+// from l. They can read the fields of Locations and call the methods of
+// data.
+func Render(w io.Writer, text string, l Locations) error {
 	tmpl, err := template.New("").Option("missingkey=error").Parse(text)
 	if err != nil {
 		return err
@@ -48,7 +60,7 @@ func Render(w io.Writer, text string, l billing.Locations) error {
 }
 
 type data struct {
-	billing.Locations
+	Locations
 }
 
 func (d data) GlobalConfigPath() string          { return d.ConfigFile }

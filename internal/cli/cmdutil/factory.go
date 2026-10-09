@@ -4,6 +4,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/iostreams"
 )
@@ -33,4 +34,7 @@ type Factory struct {
 	ConfigFile string
 	// Service returns the use cases for a command that names files.
 	Service func(Files) *billing.Service
+	// Locations are where invox keeps its files by default, for help
+	// texts.
+	Locations func() helptext.Locations
 }

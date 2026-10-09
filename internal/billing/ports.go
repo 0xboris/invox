@@ -149,20 +149,6 @@ type PathReport struct {
 	Source Source
 }
 
-// Locations are where invox keeps its files by default, for help texts.
-// They come from the environment only; nothing is read.
-type Locations struct {
-	ConfigDir  string
-	ConfigFile string
-	Customers  string
-	Issuer     string
-	Defaults   string
-	Template   string
-	ArchiveDir string
-	// ConfigTemplate is the text a new config.yaml starts with.
-	ConfigTemplate string
-}
-
 // InitFile is a file Init made sure exists.
 type InitFile struct {
 	Path    string
@@ -195,7 +181,6 @@ type Directory interface {
 	// Init creates the config directory and the starter files it lacks,
 	// and returns the directory.
 	Init() (string, []InitFile, error)
-	Locations() Locations
 }
 
 // ArchiveEntry is an archived invoice: where it is and what it says about

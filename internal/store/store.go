@@ -211,21 +211,6 @@ func (s *Store) Init() (string, []billing.InitFile, error) {
 	return dir, files, nil
 }
 
-// Locations are where invox keeps its files by default.
-func (s *Store) Locations() billing.Locations {
-	h := s.Host
-	return billing.Locations{
-		ConfigDir:      h.ConfigDir(),
-		ConfigFile:     h.GlobalConfigPath(),
-		Customers:      h.GlobalCustomersPath(),
-		Issuer:         h.GlobalIssuerPath(),
-		Defaults:       h.GlobalInvoiceDefaultsPath(),
-		Template:       h.GlobalTemplatePath(),
-		ArchiveDir:     h.DefaultArchiveDir(),
-		ConfigTemplate: h.ConfigTemplate(),
-	}
-}
-
 // Settings reads the parts of config.yaml the use cases need.
 func (h Host) Settings() (billing.Settings, error) {
 	cfg, err := h.Config()
