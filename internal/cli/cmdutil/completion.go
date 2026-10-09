@@ -3,8 +3,9 @@ package cmdutil
 import (
 	"strings"
 
-	"github.com/0xboris/invox/internal/billing"
 	"github.com/spf13/cobra"
+
+	"github.com/0xboris/invox/internal/billing"
 )
 
 // The completion funcs below read the same files as the commands. Any error,
