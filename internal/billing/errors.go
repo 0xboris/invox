@@ -171,13 +171,19 @@ func isDecodeError(err error) bool {
 // lenient drops the unknown-key problems from err, the joined *DecodeError
 // values of a strict decode, and returns what is left, or nil.
 func lenient(err error) error {
+	return keepDecodeErrors(err, func(e *DecodeError) bool { return !e.UnknownKey })
+}
+
+// keepDecodeErrors returns err without the *DecodeError values keep
+// rejects, or nil when nothing is left.
+func keepDecodeErrors(err error, keep func(*DecodeError) bool) error {
 	var kept []error
 	var walk func(error)
 	walk = func(err error) {
 		switch e := err.(type) {
 		case nil:
 		case *DecodeError:
-			if !e.UnknownKey {
+			if keep(e) {
 				kept = append(kept, e)
 			}
 		case interface{ Unwrap() []error }:

@@ -90,11 +90,12 @@ func (s *Service) highestDraftCounter(workDir, output, customerID, issueDate str
 		return 0, err
 	}
 	var highest int64
-	for _, head := range s.Invoices.Drafts(workDir, output) {
-		if !head.Status.Allows(invoice.Numbering) || head.Number == "" {
+	for _, draft := range s.Invoices.Drafts(workDir, output) {
+		number := draft.Header.Number.Trim()
+		if !invoice.Status(draft.Header.Status.Trim()).Allows(invoice.Numbering) || number == "" {
 			continue
 		}
-		counter, err := numbering.Parse(settings.Pattern, head.Number, customerID, customer.Numbering.Code.Trim(), issueDate)
+		counter, err := numbering.Parse(settings.Pattern, number, customerID, customer.Numbering.Code.Trim(), issueDate)
 		if err != nil {
 			continue
 		}
@@ -121,26 +122,27 @@ func (s *Service) Increment(path string, dryRun bool) (IncrementResult, error) {
 	if _, err := s.Directory.Locate(CustomersFile); err != nil {
 		return IncrementResult{}, err
 	}
-	head, err := s.Invoices.Head(path)
-	if err != nil {
+	inv, err := s.Invoices.Load(path)
+	// Only the fields numbering reads have to decode.
+	read := map[string]bool{"customer_id": true, "invoice.number": true, "invoice.issue_date": true}
+	if err := keepDecodeErrors(err, func(e *DecodeError) bool { return read[e.Field] }); err != nil {
 		return IncrementResult{}, err
 	}
+	customerID := inv.CustomerID.Trim()
 	switch {
-	case head.CustomerID == "":
+	case customerID == "":
 		return IncrementResult{}, fmt.Errorf("%s: missing `customer_id`", path)
-	case !head.HasHeader:
+	case inv.Header == nil:
 		return IncrementResult{}, fmt.Errorf("%s: missing `invoice` mapping", path)
-	case head.IssueDate == "":
+	case !inv.Header.IssueDate.IsSet():
 		return IncrementResult{}, fmt.Errorf("%s: invoice.issue_date: missing value", path)
 	}
-	if _, err := invoice.ParseDate(head.IssueDate); err != nil {
-		return IncrementResult{}, fmt.Errorf("%s: invoice.issue_date: expected YYYY-MM-DD, got `%s`", path, head.IssueDate)
-	}
-	if head.Number == "" {
+	issueDate, number := inv.Header.IssueDate.String(), inv.Header.Number.Trim()
+	if number == "" {
 		return IncrementResult{}, fmt.Errorf("%s: invoice.number: missing value", path)
 	}
 
-	customer, err := s.Directory.Customer(head.CustomerID)
+	customer, err := s.Directory.Customer(customerID)
 	if err != nil {
 		return IncrementResult{}, err
 	}
@@ -148,15 +150,15 @@ func (s *Service) Increment(path string, dryRun bool) (IncrementResult, error) {
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	current, err := numbering.Parse(settings.Pattern, head.Number, head.CustomerID, customer.Numbering.Code.Trim(), head.IssueDate)
+	current, err := numbering.Parse(settings.Pattern, number, customerID, customer.Numbering.Code.Trim(), issueDate)
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	next, skipped, unread, err := s.NextNumber(head.CustomerID, head.IssueDate, customer, current)
+	next, skipped, unread, err := s.NextNumber(customerID, issueDate, customer, current)
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	result := IncrementResult{CustomerID: head.CustomerID, OldNumber: head.Number, NewNumber: next, Skipped: skipped, Unread: unread}
+	result := IncrementResult{CustomerID: customerID, OldNumber: number, NewNumber: next, Skipped: skipped, Unread: unread}
 	if dryRun {
 		return result, nil
 	}

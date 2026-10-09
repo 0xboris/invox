@@ -39,7 +39,9 @@ invoice: *base
 `
 
 // An `invoice` key that holds no mapping is refused by archive add and
-// archive edit with its own message, apart from a missing key.
+// archive edit. A null one counts as missing, a scalar is a decode error
+// with its line, and an alias to a mapping is refused because archiving
+// rewrites the mapping in place.
 func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -47,14 +49,14 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 		invoice string
 		want    string
 	}{
-		{name: "add null", command: "add", invoice: "invoice:\n", want: "`invoice` must be a mapping"},
-		{name: "add tilde", command: "add", invoice: "invoice: ~\n", want: "`invoice` must be a mapping"},
-		{name: "add scalar", command: "add", invoice: "invoice: 5\n", want: "`invoice` must be a mapping"},
-		{name: "add alias", command: "add", invoice: archiveShapeAlias, want: "`invoice` must be a mapping"},
-		{name: "add missing", command: "add", invoice: "", want: "missing `invoice` mapping"},
-		{name: "edit null", command: "edit", invoice: "invoice:\n", want: "`invoice` must be a mapping"},
-		{name: "edit alias", command: "edit", invoice: archiveShapeAlias, want: "`invoice` must be a mapping"},
-		{name: "edit missing", command: "edit", invoice: "", want: "missing `invoice` mapping"},
+		{name: "add null", command: "add", invoice: "invoice:\n", want: ": missing `invoice` mapping"},
+		{name: "add tilde", command: "add", invoice: "invoice: ~\n", want: ": missing `invoice` mapping"},
+		{name: "add scalar", command: "add", invoice: "invoice: 5\n", want: ":2: invoice must be a mapping, got an integer"},
+		{name: "add alias", command: "add", invoice: archiveShapeAlias, want: ": `invoice` must be a mapping"},
+		{name: "add missing", command: "add", invoice: "", want: ": missing `invoice` mapping"},
+		{name: "edit null", command: "edit", invoice: "invoice:\n", want: ": missing `invoice` mapping"},
+		{name: "edit alias", command: "edit", invoice: archiveShapeAlias, want: ": `invoice` must be a mapping"},
+		{name: "edit missing", command: "edit", invoice: "", want: ": missing `invoice` mapping"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,7 +79,7 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 			}
 
 			exitCode, stdout, stderr := captureRun(t, []string{"archive", tt.command, arg})
-			if want := "error: " + label + ": " + tt.want + "\n"; exitCode != 1 || stdout != "" || stderr != want {
+			if want := "error: " + label + tt.want + "\n"; exitCode != 1 || stdout != "" || stderr != want {
 				t.Fatalf("archive %s = exit %d, stdout %q, stderr %q; want exit 1, no stdout, stderr %q", tt.command, exitCode, stdout, stderr, want)
 			}
 			if got := readFileForTest(t, path); got != source {

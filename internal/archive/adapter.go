@@ -48,15 +48,15 @@ func (a Archive) Dir() (string, error) {
 	return a.Locate()
 }
 
-// Place says where archiving the invoice at src writes it.
-func (a Archive) Place(src string, head billing.Head) (billing.Placement, error) {
+// Place says where archiving inv, the invoice at src, writes it.
+func (a Archive) Place(src string, inv invoice.Invoice) (billing.Placement, error) {
 	s, err := a.store()
 	if err != nil {
 		return billing.Placement{}, err
 	}
 	p := billing.Placement{Path: filepath.Join(s.Dir, filepath.Base(src)), HistoryDir: s.HistoryDir()}
-	if head.WorkingCopy() {
-		target, err := s.Resolve(head.ArchivePath)
+	if link := linkedPath(inv); link != "" {
+		target, err := s.Resolve(link)
 		if err != nil {
 			return billing.Placement{}, err
 		}
@@ -71,21 +71,25 @@ func (a Archive) Place(src string, head billing.Head) (billing.Placement, error)
 }
 
 // Duplicate returns the archived invoice, in file name order, that has
-// head's number, other than src and, for a working copy, the archived file
+// inv's number, other than src and, for a working copy, the archived file
 // it replaces.
-func (a Archive) Duplicate(src string, head billing.Head) (string, billing.Unread, error) {
+func (a Archive) Duplicate(src string, inv invoice.Invoice) (string, billing.Unread, error) {
 	s, err := a.store()
 	if err != nil {
 		return "", billing.Unread{}, err
 	}
-	if strings.TrimSpace(s.Dir) == "" || head.Number == "" {
+	var number string
+	if inv.Header != nil {
+		number = inv.Header.Number.Trim()
+	}
+	if strings.TrimSpace(s.Dir) == "" || number == "" {
 		return "", billing.Unread{}, nil
 	}
 	excluded := map[string]bool{filepath.Clean(src): true}
 	// Only a working copy from `archive edit` may reuse the number of the
 	// archived file it replaces.
-	if head.WorkingCopy() {
-		target, err := s.Resolve(head.ArchivePath)
+	if link := linkedPath(inv); link != "" {
+		target, err := s.Resolve(link)
 		if err != nil {
 			return "", billing.Unread{}, err
 		}
@@ -96,11 +100,21 @@ func (a Archive) Duplicate(src string, head billing.Head) (string, billing.Unrea
 		return "", unread, err
 	}
 	for _, entry := range entries {
-		if entry.Number == head.Number && !excluded[filepath.Clean(entry.Path)] {
+		if entry.Number == number && !excluded[filepath.Clean(entry.Path)] {
 			return filepath.Clean(entry.Path), unread, nil
 		}
 	}
 	return "", unread, nil
+}
+
+// linkedPath is the archived file a working copy from `archive edit`
+// replaces, relative to the archive, or "" for any other invoice. The link
+// is written with forward slashes on every OS.
+func linkedPath(inv invoice.Invoice) string {
+	if inv.Archive == nil {
+		return ""
+	}
+	return filepath.FromSlash(inv.Archive.ArchivePath.Trim())
 }
 
 // Checkout resolves ref and says where its working copy in workDir goes.

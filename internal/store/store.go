@@ -24,7 +24,10 @@ type Files struct {
 type Store struct {
 	Host  Host
 	Getwd func() (string, error)
-	Files Files
+	// Protected reports whether path is an archived invoice, which Create
+	// never overwrites.
+	Protected func(path string) (bool, error)
+	Files     Files
 }
 
 var (

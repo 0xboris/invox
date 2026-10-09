@@ -50,10 +50,12 @@ func New(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *cmdutil.Factor
 			mailer = mailApp
 		}
 		st := &store.Store{Host: h, Getwd: e.Getwd, Files: store.Files{Customers: files.Customers, Issuer: files.Issuer, Defaults: files.Defaults}}
+		archived := archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived, Rewrite: st.Rewrite}
+		st.Protected = archived.Protects
 		return &billing.Service{
 			Invoices:  st,
 			Directory: st,
-			Archives:  archive.Archive{Locate: h.ResolveArchiveDir, Read: store.ReadArchived, Rewrite: st.Rewrite},
+			Archives:  archived,
 			Renderer:  latex.Renderer{},
 			Compiler:  compiler,
 			Mailer:    mailer,

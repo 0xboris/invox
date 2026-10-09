@@ -52,12 +52,6 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-
-	if req.Output != "" {
-		if _, err := s.Invoices.Destination(req.Output, req.WorkDir, "", req.Overwrite); err != nil {
-			return NewResult{}, err
-		}
-	}
 	customer, err := s.Directory.Customer(req.CustomerID)
 	if err != nil {
 		return NewResult{}, err
@@ -84,10 +78,6 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-	output, err := s.Invoices.Destination(req.Output, req.WorkDir, number, req.Overwrite)
-	if err != nil {
-		return NewResult{}, err
-	}
 	dueDays, err := issuerDueDays(issuerPath, *issuer.Payment)
 	if err != nil {
 		return NewResult{}, err
@@ -110,16 +100,13 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 		},
 		Positions: []invoice.Position{},
 	}
-	if err := s.refuseArchivedOverwrite(output, req.Overwrite); err != nil {
-		return NewResult{}, err
-	}
 	// An archived invoice is a record: keys it has that invox does not
 	// know are copied over as they are, for validate to report.
 	check := CheckStrict
 	if req.FromLast {
 		check = CheckLenient
 	}
-	err = s.Invoices.Create(output, from, draft, CreateOptions{Overwrite: req.Overwrite, DryRun: req.DryRun, Check: check})
+	output, err := s.Invoices.Create(req.Output, from, draft, CreateOptions{Dir: req.WorkDir, Overwrite: req.Overwrite, DryRun: req.DryRun, Check: check})
 	if err != nil {
 		return NewResult{}, err
 	}
@@ -142,7 +129,7 @@ func (s *Service) newSource(defaultsPath, customerID string, fromLast bool) (str
 	if !ok {
 		return "", fmt.Errorf("no archived invoice found for customer_id `%s`", customerID)
 	}
-	if _, err := s.Invoices.ArchivedHead(archivePath); err != nil && !isDecodeError(err) {
+	if _, err := s.Invoices.Load(archivePath); err != nil && !isDecodeError(err) {
 		return "", err
 	}
 	return archivePath, nil

@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -21,65 +22,15 @@ func (s *Store) Load(path string) (invoice.Invoice, error) {
 	return inv, err
 }
 
-// ArchivedHead reads the head of the archived invoice at path and decodes
-// it strictly.
-func (s *Store) ArchivedHead(path string) (billing.Head, error) {
-	document, err := loadYAMLDocument(path)
-	if err != nil {
-		return billing.Head{}, err
-	}
-	err = decodeYAMLDocument(document, path, &invoice.Invoice{}, true)
-	if err != nil && !isDecodeError(err) {
-		return billing.Head{}, err
-	}
-	// The lenient decode's errors are among the strict decode's.
-	head, _ := documentHead(document, path)
-	return head, err
-}
-
-// Head reads the identity and the archive link of the invoice at path.
-func (s *Store) Head(path string) (billing.Head, error) {
-	document, err := loadYAMLDocument(path)
-	if err != nil {
-		return billing.Head{}, err
-	}
-	return documentHead(document, path)
-}
-
-func documentHead(document *yaml.Node, path string) (billing.Head, error) {
-	var identity invoiceIdentity
-	err := decodeYAMLDocument(document, path, &identity, false)
-	if err != nil && !isDecodeError(err) {
-		return billing.Head{}, err
-	}
-	head := identity.head()
-	root := document.Content[0]
-	head.Header = headerShape(root)
-	head.ArchivePath = archiveMetadata(root)
-	return head, err
-}
-
-// headerShape is what the `invoice` key of root holds, the node itself
-// rather than what an alias points to, as invoiceMapping reads it.
-func headerShape(root *yaml.Node) billing.HeaderShape {
-	switch node := findMappingValue(root, "invoice"); {
-	case node == nil:
-		return billing.HeaderMissing
-	case node.Kind == yaml.MappingNode:
-		return billing.HeaderMapping
-	}
-	return billing.HeaderOther
-}
-
-func (identity invoiceIdentity) head() billing.Head {
-	head := billing.Head{CustomerID: identity.CustomerID.Trim()}
+// draft is the invoice identity names, with only its customer and the
+// header fields numbering reads.
+func (identity invoiceIdentity) draft() invoice.Invoice {
+	draft := invoice.Invoice{CustomerID: identity.CustomerID, Header: &invoice.Header{}}
 	if identity.Invoice != nil {
-		head.HasHeader = true
-		head.Number = identity.Invoice.Number.Trim()
-		head.IssueDate = identity.Invoice.IssueDate.Trim()
-		head.Status = invoice.Status(identity.Invoice.Status.Trim())
+		draft.Header.Number = identity.Invoice.Number
+		draft.Header.Status = identity.Invoice.Status
 	}
-	return head
+	return draft
 }
 
 // maxDraftScanSize skips large YAML files in the draft scan; invoices are
@@ -89,13 +40,13 @@ const maxDraftScanSize = 1 << 20
 // Drafts returns the invoices directly inside workDir and the directory of
 // output. The scan is best effort: the archive check still guarantees
 // unique numbers, so an unreadable directory or file is skipped.
-func (s *Store) Drafts(workDir, output string) []billing.Head {
+func (s *Store) Drafts(workDir, output string) []invoice.Invoice {
 	dirs := []string{workDir}
 	if output != "" {
 		dirs = append(dirs, filepath.Dir(output))
 	}
 	seen := make(map[string]bool, len(dirs))
-	var heads []billing.Head
+	var drafts []invoice.Invoice
 	for _, dir := range dirs {
 		if strings.TrimSpace(dir) == "" || seen[dir] {
 			continue
@@ -123,37 +74,45 @@ func (s *Store) Drafts(workDir, output string) []billing.Head {
 			if err := decodeYAMLFile(filepath.Join(dir, entry.Name()), &identity, false); err != nil || identity.Invoice == nil {
 				continue
 			}
-			heads = append(heads, identity.head())
+			drafts = append(drafts, identity.draft())
 		}
 	}
-	return heads
+	return drafts
 }
 
-// Destination returns path, or <number>.yaml in workDir when path is "",
-// after refusing a directory there, and an existing file unless overwrite
-// is set.
-func (s *Store) Destination(path, workDir, number string, overwrite bool) (string, error) {
+// Create writes a new invoice to path, or to <number>.yaml in opts.Dir,
+// from the document at from, and returns the file.
+func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.CreateOptions) (string, error) {
 	if path == "" {
-		path = filepath.Join(workDir, number+".yaml")
+		path = filepath.Join(opts.Dir, inv.Header.Number.Trim()+".yaml")
 	}
 	if err := refuseDirOutput(path); err != nil {
 		return "", err
 	}
-	if !overwrite && fileExists(path) {
+	if !opts.Overwrite && fileExists(path) {
 		return "", &billing.OutputExistsError{Path: path}
 	}
-	return path, nil
-}
-
-// Create writes a new invoice to path from the document at from.
-func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.CreateOptions) error {
+	if opts.Overwrite && s.Protected != nil {
+		protected, err := s.Protected(path)
+		if err != nil {
+			return "", err
+		}
+		if protected {
+			return "", &billing.ArchivedOutputError{Path: path}
+		}
+	}
 	document, err := loadYAMLDocument(from)
 	if err != nil {
-		return err
+		return "", err
 	}
 	root, err := documentRootMapping(document, from)
 	if err != nil {
-		return err
+		return "", err
+	}
+	// The header is written in place, so it must be a mapping, not an
+	// alias to one.
+	if node := findMappingValue(root, "invoice"); node != nil && node.Kind != yaml.MappingNode && node.Tag != "!!null" {
+		return "", fmt.Errorf("%s: `invoice` must be a mapping", from)
 	}
 	setArchiveLink(root, inv.Archive)
 	if inv.CustomerID.IsSet() {
@@ -176,15 +135,15 @@ func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.Crea
 	}
 	if opts.Check != billing.CheckNone {
 		if err := decodeYAMLDocument(document, from, &invoice.Invoice{}, opts.Check == billing.CheckStrict); err != nil {
-			return err
+			return "", err
 		}
 	}
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if opts.DryRun {
-		return nil
+		return path, nil
 	}
 	write := fsutil.WriteNewFile
 	if opts.Overwrite {
@@ -192,11 +151,11 @@ func (s *Store) Create(path, from string, inv invoice.Invoice, opts billing.Crea
 	}
 	if err := write(path, data, fsutil.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return &billing.OutputExistsError{Path: path}
+			return "", &billing.OutputExistsError{Path: path}
 		}
-		return err
+		return "", err
 	}
-	return nil
+	return path, nil
 }
 
 type headerField struct {
@@ -325,9 +284,4 @@ func refuseDirOutput(path string) error {
 		return &billing.OutputIsDirError{Path: path}
 	}
 	return nil
-}
-
-func isDecodeError(err error) bool {
-	var decodeErr *billing.DecodeError
-	return errors.As(err, &decodeErr)
 }

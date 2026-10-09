@@ -20,9 +20,9 @@ import (
 // explains each method; a new one belongs there first.
 var (
 	narrowPorts = map[string][]string{
-		"Invoices":  {"ArchivedHead", "Create", "Destination", "Drafts", "Head", "Load", "Update"},
+		"Invoices":  {"Create", "Drafts", "Load", "Update"},
 		"Directory": {"Customer", "Customers", "Defaults", "EditablePath", "Init", "Issuer", "Locate", "Paths", "Template", "Templates"},
-		"Archive":   {"Add", "Checkout", "Dir", "Duplicate", "Entries", "Place", "Protects", "Source"},
+		"Archive":   {"Add", "Checkout", "Dir", "Duplicate", "Entries", "Place", "Source"},
 		"Renderer":  {"Build", "Render", "Write"},
 		"Compiler":  {"Compile"},
 		"Mailer":    {"Check", "CheckAttachment", "Draft"},

@@ -46,11 +46,15 @@ func (s *Service) Archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 }
 
 func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, error) {
-	head, err := s.headWithInvoice(path)
-	if err != nil {
+	inv, err := s.Invoices.Load(path)
+	// Values that do not decode read as unset, except the header itself.
+	if err := keepDecodeErrors(err, func(e *DecodeError) bool { return e.Field == "invoice" }); err != nil {
 		return ArchiveResult{}, err
 	}
-	status := head.Status
+	if inv.Header == nil {
+		return ArchiveResult{}, fmt.Errorf("%s: missing `invoice` mapping", path)
+	}
+	status := invoice.Status(inv.Header.Status.Trim())
 	if opts.AssumeBuilt {
 		status, _ = status.Apply(invoice.Building)
 	}
@@ -61,14 +65,14 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if strings.TrimSpace(dir) == "" {
 		return ArchiveResult{}, errors.New("archive directory is unavailable")
 	}
-	if err := archivable(path, head, status); err != nil {
+	if err := archivable(path, inv, status); err != nil {
 		return ArchiveResult{}, err
 	}
-	place, err := s.Archives.Place(path, head)
+	place, err := s.Archives.Place(path, inv)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	unread, err := s.numberUnique(path, head)
+	unread, err := s.numberUnique(path, inv)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
@@ -86,14 +90,15 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	return result, err
 }
 
-// archivable returns why the invoice at path, whose head is head, cannot be
-// archived with status: a working copy is re-archived when editing or
-// built, any other invoice archived when built.
-func archivable(path string, head Head, status invoice.Status) error {
+// archivable returns why inv, the invoice at path, cannot be archived with
+// status: a working copy is re-archived when editing or built, any other
+// invoice archived when built.
+func archivable(path string, inv invoice.Invoice, status invoice.Status) error {
+	workingCopy := inv.Archive != nil && inv.Archive.ArchivePath.IsSet()
 	switch {
-	case head.WorkingCopy() && !status.Allows(invoice.Rearchiving):
+	case workingCopy && !status.Allows(invoice.Rearchiving):
 		return fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", path, status)
-	case head.WorkingCopy():
+	case workingCopy:
 		return nil
 	case status == "":
 		return fmt.Errorf("%s: invoice.status: missing value", path)
@@ -103,55 +108,30 @@ func archivable(path string, head Head, status invoice.Status) error {
 	return nil
 }
 
-// headWithInvoice reads the head of the invoice at path, which must have an
-// `invoice` mapping. Values that do not decode read as unset.
-func (s *Service) headWithInvoice(path string) (Head, error) {
-	head, err := s.Invoices.Head(path)
-	if err != nil && !isDecodeError(err) {
-		return Head{}, err
-	}
-	if err := requireHeader(path, head); err != nil {
-		return Head{}, err
-	}
-	return head, nil
-}
-
-// requireHeader returns why the `invoice` key of the invoice at path is not
-// a mapping, or nil.
-func requireHeader(path string, head Head) error {
-	switch head.Header {
-	case HeaderMissing:
-		return fmt.Errorf("%s: missing `invoice` mapping", path)
-	case HeaderOther:
-		return fmt.Errorf("%s: `invoice` must be a mapping", path)
-	}
-	return nil
-}
-
 // CheckNumberUnique returns a *invoice.DuplicateInvoiceNumberError when
 // the invoice at path uses a number that an archived invoice already has.
 // The archived file the invoice was opened from (`archive edit`) does not
 // count as a duplicate.
 func (s *Service) CheckNumberUnique(path string) (Unread, error) {
-	head, err := s.Invoices.Head(path)
+	inv, err := s.Invoices.Load(path)
 	if err != nil && !isDecodeError(err) {
 		return Unread{}, err
 	}
-	if !head.HasHeader {
+	if inv.Header == nil {
 		return Unread{}, nil
 	}
-	return s.numberUnique(path, head)
+	return s.numberUnique(path, inv)
 }
 
 // numberUnique returns a *invoice.DuplicateInvoiceNumberError when an
-// archived invoice other than the one the invoice at path replaces has its
-// number.
-func (s *Service) numberUnique(path string, head Head) (Unread, error) {
-	archived, unread, err := s.Archives.Duplicate(path, head)
+// archived invoice other than the one inv, the invoice at path, replaces
+// has its number.
+func (s *Service) numberUnique(path string, inv invoice.Invoice) (Unread, error) {
+	archived, unread, err := s.Archives.Duplicate(path, inv)
 	if err != nil || archived == "" {
 		return unread, err
 	}
-	return unread, &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: head.Number, ArchivedPath: archived}
+	return unread, &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: inv.Header.Number.Trim(), ArchivedPath: archived}
 }
 
 // latestArchived returns the archived invoice of customerID issued last.
@@ -247,23 +227,14 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 	}
 	// The working copy keeps keys invox does not know, so opening an
 	// archived invoice never fails over them; validate reports them.
-	archived, err := s.Invoices.ArchivedHead(checkout.Archived)
-	if err != nil && !isDecodeError(err) {
-		return Edited{}, err
-	}
+	archived, err := s.Invoices.Load(checkout.Archived)
 	if err := lenient(err); err != nil {
 		return Edited{}, err
 	}
-	if err := requireHeader(checkout.Archived, archived); err != nil {
-		return Edited{}, err
+	if archived.Header == nil {
+		return Edited{}, fmt.Errorf("%s: missing `invoice` mapping", checkout.Archived)
 	}
-	if _, err := s.Invoices.Destination(checkout.Path, workDir, "", opts.Overwrite); err != nil {
-		return Edited{}, err
-	}
-	if err := s.refuseArchivedOverwrite(checkout.Path, opts.Overwrite); err != nil {
-		return Edited{}, err
-	}
-	err = s.Invoices.Create(checkout.Path, checkout.Archived, invoice.Invoice{
+	_, err = s.Invoices.Create(checkout.Path, checkout.Archived, invoice.Invoice{
 		Header:  &invoice.Header{Status: invoice.Text(invoice.Editing)},
 		Archive: &checkout.Link,
 	}, CreateOptions{Overwrite: opts.Overwrite, DryRun: opts.DryRun, Check: CheckNone})
@@ -271,21 +242,4 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 		return Edited{}, err
 	}
 	return Edited{Path: checkout.Path, Archived: checkout.Archived}, nil
-}
-
-// refuseArchivedOverwrite returns an *ArchivedOutputError when overwrite
-// would replace an existing file inside the archive directory: an archived
-// invoice is replaced only by re-archiving, which keeps a backup.
-func (s *Service) refuseArchivedOverwrite(path string, overwrite bool) error {
-	if !overwrite {
-		return nil
-	}
-	protected, err := s.Archives.Protects(path)
-	if err != nil {
-		return err
-	}
-	if protected {
-		return &ArchivedOutputError{Path: path}
-	}
-	return nil
 }

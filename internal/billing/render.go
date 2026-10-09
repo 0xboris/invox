@@ -130,11 +130,15 @@ func (s *Service) Build(ctx context.Context, req BuildRequest) (BuildResult, err
 // archived invoice keeps `archived`: rebuilding its PDF does not take it
 // out of the archive.
 func (s *Service) markBuilt(path string) error {
-	head, err := s.Invoices.Head(path)
+	inv, err := s.Invoices.Load(path)
 	if err != nil && !isDecodeError(err) {
 		return err
 	}
-	if next, _ := head.Status.Apply(invoice.Building); next != invoice.Built {
+	var status invoice.Status
+	if inv.Header != nil {
+		status = invoice.Status(inv.Header.Status.Trim())
+	}
+	if next, _ := status.Apply(invoice.Building); next != invoice.Built {
 		return nil
 	}
 	return s.Invoices.Update(path, func(inv *invoice.Invoice) error {

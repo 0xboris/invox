@@ -156,9 +156,11 @@ func TestPortOrder(t *testing.T) {
 				portOrderConfig + "issuer.yaml": badDueIssuer,
 				"CUST-001-010.yaml":             "x: 1\n",
 			},
-			args:       []string{"new", "CUST-001"},
-			wantExit:   1,
-			wantStderr: "error: CUST-001-010.yaml already exists; pass --force to replace it or choose a different -o/--output path\n",
+			args:     []string{"new", "CUST-001"},
+			wantExit: 1,
+			// The output file is checked when it is written, after the
+			// issuer.
+			wantStderr: "error: home/.config/invox/issuer.yaml: payment.due_days: must be >= 0\n",
 		},
 		{
 			name:       "new-output-in-other-dir-drafts",

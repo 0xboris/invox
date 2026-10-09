@@ -22,37 +22,6 @@ func (f File) String() string {
 	return [...]string{"customers", "issuer", "defaults", "template", "config"}[f]
 }
 
-// Head is what numbering and the archive read of an invoice, as written. It
-// is decoded leniently, so a file with keys invox does not know, or with
-// values it cannot read, still counts.
-type Head struct {
-	CustomerID string
-	Number     string
-	IssueDate  string
-	Status     invoice.Status
-	// HasHeader is false when the `invoice` key is missing or null.
-	HasHeader bool
-	// Header is what the `invoice` key holds as written. Archiving rewrites
-	// that mapping in place, so an alias to a mapping is HeaderOther.
-	Header HeaderShape
-	// ArchivePath is the `_invox` link of a working copy from `archive
-	// edit`, relative to the archive, "" when it has none.
-	ArchivePath string
-}
-
-// WorkingCopy reports whether h is a working copy from `archive edit`,
-// which re-archiving writes back over the archived file it names.
-func (h Head) WorkingCopy() bool { return h.ArchivePath != "" }
-
-// HeaderShape is what the `invoice` key of an invoice file holds.
-type HeaderShape int
-
-const (
-	HeaderMissing HeaderShape = iota // no `invoice` key
-	HeaderMapping                    // a mapping
-	HeaderOther                      // null, a scalar, a list or an alias
-)
-
 // Check says how Create checks the invoice it writes.
 type Check int
 
@@ -67,7 +36,11 @@ const (
 
 // CreateOptions control Invoices.Create.
 type CreateOptions struct {
-	// Overwrite replaces an existing file.
+	// Dir holds the new invoice, named after its number, when the path is
+	// "".
+	Dir string
+	// Overwrite replaces an existing file, but never an archived invoice:
+	// that is an *ArchivedOutputError.
 	Overwrite bool
 	// DryRun runs every check and writes nothing.
 	DryRun bool
@@ -80,28 +53,20 @@ type Invoices interface {
 	// Load decodes the invoice at path strictly. Values that do not fit
 	// come back as joined *DecodeError values, with the rest decoded.
 	Load(path string) (invoice.Invoice, error)
-	// ArchivedHead is Head for an archived invoice. It decodes the whole
-	// invoice strictly, as Load does, and returns those errors.
-	ArchivedHead(path string) (Head, error)
-	// Head reads what numbering and the archive need of the invoice at
-	// path. Values that do not decode are left unset and reported as
-	// *DecodeError values.
-	Head(path string) (Head, error)
-	// Drafts returns the invoices directly in workDir and, when output is
-	// set, in the directory output is in, best effort: files that cannot
-	// be read are left out.
-	Drafts(workDir, output string) []Head
-	// Destination returns the file a new invoice is written to: path, or
-	// when path is "", <number>.yaml in workDir. It returns an
-	// *OutputIsDirError when that is a directory and, unless overwrite is
-	// set, an *OutputExistsError when it exists.
-	Destination(path, workDir, number string, overwrite bool) (string, error)
-	// Create writes a new invoice to path from the document at from, which
-	// may be an archived invoice, keeping its comments and keys. Every
-	// customer and header field set in inv is written, as text. Positions
-	// is added when inv's is not nil and from has none. The `_invox` link
-	// is replaced by inv's.
-	Create(path, from string, inv invoice.Invoice, opts CreateOptions) error
+	// Drafts returns the customer and the header's number and status of
+	// the invoices directly in workDir and, when output is set, in the
+	// directory output is in, best effort: files that cannot be read are
+	// left out.
+	Drafts(workDir, output string) []invoice.Invoice
+	// Create writes a new invoice to path, or when path is "", to
+	// <number>.yaml in opts.Dir, from the document at from, which may be
+	// an archived invoice, keeping its comments and keys, and returns the
+	// file. Every customer and header field set in inv is written, as
+	// text. Positions is added when inv's is not nil and from has none.
+	// The `_invox` link is replaced by inv's. It returns an
+	// *OutputIsDirError when the file is a directory and, unless
+	// opts.Overwrite is set, an *OutputExistsError when it exists.
+	Create(path, from string, inv invoice.Invoice, opts CreateOptions) (string, error)
 	// Update rewrites the invoice at path with change applied, writing
 	// back only the fields that changed.
 	Update(path string, change func(*invoice.Invoice) error) error
@@ -264,17 +229,17 @@ type Archive interface {
 	Entries() ([]ArchiveEntry, Unread, error)
 	// Dir returns the archive directory, "" when there is none.
 	Dir() (string, error)
-	// Place says where archiving the invoice at src, whose head is head,
-	// writes it: over the archived file a working copy names, else under
-	// src's name in the archive directory, which must not exist yet. It
-	// refuses src when it is that file already.
-	Place(src string, head Head) (Placement, error)
+	// Place says where archiving inv, the invoice at src, writes it: over
+	// the archived file a working copy names, else under src's name in the
+	// archive directory, which must not exist yet. It refuses src when it
+	// is that file already.
+	Place(src string, inv invoice.Invoice) (Placement, error)
 	// Duplicate returns the archived invoice, in file name order, that has
-	// head's number, other than src and, for a working copy, the archived
-	// file it replaces. It returns "" when there is none, when head has no
+	// inv's number, other than src and, for a working copy, the archived
+	// file it replaces. It returns "" when there is none, when inv has no
 	// number, or when there is no archive directory, and what its walk
 	// could not read.
-	Duplicate(src string, head Head) (string, Unread, error)
+	Duplicate(src string, inv invoice.Invoice) (string, Unread, error)
 	// Add moves the invoice at src into the archive at p with opts.Change
 	// applied, in one write, after backing up the archived files it
 	// replaces. Without opts.Replace it refuses to replace any.
@@ -282,9 +247,6 @@ type Archive interface {
 	// Checkout resolves ref, an archived invoice relative to the archive
 	// directory, and says where its working copy in workDir goes.
 	Checkout(ref, workDir string) (Checkout, error)
-	// Protects reports whether path is an existing file inside the archive
-	// directory, which nothing but re-archiving overwrites.
-	Protects(path string) (bool, error)
 	// Source returns the invoice YAML file the PDF at pdf was built from:
 	// the one with its name next to it, else the one in the archive. It
 	// returns "" when there is none, and an error when the archive has
