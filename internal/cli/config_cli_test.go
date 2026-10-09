@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"os"
@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/clitest"
 	"github.com/0xboris/invox/internal/tableprinter"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // configLayout is a config home with an invox directory and a working
@@ -15,7 +17,7 @@ type configLayout struct {
 	root, invoxDir, work string
 }
 
-func newConfigLayout(t *testing.T) configLayout {
+func newConfigLayout(t *testing.T, x *clitest.Invox) configLayout {
 	t.Helper()
 	root := t.TempDir()
 	l := configLayout{
@@ -28,10 +30,10 @@ func newConfigLayout(t *testing.T) configLayout {
 			t.Fatalf("MkdirAll returned error: %v", err)
 		}
 	}
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "cfg"))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("APPDATA", filepath.Join(root, "data"))
-	chdirForTest(t, l.work)
+	x.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "cfg"))
+	x.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	x.Setenv("APPDATA", filepath.Join(root, "data"))
+	x.Chdir(l.work)
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd returned error: %v", err)
@@ -53,13 +55,15 @@ func tsv(rows ...[]string) string {
 }
 
 func TestConfigPathsReportsEachSource(t *testing.T) {
-	l := newConfigLayout(t)
-	writeTestFile(t, filepath.Join(l.work, "customers.yaml"), "{}\n")
-	writeTestFile(t, filepath.Join(l.invoxDir, "template.tex"), "x\n")
-	explicit := filepath.Join(l.root, "explicit.yaml")
-	writeTestFile(t, explicit, "paths:\n  defaults: 'd.yaml'\narchive:\n  dir: 'arch'\n")
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"config", "--config", "ignored.yaml", "paths", "--config=" + explicit})
+	l := newConfigLayout(t, x)
+	testfixture.WriteFile(t, filepath.Join(l.work, "customers.yaml"), "{}\n")
+	testfixture.WriteFile(t, filepath.Join(l.invoxDir, "template.tex"), "x\n")
+	explicit := filepath.Join(l.root, "explicit.yaml")
+	testfixture.WriteFile(t, explicit, "paths:\n  defaults: 'd.yaml'\narchive:\n  dir: 'arch'\n")
+
+	exitCode, stdout, stderr := x.Run([]string{"config", "--config", "ignored.yaml", "paths", "--config=" + explicit})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -78,13 +82,15 @@ func TestConfigPathsReportsEachSource(t *testing.T) {
 }
 
 func TestConfigPathsWithInvoxConfigDir(t *testing.T) {
-	l := newConfigLayout(t)
-	envDir := filepath.Join(l.root, "env")
-	writeTestFile(t, filepath.Join(envDir, "config.yaml"), "")
-	writeTestFile(t, filepath.Join(envDir, "customers.yaml"), "{}\n")
-	t.Setenv("INVOX_CONFIG_DIR", envDir)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"config", "paths"})
+	l := newConfigLayout(t, x)
+	envDir := filepath.Join(l.root, "env")
+	testfixture.WriteFile(t, filepath.Join(envDir, "config.yaml"), "")
+	testfixture.WriteFile(t, filepath.Join(envDir, "customers.yaml"), "{}\n")
+	x.Setenv("INVOX_CONFIG_DIR", envDir)
+
+	exitCode, stdout, stderr := x.Run([]string{"config", "paths"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -148,12 +154,14 @@ func TestConfigLocationErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := newConfigLayout(t)
+			x := clitest.New(t)
+
+			l := newConfigLayout(t, x)
 			if tt.env != "" {
-				t.Setenv("INVOX_CONFIG_DIR", filepath.Join(l.root, tt.env))
+				x.Setenv("INVOX_CONFIG_DIR", filepath.Join(l.root, tt.env))
 			}
 
-			exitCode, stdout, stderr := captureRun(t, tt.args(l))
+			exitCode, stdout, stderr := x.Run(tt.args(l))
 			if exitCode != tt.wantCode || stdout != "" || stderr != tt.wantStderr(l) {
 				t.Fatalf("got exit %d, stdout %q, stderr %q; want exit %d, no stdout, stderr %q", exitCode, stdout, stderr, tt.wantCode, tt.wantStderr(l))
 			}
@@ -162,10 +170,12 @@ func TestConfigLocationErrors(t *testing.T) {
 }
 
 func TestConfigUnknownKeyNamesFileAndLine(t *testing.T) {
-	configPath := writeConfigFile(t, "numbering:\n  start: 2\n  patern: x\n")
-	chdirForTest(t, t.TempDir())
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001"})
+	configPath := x.WriteConfig("numbering:\n  start: 2\n  patern: x\n")
+	x.Chdir(t.TempDir())
+
+	exitCode, stdout, stderr := x.Run([]string{"new", "CUST-001"})
 	want := "error: " + configPath + ":3: unknown key \"patern\" in numbering\nRun 'invox config' to open and fix the config file.\n"
 	if exitCode != 1 || stdout != "" || stderr != want {
 		t.Fatalf("got exit %d, stdout %q, stderr %q; want exit 1, no stdout, stderr %q", exitCode, stdout, stderr, want)
@@ -205,12 +215,13 @@ func TestDirectoryVariablesBecomeAbsolute(t *testing.T) {
 }
 
 func TestConfigOpensTheConfigFlagFile(t *testing.T) {
-	chdirForTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "acme.yaml")
-	f, stub := testFactory(t)
-	opened := expectEditor(f, stub, nil)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config", "--config", path})
+	x.Chdir(t.TempDir())
+	path := filepath.Join(t.TempDir(), "acme.yaml")
+	opened := x.ExpectEditor(nil)
+
+	exitCode, stdout, stderr := x.Run([]string{"config", "--config", path})
 	if exitCode != 0 || stdout != "" || stderr != "Opened "+path+"\n" {
 		t.Fatalf("got exit %d, stdout %q, stderr %q; want exit 0 and %q", exitCode, stdout, stderr, "Opened "+path+"\n")
 	}
@@ -224,22 +235,26 @@ func TestConfigOpensTheConfigFlagFile(t *testing.T) {
 }
 
 func TestInitWritesToInvoxConfigDir(t *testing.T) {
-	l := newConfigLayout(t)
-	envDir := filepath.Join(l.root, "env")
-	t.Setenv("INVOX_CONFIG_DIR", envDir)
+	x := clitest.New(t)
 
-	exitCode, _, stderr := captureRun(t, []string{"init"})
+	l := newConfigLayout(t, x)
+	envDir := filepath.Join(l.root, "env")
+	x.Setenv("INVOX_CONFIG_DIR", envDir)
+
+	exitCode, _, stderr := x.Run([]string{"init"})
 	if want := "Initialized " + envDir + "\ncreated config.yaml\ncreated customers.yaml\n"; exitCode != 0 || !strings.HasPrefix(stderr, want) {
 		t.Fatalf("init: exit %d, stderr %q; want exit 0 and stderr starting with %q", exitCode, stderr, want)
 	}
 }
 
 func TestConfigFlagErrorHintNamesTheFlag(t *testing.T) {
-	dir := t.TempDir()
-	chdirForTest(t, dir)
-	writeTestFile(t, filepath.Join(dir, "acme.yaml"), "numbering:\n  patern: x\n")
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"--config", "acme.yaml", "new", "CUST-001"})
+	dir := t.TempDir()
+	x.Chdir(dir)
+	testfixture.WriteFile(t, filepath.Join(dir, "acme.yaml"), "numbering:\n  patern: x\n")
+
+	exitCode, stdout, stderr := x.Run([]string{"--config", "acme.yaml", "new", "CUST-001"})
 	want := "error: acme.yaml:2: unknown key \"patern\" in numbering\nRun 'invox --config acme.yaml config' to open and fix the config file.\n"
 	if exitCode != 1 || stdout != "" || stderr != want {
 		t.Fatalf("exit %d, stdout %q, stderr %q; want exit 1 and stderr %q", exitCode, stdout, stderr, want)

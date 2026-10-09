@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"go/ast"
@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 func TestHelpTopicsWorkWithAndWithoutConfig(t *testing.T) {
@@ -46,13 +48,15 @@ func TestHelpTopicsWorkWithAndWithoutConfig(t *testing.T) {
 				name += " with broken config"
 			}
 			t.Run(name, func(t *testing.T) {
+				x := clitest.New(t)
+
 				if broken {
-					setupBrokenConfig(t)
+					setupBrokenConfig(t, x)
 				} else {
-					chdirForTest(t, t.TempDir())
+					x.Chdir(t.TempDir())
 				}
 
-				exitCode, stdout, stderr := captureRun(t, tt.args)
+				exitCode, stdout, stderr := x.Run(tt.args)
 				if exitCode != 0 {
 					t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 				}
@@ -72,7 +76,9 @@ func TestHelpTopicsWorkWithAndWithoutConfig(t *testing.T) {
 func TestHelpTopicsRejectExtraArguments(t *testing.T) {
 	for _, topic := range []string{"environment", "exit-codes"} {
 		t.Run(topic, func(t *testing.T) {
-			exitCode, stdout, stderr := captureRun(t, []string{"help", topic, "extra"})
+			x := clitest.New(t)
+
+			exitCode, stdout, stderr := x.Run([]string{"help", topic, "extra"})
 			if exitCode != 2 {
 				t.Fatalf("exitCode = %d, want 2", exitCode)
 			}
@@ -90,6 +96,8 @@ func TestHelpTopicsRejectExtraArguments(t *testing.T) {
 // under cmd/ or internal/ reads an environment variable that
 // `invox help environment` does not name.
 func TestHelpEnvironmentDocumentsEveryVariableRead(t *testing.T) {
+	x := clitest.New(t)
+
 	root := filepath.Join("..", "..")
 	keys := map[string][]string{}
 	for _, dir := range []string{"cmd", "internal"} {
@@ -122,7 +130,7 @@ func TestHelpEnvironmentDocumentsEveryVariableRead(t *testing.T) {
 		t.Fatal("found no environment reads; the scan is broken")
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "environment"})
+	exitCode, stdout, stderr := x.Run([]string{"help", "environment"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

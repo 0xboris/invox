@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"bytes"
@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/factory"
+	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 func TestSignalAtReplacePrompt(t *testing.T) {
@@ -25,17 +24,20 @@ func TestSignalAtReplacePrompt(t *testing.T) {
 		{name: "SIGTERM", signal: syscall.SIGTERM, exitCode: 143},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := setupEditedArchive(t)
-			ios := promptStreams(true, "")
+			x := clitest.New(t)
+
+			e := x.EditArchive()
+			x.Stdin(true, "")
+			ios := x.IO
 			stdin, unanswered := io.Pipe()
 			t.Cleanup(func() { _ = unanswered.Close() })
 			ios.In = stdin
-			f := factory.New(ios, run.Exec{}, env.System())
+			f := x.Factory()
 			ctx, cancel := context.WithCancelCause(context.Background())
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(&cli.SignalError{Signal: tc.signal})
 
 			exitCode := make(chan int, 1)
-			go func() { exitCode <- mainContext(ctx, []string{"archive", "add", "first.yaml"}, f) }()
+			go func() { exitCode <- cli.MainContext(ctx, []string{"archive", "add", "first.yaml"}, f) }()
 			var got int
 			select {
 			case got = <-exitCode:
@@ -49,12 +51,12 @@ func TestSignalAtReplacePrompt(t *testing.T) {
 			if stdout := ios.Out.(*bytes.Buffer).String(); stdout != "" {
 				t.Fatalf("stdout = %q, want empty", stdout)
 			}
-			want := "Replace archived invoice " + e.archivedPath + "? The previous version is kept in " +
-				filepath.Join(e.archiveDir, ".history") + ". [y/N] \n"
+			want := "Replace archived invoice " + e.ArchivedPath + "? The previous version is kept in " +
+				filepath.Join(e.ArchiveDir, ".history") + ". [y/N] \n"
 			if stderr := ios.ErrOut.(*bytes.Buffer).String(); stderr != want {
 				t.Fatalf("stderr = %q, want %q", stderr, want)
 			}
-			e.assertUnchanged(t)
+			e.AssertUnchanged(t)
 		})
 	}
 }

@@ -303,6 +303,7 @@ linters:
           allow:
             - $gostd
             - github.com/0xboris/invox/internal/cli$
+            - github.com/0xboris/invox/internal/cli/cmdutil$
             - github.com/0xboris/invox/internal/factory/factorytest$
             - github.com/0xboris/invox/internal/adapters/run$
             - github.com/0xboris/invox/internal/adapters/run/runtest$

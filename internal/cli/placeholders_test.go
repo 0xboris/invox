@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"os"
@@ -6,6 +6,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // A placeholder invox does not know fails the command instead of reaching
@@ -48,30 +51,32 @@ func TestUnknownPlaceholderFails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+			x := clitest.New(t)
+
+			fx := testfixture.WriteContext(t)
 			if tt.template != "" {
-				if err := os.WriteFile(templatePath, []byte(tt.template), 0o644); err != nil {
+				if err := os.WriteFile(fx.Template, []byte(tt.template), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if tt.config != "" {
-				writeConfigFile(t, tt.config)
+				x.WriteConfig(tt.config)
 			}
-			built := strings.Replace(readFileForTest(t, invoicePath), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
-			if err := os.WriteFile(invoicePath, []byte(built), 0o644); err != nil {
+			built := strings.Replace(testfixture.ReadFile(t, fx.Invoice), "  paid_amount: 0", "  paid_amount: 0\n  status: built", 1)
+			if err := os.WriteFile(fx.Invoice, []byte(built), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			dir := filepath.Dir(invoicePath)
+			dir := filepath.Dir(fx.Invoice)
 			if err := os.WriteFile(filepath.Join(dir, "invoice.pdf"), []byte("%PDF-1.4\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			chdirForTest(t, dir)
-			args := slices.Concat(tt.args, []string{"-c", customersPath, "-u", issuerPath})
+			x.Chdir(dir)
+			args := slices.Concat(tt.args, []string{"-c", fx.Customers, "-u", fx.Issuer})
 			if tt.args[0] == "render" {
-				args = append(args, "-t", templatePath)
+				args = append(args, "-t", fx.Template)
 			}
 
-			exitCode, stdout, stderr := captureRun(t, args)
+			exitCode, stdout, stderr := x.Run(args)
 			if exitCode != 1 || stdout != "" || stderr != tt.wantStderr {
 				t.Fatalf("exit = %d, stdout = %q, stderr = %q; want 1, \"\", %q", exitCode, stdout, stderr, tt.wantStderr)
 			}

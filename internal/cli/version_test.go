@@ -1,12 +1,16 @@
-package cli
+package cli_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 func TestRootHelpListsVersion(t *testing.T) {
-	_, stdout, _ := captureRun(t, []string{"--help"})
+	x := clitest.New(t)
+
+	_, stdout, _ := x.Run([]string{"--help"})
 	if !strings.Contains(stdout, "  version     Show the invox version\n") {
 		t.Fatalf("root help does not list the version subcommand:\n%s", stdout)
 	}

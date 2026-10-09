@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
@@ -47,7 +48,7 @@ func TestMain(m *testing.M) {
 		// Unset so the programs invox runs, such as the fake tectonic, are not
 		// invox too.
 		_ = os.Unsetenv(runMainEnv)
-		os.Exit(Main(os.Args[1:], factory.New(iostreams.System(), run.Exec{}, env.System())))
+		os.Exit(cli.Main(os.Args[1:], factory.New(iostreams.System(), run.Exec{}, env.System())))
 	}
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
 		os.Exit(runFakeTectonic(mode, os.Args[1:]))

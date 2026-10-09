@@ -1,6 +1,6 @@
 //go:build !windows
 
-package cli
+package cli_test
 
 import (
 	"io/fs"
@@ -9,6 +9,9 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // setUmask sets the process umask for the rest of the test. invox reads the
@@ -40,45 +43,49 @@ func assertFileMode(t *testing.T, path string, want fs.FileMode) {
 }
 
 func TestBuildKeepsPrivateInvoiceModeAndWritesPublicPDF(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	installFakeTectonic(t, fakeTectonicWritePDF)
-	if err := os.Chmod(invoicePath, 0o600); err != nil {
+	x := clitest.New(t)
+
+	fx := testfixture.WriteContext(t)
+	x.ExpectTectonic()
+	if err := os.Chmod(fx.Invoice, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath,
+	exitCode, stdout, stderr := x.Run([]string{
+		"build", fx.Invoice, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
-	pdfPath := strings.TrimSuffix(invoicePath, ".yaml") + ".pdf"
+	pdfPath := strings.TrimSuffix(fx.Invoice, ".yaml") + ".pdf"
 	if want := "Built " + pdfPath + " for CUST-001 (CUST-001-001)\n"; stderr != want {
 		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 	if stdout != pdfPath+"\n" {
 		t.Fatalf("stdout = %q, want %q", stdout, pdfPath+"\n")
 	}
-	updated, err := os.ReadFile(invoicePath)
+	updated, err := os.ReadFile(fx.Invoice)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(updated), "status: built") {
 		t.Fatalf("invoice was not marked built:\n%s", updated)
 	}
-	assertFileMode(t, invoicePath, 0o600)
+	assertFileMode(t, fx.Invoice, 0o600)
 	assertFileMode(t, pdfPath, 0o644&^processUmask(t))
 }
 
 func TestIncrementKeepsPrivateInvoiceMode(t *testing.T) {
-	customersPath, _, _ := writeDraftFixtures(t)
+	x := clitest.New(t)
+
+	draft := testfixture.WriteDraft(t)
 	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 	if err := os.WriteFile(invoicePath, []byte("customer_id: CUST-001\ninvoice:\n  number: CUST-001-009\n  issue_date: 2026-03-06\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: "+quoteYAMLString(t.TempDir())+"\n")
+	x.WriteConfig("numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 1\narchive:\n  dir: " + testfixture.QuoteYAML(t.TempDir()) + "\n")
 
-	exitCode, stdout, stderr := captureRun(t, []string{"increment", "-i", invoicePath, "-c", customersPath})
+	exitCode, stdout, stderr := x.Run([]string{"increment", "-i", invoicePath, "-c", draft.Customers})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -92,12 +99,14 @@ func TestIncrementKeepsPrivateInvoiceMode(t *testing.T) {
 }
 
 func TestInitCreatesPrivateConfigDirAndSecrets(t *testing.T) {
+	x := clitest.New(t)
+
 	configHome := filepath.Join(t.TempDir(), "config-home")
 	configDir := filepath.Join(configHome, "invox")
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	x.Setenv("XDG_CONFIG_HOME", configHome)
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"init"})
+	exitCode, stdout, stderr := x.Run([]string{"init"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -120,15 +129,17 @@ func TestInitCreatesPrivateConfigDirAndSecrets(t *testing.T) {
 }
 
 func TestArchiveCreatesPrivateArchive(t *testing.T) {
+	x := clitest.New(t)
+
 	archiveDir := filepath.Join(t.TempDir(), "archive")
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 	if err := os.WriteFile(invoicePath, []byte("customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  status: built\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	setUmask(t, 0o077)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", invoicePath})
+	exitCode, stdout, stderr := x.Run([]string{"archive", "add", invoicePath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -144,12 +155,14 @@ func TestArchiveCreatesPrivateArchive(t *testing.T) {
 }
 
 func TestRenderWritesPublicTex(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	x := clitest.New(t)
+
+	fx := testfixture.WriteContext(t)
 	outputPath := filepath.Join(t.TempDir(), "out", "invoice.tex")
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"render", "-i", invoicePath, "-o", outputPath, "-c", customersPath, "-u", issuerPath, "-t", templatePath,
+	exitCode, stdout, stderr := x.Run([]string{
+		"render", "-i", fx.Invoice, "-o", outputPath, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -165,8 +178,10 @@ func TestRenderWritesPublicTex(t *testing.T) {
 }
 
 func TestRenderCopiesNestedAssetDirsWithSourceMode(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
-	templateDir := filepath.Dir(templatePath)
+	x := clitest.New(t)
+
+	fx := testfixture.WriteContext(t)
+	templateDir := filepath.Dir(fx.Template)
 	fontsDir := filepath.Join(templateDir, "assets", "fonts")
 	if err := os.MkdirAll(fontsDir, 0o700); err != nil {
 		t.Fatal(err)
@@ -179,20 +194,20 @@ func TestRenderCopiesNestedAssetDirsWithSourceMode(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	template, err := os.ReadFile(templatePath)
+	template, err := os.ReadFile(fx.Template)
 	if err != nil {
 		t.Fatal(err)
 	}
 	template = []byte(strings.Replace(string(template), "Path=fonts/", "Path=assets/fonts/", 1))
-	if err := os.WriteFile(templatePath, template, 0o644); err != nil {
+	if err := os.WriteFile(fx.Template, template, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "invoice.tex")
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"render", "-i", invoicePath, "-o", outputPath, "-c", customersPath, "-u", issuerPath, "-t", templatePath,
+	exitCode, stdout, stderr := x.Run([]string{
+		"render", "-i", fx.Invoice, "-o", outputPath, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -209,13 +224,14 @@ func TestRenderCopiesNestedAssetDirsWithSourceMode(t *testing.T) {
 }
 
 func TestEmailWritesPublicDraft(t *testing.T) {
-	customersPath, issuerPath, invoicePath := writeBuiltEmailFixture(t)
-	f, stub := testFactory(t)
-	expectOpener(stub, nil)
+	x := clitest.New(t)
+
+	fx := testfixture.WriteBuiltContext(t)
+	x.ExpectOpener(nil)
 	outputPath := filepath.Join(t.TempDir(), "draft.eml")
 
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{
-		"email", invoicePath, "-o", outputPath, "-c", customersPath, "-u", issuerPath,
+	exitCode, stdout, stderr := x.Run([]string{
+		"email", fx.Invoice, "-o", outputPath, "-c", fx.Customers, "-u", fx.Issuer,
 	})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -230,13 +246,15 @@ func TestEmailWritesPublicDraft(t *testing.T) {
 }
 
 func TestInitCreatesMissingConfigParentsPublic(t *testing.T) {
+	x := clitest.New(t)
+
 	root := t.TempDir()
 	configHome := filepath.Join(root, "missing", "cfg")
 	configDir := filepath.Join(configHome, "invox")
-	t.Setenv("XDG_CONFIG_HOME", configHome)
+	x.Setenv("XDG_CONFIG_HOME", configHome)
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"init"})
+	exitCode, stdout, stderr := x.Run([]string{"init"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -252,16 +270,18 @@ func TestInitCreatesMissingConfigParentsPublic(t *testing.T) {
 }
 
 func TestArchiveCreatesMissingArchiveParentsPublic(t *testing.T) {
+	x := clitest.New(t)
+
 	root := t.TempDir()
 	archiveDir := filepath.Join(root, "missing", "archive")
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 	if err := os.WriteFile(invoicePath, []byte("customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  status: built\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	umask := processUmask(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", invoicePath})
+	exitCode, stdout, stderr := x.Run([]string{"archive", "add", invoicePath})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

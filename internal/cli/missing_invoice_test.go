@@ -1,7 +1,10 @@
-package cli
+package cli_test
 
 import (
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // An invoice argument that does not exist gets one wording for every
@@ -22,10 +25,12 @@ func TestInvoiceArgumentThatDoesNotExist(t *testing.T) {
 		{"archive add", func(string, string, string) []string { return []string{"archive", "add", "nope.yaml"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			customers, issuer, _, template := writeContextFixtures(t)
-			chdirForTest(t, t.TempDir())
+			x := clitest.New(t)
 
-			exitCode, stdout, stderr := captureRun(t, tc.args(customers, issuer, template))
+			fx := testfixture.WriteContext(t)
+			x.Chdir(t.TempDir())
+
+			exitCode, stdout, stderr := x.Run(tc.args(fx.Customers, fx.Issuer, fx.Template))
 
 			if exitCode != 1 {
 				t.Errorf("exit code = %d, want 1", exitCode)

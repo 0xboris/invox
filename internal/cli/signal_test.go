@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"context"
@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 var signalCases = []struct {
@@ -91,7 +93,7 @@ func assertNoBuildDir(t *testing.T, tempDir string) {
 func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 	for _, tc := range signalCases {
 		t.Run(tc.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+			fx := testfixture.WriteContext(t)
 			pidfile := installSleepingTectonic(t)
 			tempDir := isolateTempDir(t)
 			isolateUserDirs(t)
@@ -104,13 +106,13 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				exitCode = mainContext(ctx, []string{
-					"build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath,
+				exitCode = cli.MainContext(ctx, []string{
+					"build", fx.Invoice, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template,
 				}, f)
 			}()
 			pid := waitForPid(t, pidfile, done)
 			start := time.Now()
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(&cli.SignalError{Signal: tc.signal})
 			select {
 			case <-done:
 			case <-time.After(30 * time.Second):
@@ -131,7 +133,7 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			}
 			assertNoBuildDir(t, tempDir)
 			assertProcessGone(t, pid)
-			if _, err := os.Stat(strings.TrimSuffix(invoicePath, ".yaml") + ".pdf"); !os.IsNotExist(err) {
+			if _, err := os.Stat(strings.TrimSuffix(fx.Invoice, ".yaml") + ".pdf"); !os.IsNotExist(err) {
 				t.Fatalf("no PDF should be written, Stat err = %v", err)
 			}
 		})

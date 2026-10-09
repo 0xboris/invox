@@ -1,8 +1,11 @@
-package cli
+package cli_test
 
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // A paths.* setting in config.yaml that names a missing file is a problem
@@ -60,18 +63,20 @@ func TestConfiguredSupportFileThatDoesNotExist(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			customers, issuer, invoice, _ := writeContextFixtures(t)
-			configPath := writeConfigFile(t, "paths:\n  "+tc.key+": nope.file\n")
+			x := clitest.New(t)
+
+			fx := testfixture.WriteContext(t)
+			configPath := x.WriteConfig("paths:\n  " + tc.key + ": nope.file\n")
 			missing := filepath.Join(filepath.Dir(configPath), "nope.file")
-			chdirForTest(t, t.TempDir())
-			args := tc.args(customers, issuer, invoice)
+			x.Chdir(t.TempDir())
+			args := tc.args(fx.Customers, fx.Issuer, fx.Invoice)
 			hint := "Run 'invox config' to open and fix the config file.\n"
 			if tc.config {
 				args = append([]string{"--config", configPath}, args...)
 				hint = "Run 'invox --config " + configPath + " config' to open and fix the config file.\n"
 			}
 
-			exitCode, stdout, stderr := captureRun(t, args)
+			exitCode, stdout, stderr := x.Run(args)
 
 			want := "error: " + tc.key + " file " + missing + " does not exist; paths." + tc.key + " in " + configPath + " sets it\n" + hint
 			if exitCode != 1 {

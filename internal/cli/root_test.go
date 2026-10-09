@@ -1,12 +1,15 @@
-package cli
+package cli_test
 
 import (
 	"bytes"
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
+
+	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // A single-dash word that names a long flag, or that starts with no
@@ -66,9 +69,11 @@ func TestSingleDashLongFlagsFail(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			x := clitest.New(t)
+
 			dir := t.TempDir()
-			chdirForTest(t, dir)
-			exitCode, stdout, stderr := captureRun(t, tc.args)
+			x.Chdir(dir)
+			exitCode, stdout, stderr := x.Run(tc.args)
 			if exitCode != 2 {
 				t.Errorf("exit code = %d, want 2", exitCode)
 			}
@@ -88,12 +93,14 @@ func TestSingleDashLongFlagsFail(t *testing.T) {
 // pflag alone reads -output=x.yaml as -o utput=x.yaml, so new would write
 // utput=x.yaml.
 func TestSingleDashOutputWritesNothing(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-output=x.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	draft := testfixture.WriteDraft(t)
+	x.WriteConfig("numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	workDir := t.TempDir()
+	x.Chdir(workDir)
+
+	exitCode, stdout, stderr := x.Run([]string{"new", "CUST-001", "-output=x.yaml", "-c", draft.Customers, "-u", draft.Issuer, "--defaults", draft.Defaults})
 	if want := "error: -output is not a flag; use --output\nRun 'invox new --help' for usage.\n"; exitCode != 2 || stdout != "" || stderr != want {
 		t.Fatalf("new -output=x.yaml = (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, want)
 	}
@@ -105,12 +112,14 @@ func TestSingleDashOutputWritesNothing(t *testing.T) {
 // A shorthand with its value attached, and a flag value that starts with a
 // dash, are not single-dash long flags.
 func TestShorthandGroupsStillWork(t *testing.T) {
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-ofile.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	draft := testfixture.WriteDraft(t)
+	x.WriteConfig("numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	workDir := t.TempDir()
+	x.Chdir(workDir)
+
+	exitCode, stdout, stderr := x.Run([]string{"new", "CUST-001", "-ofile.yaml", "-c", draft.Customers, "-u", draft.Issuer, "--defaults", draft.Defaults})
 	if want := "Created file.yaml for CUST-001 (CUST-001-002)\n"; exitCode != 0 || stdout != "file.yaml\n" || stderr != want {
 		t.Fatalf("new -ofile.yaml = (%d, %q, %q), want (0, %q, %q)", exitCode, stdout, stderr, "file.yaml\n", want)
 	}
@@ -118,27 +127,9 @@ func TestShorthandGroupsStillWork(t *testing.T) {
 		t.Fatalf("new -ofile.yaml did not write file.yaml: %v", err)
 	}
 
-	exitCode, stdout, stderr = captureRun(t, []string{"new", "CUST-001", "-n", "-o", "-names.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	exitCode, stdout, stderr = x.Run([]string{"new", "CUST-001", "-n", "-o", "-names.yaml", "-c", draft.Customers, "-u", draft.Issuer, "--defaults", draft.Defaults})
 	if want := "Would create -names.yaml for CUST-001 (CUST-001-003)\n"; exitCode != 0 || stdout != "-names.yaml\n" || stderr != want {
 		t.Fatalf("new -o -names.yaml = (%d, %q, %q), want (0, %q, %q)", exitCode, stdout, stderr, "-names.yaml\n", want)
-	}
-}
-
-func TestVersionFlagToCommand(t *testing.T) {
-	tests := []struct {
-		args []string
-		want []string
-	}{
-		{args: []string{"--version"}, want: []string{"version"}},
-		{args: []string{"--version", "extra"}, want: []string{"version", "extra"}},
-		{args: []string{"--no-input", "--config", "c.yaml", "--config=d.yaml", "--version"}, want: []string{"--no-input", "--config", "c.yaml", "--config=d.yaml", "version"}},
-		{args: []string{"new", "--version"}, want: []string{"new", "--version"}},
-		{args: []string{}, want: []string{}},
-	}
-	for _, tc := range tests {
-		if got := versionFlagToCommand(tc.args); !slices.Equal(got, tc.want) {
-			t.Errorf("versionFlagToCommand(%q) = %q, want %q", tc.args, got, tc.want)
-		}
 	}
 }
 
@@ -186,7 +177,9 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			exitCode, stdout, stderr := captureRun(t, tc.args)
+			x := clitest.New(t)
+
+			exitCode, stdout, stderr := x.Run(tc.args)
 			if exitCode != 2 {
 				t.Errorf("exit code = %d, want 2", exitCode)
 			}
@@ -201,6 +194,8 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 }
 
 func TestCobraCommandHelpMatchesHelpCommand(t *testing.T) {
+	x := clitest.New(t)
+
 	tests := []struct {
 		topic     []string
 		requests  [][]string
@@ -223,7 +218,7 @@ func TestCobraCommandHelpMatchesHelpCommand(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		exitCode, want, stderr := captureRun(t, tc.topic)
+		exitCode, want, stderr := x.Run(tc.topic)
 		if exitCode != 0 || stderr != "" {
 			t.Fatalf("%q: exit code %d, stderr %q", tc.topic, exitCode, stderr)
 		}
@@ -231,7 +226,7 @@ func TestCobraCommandHelpMatchesHelpCommand(t *testing.T) {
 			t.Errorf("%q: first line = %q, want %q", tc.topic, first, tc.wantFirst)
 		}
 		for _, args := range tc.requests {
-			exitCode, stdout, stderr := captureRun(t, args)
+			exitCode, stdout, stderr := x.Run(args)
 			if exitCode != 0 || stderr != "" || stdout != want {
 				t.Errorf("%q: exit code %d, stderr %q, stdout %q; want 0, empty, the %q page", args, exitCode, stderr, stdout, tc.topic)
 			}
@@ -242,11 +237,11 @@ func TestCobraCommandHelpMatchesHelpCommand(t *testing.T) {
 func TestCobraCommandErrorBecomesSignal(t *testing.T) {
 	for _, tc := range signalCases {
 		t.Run(tc.name, func(t *testing.T) {
-			f, _ := testFactory(t)
+			f := clitest.New(t).Factory()
 			ctx, cancel := context.WithCancelCause(context.Background())
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(&cli.SignalError{Signal: tc.signal})
 
-			exitCode := mainContext(ctx, []string{"template", "list", "--bogus"}, f)
+			exitCode := cli.MainContext(ctx, []string{"template", "list", "--bogus"}, f)
 			if exitCode != tc.exitCode {
 				t.Errorf("exit code = %d, want %d", exitCode, tc.exitCode)
 			}
@@ -255,8 +250,8 @@ func TestCobraCommandErrorBecomesSignal(t *testing.T) {
 }
 
 func TestCobraCommandAppliesGlobalFlags(t *testing.T) {
-	f, _ := testFactory(t)
-	exitCode := mainContext(context.Background(), []string{"version", "--no-input", "--config", "custom.yaml"}, f)
+	f := clitest.New(t).Factory()
+	exitCode := cli.MainContext(context.Background(), []string{"version", "--no-input", "--config", "custom.yaml"}, f)
 	if exitCode != 0 {
 		t.Fatalf("exit code = %d, want 0", exitCode)
 	}

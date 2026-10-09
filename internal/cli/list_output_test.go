@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"os"
@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/clitest"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 type listCase struct {
@@ -18,13 +20,14 @@ type listCase struct {
 	wantStderr string
 }
 
-func runListCases(t *testing.T, cases []listCase) {
+func runListCases(t *testing.T, x *clitest.Invox, cases []listCase) {
 	t.Helper()
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			ios.SetStdoutTTY(tc.tty)
-			exitCode, stdout, stderr := captureRunStreams(t, ios, tc.args)
+			x.IO = ios
+			exitCode, stdout, stderr := x.Run(tc.args)
 			if exitCode != 0 || stdout != tc.wantStdout || stderr != tc.wantStderr {
 				t.Fatalf("exit=%d\nstdout=%q\nstderr=%q\nwant exit=0\nstdout=%q\nstderr=%q", exitCode, stdout, stderr, tc.wantStdout, tc.wantStderr)
 			}
@@ -40,8 +43,10 @@ func writeListFile(t *testing.T, path, content string) {
 }
 
 func TestCustomerListOutput(t *testing.T) {
+	x := clitest.New(t)
+
 	dir := t.TempDir()
-	chdirForTest(t, dir)
+	x.Chdir(dir)
 	writeListFile(t, filepath.Join(dir, "customers.yaml"), `ACME:
   name: "Acme\tTools\nLtd \e[31mred\e[0m C:\\x"
   status: active
@@ -59,7 +64,7 @@ WIDE:
 `)
 	writeListFile(t, filepath.Join(dir, "empty.yaml"), "{}\n")
 
-	runListCases(t, []listCase{
+	runListCases(t, x, []listCase{
 		{
 			name: "pipe",
 			args: []string{"customer", "list", "-c", "customers.yaml"},
@@ -94,15 +99,17 @@ WIDE:
 }
 
 func TestArchiveListOutput(t *testing.T) {
+	x := clitest.New(t)
+
 	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+	x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 	writeListFile(t, filepath.Join(archiveDir, "a.yaml"), `customer_id: "CUST\t1\n\e[31mX"
 invoice:
   issue_date: 2026-03-06
   status: archived
 `)
 
-	runListCases(t, []listCase{
+	runListCases(t, x, []listCase{
 		{
 			name:       "pipe",
 			args:       []string{"archive", "list"},
@@ -120,7 +127,7 @@ invoice:
 	if err := os.Remove(filepath.Join(archiveDir, "a.yaml")); err != nil {
 		t.Fatalf("Remove returned error: %v", err)
 	}
-	runListCases(t, []listCase{
+	runListCases(t, x, []listCase{
 		{
 			name: "pipe empty",
 			args: []string{"archive", "list"},
@@ -135,16 +142,18 @@ invoice:
 }
 
 func TestTemplateListOutput(t *testing.T) {
+	x := clitest.New(t)
+
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows file names cannot hold tabs, newlines or escape characters")
 	}
 
 	dir := t.TempDir()
-	writeConfigFile(t, "paths:\n  template: "+quoteYAMLString(filepath.Join(dir, "template.tex"))+"\n")
+	x.WriteConfig("paths:\n  template: " + testfixture.QuoteYAML(filepath.Join(dir, "template.tex")) + "\n")
 	writeListFile(t, filepath.Join(dir, "template.tex"), "")
 	writeListFile(t, filepath.Join(dir, "a\tb\nc\x1b[31m.tex"), "")
 
-	runListCases(t, []listCase{
+	runListCases(t, x, []listCase{
 		{
 			name: "pipe",
 			args: []string{"template", "list"},
@@ -174,10 +183,12 @@ func TestTemplateListOutput(t *testing.T) {
 }
 
 func TestTemplateListOutputEmpty(t *testing.T) {
-	dir := t.TempDir()
-	writeConfigFile(t, "paths:\n  template: "+quoteYAMLString(filepath.Join(dir, "template.tex"))+"\n")
+	x := clitest.New(t)
 
-	runListCases(t, []listCase{
+	dir := t.TempDir()
+	x.WriteConfig("paths:\n  template: " + testfixture.QuoteYAML(filepath.Join(dir, "template.tex")) + "\n")
+
+	runListCases(t, x, []listCase{
 		{
 			name: "pipe",
 			args: []string{"template", "list"},

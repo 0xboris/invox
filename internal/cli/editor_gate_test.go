@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // editorCase is one command that opens an editor. setup creates the files it
@@ -16,7 +18,7 @@ import (
 // for the reason. failed starts its error message when the editor fails.
 type editorCase struct {
 	name   string
-	setup  func(t *testing.T, dir string) (args []string, path string)
+	setup  func(t *testing.T, x *clitest.Invox, dir string) (args []string, path string)
 	gate   string
 	usage  string
 	failed string
@@ -25,10 +27,10 @@ type editorCase struct {
 var editorCases = []editorCase{
 	{
 		name: "new -e",
-		setup: func(t *testing.T, dir string) ([]string, string) {
-			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-			writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
-			return []string{"new", "CUST-001", "-e", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath},
+		setup: func(t *testing.T, x *clitest.Invox, dir string) ([]string, string) {
+			draft := testfixture.WriteDraft(t)
+			x.WriteConfig("numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+			return []string{"new", "CUST-001", "-e", "-c", draft.Customers, "-u", draft.Issuer, "--defaults", draft.Defaults},
 				filepath.Join(dir, "CUST-001-002.yaml")
 		},
 		gate:   "created CUST-001-002.yaml but cannot open an editor: %s; edit it and run 'invox validate -i CUST-001-002.yaml'",
@@ -37,8 +39,8 @@ var editorCases = []editorCase{
 	},
 	{
 		name: "config",
-		setup: func(t *testing.T, dir string) ([]string, string) {
-			t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config-home"))
+		setup: func(t *testing.T, x *clitest.Invox, dir string) ([]string, string) {
+			x.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config-home"))
 			return []string{"config"}, filepath.Join(dir, "config-home", "invox", "config.yaml")
 		},
 		gate:   "cannot open an editor: %s; edit " + filepath.Join("config-home", "invox", "config.yaml") + " directly",
@@ -47,7 +49,7 @@ var editorCases = []editorCase{
 	},
 	{
 		name: "customer edit",
-		setup: func(t *testing.T, dir string) ([]string, string) {
+		setup: func(t *testing.T, x *clitest.Invox, dir string) ([]string, string) {
 			path := filepath.Join(dir, "customers.yaml")
 			if err := os.WriteFile(path, []byte("CUST-001: {}\n"), 0o644); err != nil {
 				t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
@@ -77,14 +79,15 @@ func TestEditorNeedsATerminal(t *testing.T) {
 	for _, c := range editorCases {
 		for _, r := range reasons {
 			t.Run(c.name+"/"+r.name, func(t *testing.T) {
-				dir := t.TempDir()
-				chdirForTest(t, dir)
-				args, path := c.setup(t, dir)
-				f, _ := testFactory(t)
-				f.IOStreams.SetStdinTTY(r.stdinTTY)
-				f.IOStreams.SetStderrTTY(r.stderrTTY)
+				x := clitest.New(t)
 
-				exitCode, stdout, stderr := captureRunFactory(t, f, args)
+				dir := t.TempDir()
+				x.Chdir(dir)
+				args, path := c.setup(t, x, dir)
+				x.IO.SetStdinTTY(r.stdinTTY)
+				x.IO.SetStderrTTY(r.stderrTTY)
+
+				exitCode, stdout, stderr := x.Run(args)
 
 				if exitCode != 2 || stdout != "" || stderr != gateStderr(c, r.reason) {
 					t.Fatalf("got (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, gateStderr(c, r.reason))
@@ -111,14 +114,18 @@ func TestEditorRespectsDisabledPrompts(t *testing.T) {
 	for _, c := range editorCases {
 		for _, w := range ways {
 			t.Run(c.name+"/"+w.name, func(t *testing.T) {
-				dir := t.TempDir()
-				chdirForTest(t, dir)
-				args, _ := c.setup(t, dir)
-				f, _ := testFactoryEnv(t, w.vars)
-				f.IOStreams.SetStdinTTY(true)
-				f.IOStreams.SetStderrTTY(true)
+				x := clitest.New(t)
 
-				exitCode, stdout, stderr := captureRunFactory(t, f, w.args(args))
+				dir := t.TempDir()
+				x.Chdir(dir)
+				args, _ := c.setup(t, x, dir)
+				for key, value := range w.vars {
+					x.Setenv(key, value)
+				}
+				x.IO.SetStdinTTY(true)
+				x.IO.SetStderrTTY(true)
+
+				exitCode, stdout, stderr := x.Run(w.args(args))
 
 				if exitCode != 2 || stdout != "" || stderr != gateStderr(c, reason) {
 					t.Fatalf("got (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, gateStderr(c, reason))
@@ -131,19 +138,21 @@ func TestEditorRespectsDisabledPrompts(t *testing.T) {
 func TestEditorRunsTheEditorSettingOnATerminal(t *testing.T) {
 	for _, c := range editorCases {
 		t.Run(c.name, func(t *testing.T) {
+			x := clitest.New(t)
+
 			dir := t.TempDir()
-			chdirForTest(t, dir)
-			args, path := c.setup(t, dir)
-			f, stub := testFactoryEnv(t, map[string]string{"EDITOR": "code -w"})
-			f.IOStreams.SetStdinTTY(true)
-			f.IOStreams.SetStderrTTY(true)
+			x.Chdir(dir)
+			args, path := c.setup(t, x, dir)
+			x.Setenv("EDITOR", "code -w")
+			x.IO.SetStdinTTY(true)
+			x.IO.SetStderrTTY(true)
 			var got run.Cmd
-			stub.Register("code", func(cmd run.Cmd) error {
+			x.Stub.Register("code", func(cmd run.Cmd) error {
 				got = cmd
 				return nil
 			})
 
-			exitCode, _, stderr := captureRunFactory(t, f, args)
+			exitCode, _, stderr := x.Run(args)
 
 			if exitCode != 0 {
 				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
@@ -158,15 +167,17 @@ func TestEditorRunsTheEditorSettingOnATerminal(t *testing.T) {
 func TestEditorFailureNamesTheEditor(t *testing.T) {
 	for _, c := range editorCases {
 		t.Run(c.name, func(t *testing.T) {
-			dir := t.TempDir()
-			chdirForTest(t, dir)
-			args, _ := c.setup(t, dir)
-			f, stub := testFactoryEnv(t, map[string]string{"EDITOR": "code -w"})
-			f.IOStreams.SetStdinTTY(true)
-			f.IOStreams.SetStderrTTY(true)
-			stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
+			x := clitest.New(t)
 
-			exitCode, stdout, stderr := captureRunFactory(t, f, args)
+			dir := t.TempDir()
+			x.Chdir(dir)
+			args, _ := c.setup(t, x, dir)
+			x.Setenv("EDITOR", "code -w")
+			x.IO.SetStdinTTY(true)
+			x.IO.SetStderrTTY(true)
+			x.Stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
+
+			exitCode, stdout, stderr := x.Run(args)
 
 			want := "error: " + c.failed + ": editor \"code -w\" exited with status 3\n"
 			if exitCode != 1 || stdout != "" || stderr != want {

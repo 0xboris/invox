@@ -1,12 +1,16 @@
-package cli
+package cli_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 func TestHelpTemplateDocumentsUnitPriceDecimals(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "template"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"help", "template"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}

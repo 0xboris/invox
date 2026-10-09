@@ -1,7 +1,10 @@
-package cli
+package cli_test
 
 import (
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // A support file named on the command line that does not exist is a
@@ -50,11 +53,13 @@ func TestNamedSupportFileThatDoesNotExist(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			customers, issuer, defaults := writeDraftFixtures(t)
-			_, _, invoice, _ := writeContextFixtures(t)
-			chdirForTest(t, t.TempDir())
+			x := clitest.New(t)
 
-			exitCode, stdout, stderr := captureRun(t, tc.args(customers, issuer, defaults, invoice))
+			draft := testfixture.WriteDraft(t)
+			fx := testfixture.WriteContext(t)
+			x.Chdir(t.TempDir())
+
+			exitCode, stdout, stderr := x.Run(tc.args(draft.Customers, draft.Issuer, draft.Defaults, fx.Invoice))
 
 			if exitCode != 1 {
 				t.Errorf("exit code = %d, want 1", exitCode)

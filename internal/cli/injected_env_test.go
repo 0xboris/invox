@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"bytes"
@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/cli"
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // testEnv returns an Env whose user directories are under root and whose
@@ -34,35 +36,25 @@ func testEnv(root string, getwd func() (string, error)) env.Env {
 
 func runWithEnv(e env.Env, args ...string) (int, string, string) {
 	ios, _, _, _ := iostreams.Test()
-	exitCode := Main(args, factory.New(ios, run.Exec{}, e))
+	exitCode := cli.Main(args, factory.New(ios, run.Exec{}, e))
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
-}
-
-func writeTestFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll returned error: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-	}
 }
 
 func TestNewUsesTheInjectedWorkingDirectory(t *testing.T) {
 	processDir := t.TempDir()
-	chdirForTest(t, processDir)
+	t.Chdir(processDir)
 
 	root := t.TempDir()
 	workDir := filepath.Join(root, "work")
-	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
-	for name, source := range map[string]string{"customers.yaml": customersPath, "issuer.yaml": issuerPath, "defaults.yaml": defaultsPath} {
+	draft := testfixture.WriteDraft(t)
+	for name, source := range map[string]string{"customers.yaml": draft.Customers, "issuer.yaml": draft.Issuer, "defaults.yaml": draft.Defaults} {
 		content, err := os.ReadFile(source)
 		if err != nil {
 			t.Fatalf("ReadFile returned error: %v", err)
 		}
-		writeTestFile(t, filepath.Join(workDir, name), string(content))
+		testfixture.WriteFile(t, filepath.Join(workDir, name), string(content))
 	}
-	writeTestFile(t, filepath.Join(root, "config", "invox", "config.yaml"), "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	testfixture.WriteFile(t, filepath.Join(root, "config", "invox", "config.yaml"), "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
 
 	e := testEnv(root, func() (string, error) { return workDir, nil })
 	exitCode, stdout, stderr := runWithEnv(e, "new", "CUST-001", "-c", "customers.yaml", "-u", "issuer.yaml", "--defaults", "defaults.yaml")
@@ -87,7 +79,7 @@ func TestTemplateListDoesNotNeedTheWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeTestFile(t, filepath.Join(root, "config", "invox", "template.tex"), "\\documentclass{article}\n")
+	testfixture.WriteFile(t, filepath.Join(root, "config", "invox", "template.tex"), "\\documentclass{article}\n")
 
 	e := testEnv(root, func() (string, error) { return "", errors.New("getwd: no such file or directory") })
 	exitCode, stdout, stderr := runWithEnv(e, "template", "list", "--names")

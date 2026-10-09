@@ -1,9 +1,12 @@
-package cli
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 const archiveShapeInvoice = `customer_id: CUST-003
@@ -62,10 +65,12 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			x := clitest.New(t)
+
 			archiveDir := t.TempDir()
-			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 			workDir := t.TempDir()
-			chdirForTest(t, workDir)
+			x.Chdir(workDir)
 
 			source := "customer_id: CUST-003\n" + tt.invoice + archiveShapePositions
 			path, arg := filepath.Join(workDir, "inv.yaml"), "inv.yaml"
@@ -80,11 +85,11 @@ func TestArchiveRefusesInvoiceKeyThatIsNotAMapping(t *testing.T) {
 				label = path
 			}
 
-			exitCode, stdout, stderr := captureRun(t, append([]string{"archive", tt.command, arg}, tt.flags...))
+			exitCode, stdout, stderr := x.Run(append([]string{"archive", tt.command, arg}, tt.flags...))
 			if want := "error: " + label + tt.want + "\n"; exitCode != 1 || stdout != "" || stderr != want {
 				t.Fatalf("archive %s = exit %d, stdout %q, stderr %q; want exit 1, no stdout, stderr %q", tt.command, exitCode, stdout, stderr, want)
 			}
-			if got := readFileForTest(t, path); got != source {
+			if got := testfixture.ReadFile(t, path); got != source {
 				t.Fatalf("%s changed:\n%s", path, got)
 			}
 			entries, err := os.ReadDir(workDir)
@@ -121,20 +126,22 @@ positions:
 		"empty path":    "_invox: {archive_path: \"\"}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
+			x := clitest.New(t)
+
 			archiveDir := t.TempDir()
-			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
+			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(archiveDir) + "\n")
 			workDir := t.TempDir()
-			chdirForTest(t, workDir)
+			x.Chdir(workDir)
 			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(archiveShapeInvoice+link), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
-			exitCode, stdout, stderr := captureRun(t, []string{"archive", "add", "inv.yaml"})
+			exitCode, stdout, stderr := x.Run([]string{"archive", "add", "inv.yaml"})
 			archived := filepath.Join(archiveDir, "inv.yaml")
 			if wantErr := "Archived inv.yaml -> " + archived + "\n"; exitCode != 0 || stdout != archived+"\n" || stderr != wantErr {
 				t.Fatalf("archive add = exit %d, stdout %q, stderr %q; want exit 0, stdout %q, stderr %q", exitCode, stdout, stderr, archived+"\n", wantErr)
 			}
-			if got := readFileForTest(t, archived); got != want {
+			if got := testfixture.ReadFile(t, archived); got != want {
 				t.Fatalf("archived invoice =\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -149,9 +156,11 @@ func TestIncrementKeepsArchiveLinkThatNamesNoFile(t *testing.T) {
 		"null":          "_invox:\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(t.TempDir())+"\n")
+			x := clitest.New(t)
+
+			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(t.TempDir()) + "\n")
 			workDir := t.TempDir()
-			chdirForTest(t, workDir)
+			x.Chdir(workDir)
 			customersPath := filepath.Join(t.TempDir(), "customers.yaml")
 			if err := os.WriteFile(customersPath, []byte("CUST-003:\n  name: Third Customer KG\n"), 0o644); err != nil {
 				t.Fatal(err)
@@ -160,7 +169,7 @@ func TestIncrementKeepsArchiveLinkThatNamesNoFile(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			exitCode, stdout, stderr := captureRun(t, []string{"increment", "inv.yaml", "-c", customersPath})
+			exitCode, stdout, stderr := x.Run([]string{"increment", "inv.yaml", "-c", customersPath})
 			if exitCode != 0 || stdout != "inv.yaml\n" {
 				t.Fatalf("increment = exit %d, stdout %q, stderr %q; want exit 0, stdout %q", exitCode, stdout, stderr, "inv.yaml\n")
 			}
@@ -178,7 +187,7 @@ positions:
     unit_price: 500
     quantity: 1
 ` + link
-			if got := readFileForTest(t, filepath.Join(workDir, "inv.yaml")); got != want {
+			if got := testfixture.ReadFile(t, filepath.Join(workDir, "inv.yaml")); got != want {
 				t.Fatalf("inv.yaml =\n%s\nwant\n%s", got, want)
 			}
 		})

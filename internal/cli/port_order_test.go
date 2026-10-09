@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"errors"
@@ -11,6 +11,9 @@ import (
 	"testing"
 
 	"github.com/rogpeppe/go-internal/txtar"
+
+	"github.com/0xboris/invox/internal/clitest"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // portOrderScenario runs invox in a directory laid out like the archive
@@ -144,12 +147,12 @@ func TestPortOrder(t *testing.T) {
 				want := "customer_id: CUST-001\ninvoice:\n  number: CUST-001-001\n  issue_date: 2026-03-06\n  due_date: 2026-04-05\n" +
 					"  status: archived\n  period: March\n  vat_percent: 20\n  paid_amount: 0\npositions:\n  - name: Dev\n" +
 					"    description: Work\n    unit_price: 100\n    quantity: 1\n"
-				if got := readFileForTest(t, archived); got != want {
+				if got := testfixture.ReadFile(t, archived); got != want {
 					t.Errorf("archived invoice =\n%s\nwant\n%s", got, want)
 				}
 				assertPortOrderMode(t, archived, 0o640)
 				assertPortOrderGone(t, filepath.Join(work, "invoice.yaml"))
-				if got := readFileForTest(t, filepath.Join(work, portOrderArchive, "old.md")); got != oldMarkdown {
+				if got := testfixture.ReadFile(t, filepath.Join(work, portOrderArchive, "old.md")); got != oldMarkdown {
 					t.Errorf("old.md = %q, want it untouched", got)
 				}
 				history, err := os.ReadDir(filepath.Join(work, portOrderArchive, ".history"))
@@ -167,7 +170,7 @@ func TestPortOrder(t *testing.T) {
 			check: func(t *testing.T, work string) {
 				archived := filepath.Join(work, portOrderArchive, "invoice.yaml")
 				want := "# keep me\n" + built("CUST-001-001", "archived")
-				if got := readFileForTest(t, archived); got != want {
+				if got := testfixture.ReadFile(t, archived); got != want {
 					t.Errorf("archived invoice =\n%s\nwant\n%s", got, want)
 				}
 				assertPortOrderMode(t, archived, 0o600)
@@ -234,9 +237,11 @@ func TestPortOrder(t *testing.T) {
 
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {
-			work := portOrderLayout(t, fixtures, sc.files)
-			chdirForTest(t, filepath.Join(work, filepath.FromSlash(sc.cwd)))
-			exitCode, stdout, stderr := captureRun(t, sc.args)
+			x := clitest.New(t)
+
+			work := portOrderLayout(t, x, fixtures, sc.files)
+			x.Chdir(filepath.Join(work, filepath.FromSlash(sc.cwd)))
+			exitCode, stdout, stderr := x.Run(sc.args)
 			stdout = filepath.ToSlash(stdout)
 			stderr = backupStamp.ReplaceAllString(filepath.ToSlash(stderr), "<stamp>")
 			wantStderr := strings.ReplaceAll(sc.wantStderr, "{ENOENT}", missingFileText(t))
@@ -269,8 +274,8 @@ func archiveScriptFixtures(t *testing.T) map[string]string {
 }
 
 // portOrderLayout writes fixtures and then files into a new directory, which
-// it points HOME and XDG_CONFIG_HOME at, and returns it.
-func portOrderLayout(t *testing.T, fixtures, files map[string]string) string {
+// it makes x's home and XDG_CONFIG_HOME, and returns it.
+func portOrderLayout(t *testing.T, x *clitest.Invox, fixtures, files map[string]string) string {
 	t.Helper()
 
 	work, err := filepath.EvalSymlinks(t.TempDir())
@@ -302,9 +307,8 @@ func portOrderLayout(t *testing.T, fixtures, files map[string]string) string {
 		write(name, content)
 	}
 	home := filepath.Join(work, "home")
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	x.Host.Home = home
+	x.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	return work
 }
 

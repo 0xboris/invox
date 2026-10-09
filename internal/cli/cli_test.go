@@ -1,20 +1,16 @@
-package cli
+package cli_test
 
 import (
-	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/factory"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 func TestRootHelpShowsDocumentationTopics(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"-h"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"-h"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -38,7 +34,9 @@ func TestRootHelpShowsDocumentationTopics(t *testing.T) {
 }
 
 func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "config"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"help", "config"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -70,7 +68,9 @@ func TestHelpConfigShowsConfigDocumentation(t *testing.T) {
 }
 
 func TestHelpCustomersShowsCustomersDocumentation(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "customers"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"help", "customers"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -102,7 +102,9 @@ func TestHelpCustomersShowsCustomersDocumentation(t *testing.T) {
 }
 
 func TestHelpIssuerShowsIssuerDocumentation(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "issuer"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"help", "issuer"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -140,7 +142,9 @@ func TestHelpIssuerShowsIssuerDocumentation(t *testing.T) {
 }
 
 func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "defaults"})
+	x := clitest.New(t)
+
+	exitCode, stdout, stderr := x.Run([]string{"help", "defaults"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0", exitCode)
 	}
@@ -167,195 +171,4 @@ func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
 			t.Fatalf("stdout %q does not contain %q", stdout, want)
 		}
 	}
-}
-
-func writeDraftFixtures(t *testing.T) (string, string, string) {
-	t.Helper()
-	return writeDraftFixturesWithCustomerStart(t, "")
-}
-
-func writeDraftFixturesWithCustomerStart(t *testing.T, customerStart string) (string, string, string) {
-	t.Helper()
-
-	dir := t.TempDir()
-	customersPath := filepath.Join(dir, "customers.yaml")
-	issuerPath := filepath.Join(dir, "issuer.yaml")
-	defaultsPath := filepath.Join(dir, "invoice_defaults.yaml")
-
-	customerNumbering := ""
-	if strings.TrimSpace(customerStart) != "" {
-		customerNumbering = "\n  numbering:\n    start: " + customerStart
-	}
-
-	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
-CUST-001:
-  name: Appsters GmbH
-`+customerNumbering)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
-	}
-	if err := os.WriteFile(issuerPath, []byte(strings.TrimSpace(`
-payment:
-  due_days: 30
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(issuer.yaml) returned error: %v", err)
-	}
-	if err := os.WriteFile(defaultsPath, []byte(strings.TrimSpace(`
-invoice:
-  period: "Leistungszeitraum: "
-  vat_percent: 20
-positions:
-  - name: Beispielposition
-    description: Beschreibung der Leistung
-    unit_price: 100
-    quantity: 1
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice_defaults.yaml) returned error: %v", err)
-	}
-
-	return customersPath, issuerPath, defaultsPath
-}
-
-func writeContextFixtures(t *testing.T) (string, string, string, string) {
-	t.Helper()
-
-	dir := t.TempDir()
-	customersPath := filepath.Join(dir, "customers.yaml")
-	issuerPath := filepath.Join(dir, "issuer.yaml")
-	invoicePath := filepath.Join(dir, "invoice.yaml")
-	templatePath := filepath.Join(dir, "invoice_template.tex")
-	fontPath := filepath.Join(dir, "fonts", "Ubuntu-Regular.ttf")
-
-	if err := os.MkdirAll(filepath.Dir(fontPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll(fonts) returned error: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "logo.png"), []byte("logo"), 0o644); err != nil {
-		t.Fatalf("WriteFile(logo.png) returned error: %v", err)
-	}
-	if err := os.WriteFile(fontPath, []byte("font"), 0o644); err != nil {
-		t.Fatalf("WriteFile(font) returned error: %v", err)
-	}
-
-	if err := os.WriteFile(customersPath, []byte(strings.TrimSpace(`
-CUST-001:
-  name: Appsters GmbH
-  status: active
-  email: office@appsters.example
-  email_greeting: Dear Jane Doe,
-  contact_person: Jane Doe
-  address:
-    street: Hauptstrasse 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-  tax:
-    vat_tax_id: ATU12345678
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
-	}
-	if err := os.WriteFile(issuerPath, []byte(strings.TrimSpace(`
-company:
-  legal_company_name: Boris Consulting
-  company_registration_number: FN 123456a
-  vat_tax_id: ATU87654321
-  website: https://example.com
-  email: hello@example.com
-  address:
-    street: Ring 1
-    postal_code: 1010
-    city: Vienna
-    country: Austria
-payment:
-  bank_name: Test Bank
-  iban: AT611904300234573201
-  bic: BKAUATWW
-  due_days: 30
-  payment_terms_text: Pay within 30 days
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(issuer.yaml) returned error: %v", err)
-	}
-	if err := os.WriteFile(invoicePath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  period: Leistungszeitraum
-  vat_percent: 20
-  paid_amount: 0
-positions:
-  - name: Development
-    description: Sprint work
-    unit_price: 100
-    quantity: 2
-  - name: Support
-    description: QA
-    unit_price: 10
-    quantity: 1
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
-	}
-	if err := os.WriteFile(templatePath, []byte(strings.TrimSpace(`
-\setmainfont{Ubuntu}[Path=fonts/,UprightFont=Ubuntu-Regular.ttf]
-\includegraphics{logo.png}
-Invoice @@INVOICE_NUMBER@@
-Customer @@CUSTOMER_NAME@@
-Terms @@PAYMENT_TERMS_TEXT@@
-Rows:
-@@LINE_ITEMS_ROWS@@
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(invoice_template.tex) returned error: %v", err)
-	}
-
-	return customersPath, issuerPath, invoicePath, templatePath
-}
-
-func writeConfigFile(t *testing.T, source string) string {
-	t.Helper()
-
-	configHome := filepath.Join(t.TempDir(), "config-home")
-	configDir := filepath.Join(configHome, "invox")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(configDir) returned error: %v", err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-
-	path := filepath.Join(configDir, "config.yaml")
-	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
-	}
-	return path
-}
-
-func writeArchivedInvoice(t *testing.T, dir, name, invoiceNumber string) string {
-	t.Helper()
-
-	path := filepath.Join(dir, name)
-	source := "invoice:\n  number: " + invoiceNumber + "\n"
-	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-	}
-	return path
-}
-
-// quoteYAMLString single-quotes value for YAML, where backslashes (as in
-// Windows paths) are literal.
-func quoteYAMLString(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
-}
-
-func captureRun(t *testing.T, args []string) (int, string, string) {
-	t.Helper()
-
-	ios, _, _, _ := iostreams.Test()
-	return captureRunStreams(t, ios, args)
-}
-
-// captureRunStreams runs args with ios, which must come from iostreams.Test,
-// and returns the exit code, stdout and stderr.
-func captureRunStreams(t *testing.T, ios *iostreams.IOStreams, args []string) (int, string, string) {
-	t.Helper()
-
-	isolateUserDirs(t)
-	exitCode := Main(args, factory.New(ios, run.Exec{}, env.System()))
-	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }

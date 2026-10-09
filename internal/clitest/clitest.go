@@ -17,6 +17,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/cli"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/testfixture"
@@ -71,8 +72,10 @@ func (x *Invox) WriteConfig(source string) string {
 	return x.Host.WriteConfig(x.t, source)
 }
 
-// Chdir makes dir the working directory invox runs in.
+// Chdir makes dir the working directory of the test and of invox, so
+// relative paths mean the same to both.
 func (x *Invox) Chdir(dir string) {
+	x.t.Chdir(dir)
 	x.getwd = func() (string, error) { return dir, nil }
 }
 
@@ -81,20 +84,25 @@ func (x *Invox) Setenv(key, value string) {
 	x.vars[key] = value
 }
 
-// Run runs invox with args and returns its exit code, stdout and stderr.
-func (x *Invox) Run(args []string) (int, string, string) {
+// Factory returns the Factory a Run would run invox with, on x.IO.
+func (x *Invox) Factory() *cmdutil.Factory {
 	x.t.Helper()
-	ios := x.IO
-	x.IO, _, _, _ = iostreams.Test()
-	f := factorytest.New(x.t, ios, factorytest.Options{
+	return factorytest.New(x.t, x.IO, factorytest.Options{
 		GOOS:   x.GOOS,
 		Home:   x.Host.Home,
 		Vars:   maps.Clone(x.vars),
 		Getwd:  x.getwd,
 		Runner: x.Stub,
 	})
+}
+
+// Run runs invox with args and returns its exit code, stdout and stderr.
+func (x *Invox) Run(args []string) (int, string, string) {
+	x.t.Helper()
+	f := x.Factory()
+	x.IO, _, _, _ = iostreams.Test()
 	exitCode := cli.Main(args, f)
-	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
+	return exitCode, f.IOStreams.Out.(*bytes.Buffer).String(), f.IOStreams.ErrOut.(*bytes.Buffer).String()
 }
 
 // Stdin makes the next Run read input from stdin. With terminal set, stdin

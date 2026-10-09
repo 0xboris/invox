@@ -128,7 +128,7 @@ var rules = []rule{
 	{
 		name: "test support: clitest runs the CLI on factorytest, runtest and testfixture",
 		pkgs: []string{mod + "internal/clitest"},
-		only: []string{mod + "internal/cli", mod + "internal/factory/factorytest", mod + "internal/adapters/run", mod + "internal/adapters/run/runtest", mod + "internal/iostreams", mod + "internal/testfixture"},
+		only: []string{mod + "internal/cli", mod + "internal/cli/cmdutil", mod + "internal/factory/factorytest", mod + "internal/adapters/run", mod + "internal/adapters/run/runtest", mod + "internal/iostreams", mod + "internal/testfixture"},
 	},
 	{
 		name: "the release binary contains neither the docs generator nor the test support packages",
