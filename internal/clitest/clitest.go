@@ -115,6 +115,30 @@ func (x *Invox) Stdin(terminal bool, input string) {
 	x.IO = ios
 }
 
+// OutputCase is a run of invox that exits 0 and prints WantStdout and
+// WantStderr, with stdout a terminal when TTY is set.
+type OutputCase struct {
+	Name       string
+	TTY        bool
+	Args       []string
+	WantStdout string
+	WantStderr string
+}
+
+// RunOutputCases runs each case as a subtest of t.
+func (x *Invox) RunOutputCases(t *testing.T, cases []OutputCase) {
+	t.Helper()
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			x.IO.SetStdoutTTY(tc.TTY)
+			exitCode, stdout, stderr := x.Run(tc.Args)
+			if exitCode != 0 || stdout != tc.WantStdout || stderr != tc.WantStderr {
+				t.Fatalf("exit=%d\nstdout=%q\nstderr=%q\nwant exit=0\nstdout=%q\nstderr=%q", exitCode, stdout, stderr, tc.WantStdout, tc.WantStderr)
+			}
+		})
+	}
+}
+
 // ExpectEditor makes the next Run's stdin and stderr terminals, so the
 // editor may open, and expects one editor run that returns err. It returns
 // where the path the editor opens is recorded.
