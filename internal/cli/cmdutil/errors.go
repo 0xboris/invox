@@ -9,7 +9,7 @@ import (
 )
 
 // FlagError is a usage error: a bad flag, argument or subcommand. Main points
-// to the help of the command that ran, or to the root help when Root is set:
+// to the help of the command that ran. Root points to the root help instead,
 // for a global flag or a help topic, which only the root help explains.
 type FlagError struct {
 	Err  error

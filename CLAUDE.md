@@ -74,11 +74,16 @@ dependencies point inward, from main to the driving and driven adapters to the u
     which `cmdutil.Factory.Locations` returns.
     `helptext` holds the shared help content: the topic pages, reference tables and lookup
     lines. `cmdutil` holds the `Factory`, `Files`, the error types, `UsageError` (which words
-    a missing support file or template as a usage error), `FlagErrorFunc`, the path display
-    helpers and what else commands share (editor, prompt, completion funcs).
+    a missing support file or template as a usage error), `FlagErrorFunc`, the `Args`
+    checks (`NoArgs`, `ExactArgs`, `MaximumArgs`), `AddSupportFlags` (the `-c`, `-u`,
+    `--defaults` and `-t` flags from one table, into `SupportPaths`), the path display
+    helpers and what else commands share (editor, prompt, completion funcs). A usage error
+    carries no command name: `Main` names the help of the command that ran, and
+    `FlagError.Root` points to the root help for a global flag or a help topic.
   - `internal/cmd/<noun>/<verb>`: one cobra command per package, each with an Options struct,
-    `NewCmdX(f, runF)` and a run function that calls one `Service` method and prints its
-    result. Parse-only tests pass a `runF`. The invoice verbs live under
+    `NewCmdX(f, runF)`, where `runF func(context.Context, *XOptions) error` defaults to the
+    run function that calls one `Service` method and prints its result. Parse-only tests pass
+    a `runF`. The invoice verbs live under
     `internal/cmd/invoice/`, with what they share in `internal/cmd/invoice/shared`, such as
     `WarnUnread`, the one stderr warning that names the Markdown invoices a command skipped.
 - `internal/docs/gen`: `go run ./internal/docs/gen` (or `make docs`) rewrites `docs/cli/*.md`
