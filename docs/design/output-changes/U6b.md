@@ -25,3 +25,19 @@ Changed files:
 
 - `cmd/invox/testdata/script/broken_config.txtar`: a new case, `missing-paths.yaml` and
   `want-missing-paths.txt` pin the last row.
+
+## validate --json prints no document for a support file that does not exist
+
+`validate --json` prints a document only for an invoice with problems in its content; a file
+that cannot be read prints none. Since U6, a missing `-c`, `-u` or `--defaults` file (and,
+since the section above, a missing `paths.*` file) is a `*billing.FileNotFoundError` instead
+of the OS's `*fs.PathError`, and `validate --json` printed `{"valid":false}` for it. It counts
+as a file that cannot be read again. Exit code 1, before and after.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `invox validate -i inv.yaml -c missing.yaml --json valid` | stdout `{"valid":false}`, stderr `error: customers file missing.yaml does not exist` | no stdout, the same stderr |
+
+Changed files:
+
+- `cmd/invox/testdata/script/json.txtar`: a new case pins the row.

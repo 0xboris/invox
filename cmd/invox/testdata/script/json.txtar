@@ -60,6 +60,9 @@ cmp stdout want-huge.json
 exits 1 invox validate -i missing.yaml --json valid
 ! stdout .
 stderr 'missing\.yaml'
+exits 1 invox validate -i invoice.yaml -c missing.yaml --json valid
+! stdout .
+stderr '^error: customers file missing\.yaml does not exist$'
 
 # --dry-run --json prints the object the real run prints, and writes nothing.
 exec invox new CUST-002 --dry-run --json path,number,customerId

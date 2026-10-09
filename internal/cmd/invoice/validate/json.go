@@ -59,7 +59,8 @@ func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 			}
 		default:
 			var pathErr *fs.PathError
-			if errors.As(err, &pathErr) {
+			var notFound *billing.FileNotFoundError
+			if errors.As(err, &pathErr) || errors.As(err, &notFound) {
 				return false
 			}
 			problems = append(problems, problemJSON{Message: err.Error()})
