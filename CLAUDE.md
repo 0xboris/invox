@@ -118,8 +118,9 @@ Settled decisions (#9):
 - Never depend on the developer's real config: in CLI tests point `XDG_CONFIG_HOME` at
   `t.TempDir()`; in command tests build the Factory with `factorytest.New`; in `internal/store`
   build a `store.Host` with `store.NewHost(store.HostInputs{...})` whose directories are under
-  `t.TempDir()`. The `store` tests reach the use cases through the test-only shim in
-  `store/legacy_api_test.go`.
+  `t.TempDir()`. Use-case tests live in `internal/billing` as `package billing_test` and build
+  the `Service` with `factorytest.New`; the `internal/store` tests cover decoding, writing and
+  path resolution only.
 - `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
   puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
 - Use `chdirForTest` for working-directory changes. Swapped package-level hooks
