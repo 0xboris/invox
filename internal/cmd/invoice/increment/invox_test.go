@@ -149,3 +149,49 @@ func TestIncrementWritesThroughSymlinkedInvoice(t *testing.T) {
 		t.Fatalf("link target was not updated:\n%s", updated)
 	}
 }
+
+// Writes other than archiving keep an `_invox` key that names no file as
+// written.
+func TestIncrementKeepsArchiveLinkThatNamesNoFile(t *testing.T) {
+	for name, link := range map[string]string{
+		"empty mapping": "_invox: {}\n",
+		"null":          "_invox:\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			x := clitest.New(t)
+
+			x.WriteConfig("archive:\n  dir: " + testfixture.QuoteYAML(t.TempDir()) + "\n")
+			workDir := t.TempDir()
+			x.Chdir(workDir)
+			customersPath := filepath.Join(t.TempDir(), "customers.yaml")
+			if err := os.WriteFile(customersPath, []byte("CUST-003:\n  name: Third Customer KG\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(workDir, "inv.yaml"), []byte(testfixture.Source("cust003-built.yaml")+link), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			exitCode, stdout, stderr := x.Run([]string{"increment", "inv.yaml", "-c", customersPath})
+			if exitCode != 0 || stdout != "inv.yaml\n" {
+				t.Fatalf("increment = exit %d, stdout %q, stderr %q; want exit 0, stdout %q", exitCode, stdout, stderr, "inv.yaml\n")
+			}
+			want := `customer_id: CUST-003
+invoice:
+  number: CUST-003-002
+  issue_date: 2026-03-07
+  due_date: 2026-04-06
+  status: built
+  period: March
+  vat_percent: 20
+positions:
+  - name: Consulting
+    description: Workshop
+    unit_price: 500
+    quantity: 1
+` + link
+			if got := testfixture.ReadFile(t, filepath.Join(workDir, "inv.yaml")); got != want {
+				t.Fatalf("inv.yaml =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
