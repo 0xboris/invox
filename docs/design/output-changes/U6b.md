@@ -117,3 +117,19 @@ pins the row.
 The same holds for the other commands that open the editor, `new -e` and `customer edit`.
 
 No testscript golden, `docs/cli` or `share/man` page changed.
+
+## A PDF to attach that does not exist
+
+`billing.File` gains `PDFFile`. Both mailers (`email.Mailer` and Apple Mail) return a
+`*billing.FileNotFoundError` of it when the PDF to attach does not exist, instead of the
+doubled stat error. Exit code 1, before and after.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `invox email inv.yaml -p missing.pdf -o d.eml` | `error: read missing.pdf: stat missing.pdf: no such file or directory` | `error: PDF file missing.pdf does not exist` |
+| `invox email inv.yaml` when the PDF next to it is gone | `error: read inv.pdf: stat inv.pdf: no such file or directory` | `error: PDF file inv.pdf does not exist` |
+
+Changed files:
+
+- `cmd/invox/testdata/script/email.txtar`: the `missing.pdf` case matches the whole new line
+  instead of the `read missing.pdf: ` prefix.

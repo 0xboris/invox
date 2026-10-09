@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/0xboris/invox/internal/adapters/run"
@@ -54,7 +55,9 @@ var script = []string{
 // leaves the sender to Mail's default account. It returns a
 // *billing.ToolFailedError when osascript fails.
 func (c *Composer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
-	if _, err := os.Stat(m.Attachment); err != nil {
+	if _, err := os.Stat(m.Attachment); errors.Is(err, fs.ErrNotExist) {
+		return "", &billing.FileNotFoundError{File: billing.PDFFile, Path: m.Attachment}
+	} else if err != nil {
 		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
 	}
 	if dryRun {

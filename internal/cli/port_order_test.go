@@ -198,7 +198,7 @@ func TestPortOrder(t *testing.T) {
 			files:      map[string]string{"INV.yaml": built("CUST-001-001", "built")},
 			args:       []string{"email", "INV.PDF", "-o", "d.eml", "-n"},
 			wantExit:   1,
-			wantStderr: "error: read INV.pdf: stat INV.pdf: {ENOENT}\n",
+			wantStderr: "error: PDF file INV.pdf does not exist\n",
 		},
 		{
 			name: "email-pdf-with-p",

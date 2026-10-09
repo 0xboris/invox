@@ -37,7 +37,9 @@ var _ billing.Mailer = Mailer{}
 // untouched with a *billing.OutputExistsError. With dryRun it runs the
 // same checks and writes nothing.
 func (mailer Mailer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
-	if _, err := os.Stat(m.Attachment); err != nil {
+	if _, err := os.Stat(m.Attachment); errors.Is(err, fs.ErrNotExist) {
+		return "", &billing.FileNotFoundError{File: billing.PDFFile, Path: m.Attachment}
+	} else if err != nil {
 		return "", fmt.Errorf("read %s: %w", m.Attachment, err)
 	}
 	if dryRun {

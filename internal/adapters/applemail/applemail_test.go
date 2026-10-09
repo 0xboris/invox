@@ -99,3 +99,15 @@ func TestDraftReturnsToolFailedErrorWhenOsascriptFails(t *testing.T) {
 		t.Fatalf("Draft error = %v, want *billing.ToolFailedError \"osascript exited with status 1\"", err)
 	}
 }
+
+func TestDraftReportsAMissingAttachment(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	pdf := filepath.Join(t.TempDir(), "invoice.pdf")
+
+	_, err := applemail.New(runtest.NewStub(t), ios).Draft(context.Background(), billing.Message{Attachment: pdf}, false)
+
+	var notFound *billing.FileNotFoundError
+	if !errors.As(err, &notFound) || err.Error() != "PDF file "+pdf+" does not exist" {
+		t.Fatalf("Draft error = %v, want *billing.FileNotFoundError \"PDF file %s does not exist\"", err, pdf)
+	}
+}

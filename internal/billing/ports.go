@@ -7,8 +7,8 @@ import (
 	"github.com/0xboris/invox/internal/invoice"
 )
 
-// File is a kind of file invox reads: a support file, config.yaml, or an
-// invoice.
+// File is a kind of file invox reads: a support file, config.yaml, an
+// invoice, or the PDF an email attaches.
 type File int
 
 const (
@@ -18,10 +18,11 @@ const (
 	TemplateFile
 	ConfigFile
 	InvoiceFile
+	PDFFile
 )
 
 func (f File) String() string {
-	return [...]string{"customers", "issuer", "defaults", "template", "config", "invoice"}[f]
+	return [...]string{"customers", "issuer", "defaults", "template", "config", "invoice", "PDF"}[f]
 }
 
 // Check says how Create checks the invoice it writes.
@@ -286,9 +287,10 @@ type Message struct {
 
 // Mailer drafts an email with the PDF attached.
 type Mailer interface {
-	// Draft checks that m's attachment can be read and, for a kept draft,
-	// that its file can be written, then drafts m and opens it unless
-	// dryRun is set. It returns the draft's file, "" when a mail app holds
-	// the draft or in a dry run.
+	// Draft checks that m's attachment can be read (a missing one is a
+	// *FileNotFoundError of PDFFile) and, for a kept draft, that its file
+	// can be written, then drafts m and opens it unless dryRun is set. It
+	// returns the draft's file, "" when a mail app holds the draft or in a
+	// dry run.
 	Draft(ctx context.Context, m Message, dryRun bool) (string, error)
 }

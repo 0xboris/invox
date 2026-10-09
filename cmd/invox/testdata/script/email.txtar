@@ -78,7 +78,7 @@ scrubpaths stderr got.txt
 cmp got.txt want-not-built.txt
 exits 1 invox email invoice.yaml -p missing.pdf -o draft5.eml
 ! stdout .
-stderr '^error: read missing\.pdf: '
+stderr '^error: PDF file missing\.pdf does not exist$'
 env FAKE_OPEN_FAIL=1
 env OPENER=xdg-open
 [darwin] env OPENER=open
