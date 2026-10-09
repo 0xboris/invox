@@ -3,7 +3,6 @@ package billing
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/0xboris/invox/internal/invoice"
@@ -53,7 +52,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	}
 
 	if req.Output != "" {
-		if err := s.Invoices.CheckOutput(req.Output, req.Overwrite); err != nil {
+		if _, err := s.Invoices.Destination(req.Output, req.WorkDir, "", req.Overwrite); err != nil {
 			return NewResult{}, err
 		}
 	}
@@ -75,11 +74,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 
 	now := s.Now().In(time.Local)
 	issueDate := now.Format("2006-01-02")
-	draftDirs := []string{req.WorkDir}
-	if req.Output != "" {
-		draftDirs = append(draftDirs, filepath.Dir(req.Output))
-	}
-	draftCounter, err := s.highestDraftCounter(draftDirs, req.CustomerID, issueDate, customer)
+	draftCounter, err := s.highestDraftCounter(req.WorkDir, req.Output, req.CustomerID, issueDate, customer)
 	if err != nil {
 		return NewResult{}, err
 	}
@@ -87,11 +82,8 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-	output := req.Output
-	if output == "" {
-		output = filepath.Join(req.WorkDir, number+".yaml")
-	}
-	if err := s.Invoices.CheckOutput(output, req.Overwrite); err != nil {
+	output, err := s.Invoices.Destination(req.Output, req.WorkDir, number, req.Overwrite)
+	if err != nil {
 		return NewResult{}, err
 	}
 	dueDays, err := issuerDueDays(issuerPath, *issuer.Payment)

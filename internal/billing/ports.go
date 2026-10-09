@@ -85,9 +85,15 @@ type Invoices interface {
 	// path. Values that do not decode are left unset and reported as
 	// *DecodeError values.
 	Head(path string) (Head, error)
-	// Drafts returns the invoices directly in dirs, best effort: files
-	// that cannot be read are left out.
-	Drafts(dirs []string) []Head
+	// Drafts returns the invoices directly in workDir and, when output is
+	// set, in the directory output is in, best effort: files that cannot
+	// be read are left out.
+	Drafts(workDir, output string) []Head
+	// Destination returns the file a new invoice is written to: path, or
+	// when path is "", <number>.yaml in workDir. It returns an
+	// *OutputIsDirError when that is a directory and, unless overwrite is
+	// set, an *OutputExistsError when it exists.
+	Destination(path, workDir, number string, overwrite bool) (string, error)
 	// Create writes a new invoice to path from the document at from, which
 	// may be an archived invoice, keeping its comments and keys. Every
 	// customer and header field set in inv is written, as text. Positions
@@ -97,9 +103,6 @@ type Invoices interface {
 	// Update rewrites the invoice at path with change applied, writing
 	// back only the fields that changed.
 	Update(path string, change func(*invoice.Invoice) error) error
-	// CheckOutput returns an *OutputIsDirError when path is a directory,
-	// and, unless overwrite is set, an *OutputExistsError when it exists.
-	CheckOutput(path string, overwrite bool) error
 	// Exists reports whether path is a file.
 	Exists(path string) bool
 	// Stat returns why path cannot be read, or nil.

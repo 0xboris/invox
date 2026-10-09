@@ -343,7 +343,7 @@ func (s *Service) EditArchived(ref, workDir string, opts EditOptions) (Edited, e
 	if err := requireHeader(checkout.Archived, archived); err != nil {
 		return Edited{}, err
 	}
-	if err := s.Invoices.CheckOutput(checkout.Path, opts.Overwrite); err != nil {
+	if _, err := s.Invoices.Destination(checkout.Path, workDir, "", opts.Overwrite); err != nil {
 		return Edited{}, err
 	}
 	if err := s.refuseArchivedOverwrite(checkout.Path, opts.Overwrite); err != nil {

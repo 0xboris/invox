@@ -79,16 +79,17 @@ func (s *Service) highestArchivedCounter(pattern, customerID, issueDate string, 
 }
 
 // highestDraftCounter returns the highest counter used by unarchived
-// invoices (status draft or built) directly inside dirs, so that two drafts
-// created before either is archived do not get the same number. Files that
-// cannot be read or do not match the numbering pattern are ignored.
-func (s *Service) highestDraftCounter(dirs []string, customerID, issueDate string, customer invoice.Customer) (int64, error) {
+// invoices (status draft or built) where a new invoice goes, workDir and
+// the directory of output, so that two drafts created before either is
+// archived do not get the same number. Files that cannot be read or do not
+// match the numbering pattern are ignored.
+func (s *Service) highestDraftCounter(workDir, output, customerID, issueDate string, customer invoice.Customer) (int64, error) {
 	settings, err := s.numberingSettings()
 	if err != nil {
 		return 0, err
 	}
 	var highest int64
-	for _, head := range s.Invoices.Drafts(dirs) {
+	for _, head := range s.Invoices.Drafts(workDir, output) {
 		if !head.Status.Allows(invoice.Numbering) || head.Number == "" {
 			continue
 		}

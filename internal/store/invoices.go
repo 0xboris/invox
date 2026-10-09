@@ -90,10 +90,14 @@ func (identity invoiceIdentity) head() billing.Head {
 // far smaller.
 const maxDraftScanSize = 1 << 20
 
-// Drafts returns the invoices directly inside dirs. The scan is best
-// effort: the archive check still guarantees unique numbers, so an
-// unreadable directory or file is skipped.
-func (s *Store) Drafts(dirs []string) []billing.Head {
+// Drafts returns the invoices directly inside workDir and the directory of
+// output. The scan is best effort: the archive check still guarantees
+// unique numbers, so an unreadable directory or file is skipped.
+func (s *Store) Drafts(workDir, output string) []billing.Head {
+	dirs := []string{workDir}
+	if output != "" {
+		dirs = append(dirs, filepath.Dir(output))
+	}
 	seen := make(map[string]bool, len(dirs))
 	var heads []billing.Head
 	for _, dir := range dirs {
@@ -129,16 +133,20 @@ func (s *Store) Drafts(dirs []string) []billing.Head {
 	return heads
 }
 
-// CheckOutput refuses a directory at path, and an existing file unless
-// overwrite is set.
-func (s *Store) CheckOutput(path string, overwrite bool) error {
+// Destination returns path, or <number>.yaml in workDir when path is "",
+// after refusing a directory there, and an existing file unless overwrite
+// is set.
+func (s *Store) Destination(path, workDir, number string, overwrite bool) (string, error) {
+	if path == "" {
+		path = filepath.Join(workDir, number+".yaml")
+	}
 	if err := refuseDirOutput(path); err != nil {
-		return err
+		return "", err
 	}
 	if !overwrite && fileExists(path) {
-		return &billing.OutputExistsError{Path: path}
+		return "", &billing.OutputExistsError{Path: path}
 	}
-	return nil
+	return path, nil
 }
 
 // Exists reports whether path is a file.
