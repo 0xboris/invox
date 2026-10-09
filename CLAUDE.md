@@ -36,6 +36,10 @@ dependencies point inward, from main to the driving and driven adapters to the u
   `archive.Archive.Protects` to `store.Store.Protected` and `store.Rewrite` to the archive,
   and fills `Factory.Locations`, the default locations help texts show.
   `factory/factorytest` builds the same Factory on temporary directories for command tests.
+- Test support, which the release binary doesn't import: `internal/testfixture` (the fixture
+  files under its `testdata` and the writers that copy them into a test's directory, on the
+  standard library only, so every package's tests can use it) and `internal/clitest` (runs
+  invox through `cli.Main` on a `factorytest` Factory).
 - Entities (standard library and `money` only, no disk): `internal/invoice` (the schema types
   without YAML tags, the value types with `Parse*` constructors, `Status` and its transition
   table, `Validate` returning `[]Problem`, VAT totals in `NewContext`), `internal/numbering`
@@ -131,24 +135,28 @@ Settled decisions (#9):
 
 ## Testing
 
-- CLI tests: `captureRun(t, args)` returns `(exitCode, stdout, stderr)`; assert all three. It runs
-  `Main` with `iostreams.Test()` buffers; `captureRunStreams` takes streams you set up (stdin input,
-  TTY flags). Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
-- Never depend on the developer's real config: in CLI tests point `XDG_CONFIG_HOME` at
-  `t.TempDir()`; in command tests build the Factory with `factorytest.New`; in `internal/store`
-  build a `store.Host` with `store.NewHost(store.HostInputs{...})` whose directories are under
+- Command tests live in the command's package, as `package <name>_test` in `invox_test.go`.
+  `x := clitest.New(t)` is one user's invox on temporary directories; `x.Run(args)` runs `Main`
+  and returns `(exitCode, stdout, stderr)`; assert all three. Set up with `x.WriteConfig`,
+  `x.Setenv`, `x.Chdir` (which moves the test too) and `x.Stdin` or `x.IO` for stdin and TTY
+  flags. `internal/cli` keeps the tests of `Main`, exit codes, signals, help routing, global
+  flags and the contracts that span commands, in `package cli_test` on the same harness.
+  Never swap `os.Stdin`, `os.Stdout` or `os.Stderr`.
+- Start from `testfixture` (`WriteContext`, `WriteDraft`, `NewHost`, `HostWithConfig`, ...)
+  instead of writing fixtures inline, and add a new shared fixture there.
+- Never depend on the developer's real config: clitest and `factorytest.New` read only the
+  variables a test sets; in `internal/store` build a `store.Host` whose directories are under
   `t.TempDir()`. Use-case tests live in `internal/billing` as `package billing_test` and build
   the `Service` with `factorytest.New`; the `internal/store` tests cover decoding, writing and
   path resolution only.
-- `build` tests use `installFakeTectonic(t, fakeTectonicWritePDF|fakeTectonicFail)`, which
-  puts the test binary on PATH as `tectonic`. No shell scripts, so tests run on Windows.
-- Use `chdirForTest` for working-directory changes. Swapped package-level hooks
-  must be restored with `t.Cleanup`.
-- Tests that reach the editor, the opener or Apple Mail use `testFactory(t)` and
-  `captureRunFactory`. Its `runtest.Stub` panics on any program the test did not register with
-  `expectEditor`, `expectOpener` or `stub.Register`, and fails the test if one never runs. The
-  mailer opens drafts itself, so a use-case test that drafts an email passes a stub runner
-  through `factorytest.Options.Runner` (`mailService` in `internal/billing`).
+- Programs run on a `runtest.Stub`, which panics on any program the test did not register and
+  fails the test if one never runs: `x.ExpectEditor`, `x.ExpectOpener`, `x.ExpectTectonic`,
+  `x.ExpectTectonicFailure` or `x.Stub.Register`. The mailer opens drafts itself, so a use-case
+  test that drafts an email passes a stub runner through `factorytest.Options.Runner`
+  (`mailService` in `internal/billing`). The signal tests in `internal/cli` run real child
+  processes: `installFakeTectonic` puts the test binary on PATH as `tectonic`. No shell
+  scripts, so tests run on Windows.
+- Swapped package-level hooks must be restored with `t.Cleanup`.
 - `internal/archtest/ports_test.go` pins the exact method set of each port and of
   `*billing.Service`, and `TestPortsCarryNoAdapterData` fails when a port result carries a func
   or a port takes back a struct it returned. A new port method updates the lists there.
