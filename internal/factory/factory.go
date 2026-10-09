@@ -17,6 +17,7 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/email"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/fsutil"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/render/latex"
 	"github.com/0xboris/invox/internal/store"
@@ -81,8 +82,8 @@ func newHost(e env.Env, configFile string) store.Host {
 		XDGConfigHome: absOnly(e.Getenv("XDG_CONFIG_HOME")),
 		XDGDataHome:   absOnly(e.Getenv("XDG_DATA_HOME")),
 		AppData:       absOnly(e.Getenv("APPDATA")),
-		ConfigDir:     absAgainst(cwd, e.Getenv("INVOX_CONFIG_DIR")),
-		ConfigFile:    absAgainst(cwd, configFile),
+		ConfigDir:     fsutil.Abs(cwd, e.Getenv("INVOX_CONFIG_DIR")),
+		ConfigFile:    fsutil.Abs(cwd, configFile),
 	})
 }
 
@@ -92,14 +93,4 @@ func absOnly(path string) string {
 		return ""
 	}
 	return filepath.Clean(path)
-}
-
-func absAgainst(cwd, path string) string {
-	if path == "" {
-		return ""
-	}
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-	return filepath.Join(cwd, path)
 }

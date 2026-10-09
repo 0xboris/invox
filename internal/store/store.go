@@ -6,6 +6,7 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/config"
+	"github.com/0xboris/invox/internal/fsutil"
 	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/numbering"
 )
@@ -76,7 +77,7 @@ func (s *Store) Locate(f billing.File) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", &billing.FileNotFoundError{File: f, Default: s.Host.globalPath(f)}
 	}
-	return absPath(baseDir, path), nil
+	return fsutil.Abs(baseDir, path), nil
 }
 
 func (h Host) globalPath(f billing.File) string {
@@ -144,7 +145,7 @@ func (s *Store) Template(ref string) (billing.Template, error) {
 	if err != nil {
 		return billing.Template{}, &billing.TemplateLookupError{Err: err}
 	}
-	return s.template(absPath(baseDir, path)), nil
+	return s.template(fsutil.Abs(baseDir, path)), nil
 }
 
 func (s *Store) template(path string) billing.Template {
