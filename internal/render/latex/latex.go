@@ -8,26 +8,9 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/money"
 )
-
-// Item is one line item as the template shows it. Its fields match
-// invoice.LineItem, so the invoice converts with a plain type conversion.
-type Item struct {
-	Name           string
-	Description    string
-	UnitPrice      *big.Rat
-	Quantity       *big.Rat
-	VATRatePercent *big.Rat
-	LineTotalCents int64
-}
-
-// VATRow is the VAT owed at one rate. Its fields match invoice.VATBreakdown.
-type VATRow struct {
-	RatePercent    *big.Rat
-	NetCents       int64
-	VATAmountCents int64
-}
 
 // FormatCurrency formats cents as 1.234,56 followed by \euro for EUR, or by
 // the escaped currency code.
@@ -105,16 +88,16 @@ func qrcodePayloadTeXSource(payload []byte) string {
 }
 
 // LineItemRows renders the items as table rows without a VAT column.
-func LineItemRows(items []Item, currency string) string {
+func LineItemRows(items []invoice.LineItem, currency string) string {
 	return lineItemRows(items, currency, false)
 }
 
 // LineItemRowsWithVAT renders the items as table rows with a VAT column.
-func LineItemRowsWithVAT(items []Item, currency string) string {
+func LineItemRowsWithVAT(items []invoice.LineItem, currency string) string {
 	return lineItemRows(items, currency, true)
 }
 
-func lineItemRows(items []Item, currency string, includeVAT bool) string {
+func lineItemRows(items []invoice.LineItem, currency string, includeVAT bool) string {
 	rows := make([]string, 0, len(items)*2)
 	lastIndex := len(items) - 1
 	for index, item := range items {
@@ -143,7 +126,7 @@ func lineItemRule(index, lastIndex int) string {
 }
 
 // VATSummaryRows renders one "label (rate): amount" row per VAT rate.
-func VATSummaryRows(label string, breakdowns []VATRow, currency string) string {
+func VATSummaryRows(label string, breakdowns []invoice.VATBreakdown, currency string) string {
 	rows := make([]string, 0, len(breakdowns))
 	escapedLabel := Escape(label)
 	for _, breakdown := range breakdowns {

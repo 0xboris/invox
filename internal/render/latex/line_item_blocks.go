@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/money"
 )
 
@@ -70,7 +71,7 @@ func validateLineItemPlaceholdersOutsideBlocks(template string, validationErrors
 
 // Fill replaces every placeholder in template: values outside line item
 // blocks, and values plus the item placeholders inside each block.
-func Fill(template string, values map[string]string, items []Item, currency string) string {
+func Fill(template string, values map[string]string, items []invoice.LineItem, currency string) string {
 	return renderLineItemTemplateBlocks(template, items, currency, sortedReplacementPairs(values))
 }
 
@@ -78,7 +79,7 @@ func Fill(template string, values map[string]string, items []Item, currency stri
 // text outside line item blocks uses the template pairs, and each block body
 // uses the line item pairs plus the template pairs. Substituted values are
 // never scanned again.
-func renderLineItemTemplateBlocks(template string, items []Item, currency string, templatePairs []string) string {
+func renderLineItemTemplateBlocks(template string, items []invoice.LineItem, currency string, templatePairs []string) string {
 	replacer := strings.NewReplacer(templatePairs...)
 	matches := lineItemsBlockPattern.FindAllStringSubmatchIndex(template, -1)
 	if len(matches) == 0 {
@@ -181,7 +182,7 @@ func templateLineHasOnlyIndentation(text string) bool {
 	return true
 }
 
-func renderLineItemTemplateBlock(body string, items []Item, currency string, templatePairs []string) string {
+func renderLineItemTemplateBlock(body string, items []invoice.LineItem, currency string, templatePairs []string) string {
 	var builder strings.Builder
 	lastIndex := len(items) - 1
 	for index, item := range items {
@@ -190,7 +191,7 @@ func renderLineItemTemplateBlock(body string, items []Item, currency string, tem
 	return builder.String()
 }
 
-func renderLineItemTemplate(body string, item Item, currency, rule string, templatePairs []string) string {
+func renderLineItemTemplate(body string, item invoice.LineItem, currency, rule string, templatePairs []string) string {
 	pairs := []string{
 		lineItemNamePlaceholder, Escape(item.Name),
 		lineItemDescriptionPlaceholder, Escape(item.Description),

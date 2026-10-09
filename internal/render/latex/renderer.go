@@ -35,13 +35,13 @@ func buildTemplateValues(ctx *invoice.Context) map[string]string {
 		"@@CUSTOMER_COUNTRY@@":         Escape(string(ctx.Customer.Address.Country)),
 		"@@CUSTOMER_VAT_TAX_ID@@":      Escape(string(ctx.Customer.Tax.VATTaxID)),
 		"@@CUSTOMER_EMAIL@@":           Escape(ctx.CustomerEmail),
-		"@@LINE_ITEMS_ROWS@@":          LineItemRows(latexItems(ctx.LineItems), ctx.Currency),
-		"@@LINE_ITEMS_ROWS_WITH_VAT@@": LineItemRowsWithVAT(latexItems(ctx.LineItems), ctx.Currency),
+		"@@LINE_ITEMS_ROWS@@":          LineItemRows(ctx.LineItems, ctx.Currency),
+		"@@LINE_ITEMS_ROWS_WITH_VAT@@": LineItemRowsWithVAT(ctx.LineItems, ctx.Currency),
 		"@@PERIOD_LABEL@@":             Escape(string(ctx.Header.Period)),
 		"@@PAYMENT_TERMS_TEXT@@":       Escape(string(ctx.Payment.PaymentTermsText)),
 		"@@VAT_LABEL@@":                Escape(ctx.Payment.VATName()),
 		"@@SUBTOTAL@@":                 FormatCurrency(ctx.SubtotalCents, ctx.Currency),
-		"@@VAT_SUMMARY_ROWS@@":         VATSummaryRows(ctx.Payment.VATName(), latexVATRows(ctx.VATBreakdowns), ctx.Currency),
+		"@@VAT_SUMMARY_ROWS@@":         VATSummaryRows(ctx.Payment.VATName(), ctx.VATBreakdowns, ctx.Currency),
 		"@@TOTAL@@":                    FormatCurrency(ctx.TotalCents, ctx.Currency),
 		"@@PAID_AMOUNT@@":              FormatCurrency(ctx.PaidAmountCents, ctx.Currency),
 		"@@OUTSTANDING_AMOUNT@@":       FormatCurrency(ctx.OutstandingCents, ctx.Currency),
@@ -49,22 +49,6 @@ func buildTemplateValues(ctx *invoice.Context) map[string]string {
 		"@@IBAN@@":                     Escape(string(ctx.Payment.IBAN)),
 		"@@BIC@@":                      Escape(string(ctx.Payment.BIC)),
 	}
-}
-
-func latexItems(items []invoice.LineItem) []Item {
-	converted := make([]Item, len(items))
-	for i, item := range items {
-		converted[i] = Item(item)
-	}
-	return converted
-}
-
-func latexVATRows(breakdowns []invoice.VATBreakdown) []VATRow {
-	converted := make([]VATRow, len(breakdowns))
-	for i, breakdown := range breakdowns {
-		converted[i] = VATRow(breakdown)
-	}
-	return converted
 }
 
 func epcQRAvailabilityLiteral(wantAvailable, available bool) string {
@@ -146,7 +130,7 @@ func (Renderer) Render(t billing.Template, ctx *invoice.Context, epc billing.EPC
 		}
 		values[epcQRCodePlaceholder] = QRCode(epc.Payload)
 	}
-	return Fill(template, values, latexItems(ctx.LineItems), ctx.Currency), nil
+	return Fill(template, values, ctx.LineItems, ctx.Currency), nil
 }
 
 // Write writes source to path and copies the assets it uses from next to
