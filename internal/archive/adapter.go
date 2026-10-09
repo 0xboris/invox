@@ -29,12 +29,12 @@ type Archive struct {
 
 var _ billing.Archive = Archive{}
 
-func (a Archive) store() (Store, error) {
+func (a Archive) store() (store, error) {
 	dir, err := a.Locate()
 	if err != nil {
-		return Store{}, err
+		return store{}, err
 	}
-	return Store{Dir: dir}, nil
+	return store{Dir: dir}, nil
 }
 
 // Entries reads every archived invoice, sorted by Filename.
@@ -141,8 +141,12 @@ func (a Archive) Add(src string, inv invoice.Invoice, opts billing.AddOptions) (
 	}
 	var replaced []string
 	if overwrite {
-		if replaced, err = ExistingFiles(path); err != nil {
+		exists, err := existingFile(path)
+		if err != nil {
 			return billing.ArchiveResult{}, err
+		}
+		if exists {
+			replaced = []string{path}
 		}
 	}
 	if len(replaced) > 0 && !opts.Replace {

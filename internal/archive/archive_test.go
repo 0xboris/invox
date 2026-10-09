@@ -22,14 +22,14 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func walkPaths(t *testing.T, s Store) []string {
+func walkPaths(t *testing.T, s store) []string {
 	t.Helper()
 	paths, _ := walk(t, s)
 	return paths
 }
 
 // walk returns the files Walk visits and the Markdown files it reports.
-func walk(t *testing.T, s Store) (visited, markdown []string) {
+func walk(t *testing.T, s store) (visited, markdown []string) {
 	t.Helper()
 	markdown, err := s.Walk(func(path string) error {
 		visited = append(visited, path)
@@ -53,7 +53,7 @@ func TestWalkVisitsInvoiceFilesBelowTheRootInOrder(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a", "y.markdown"), "---\r\ninvoice: {}\r\n---\r\n")
 	writeFile(t, filepath.Join(dir, ".history", "old.md"), "---\ninvoice: {}\n---\n")
 
-	visited, markdown := walk(t, Store{Dir: dir})
+	visited, markdown := walk(t, store{Dir: dir})
 	want := []string{
 		filepath.Join(dir, "a", ".history", "kept.yaml"),
 		filepath.Join(dir, "a", "z.YML"),
@@ -77,14 +77,14 @@ func TestWalkOrderDiffersFromListOrder(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a", "x.yaml"), "X")
 	writeFile(t, filepath.Join(dir, "a-b.yaml"), "B")
 
-	if got, want := walkPaths(t, Store{Dir: dir}), []string{
+	if got, want := walkPaths(t, store{Dir: dir}), []string{
 		filepath.Join(dir, "a", "x.yaml"),
 		filepath.Join(dir, "a-b.yaml"),
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Walk visited %q, want %q", got, want)
 	}
 
-	entries, _, err := Store{Dir: dir}.List(func(string) (billing.ArchiveEntry, bool, error) { return billing.ArchiveEntry{}, true, nil })
+	entries, _, err := store{Dir: dir}.List(func(string) (billing.ArchiveEntry, bool, error) { return billing.ArchiveEntry{}, true, nil })
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestWalkReportsPathsBelowTheSymlinkedRoot(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	got := walkPaths(t, Store{Dir: link})
+	got := walkPaths(t, store{Dir: link})
 	if want := []string{filepath.Join(link, "customer-a", "first.yaml")}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("Walk visited %q, want %q", got, want)
 	}
@@ -120,14 +120,14 @@ func TestWalkWithoutArchive(t *testing.T) {
 		"unset":   "",
 		"missing": filepath.Join(t.TempDir(), "none"),
 	} {
-		if got := walkPaths(t, Store{Dir: dir}); len(got) != 0 {
+		if got := walkPaths(t, store{Dir: dir}); len(got) != 0 {
 			t.Fatalf("%s: Walk visited %q, want nothing", name, got)
 		}
 	}
 
 	file := filepath.Join(t.TempDir(), "archive")
 	writeFile(t, file, "")
-	_, err := Store{Dir: file}.Walk(func(string) error { return nil })
+	_, err := store{Dir: file}.Walk(func(string) error { return nil })
 	if want := file + ": archive.dir must point to a directory"; err == nil || err.Error() != want {
 		t.Fatalf("Walk(file) error = %v, want %q", err, want)
 	}
@@ -142,7 +142,7 @@ func TestListSortsByFilenameAndSkipsWhatTheReaderRejects(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a-d.yaml"), "")
 	writeFile(t, filepath.Join(dir, "old.md"), "---\ncustomer_id: C\n---\n")
 
-	entries, unread, err := Store{Dir: dir}.List(func(path string) (billing.ArchiveEntry, bool, error) {
+	entries, unread, err := store{Dir: dir}.List(func(path string) (billing.ArchiveEntry, bool, error) {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return billing.ArchiveEntry{}, false, err
@@ -171,14 +171,14 @@ func TestResolve(t *testing.T) {
 	t.Parallel()
 
 	dir := filepath.Join(t.TempDir(), "archive")
-	s := Store{Dir: dir + string(filepath.Separator)}
+	s := store{Dir: dir + string(filepath.Separator)}
 	tests := []struct {
 		name    string
-		want    Target
+		want    archivedFile
 		wantErr string
 	}{
-		{name: " customer-a/first.yaml ", want: Target{Path: filepath.Join(dir, "customer-a", "first.yaml"), Rel: filepath.Join("customer-a", "first.yaml")}},
-		{name: "./first.yaml", want: Target{Path: filepath.Join(dir, "first.yaml"), Rel: "first.yaml"}},
+		{name: " customer-a/first.yaml ", want: archivedFile{Path: filepath.Join(dir, "customer-a", "first.yaml"), Rel: filepath.Join("customer-a", "first.yaml")}},
+		{name: "./first.yaml", want: archivedFile{Path: filepath.Join(dir, "first.yaml"), Rel: "first.yaml"}},
 		{name: "", wantErr: "archive filename must not be empty"},
 		{name: ".", wantErr: "archive filename must not be empty"},
 		{name: filepath.Join(dir, "first.yaml"), wantErr: "archive filename must be relative to archive.dir, got " + filepath.Join(dir, "first.yaml")},
@@ -208,10 +208,10 @@ func TestFindRequiresAFile(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	s := Store{Dir: dir}
+	s := store{Dir: dir}
 
 	got, err := s.Find("first.yaml")
-	if want := (Target{Path: filepath.Join(dir, "first.yaml"), Rel: "first.yaml"}); err != nil || got != want {
+	if want := (archivedFile{Path: filepath.Join(dir, "first.yaml"), Rel: "first.yaml"}); err != nil || got != want {
 		t.Fatalf("Find(first.yaml) = %+v, %v; want %+v", got, err, want)
 	}
 	_, err = s.Find("second.yaml")
@@ -236,7 +236,7 @@ func TestBackupKeepsEveryVersion(t *testing.T) {
 	path := filepath.Join(dir, "customer-a", "first.yaml")
 	writeFile(t, path, "v1")
 	now := time.Date(2026, 10, 5, 14, 30, 45, 0, time.FixedZone("CEST", 2*60*60))
-	s := Store{Dir: dir}
+	s := store{Dir: dir}
 
 	first, err := s.Backup([]string{path}, now)
 	if err != nil {
@@ -272,13 +272,15 @@ func TestExistingFiles(t *testing.T) {
 	file := filepath.Join(dir, "first.yaml")
 	writeFile(t, file, "")
 
-	got, err := ExistingFiles("", file, filepath.Join(dir, "missing.yaml"), file)
-	if err != nil || !reflect.DeepEqual(got, []string{file}) {
-		t.Fatalf("ExistingFiles = %q, %v; want [%q]", got, err, file)
+	if got, err := existingFile(file); err != nil || !got {
+		t.Fatalf("existingFile(file) = %v, %v; want true, nil", got, err)
 	}
-	_, err = ExistingFiles(dir)
+	if got, err := existingFile(filepath.Join(dir, "missing.yaml")); err != nil || got {
+		t.Fatalf("existingFile(missing) = %v, %v; want false, nil", got, err)
+	}
+	_, err := existingFile(dir)
 	if want := dir + ": archived invoice must be a file"; err == nil || err.Error() != want {
-		t.Fatalf("ExistingFiles(dir) error = %v, want %q", err, want)
+		t.Fatalf("existingFile(dir) error = %v, want %q", err, want)
 	}
 }
 

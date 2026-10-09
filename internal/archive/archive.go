@@ -30,15 +30,15 @@ const historyDirName = ".history"
 // backupTimeFormat is the UTC timestamp in a backup's file name.
 const backupTimeFormat = "20060102T150405Z"
 
-// Store is the archive directory as configured (archive.dir). Dir may be a
-// symlink, and every path the Store reports stays below Dir as configured,
+// store is the archive directory as configured (archive.dir). Dir may be a
+// symlink, and every path the store reports stays below Dir as configured,
 // not below the symlink's target. An empty Dir is an archive with no files.
-type Store struct {
+type store struct {
 	Dir string
 }
 
 // HistoryDir is where Backup keeps previous versions.
-func (s Store) HistoryDir() string {
+func (s store) HistoryDir() string {
 	return filepath.Join(s.Dir, historyDirName)
 }
 
@@ -47,11 +47,11 @@ func (s Store) HistoryDir() string {
 // skipped, sorted. A missing or empty Dir has no files. A Dir that is not a
 // directory is an error. Backups in the history directory are not archived
 // invoices and are skipped.
-func (s Store) Walk(visit func(path string) error) ([]string, error) {
+func (s store) Walk(visit func(path string) error) ([]string, error) {
 	return s.walk(func(path, _ string) error { return visit(path) })
 }
 
-func (s Store) walk(visit func(path, rel string) error) ([]string, error) {
+func (s store) walk(visit func(path, rel string) error) ([]string, error) {
 	if strings.TrimSpace(s.Dir) == "" {
 		return nil, nil
 	}
@@ -102,7 +102,7 @@ type Reader func(path string) (entry billing.ArchiveEntry, ok bool, err error)
 
 // List reads every archived invoice with read and returns them sorted by
 // Filename, with what the archive holds that invox no longer reads.
-func (s Store) List(read Reader) ([]billing.ArchiveEntry, billing.Unread, error) {
+func (s store) List(read Reader) ([]billing.ArchiveEntry, billing.Unread, error) {
 	entries := make([]billing.ArchiveEntry, 0)
 	markdown, err := s.walk(func(path, rel string) error {
 		entry, ok, err := read(path)
@@ -122,57 +122,57 @@ func (s Store) List(read Reader) ([]billing.ArchiveEntry, billing.Unread, error)
 	return entries, billing.Unread{Dir: s.Dir, Markdown: markdown}, nil
 }
 
-// Target is a file inside the archive, named relative to the root.
-type Target struct {
+// archivedFile is a file inside the archive, named relative to the root.
+type archivedFile struct {
 	Path string
 	Rel  string
 }
 
-// Resolve turns a name relative to the root into a Target. The name must
-// not be empty, absolute, outside the root or inside the history directory.
-// The file need not exist.
-func (s Store) Resolve(name string) (Target, error) {
+// Resolve turns a name relative to the root into an archivedFile. The name
+// must not be empty, absolute, outside the root or inside the history
+// directory. The file need not exist.
+func (s store) Resolve(name string) (archivedFile, error) {
 	dir := filepath.Clean(s.Dir)
 	cleanName := filepath.Clean(strings.TrimSpace(name))
 	if cleanName == "" || cleanName == "." {
-		return Target{}, fmt.Errorf("archive filename must not be empty")
+		return archivedFile{}, fmt.Errorf("archive filename must not be empty")
 	}
 	if filepath.IsAbs(cleanName) {
-		return Target{}, fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
+		return archivedFile{}, fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
 	}
 
 	path := filepath.Join(dir, cleanName)
 	rel, err := filepath.Rel(dir, path)
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return Target{}, fmt.Errorf("%s must stay within %s", cleanName, dir)
+		return archivedFile{}, fmt.Errorf("%s must stay within %s", cleanName, dir)
 	}
 	if isInHistory(rel) {
-		return Target{}, fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, historyDirName)
+		return archivedFile{}, fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, historyDirName)
 	}
-	return Target{Path: path, Rel: filepath.Clean(rel)}, nil
+	return archivedFile{Path: path, Rel: filepath.Clean(rel)}, nil
 }
 
 // Find is Resolve for a name that must exist as a file.
-func (s Store) Find(name string) (Target, error) {
+func (s store) Find(name string) (archivedFile, error) {
 	target, err := s.Resolve(name)
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	info, err := os.Stat(target.Path)
 	if errors.Is(err, os.ErrNotExist) {
-		return Target{}, fmt.Errorf("%s does not exist in %s", target.Rel, s.Dir)
+		return archivedFile{}, fmt.Errorf("%s does not exist in %s", target.Rel, s.Dir)
 	}
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	if info.IsDir() {
-		return Target{}, fmt.Errorf("%s: archived invoice must be a file", target.Path)
+		return archivedFile{}, fmt.Errorf("%s: archived invoice must be a file", target.Path)
 	}
 	if isMarkdown(target.Path) {
-		return Target{}, fmt.Errorf("%s is a Markdown invoice, which invox no longer reads; convert it to .yaml", target.Path)
+		return archivedFile{}, fmt.Errorf("%s is a Markdown invoice, which invox no longer reads; convert it to .yaml", target.Path)
 	}
 	return target, nil
 }
@@ -181,7 +181,7 @@ func (s Store) Find(name string) (Target, error) {
 // <Dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its directory
 // below the root. An existing backup is never replaced: a second backup in
 // the same second gets a counter.
-func (s Store) Backup(paths []string, now time.Time) ([]billing.Backup, error) {
+func (s store) Backup(paths []string, now time.Time) ([]billing.Backup, error) {
 	dir := filepath.Clean(s.Dir)
 	stamp := now.UTC().Format(backupTimeFormat)
 
@@ -226,29 +226,20 @@ func writeBackup(path, stamp string, data []byte) (string, error) {
 	}
 }
 
-// ExistingFiles returns the paths that exist, without duplicates. A
-// directory is an error.
-func ExistingFiles(paths ...string) ([]string, error) {
-	var existing []string
-	seen := make(map[string]bool)
-	for _, path := range paths {
-		if path == "" || seen[path] {
-			continue
-		}
-		seen[path] = true
-		info, err := os.Stat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("%s: archived invoice must be a file", path)
-		}
-		existing = append(existing, path)
+// existingFile reports whether a file exists at path. A directory is an
+// error.
+func existingFile(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
 	}
-	return existing, nil
+	if err != nil {
+		return false, err
+	}
+	if info.IsDir() {
+		return false, fmt.Errorf("%s: archived invoice must be a file", path)
+	}
+	return true, nil
 }
 
 // isHistoryDir reports whether dir is the history directory directly below
