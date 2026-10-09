@@ -65,9 +65,7 @@ $ invox archive add 2026-03-06.yaml --yes
 $ invox archive add invoice.yaml --dry-run
 $ invox archive add invoice.yaml --json path
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
-		},
+		Args: shared.TakeInput(opts.Getwd, &opts.InvoicePath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err

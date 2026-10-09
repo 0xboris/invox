@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -48,12 +47,7 @@ Default lookup:
 		Example: `$ invox customer edit
 $ invox customer edit -c customers.yaml
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(cmd.Context(), opts)

@@ -3,7 +3,6 @@ package list
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -54,12 +53,7 @@ $ invox template list --names
 $ invox template list --json name,default
 $ invox build invoice.yaml -t multi_vat.tex
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.NamesOnly && opts.Exporter != nil {
 				return cmdutil.FlagErrorf("--names and --json cannot be used together")

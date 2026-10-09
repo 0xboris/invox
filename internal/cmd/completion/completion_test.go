@@ -24,7 +24,7 @@ func TestNewCmdCompletionParsing(t *testing.T) {
 		{name: "powershell", args: []string{"powershell"}, wantShell: "powershell"},
 		{name: "no shell", args: []string{}},
 		{name: "unsupported shell", args: []string{"tcsh"}, wantErr: `unsupported shell "tcsh"`},
-		{name: "extra arguments", args: []string{"bash", "zsh"}, wantErr: "unexpected arguments: bash zsh"},
+		{name: "extra arguments", args: []string{"bash", "zsh"}, wantErr: "unexpected arguments: zsh"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -83,7 +83,7 @@ func TestVersionRejectsArguments(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "unexpected arguments for version: extra") {
+	if !strings.Contains(stderr, "unexpected arguments: extra") {
 		t.Fatalf("stderr %q does not mention the unexpected argument", stderr)
 	}
 }

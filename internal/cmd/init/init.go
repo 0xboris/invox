@@ -5,7 +5,6 @@ package initcmd
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -41,12 +40,7 @@ Config directory:
 `,
 		Example: `$ invox init
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(cmd.Context(), opts)

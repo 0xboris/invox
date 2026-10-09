@@ -2,8 +2,6 @@
 package paths
 
 import (
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/billing"
@@ -44,12 +42,7 @@ Sources:
 `,
 		Example: `$ invox config paths
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(opts)

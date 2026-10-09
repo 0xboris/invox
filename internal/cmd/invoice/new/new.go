@@ -71,15 +71,7 @@ $ invox new CUST-001 --dry-run
 $ invox new CUST-001 --json path,number
 $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml -c customers.yaml -u issuer.yaml
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			switch {
-			case len(args) == 0:
-				return cmdutil.FlagErrorf("missing required arguments: CUSTOMER_ID")
-			case len(args) > 1:
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args[1:], " "))
-			}
-			return nil
-		},
+		Args: cmdutil.ExactArgs("CUSTOMER_ID"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.CustomerID = strings.TrimSpace(args[0])
 			if err := shared.RequireExtension(opts.OutputPath, ".yaml"); err != nil {

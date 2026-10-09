@@ -20,7 +20,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 		wantErr string
 	}{
 		{name: "no arguments", args: []string{}, wantRun: true},
-		{name: "extra arguments", args: []string{"a", "b"}, wantErr: "unexpected arguments for version: a b"},
+		{name: "extra arguments", args: []string{"a", "b"}, wantErr: "unexpected arguments: a b"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

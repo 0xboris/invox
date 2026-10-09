@@ -3,7 +3,6 @@ package list
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -57,12 +56,7 @@ Output:
 		Example: `$ invox archive list
 $ invox archive list --json file,customerId,number
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(opts)

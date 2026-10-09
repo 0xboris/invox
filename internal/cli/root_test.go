@@ -181,7 +181,7 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 		{
 			name:       "extra argument",
 			args:       []string{"version", "extra"},
-			wantStderr: "error: unexpected arguments for version: extra\nRun 'invox version --help' for usage.\n",
+			wantStderr: "error: unexpected arguments: extra\nRun 'invox version --help' for usage.\n",
 		},
 	}
 	for _, tc := range tests {

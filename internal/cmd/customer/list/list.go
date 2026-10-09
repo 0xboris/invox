@@ -3,7 +3,6 @@ package list
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -48,12 +47,7 @@ Default lookup:
 $ invox customer list -c customers.yaml
 $ invox customer list --json id,email
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if runF != nil {
 				return runF(opts)

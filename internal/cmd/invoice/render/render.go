@@ -62,9 +62,7 @@ $ invox render invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u
 $ invox render invoice.yaml --dry-run
 $ invox render invoice.yaml --json path
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
-		},
+		Args: shared.TakeInput(opts.Getwd, &opts.InvoicePath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err

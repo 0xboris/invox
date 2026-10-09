@@ -74,9 +74,7 @@ $ invox email invoice.yaml --to billing@example.com
 $ invox email invoice.yaml --dry-run
 $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.eml -c customers.yaml -u issuer.yaml
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput(opts.Getwd, &opts.InvoicePath, args)
-		},
+		Args: shared.TakeInput(opts.Getwd, &opts.InvoicePath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validate(opts); err != nil {
 				return err

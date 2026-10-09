@@ -63,15 +63,7 @@ $ invox archive edit customer-a/2026-03-06.yaml
 $ invox archive edit 2026-03-06.yaml --force
 $ invox archive edit 2026-03-06.yaml --json path
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			switch {
-			case len(args) == 0:
-				return cmdutil.FlagErrorf("missing required arguments: FILENAME")
-			case len(args) > 1:
-				return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args[1:], " "))
-			}
-			return nil
-		},
+		Args: cmdutil.ExactArgs("FILENAME"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Filename = strings.TrimSpace(args[0])
 			if runF != nil {

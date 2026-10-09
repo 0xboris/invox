@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/invoice"
@@ -94,27 +96,26 @@ func WarnArchivedDuplicate(ios *iostreams.IOStreams, err error, invoicePath, bas
 	)
 }
 
-// TakeInput makes the INVOICE argument, the first of args, the invoice. It
-// is a usage error when -i, --input names a different file, or
-// when more arguments follow. Paths relative to getwd count as the same
-// file as their absolute form.
-func TakeInput(getwd func() (string, error), invoicePath *string, args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-	if strings.TrimSpace(*invoicePath) == "" {
-		*invoicePath = args[0]
-	} else {
-		cwd, err := getwd()
-		if err != nil {
-			return err
+// TakeInput is the cobra.PositionalArgs of an invoice command. It makes the
+// INVOICE argument, the only one the command takes, the invoice in
+// invoicePath. It is a usage error when -i, --input names a different file.
+// Paths relative to getwd count as the same file as their absolute form.
+func TakeInput(getwd func() (string, error), invoicePath *string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return nil
 		}
-		if cmdutil.AbsPath(cwd, args[0]) != cmdutil.AbsPath(cwd, *invoicePath) {
-			return cmdutil.FlagErrorf("the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+		if strings.TrimSpace(*invoicePath) == "" {
+			*invoicePath = args[0]
+		} else {
+			cwd, err := getwd()
+			if err != nil {
+				return err
+			}
+			if cmdutil.AbsPath(cwd, args[0]) != cmdutil.AbsPath(cwd, *invoicePath) {
+				return cmdutil.FlagErrorf("the INVOICE argument %s and -i, --input %s name different files; pass only one", args[0], *invoicePath)
+			}
 		}
+		return cmdutil.MaximumArgs(1)(cmd, args)
 	}
-	if rest := args[1:]; len(rest) > 0 {
-		return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(rest, " "))
-	}
-	return nil
 }

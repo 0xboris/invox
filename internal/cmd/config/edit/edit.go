@@ -5,7 +5,6 @@ package edit
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -47,12 +46,7 @@ $ invox --config ./config.yaml config edit
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) {
 	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
-	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 {
-			return cmdutil.FlagErrorf("unexpected arguments: %s", strings.Join(args, " "))
-		}
-		return nil
-	}
+	cmd.Args = cmdutil.NoArgs
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if runF != nil {
 			return runF(cmd.Context(), opts)

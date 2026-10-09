@@ -30,7 +30,7 @@ func TestTakeInput(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			path := tc.input
-			err := TakeInput(getwd, &path, tc.args)
+			err := TakeInput(getwd, &path)(nil, tc.args)
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
 				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
