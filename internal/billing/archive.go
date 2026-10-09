@@ -3,7 +3,6 @@ package billing
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -63,81 +62,21 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 	if strings.TrimSpace(dir) == "" {
 		return ArchiveResult{}, errors.New("archive directory is unavailable")
 	}
-	historyDir, err := s.Archives.HistoryDir()
+	if err := archivable(path, head, status); err != nil {
+		return ArchiveResult{}, err
+	}
+	place, err := s.Archives.Place(path, head)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-
-	archivePath := filepath.Join(dir, filepath.Base(path))
-	sourcePath := filepath.Clean(path)
-
-	editing := head.ArchivePath != ""
-	if editing {
-		if !status.Allows(invoice.Rearchiving) {
-			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", path, status)
-		}
-		archivePath, err = s.Archives.Resolve(head.ArchivePath)
-		if err != nil {
-			return ArchiveResult{}, err
-		}
-	} else {
-		switch {
-		case status == "":
-			return ArchiveResult{}, fmt.Errorf("%s: invoice.status: missing value", path)
-		case !status.Allows(invoice.Archiving):
-			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", path, status)
-		}
-		if s.Invoices.Exists(archivePath) {
-			return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
-		}
-	}
-	if sourcePath == archivePath {
-		return ArchiveResult{}, fmt.Errorf("%s is already in the archive directory", path)
-	}
-
 	if err := s.numberUnique(path, head); err != nil {
 		return ArchiveResult{}, err
 	}
-
-	var replacePath string
-	if editing && head.ReplacePath != "" && head.ReplacePath != head.ArchivePath {
-		replacePath, err = s.Archives.Resolve(head.ReplacePath)
-		if err != nil {
-			return ArchiveResult{}, err
-		}
-		if replacePath == archivePath {
-			replacePath = ""
-		}
+	result, err := s.Archives.Add(path, place, AddOptions{Replace: opts.Replace, DryRun: opts.DryRun, Now: s.Now()})
+	if err != nil || opts.DryRun {
+		return result, err
 	}
-	var replaced []string
-	if editing {
-		replaced, err = s.Archives.Existing(archivePath, replacePath)
-		if err != nil {
-			return ArchiveResult{}, err
-		}
-	}
-	if len(replaced) > 0 && !opts.Replace {
-		return ArchiveResult{}, &ArchiveReplaceError{InvoicePath: path, Paths: replaced, HistoryDir: historyDir}
-	}
-	if opts.DryRun {
-		result := ArchiveResult{Path: archivePath, HistoryDir: historyDir}
-		for _, replacedPath := range replaced {
-			result.Replaced = append(result.Replaced, Backup{Path: replacedPath})
-		}
-		return result, nil
-	}
-
-	result, err := s.Archives.Add(path, Placement{
-		Path:      archivePath,
-		Overwrite: editing,
-		Replaced:  replaced,
-		Remove:    replacePath,
-		Now:       s.Now(),
-	})
-	if err != nil {
-		return ArchiveResult{}, err
-	}
-	err = s.Invoices.Update(archivePath, func(inv *invoice.Invoice) error {
+	err = s.Invoices.Update(result.Path, func(inv *invoice.Invoice) error {
 		inv.Header.Status = invoice.Text(invoice.Archived)
 		inv.Archive = nil
 		return nil
@@ -146,6 +85,23 @@ func (s *Service) archive(path string, opts ArchiveOptions) (ArchiveResult, erro
 		return ArchiveResult{}, err
 	}
 	return result, nil
+}
+
+// archivable returns why the invoice at path, whose head is head, cannot be
+// archived with status: a working copy is re-archived when editing or
+// built, any other invoice archived when built.
+func archivable(path string, head Head, status invoice.Status) error {
+	switch {
+	case head.WorkingCopy() && !status.Allows(invoice.Rearchiving):
+		return fmt.Errorf("%s: invoice.status must be `editing` or `built` before re-archiving, got `%s`", path, status)
+	case head.WorkingCopy():
+		return nil
+	case status == "":
+		return fmt.Errorf("%s: invoice.status: missing value", path)
+	case !status.Allows(invoice.Archiving):
+		return fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", path, status)
+	}
+	return nil
 }
 
 // headWithInvoice reads the head of the invoice at path, which must have an
@@ -185,52 +141,18 @@ func (s *Service) CheckNumberUnique(path string) error {
 	if !head.HasHeader {
 		return nil
 	}
-	dir, err := s.Archives.Dir()
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(dir) == "" {
-		return nil
-	}
 	return s.numberUnique(path, head)
 }
 
+// numberUnique returns a *invoice.DuplicateInvoiceNumberError when an
+// archived invoice other than the one the invoice at path replaces has its
+// number.
 func (s *Service) numberUnique(path string, head Head) error {
-	if head.Number == "" {
-		return nil
-	}
-
-	excluded := map[string]bool{filepath.Clean(path): true}
-	// Only a working copy from `archive edit` (archive_path set) may reuse
-	// the number of the archived file it replaces.
-	if head.ArchivePath != "" {
-		for _, name := range []string{head.ArchivePath, head.ReplacePath} {
-			if name == "" {
-				continue
-			}
-			resolved, err := s.Archives.Resolve(name)
-			if err != nil {
-				return err
-			}
-			excluded[resolved] = true
-		}
-	}
-
-	entries, err := s.archiveEntries()
-	if err != nil {
+	archived, err := s.Archives.Duplicate(path, head)
+	if err != nil || archived == "" {
 		return err
 	}
-	for _, entry := range entries {
-		if entry.Number != head.Number {
-			continue
-		}
-		entryPath := filepath.Clean(entry.Path)
-		if excluded[entryPath] {
-			continue
-		}
-		return &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: head.Number, ArchivedPath: entryPath}
-	}
-	return nil
+	return &invoice.DuplicateInvoiceNumberError{InvoicePath: path, InvoiceNumber: head.Number, ArchivedPath: archived}
 }
 
 // archiveEntries returns the archived invoices sorted by Filename.

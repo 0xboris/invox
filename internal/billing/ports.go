@@ -41,6 +41,10 @@ type Head struct {
 	ReplacePath string
 }
 
+// WorkingCopy reports whether h is a working copy from `archive edit`,
+// which re-archiving writes back over the archived files it names.
+func (h Head) WorkingCopy() bool { return h.ArchivePath != "" }
+
 // HeaderShape is what the `invoice` key of an invoice file holds.
 type HeaderShape int
 
@@ -103,8 +107,6 @@ type Invoices interface {
 	// Update rewrites the invoice at path with change applied, writing
 	// back only the fields that changed.
 	Update(path string, change func(*invoice.Invoice) error) error
-	// Exists reports whether path is a file.
-	Exists(path string) bool
 }
 
 // CustomerTable is customers.yaml. An entry is decoded only when it is
@@ -240,17 +242,27 @@ type ArchiveResult struct {
 	HistoryDir string
 }
 
-// Placement says where Archive.Add puts an invoice.
+// Placement is where Archive.Add puts an invoice. Archive.Place makes it.
 type Placement struct {
 	// Path is the archived file to write.
 	Path string
 	// Overwrite allows Path to exist, when a working copy is re-archived.
 	Overwrite bool
-	// Replaced are the archived files to back up first.
-	Replaced []string
 	// Remove is an archived file the invoice supersedes, removed after it
 	// is written, or "".
 	Remove string
+	// HistoryDir is where replaced files' previous versions are kept.
+	HistoryDir string
+}
+
+// AddOptions control Archive.Add.
+type AddOptions struct {
+	// Replace allows writing over archived files. Without it, Add returns
+	// an *ArchiveReplaceError when it would replace any.
+	Replace bool
+	// DryRun runs every check and returns the result without writing. The
+	// result's backups have no BackupPath.
+	DryRun bool
 	Now    time.Time
 }
 
@@ -269,19 +281,25 @@ type Archive interface {
 	// Entries reads every archived invoice, in the lexical order of a
 	// directory walk.
 	Entries() ([]ArchiveEntry, error)
-	// Add moves the invoice at src into the archive, as p says.
-	Add(src string, p Placement) (ArchiveResult, error)
+	// Dir returns the archive directory, "" when there is none.
+	Dir() (string, error)
+	// Place says where archiving the invoice at src, whose head is head,
+	// writes it: over the archived file a working copy names, else under
+	// src's name in the archive directory, which must not exist yet. It
+	// refuses src when it is that file already.
+	Place(src string, head Head) (Placement, error)
+	// Duplicate returns the archived invoice, in file name order, that has
+	// head's number, other than src and, for a working copy, the archived
+	// files it replaces. It returns "" when there is none, when head has
+	// no number, or when there is no archive directory.
+	Duplicate(src string, head Head) (string, error)
+	// Add moves the invoice at src into the archive at p, after backing up
+	// the archived files it replaces. Without opts.Replace it refuses to
+	// replace any.
+	Add(src string, p Placement, opts AddOptions) (ArchiveResult, error)
 	// Checkout resolves ref, an archived invoice relative to the archive
 	// directory, and says where its working copy in workDir goes.
 	Checkout(ref, workDir string) (Checkout, error)
-	// Dir returns the archive directory, "" when there is none.
-	Dir() (string, error)
-	// HistoryDir returns where backups are kept.
-	HistoryDir() (string, error)
-	// Resolve turns a name relative to the archive directory into a path.
-	Resolve(name string) (string, error)
-	// Existing returns those of paths that exist; a directory is an error.
-	Existing(paths ...string) ([]string, error)
 	// Protects reports whether path is an existing file inside the archive
 	// directory, which nothing but re-archiving overwrites.
 	Protects(path string) (bool, error)

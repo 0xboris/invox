@@ -45,28 +45,73 @@ func (a Archive) Dir() (string, error) {
 	return a.Locate()
 }
 
-// HistoryDir returns where backups are kept.
-func (a Archive) HistoryDir() (string, error) {
+// Place says where archiving the invoice at src writes it.
+func (a Archive) Place(src string, head billing.Head) (billing.Placement, error) {
+	s, err := a.store()
+	if err != nil {
+		return billing.Placement{}, err
+	}
+	p := billing.Placement{Path: filepath.Join(s.Dir, filepath.Base(src)), HistoryDir: s.HistoryDir()}
+	if head.WorkingCopy() {
+		target, err := s.Resolve(head.ArchivePath)
+		if err != nil {
+			return billing.Placement{}, err
+		}
+		p.Path, p.Overwrite = target.Path, true
+	} else if isFile(p.Path) {
+		return billing.Placement{}, fmt.Errorf("%s already exists", p.Path)
+	}
+	if filepath.Clean(src) == p.Path {
+		return billing.Placement{}, fmt.Errorf("%s is already in the archive directory", src)
+	}
+	if head.WorkingCopy() && head.ReplacePath != "" && head.ReplacePath != head.ArchivePath {
+		target, err := s.Resolve(head.ReplacePath)
+		if err != nil {
+			return billing.Placement{}, err
+		}
+		if target.Path != p.Path {
+			p.Remove = target.Path
+		}
+	}
+	return p, nil
+}
+
+// Duplicate returns the archived invoice, in file name order, that has
+// head's number, other than src and, for a working copy, the archived
+// files it replaces.
+func (a Archive) Duplicate(src string, head billing.Head) (string, error) {
 	s, err := a.store()
 	if err != nil {
 		return "", err
 	}
-	return s.HistoryDir(), nil
-}
-
-// Resolve turns a name relative to the archive directory into a path.
-func (a Archive) Resolve(name string) (string, error) {
-	s, err := a.store()
+	if strings.TrimSpace(s.Dir) == "" || head.Number == "" {
+		return "", nil
+	}
+	excluded := map[string]bool{filepath.Clean(src): true}
+	// Only a working copy from `archive edit` may reuse the number of the
+	// archived file it replaces.
+	if head.WorkingCopy() {
+		for _, name := range []string{head.ArchivePath, head.ReplacePath} {
+			if name == "" {
+				continue
+			}
+			target, err := s.Resolve(name)
+			if err != nil {
+				return "", err
+			}
+			excluded[target.Path] = true
+		}
+	}
+	entries, err := s.List(a.Read)
 	if err != nil {
 		return "", err
 	}
-	target, err := s.Resolve(name)
-	return target.Path, err
-}
-
-// Existing returns those of paths that exist.
-func (a Archive) Existing(paths ...string) ([]string, error) {
-	return ExistingFiles(paths...)
+	for _, entry := range entries {
+		if entry.Number == head.Number && !excluded[filepath.Clean(entry.Path)] {
+			return filepath.Clean(entry.Path), nil
+		}
+	}
+	return "", nil
 }
 
 // Checkout resolves ref and says where its working copy in workDir goes.
@@ -90,9 +135,26 @@ func (a Archive) Checkout(ref, workDir string) (billing.Checkout, error) {
 	}, nil
 }
 
-// Add writes the invoice at src to p.Path, after backing up p.Replaced,
-// then removes p.Remove and src.
-func (a Archive) Add(src string, p billing.Placement) (billing.ArchiveResult, error) {
+// Add writes the invoice at src to p.Path, after backing up the archived
+// files it replaces, then removes p.Remove and src.
+func (a Archive) Add(src string, p billing.Placement, opts billing.AddOptions) (billing.ArchiveResult, error) {
+	var replaced []string
+	if p.Overwrite {
+		var err error
+		if replaced, err = ExistingFiles(p.Path, p.Remove); err != nil {
+			return billing.ArchiveResult{}, err
+		}
+	}
+	if len(replaced) > 0 && !opts.Replace {
+		return billing.ArchiveResult{}, &billing.ArchiveReplaceError{InvoicePath: src, Paths: replaced, HistoryDir: p.HistoryDir}
+	}
+	if opts.DryRun {
+		result := billing.ArchiveResult{Path: p.Path, HistoryDir: p.HistoryDir}
+		for _, path := range replaced {
+			result.Replaced = append(result.Replaced, billing.Backup{Path: path})
+		}
+		return result, nil
+	}
 	s, err := a.store()
 	if err != nil {
 		return billing.ArchiveResult{}, err
@@ -100,7 +162,7 @@ func (a Archive) Add(src string, p billing.Placement) (billing.ArchiveResult, er
 	if err := fsutil.MkdirAll(s.Dir, fsutil.Private); err != nil {
 		return billing.ArchiveResult{}, err
 	}
-	backups, err := s.Backup(p.Replaced, p.Now)
+	backups, err := s.Backup(replaced, opts.Now)
 	if err != nil {
 		return billing.ArchiveResult{}, err
 	}
@@ -124,7 +186,7 @@ func (a Archive) Add(src string, p billing.Placement) (billing.ArchiveResult, er
 	if err := os.Remove(filepath.Clean(src)); err != nil {
 		return billing.ArchiveResult{}, fmt.Errorf("remove %s: %w", filepath.Clean(src), err)
 	}
-	return billing.ArchiveResult{Path: p.Path, Replaced: backups, HistoryDir: s.HistoryDir()}, nil
+	return billing.ArchiveResult{Path: p.Path, Replaced: backups, HistoryDir: p.HistoryDir}, nil
 }
 
 // Protects reports whether path is an existing file inside the archive
