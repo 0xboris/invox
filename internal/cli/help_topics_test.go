@@ -86,23 +86,6 @@ func TestHelpTopicsRejectExtraArguments(t *testing.T) {
 	}
 }
 
-func TestHelpConfigNamesLegacyPathUnderConfigHome(t *testing.T) {
-	configHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-
-	exitCode, stdout, stderr := captureRun(t, []string{"help", "config"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	want := "  legacy fallback: " + filepath.Join(configHome, "invoice-tool", "config.yaml") + "\n"
-	if !strings.Contains(stdout, want) {
-		t.Fatalf("stdout = %q, want it to contain %q", stdout, want)
-	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-}
-
 // TestHelpEnvironmentDocumentsEveryVariableRead fails when non-test code
 // under cmd/ or internal/ reads an environment variable that
 // `invox help environment` does not name.

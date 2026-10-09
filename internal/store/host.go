@@ -29,7 +29,7 @@ type HostInputs struct {
 
 // Host holds the user directories invox reads and writes, resolved once, and
 // the config file, read at most once. Copies of a Host share the loaded
-// config and the record of legacy files used.
+// config.
 type Host struct {
 	goos       string
 	home       string
@@ -37,12 +37,11 @@ type Host struct {
 	dataBase   string
 	configDir  Resolved
 	configFile string
-	legacy     *legacyUse
 	config     func() (*config.Config, error)
 }
 
 func NewHost(in HostInputs) Host {
-	h := Host{goos: in.GOOS, home: in.Home, configFile: in.ConfigFile, legacy: &legacyUse{}}
+	h := Host{goos: in.GOOS, home: in.Home, configFile: in.ConfigFile}
 	homeKnown := strings.TrimSpace(in.Home) != ""
 
 	if xdg := strings.TrimSpace(in.XDGConfigHome); xdg != "" {
@@ -119,20 +118,9 @@ func (h Host) ConfigDir() string {
 	return h.configDir.Path
 }
 
-// LegacyConfigDir returns the deprecated invoice-tool directory, or "" when
-// it is not read: the home directory is unknown or the config directory was
-// chosen explicitly.
-func (h Host) LegacyConfigDir() string {
-	if h.configDir.Source != SourceDefault {
-		return ""
-	}
-	return filepath.Join(h.configBase, legacyConfigDirName)
-}
-
 // findInConfigDir returns the first of names, as a file or as a directory,
-// in the config directory. Each name missing there is looked up in the
-// legacy directory next, and a hit is recorded for LegacyFilesUsed. An
-// explicitly chosen config directory that does not exist is an error.
+// in the config directory. An explicitly chosen config directory that does
+// not exist is an error.
 func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
 	dir := h.configDir
 	if dir.Source == SourceEnvDir {
@@ -140,54 +128,16 @@ func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
 			return Resolved{}, &billing.ConfigDirNotFoundError{Dir: dir.Path}
 		}
 	}
-	dirs := []Resolved{dir}
-	if legacy := h.LegacyConfigDir(); legacy != "" {
-		dirs = append(dirs, Resolved{Path: legacy, Source: SourceLegacy})
+	if dir.Path == "" {
+		return Resolved{}, nil
 	}
-	for _, d := range dirs {
-		if d.Path == "" {
-			continue
-		}
-		for _, name := range names {
-			candidate := filepath.Join(d.Path, name)
-			if !pathExists(candidate, isDir) {
-				continue
-			}
-			if d.Source == SourceLegacy {
-				h.legacy.record(candidate)
-			}
-			return Resolved{Path: candidate, Source: d.Source}, nil
+	for _, name := range names {
+		candidate := filepath.Join(dir.Path, name)
+		if pathExists(candidate, isDir) {
+			return Resolved{Path: candidate, Source: dir.Source}, nil
 		}
 	}
 	return Resolved{}, nil
-}
-
-// LegacyFilesUsed returns the files read from the legacy directory so far,
-// in the order first used.
-func (h Host) LegacyFilesUsed() []string {
-	return h.legacy.files()
-}
-
-type legacyUse struct {
-	mu    sync.Mutex
-	paths []string
-}
-
-func (l *legacyUse) record(path string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, p := range l.paths {
-		if p == path {
-			return
-		}
-	}
-	l.paths = append(l.paths, path)
-}
-
-func (l *legacyUse) files() []string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return append([]string(nil), l.paths...)
 }
 
 // Source says where a resolved path came from.
@@ -198,7 +148,6 @@ const (
 	SourceExplicit = billing.SourceExplicit
 	SourceEnvDir   = billing.SourceEnvDir
 	SourceDefault  = billing.SourceDefault
-	SourceLegacy   = billing.SourceLegacy
 	SourceProject  = billing.SourceProject
 	SourceConfig   = billing.SourceConfig
 )
@@ -209,6 +158,5 @@ type Resolved struct {
 }
 
 const (
-	configDirName       = "invox"
-	legacyConfigDirName = "invoice-tool"
+	configDirName = "invox"
 )

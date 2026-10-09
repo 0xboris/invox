@@ -3,9 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -49,7 +46,6 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	if err == nil {
 		err = helpErr()
 	}
-	warnLegacyFiles(f)
 	var configErr *billing.ConfigError
 	if f.ConfigFile != "" && errors.As(err, &configErr) {
 		err = &configFlagError{err: err, path: f.ConfigFile}
@@ -60,28 +56,4 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		err = sigErr
 	}
 	return exitCode(f.IOStreams, err)
-}
-
-// warnLegacyFiles prints one line when the command read files from the
-// deprecated config directory.
-func warnLegacyFiles(f *cmdutil.Factory) {
-	svc := f.Service(cmdutil.Files{})
-	used := svc.LegacyFilesUsed()
-	if len(used) == 0 {
-		return
-	}
-	locations := svc.Locations()
-	legacyDir := locations.LegacyDir
-	names := make([]string, len(used))
-	for i, path := range used {
-		names[i] = path
-		if rel, err := filepath.Rel(legacyDir, path); err == nil {
-			names[i] = rel
-		}
-	}
-	list, pronoun := names[0], "it"
-	if len(names) > 1 {
-		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
-	}
-	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, locations.ConfigDir)
 }

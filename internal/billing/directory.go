@@ -97,18 +97,6 @@ func (s *Service) Init() (InitResult, error) {
 	return InitResult{ConfigDir: dir, Files: files}, nil
 }
 
-// LegacyFiles returns the files of the deprecated config directory that the
-// config directory lacks.
-func (s *Service) LegacyFiles() ([]string, error) {
-	return s.Directory.LegacyFiles()
-}
-
-// CopyLegacyFiles copies LegacyFiles into the config directory and returns
-// them. It never replaces a file and leaves the legacy directory as it is.
-func (s *Service) CopyLegacyFiles() ([]string, error) {
-	return s.Directory.CopyLegacy()
-}
-
 // EditablePath returns the file f for an editor: customers.yaml where the
 // commands find it, or config.yaml, created from its template when missing.
 func (s *Service) EditablePath(f File) (string, error) {

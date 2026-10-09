@@ -63,8 +63,8 @@ func TestConfigIsReadOncePerHost(t *testing.T) {
 	}
 }
 
-// configDirs lays out a config home with config.yaml in the invox dir, the
-// legacy dir and an env dir, plus an explicit config file. Each sets a
+// configDirs lays out a config home with config.yaml in the invox dir and
+// an env dir, plus an explicit config file. Each sets a
 // different archive.dir, named after where it lives.
 func configDirs(t *testing.T) (root string, in HostInputs) {
 	t.Helper()
@@ -72,7 +72,6 @@ func configDirs(t *testing.T) (root string, in HostInputs) {
 	configHome := filepath.Join(root, "config-home")
 	for _, dir := range []string{
 		filepath.Join(configHome, "invox"),
-		filepath.Join(configHome, "invoice-tool"),
 		filepath.Join(root, "env"),
 	} {
 		writeFile(t, filepath.Join(dir, "config.yaml"), archiveConfig(filepath.Join(root, filepath.Base(dir)+"-archive")))
@@ -91,8 +90,8 @@ func TestConfigFilePrecedence(t *testing.T) {
 	}{
 		{name: "explicit file beats env dir", explicit: true, env: true, want: "explicit-archive"},
 		{name: "env dir beats default dir", env: true, want: "env-archive"},
-		{name: "default dir beats legacy dir", want: "invox-archive"},
-		{name: "legacy dir when default has no config.yaml", removeDefault: true, want: "invoice-tool-archive"},
+		{name: "default dir", want: "invox-archive"},
+		{name: "default archive when default dir has no config.yaml", removeDefault: true, want: filepath.Join("home", ".local", "share", "invox", "invoices")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,53 +147,11 @@ func TestConfigLocationErrors(t *testing.T) {
 	}
 }
 
-func TestLegacyFallbackIsPerFileAndRecorded(t *testing.T) {
-	root, in := configDirs(t)
-	invoxDir := filepath.Join(in.XDGConfigHome, "invox")
-	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
-	writeFile(t, filepath.Join(invoxDir, "customers.yaml"), "{}\n")
-	writeFile(t, filepath.Join(legacyDir, "customers.yaml"), "{}\n")
-	writeFile(t, filepath.Join(legacyDir, "issuer.yaml"), "{}\n")
-	work := filepath.Join(root, "work")
-
-	h := NewHost(in)
-	customers, err := h.ResolveSupportFile(Customers, work)
-	if err != nil {
-		t.Fatalf("ResolveSupportFile(Customers) returned error: %v", err)
-	}
-	issuer, err := h.ResolveSupportFile(Issuer, work)
-	if err != nil {
-		t.Fatalf("ResolveSupportFile(Issuer) returned error: %v", err)
-	}
-	if want := (Resolved{Path: filepath.Join(invoxDir, "customers.yaml"), Source: SourceDefault}); customers != want {
-		t.Fatalf("customers = %+v, want %+v", customers, want)
-	}
-	if want := (Resolved{Path: filepath.Join(legacyDir, "issuer.yaml"), Source: SourceLegacy}); issuer != want {
-		t.Fatalf("issuer = %+v, want %+v", issuer, want)
-	}
-	copied := h
-	if got, want := copied.LegacyFilesUsed(), []string{filepath.Join(legacyDir, "issuer.yaml")}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("LegacyFilesUsed() = %q, want %q", got, want)
-	}
-
-	in.ConfigDir = filepath.Join(root, "env")
-	h = NewHost(in)
-	issuer, err = h.ResolveSupportFile(Issuer, work)
-	if err != nil {
-		t.Fatalf("ResolveSupportFile(Issuer) with an env dir returned error: %v", err)
-	}
-	if issuer != (Resolved{}) || len(h.LegacyFilesUsed()) != 0 {
-		t.Fatalf("with an env dir: issuer = %+v, legacy used %q; want nothing from the legacy dir", issuer, h.LegacyFilesUsed())
-	}
-}
-
 func TestPathsReportsEachSource(t *testing.T) {
 	root, in := configDirs(t)
 	invoxDir := filepath.Join(in.XDGConfigHome, "invox")
-	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
 	work := filepath.Join(root, "work")
 	writeFile(t, filepath.Join(work, "customers.yaml"), "{}\n")
-	writeFile(t, filepath.Join(legacyDir, "issuer.yaml"), "{}\n")
 	writeFile(t, filepath.Join(invoxDir, "template.tex"), "x\n")
 	writeFile(t, filepath.Join(invoxDir, "config.yaml"), "paths:\n  defaults: 'd.yaml'\n")
 
@@ -206,7 +163,7 @@ func TestPathsReportsEachSource(t *testing.T) {
 		{"config-dir", Resolved{invoxDir, SourceDefault}},
 		{"config", Resolved{filepath.Join(invoxDir, "config.yaml"), SourceDefault}},
 		{"customers", Resolved{filepath.Join(work, "customers.yaml"), SourceProject}},
-		{"issuer", Resolved{filepath.Join(legacyDir, "issuer.yaml"), SourceLegacy}},
+		{"issuer", Resolved{}},
 		{"defaults", Resolved{filepath.Join(invoxDir, "d.yaml"), SourceConfig}},
 		{"template", Resolved{filepath.Join(invoxDir, "template.tex"), SourceDefault}},
 		{"archive", Resolved{filepath.Join(in.Home, ".local", "share", "invox", "invoices"), SourceDefault}},
@@ -276,67 +233,6 @@ func TestUpwardSearchComparesHomeIgnoringCaseOnMacOS(t *testing.T) {
 	want := []string{start, filepath.Dir(start)}
 	if got := h.projectDirs(start); !reflect.DeepEqual(got, want) {
 		t.Fatalf("projectDirs(%s) = %q, want %q", start, got, want)
-	}
-}
-
-func TestCopyLegacyFilesNeverReplacesAndIsIdempotent(t *testing.T) {
-	_, in := configDirs(t)
-	invoxDir := filepath.Join(in.XDGConfigHome, "invox")
-	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
-	writeFile(t, filepath.Join(legacyDir, "customers.yaml"), "legacy customers\n")
-	writeFile(t, filepath.Join(legacyDir, "logos", "logo.png"), "png\n")
-	h := NewHost(in)
-
-	missing, err := h.LegacyFilesToCopy()
-	if err != nil {
-		t.Fatalf("LegacyFilesToCopy returned error: %v", err)
-	}
-	if want := []string{"customers.yaml", filepath.Join("logos", "logo.png")}; !reflect.DeepEqual(missing, want) {
-		t.Fatalf("LegacyFilesToCopy() = %q, want %q (config.yaml exists in both)", missing, want)
-	}
-	copied, err := h.CopyLegacyFiles()
-	if err != nil || !reflect.DeepEqual(copied, missing) {
-		t.Fatalf("CopyLegacyFiles() = %q, %v; want %q", copied, err, missing)
-	}
-	for rel, want := range map[string]string{
-		"customers.yaml":                   "legacy customers\n",
-		filepath.Join("logos", "logo.png"): "png\n",
-		"config.yaml":                      archiveConfig(filepath.Join(filepath.Dir(in.XDGConfigHome), "invox-archive")),
-		filepath.Join("..", "invoice-tool", "customers.yaml"): "legacy customers\n",
-	} {
-		got, err := os.ReadFile(filepath.Join(invoxDir, rel))
-		if err != nil || string(got) != want {
-			t.Errorf("%s = %q, %v; want %q", rel, got, err, want)
-		}
-	}
-
-	copied, err = NewHost(in).CopyLegacyFiles()
-	if err != nil || len(copied) != 0 {
-		t.Fatalf("second CopyLegacyFiles() = %q, %v; want nothing copied", copied, err)
-	}
-	issuer, err := NewHost(in).ResolveSupportFile(Customers, t.TempDir())
-	if err != nil || issuer.Source != SourceDefault {
-		t.Fatalf("customers after the copy = %+v, %v; want it from the invox directory", issuer, err)
-	}
-}
-
-func TestCopyLegacyFilesFollowsSymlinks(t *testing.T) {
-	_, in := configDirs(t)
-	legacyDir := filepath.Join(in.XDGConfigHome, "invoice-tool")
-	target := filepath.Join(t.TempDir(), "dotfiles-customers.yaml")
-	writeFile(t, target, "linked customers\n")
-	if err := os.Symlink(target, filepath.Join(legacyDir, "customers.yaml")); err != nil {
-		t.Skipf("cannot create a symlink here: %v", err)
-	}
-	h := NewHost(in)
-
-	copied, err := h.CopyLegacyFiles()
-	if err != nil || !reflect.DeepEqual(copied, []string{"customers.yaml"}) {
-		t.Fatalf("CopyLegacyFiles() = %q, %v; want [customers.yaml]", copied, err)
-	}
-	got, err := os.ReadFile(filepath.Join(in.XDGConfigHome, "invox", "customers.yaml"))
-	if err != nil || string(got) != "linked customers\n" {
-		t.Fatalf("copied customers.yaml = %q, %v; want the symlink target's content", got, err)
 	}
 }
 

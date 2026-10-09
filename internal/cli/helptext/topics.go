@@ -132,9 +132,8 @@ type environmentVariable struct {
 var environmentVariables = []environmentVariable{
 	{"INVOX_CONFIG_DIR", []string{
 		"Config directory to use in place of the default one, on every OS. invox",
-		"reads config.yaml and the global support files there, `init` writes there,",
-		"and the legacy directory is not read. It must exist. --config still wins",
-		"for config.yaml.",
+		"reads config.yaml and the global support files there, and `init` writes",
+		"there. It must exist. --config still wins for config.yaml.",
 	}},
 	{"XDG_CONFIG_HOME", []string{
 		"Base directory for the config directory, on every OS.",
@@ -187,11 +186,6 @@ func printEnvironmentHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "  Windows:   %%XDG_CONFIG_HOME%%\\invox, else %%USERPROFILE%%\\.config\\invox\n")
 	fmt.Fprintf(w, "  INVOX_CONFIG_DIR replaces it on every OS.\n")
 	fmt.Fprintf(w, "  here:      %s\n\n", l.ConfigDir)
-	fmt.Fprintf(w, "Legacy config directory (deprecated):\n")
-	fmt.Fprintf(w, "  invoice-tool next to the invox directory, such as $HOME/.config/invoice-tool.\n")
-	fmt.Fprintf(w, "  A file missing from the invox directory is still read from here, and invox\n")
-	fmt.Fprintf(w, "  prints a warning. `%s init` copies the files into the invox directory.\n", commandName)
-	fmt.Fprintf(w, "  Not read when INVOX_CONFIG_DIR is set.\n\n")
 	fmt.Fprintf(w, "Default archive directory (when config.yaml sets no archive.dir):\n")
 	fmt.Fprintf(w, "  Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices\n")
 	fmt.Fprintf(w, "  macOS:     $XDG_DATA_HOME/invox/invoices, else $HOME/Library/Application Support/invox/invoices\n")
@@ -201,7 +195,6 @@ func printEnvironmentHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "  1. --config PATH\n")
 	fmt.Fprintf(w, "  2. config.yaml in INVOX_CONFIG_DIR\n")
 	fmt.Fprintf(w, "  3. config.yaml in the config directory\n")
-	fmt.Fprintf(w, "  4. config.yaml in the legacy directory\n")
 	fmt.Fprintf(w, "  A --config file that is missing or broken is an error. invox never falls\n")
 	fmt.Fprintf(w, "  back to another config file.\n\n")
 	fmt.Fprintf(w, "Precedence:\n")
@@ -212,7 +205,7 @@ func printEnvironmentHelp(w io.Writer, l billing.Locations) {
 	fmt.Fprintf(w, "  1. explicit flag (-c, -u, --defaults, -t)\n")
 	fmt.Fprintf(w, "  2. upward search from the current directory\n")
 	fmt.Fprintf(w, "  3. paths.* in config.yaml, relative to config.yaml\n")
-	fmt.Fprintf(w, "  4. the file in the config directory, then in the legacy directory\n\n")
+	fmt.Fprintf(w, "  4. the file in the config directory\n\n")
 	fmt.Fprintf(w, "Upward search:\n")
 	fmt.Fprintf(w, "  It always searches the current directory. It goes up to the nearest directory\n")
 	fmt.Fprintf(w, "  that holds .git, invox.yaml or invoice_defaults.yaml, and stops below your\n")

@@ -19,8 +19,6 @@ import (
 type InitOptions struct {
 	IO      *iostreams.IOStreams
 	Service func(cmdutil.Files) *billing.Service
-
-	Force bool
 }
 
 // NewCmdInit returns the init command. runF replaces initRun in tests.
@@ -37,15 +35,11 @@ Behavior:
   Writes starter versions of config.yaml, customers.yaml, issuer.yaml,
   invoice_defaults.yaml, and template.tex.
   Existing non-empty files are left unchanged.
-  When the deprecated invoice-tool directory has files the config directory
-  lacks, asks first, then copies them in before writing the starter files.
-  Nothing is replaced, and the invoice-tool directory is left in place.
 
 Config directory:
   {{.ConfigDir}}
 `,
 		Example: `$ invox init
-$ invox init --force
 `,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -60,17 +54,11 @@ $ invox init --force
 			return initRun(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.Force, "force", false, "Copy files from the deprecated config directory without asking (required without a terminal)")
 	return cmd
 }
 
 func initRun(ctx context.Context, opts *InitOptions) error {
-	svc := opts.Service(cmdutil.Files{})
-	if err := copyLegacyFiles(ctx, opts.IO, svc, opts.Force); err != nil {
-		return err
-	}
-
-	initialized, err := svc.Init()
+	initialized, err := opts.Service(cmdutil.Files{}).Init()
 	if err != nil {
 		return err
 	}
@@ -84,39 +72,5 @@ func initRun(ctx context.Context, opts *InitOptions) error {
 		}
 		fmt.Fprintf(opts.IO.ErrOut, "%s %s\n", status, cmdutil.DisplayPath(result.Path, configDir))
 	}
-	return nil
-}
-
-// copyLegacyFiles copies the files of the deprecated config directory that
-// the config directory lacks, after asking, unless force is set.
-func copyLegacyFiles(ctx context.Context, ios *iostreams.IOStreams, svc *billing.Service, force bool) error {
-	missing, err := svc.LegacyFiles()
-	if err != nil || len(missing) == 0 {
-		return err
-	}
-	locations := svc.Locations()
-	legacyDir, configDir := locations.LegacyDir, locations.ConfigDir
-	if !force {
-		if !ios.CanPrompt() {
-			return cmdutil.FlagErrorf("init", "the deprecated config directory %s has files that %s lacks; pass --force to copy them (no terminal to ask on)", legacyDir, configDir)
-		}
-		confirmed, err := cmdutil.Confirm(ctx, ios, fmt.Sprintf("Copy %s from %s to %s?", strings.Join(missing, ", "), legacyDir, configDir))
-		if err != nil {
-			return err
-		}
-		if !confirmed {
-			fmt.Fprintf(ios.ErrOut, "not initialized; nothing was changed\n")
-			return cmdutil.CancelError
-		}
-	}
-
-	copied, err := svc.CopyLegacyFiles()
-	for _, rel := range copied {
-		fmt.Fprintf(ios.ErrOut, "copied %s from %s\n", rel, legacyDir)
-	}
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(ios.ErrOut, "invox no longer reads %s for these files; remove it once you are happy with %s\n", legacyDir, configDir)
 	return nil
 }

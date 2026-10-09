@@ -28,8 +28,7 @@ Behavior:
   Existing config.yaml files are left unchanged.
 
 Config paths:
-  preferred: {{.GlobalConfigPath}}
-  legacy fallback: {{.LegacyConfigFile}}
+  default: {{.GlobalConfigPath}}
   --config PATH and INVOX_CONFIG_DIR change them; see ` + "`invox help environment`" + `.
   ` + "`invox config paths`" + ` shows the config file and the support files in use.
 

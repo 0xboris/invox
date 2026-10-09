@@ -7,18 +7,16 @@ exec invox config paths
 scrubpaths -tsv stdout got.tsv
 cmp got.tsv want-defaults.tsv
 
-# A project file in the working directory, a file only in the legacy
-# directory, and --config with paths.* and archive.dir. The legacy file gets
-# one warning line on stderr.
+# A project file in the working directory, and --config with paths.* and
+# archive.dir. The old invoice-tool directory is not read.
 cp legacy-issuer.yaml home/.config/invoice-tool/issuer.yaml
 cp project-customers.yaml customers.yaml
 exec invox config paths --config acme.yaml
 scrubpaths -tsv stdout got.tsv
 cmp got.tsv want-mixed.tsv
-scrubpaths stderr got.txt
-cmp got.txt want-legacy-warning.txt
+! stderr .
 
-# INVOX_CONFIG_DIR replaces the config directory and turns off the legacy one.
+# INVOX_CONFIG_DIR replaces the config directory.
 env INVOX_CONFIG_DIR=$WORK/env-config
 rm customers.yaml
 exec invox config paths
@@ -73,12 +71,10 @@ archive	$DATA_HOME/invox/invoices	default
 config-dir	$WORK/home/.config/invox	default
 config	$WORK/acme.yaml	flag
 customers	$WORK/customers.yaml	project
-issuer	$WORK/home/.config/invoice-tool/issuer.yaml	legacy
+issuer		none
 defaults		none
 template	$WORK/templates/acme.tex	config
 archive	$WORK/archive	config
--- want-legacy-warning.txt --
-warning: using issuer.yaml from deprecated config directory $WORK/home/.config/invoice-tool; run 'invox init' to copy it to $WORK/home/.config/invox
 -- want-env.tsv --
 config-dir	$WORK/env-config	env
 config	$WORK/env-config/config.yaml	env

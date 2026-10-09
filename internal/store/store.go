@@ -211,15 +211,6 @@ func (s *Store) Init() (string, []billing.InitFile, error) {
 	return dir, files, nil
 }
 
-// LegacyFiles returns the legacy files the config directory lacks.
-func (s *Store) LegacyFiles() ([]string, error) { return s.Host.LegacyFilesToCopy() }
-
-// CopyLegacy copies LegacyFiles into the config directory.
-func (s *Store) CopyLegacy() ([]string, error) { return s.Host.CopyLegacyFiles() }
-
-// LegacyFilesUsed returns the files read from the legacy directory so far.
-func (s *Store) LegacyFilesUsed() []string { return s.Host.LegacyFilesUsed() }
-
 // Locations are where invox keeps its files by default.
 func (s *Store) Locations() billing.Locations {
 	h := s.Host
@@ -231,7 +222,6 @@ func (s *Store) Locations() billing.Locations {
 		Defaults:       h.GlobalInvoiceDefaultsPath(),
 		Template:       h.GlobalTemplatePath(),
 		ArchiveDir:     h.DefaultArchiveDir(),
-		LegacyDir:      h.LegacyConfigDir(),
 		ConfigTemplate: h.ConfigTemplate(),
 	}
 }

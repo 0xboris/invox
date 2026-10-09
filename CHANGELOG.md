@@ -56,21 +56,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ctrl-C (SIGINT) stops the programs invox started, removes its temporary files and exits 130. SIGTERM does the same and exits 143. Ctrl-C at a confirmation prompt exits 2. ([#83](https://github.com/0xboris/invox/pull/83))
 - `invox validate` warns on stderr when the invoice number is already archived under another file. ([#62](https://github.com/0xboris/invox/pull/62))
 - `invox new` and `invox increment` warn on stderr when archived invoices of the customer don't match `numbering.pattern` and were left out of the next number. ([#84](https://github.com/0xboris/invox/pull/84))
-- `invox init --force` copies missing files from the old `invoice-tool` config directory. On a terminal, `init` asks instead. ([#87](https://github.com/0xboris/invox/pull/87))
 - Release archives for Linux, macOS and Windows on amd64 and arm64, with man pages and bash, zsh, fish and PowerShell completions, plus a Homebrew cask: `brew install 0xboris/tap/invox`. ([#52](https://github.com/0xboris/invox/issues/52))
 - `make lint`, `make fmt` and `make tidy` targets. ([#60](https://github.com/0xboris/invox/pull/60))
 - `invox archive add INVOICE` archives an invoice, with every flag `invox archive INVOICE` took: `-i, --input`, `--yes`, `-n, --dry-run` and `--json`. A file named `list` or `edit` can now be archived. ([#106](https://github.com/0xboris/invox/pull/106))
 - `invox customer edit` opens `customers.yaml`, `invox config edit` opens `config.yaml` (as `invox config` does), and `invox new --defaults FILE` names the `invoice_defaults.yaml` file. ([#106](https://github.com/0xboris/invox/pull/106))
 - `increment`, `validate` and `render` take the invoice as an `INVOICE` argument, as `build`, `email` and `archive add` do. ([#106](https://github.com/0xboris/invox/pull/106))
 
-### Deprecated
-
-- The legacy `invoice-tool` config directory still works, but a command that reads a file from it prints a warning on stderr. Run `invox init` to copy the files into the invox config directory. ([#87](https://github.com/0xboris/invox/pull/87))
-
 ### Removed
 
 - **BREAKING:** the command forms #106 deprecated. `invox archive INVOICE`, `invox customer config`, `invox send` and `invox new -s/--source FILE` exit 2 with a usage error; use `invox archive add INVOICE`, `invox customer edit`, `invox email` and `invox new --defaults FILE`. `invox archive` without a subcommand prints its help, and `invox help customer config` and `invox help send` are unknown topics.
 - **BREAKING:** single-dash long flags. `-names`, `-input`, `-config`, `-help`, `-version` and the like exit 2 with `error: -NAME is not a flag; use --NAME` instead of working with a warning, and a single-dash word that starts with no shorthand letter, such as `-nmaes`, is an unknown flag. pflag would otherwise read `-output=x.pdf` as `-o utput=x.pdf`. Shorthand groups such as `-ofile.yaml` still work.
+- **BREAKING:** the old `invoice-tool` config directory. invox no longer reads `config.yaml` or support files from it and prints no warning about it; a file found only there is now missing. Move the files into the invox config directory (`invox config paths` shows where). `invox init` no longer copies them, and `invox init --force` exits 2 as an unknown flag. `config paths` never reports the `legacy` source.
 - **BREAKING:** the bundled Ubuntu fonts in `fonts/`. A template that needs fonts must ship them in its own template directory, which invox still copies. ([#60](https://github.com/0xboris/invox/pull/60))
 - The `make init`, `validate`, `render`, `email`, `send`, `pdf` and `archive` wrappers. Run the matching `invox` command instead. ([#60](https://github.com/0xboris/invox/pull/60))
 - invox no longer sets `INVOX_EDITOR` for the editor or reads `SHELL`. ([#85](https://github.com/0xboris/invox/pull/85))
@@ -91,7 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Email drafts encode the UTF-8 body as quoted-printable, and attachment names with quotes or non-ASCII characters are encoded correctly. ([#69](https://github.com/0xboris/invox/pull/69))
 - Amounts above 10,000,000,000,000 are rejected with an error that names the limit instead of wrapping to wrong or negative totals. IBANs with check digits 00, 01 or 99 are rejected. ([#70](https://github.com/0xboris/invox/pull/70))
 - A YAML alias to a node that contains it no longer crashes invox, and aliases that expand to more than 100,000 nodes fail at once instead of hanging. Both errors name the file and line. ([#74](https://github.com/0xboris/invox/pull/74))
-- `invox help config` shows the legacy config path under `$XDG_CONFIG_HOME` instead of a hard-coded `~/.config/invoice-tool` path. ([#75](https://github.com/0xboris/invox/pull/75))
 - A mapping or list where text belongs is an error instead of being printed into the PDF as `map[...]`. `issuer.payment.due_days: missing value` is reported once instead of twice. ([#89](https://github.com/0xboris/invox/pull/89))
 - `invox archive edit` working copies made on Windows now resolve on macOS and Linux. ([#55](https://github.com/0xboris/invox/pull/55))
 - `new CUST-001 -o` and `build x.yaml -o` say `flag needs an argument: -o`, and a misspelt flag such as `--form-last` is reported as an unknown flag instead of as an unexpected argument. A blank `-o` counts as no `-o`. ([#92](https://github.com/0xboris/invox/pull/92), [#94](https://github.com/0xboris/invox/pull/94))

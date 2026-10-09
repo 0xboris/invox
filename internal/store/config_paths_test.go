@@ -167,44 +167,6 @@ paths:
 	}
 }
 
-func TestResolveDefaultPathsFallbackToLegacyConfigFiles(t *testing.T) {
-	t.Parallel()
-
-	configHome := filepath.Join(t.TempDir(), "config-home")
-	legacyDir := filepath.Join(configHome, "invoice-tool")
-	workDir := filepath.Join(t.TempDir(), "work")
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(legacyDir) returned error: %v", err)
-	}
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(workDir) returned error: %v", err)
-	}
-
-	for _, name := range []string{"customers.yaml", "issuer.yaml", "invoice_defaults.yaml", "template.tex"} {
-		path := filepath.Join(legacyDir, name)
-		if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-			t.Fatalf("WriteFile(%s) returned error: %v", path, err)
-		}
-	}
-
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
-
-	opts := resolveDefaultOptions(t, h, workDir)
-
-	if opts.CustomersPath != filepath.Join(legacyDir, "customers.yaml") {
-		t.Fatalf("CustomersPath = %q, want legacy config path", opts.CustomersPath)
-	}
-	if opts.IssuerPath != filepath.Join(legacyDir, "issuer.yaml") {
-		t.Fatalf("IssuerPath = %q, want legacy config path", opts.IssuerPath)
-	}
-	if opts.DefaultsPath != filepath.Join(legacyDir, "invoice_defaults.yaml") {
-		t.Fatalf("DefaultsPath = %q, want legacy config path", opts.DefaultsPath)
-	}
-	if opts.TemplatePath != filepath.Join(legacyDir, "template.tex") {
-		t.Fatalf("TemplatePath = %q, want legacy config path", opts.TemplatePath)
-	}
-}
-
 func TestResolveArchiveDirDefaultsToPlatformDataDir(t *testing.T) {
 	t.Parallel()
 
@@ -281,31 +243,6 @@ func TestResolveArchiveDirUsesRelativeConfigPath(t *testing.T) {
 	}
 
 	want := filepath.Join(configDir, "archive")
-	if got != want {
-		t.Fatalf("ResolveArchiveDir() = %q, want %q", got, want)
-	}
-}
-
-func TestResolveArchiveDirUsesLegacyConfigOverride(t *testing.T) {
-	t.Parallel()
-
-	configHome := filepath.Join(t.TempDir(), "config-home")
-	legacyDir := filepath.Join(configHome, "invoice-tool")
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(legacyDir) returned error: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(legacyDir, "config.yaml"), []byte("archive:\n  dir: archived-invoices\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(config.yaml) returned error: %v", err)
-	}
-
-	h := testHost(configHome, filepath.Join(t.TempDir(), "home"))
-
-	got, err := h.ResolveArchiveDir()
-	if err != nil {
-		t.Fatalf("ResolveArchiveDir returned error: %v", err)
-	}
-
-	want := filepath.Join(legacyDir, "archived-invoices")
 	if got != want {
 		t.Fatalf("ResolveArchiveDir() = %q, want %q", got, want)
 	}

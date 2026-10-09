@@ -614,8 +614,7 @@ Behavior:
   Existing config.yaml files are left unchanged.
 
 Config paths:
-  preferred: $WORK/home/.config/invox/config.yaml
-  legacy fallback: $WORK/home/.config/invoice-tool/config.yaml
+  default: $WORK/home/.config/invox/config.yaml
   --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
   `invox config paths` shows the config file and the support files in use.
 
@@ -862,18 +861,12 @@ Behavior:
   Writes starter versions of config.yaml, customers.yaml, issuer.yaml,
   invoice_defaults.yaml, and template.tex.
   Existing non-empty files are left unchanged.
-  When the deprecated invoice-tool directory has files the config directory
-  lacks, asks first, then copies them in before writing the starter files.
-  Nothing is replaced, and the invoice-tool directory is left in place.
 
 Config directory:
   $WORK/home/.config/invox
 
 Usage:
   invox init [flags]
-
-Flags:
-      --force   Copy files from the deprecated config directory without asking (required without a terminal)
 
 Global flags:
       --config string   Read this config file instead of config.yaml
@@ -882,7 +875,6 @@ Global flags:
 
 Examples:
   $ invox init
-  $ invox init --force
 -- want-template-list.txt --
 List available LaTeX invoice templates from the same directory as the resolved default template.
 

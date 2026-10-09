@@ -10,8 +10,7 @@ Behavior:
   Existing config.yaml files are left unchanged.
 
 Config paths:
-  preferred: $HOME/.config/invox/config.yaml
-  legacy fallback: $HOME/.config/invoice-tool/config.yaml
+  default: $HOME/.config/invox/config.yaml
   --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
   `invox config paths` shows the config file and the support files in use.
 

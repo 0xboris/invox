@@ -15,15 +15,13 @@ import (
 
 func TestNewCmdInitParsing(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      []string
-		wantForce bool
-		wantErr   string
+		name    string
+		args    []string
+		wantErr string
 	}{
 		{name: "no flags", args: []string{}},
-		{name: "force", args: []string{"--force"}, wantForce: true},
 		{name: "extra argument", args: []string{"extra"}, wantErr: "unexpected arguments: extra"},
-		{name: "misspelt flag", args: []string{"--forse"}, wantErr: "unknown flag: --forse; did you mean --force?"},
+		{name: "force is no longer a flag", args: []string{"--force"}, wantErr: "unknown flag: --force"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -49,8 +47,8 @@ func TestNewCmdInitParsing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute returned error: %v", err)
 			}
-			if got == nil || got.Force != tc.wantForce {
-				t.Fatalf("opts = %+v, want Force %v", got, tc.wantForce)
+			if got == nil {
+				t.Fatal("runF did not run")
 			}
 		})
 	}

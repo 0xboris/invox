@@ -14,7 +14,6 @@ Sources:
   flag     the --config option
   env      INVOX_CONFIG_DIR
   default  the default config or archive directory
-  legacy   the deprecated invoice-tool directory
   project  the upward search from the current directory
   config   a paths.* or archive.dir setting in config.yaml
   none     not found

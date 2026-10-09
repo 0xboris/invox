@@ -39,9 +39,3 @@ type Service struct {
 func (s *Service) Locations() Locations {
 	return s.Directory.Locations()
 }
-
-// LegacyFilesUsed returns the files read from the deprecated config
-// directory so far.
-func (s *Service) LegacyFilesUsed() []string {
-	return s.Directory.LegacyFilesUsed()
-}

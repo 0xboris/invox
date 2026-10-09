@@ -2,7 +2,6 @@ package helptext
 
 import (
 	"io"
-	"path/filepath"
 	"text/template"
 
 	"github.com/0xboris/invox/internal/billing"
@@ -58,11 +57,3 @@ func (d data) GlobalIssuerPath() string          { return d.Issuer }
 func (d data) GlobalInvoiceDefaultsPath() string { return d.Defaults }
 func (d data) GlobalTemplatePath() string        { return d.Template }
 func (d data) DefaultArchiveDir() string         { return d.ArchiveDir }
-
-// LegacyConfigFile is config.yaml in the legacy directory, or "none".
-func (d data) LegacyConfigFile() string {
-	if dir := d.LegacyDir; dir != "" {
-		return filepath.Join(dir, "config.yaml")
-	}
-	return "none"
-}

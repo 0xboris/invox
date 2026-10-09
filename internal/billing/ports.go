@@ -138,7 +138,6 @@ const (
 	SourceExplicit               // the config file the user named
 	SourceEnvDir                 // the config directory the user chose, or a file in it
 	SourceDefault                // the OS default directory, or a file in it
-	SourceLegacy                 // the deprecated invoice-tool directory, or a file in it
 	SourceProject                // found by the upward search from the working directory
 	SourceConfig                 // a paths.* or archive.dir setting in the config file
 )
@@ -160,9 +159,6 @@ type Locations struct {
 	Defaults   string
 	Template   string
 	ArchiveDir string
-	// LegacyDir is the deprecated invoice-tool directory, "" when it is
-	// not read.
-	LegacyDir string
 	// ConfigTemplate is the text a new config.yaml starts with.
 	ConfigTemplate string
 }
@@ -199,15 +195,6 @@ type Directory interface {
 	// Init creates the config directory and the starter files it lacks,
 	// and returns the directory.
 	Init() (string, []InitFile, error)
-	// LegacyFiles returns the files of the legacy directory, relative to
-	// it, that the config directory lacks.
-	LegacyFiles() ([]string, error)
-	// CopyLegacy copies LegacyFiles into the config directory and returns
-	// them.
-	CopyLegacy() ([]string, error)
-	// LegacyFilesUsed returns the files read from the legacy directory so
-	// far.
-	LegacyFilesUsed() []string
 	Locations() Locations
 }
 
