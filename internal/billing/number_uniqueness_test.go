@@ -76,24 +76,36 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 	}
 }
 
+// validate's duplicate check skips the archived file itself and the one a
+// working copy was opened from, and finds the number anywhere else.
 func TestCheckArchivedNumberUniqueIgnoresTheArchivedOriginal(t *testing.T) {
 	t.Parallel()
 
+	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
+	files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath}
 	archiveDir := t.TempDir()
 	h := writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	writeStatusInvoice(t, filepath.Join(archiveDir, "first.yaml"), "CUST-001-001", "archived")
+	archived := filepath.Join(archiveDir, "first.yaml")
+	if err := os.WriteFile(archived, []byte(readTestFile(t, invoicePath)), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	workDir := t.TempDir()
-	opened, err := h.service(t, cmdutil.Files{}, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
+	opened, err := h.service(t, files, workDir, time.Time{}).EditArchived("first.yaml", workDir, billing.EditOptions{})
 	if err != nil {
-		t.Fatalf("EditArchivedInvoice returned error: %v", err)
+		t.Fatalf("EditArchived returned error: %v", err)
 	}
-	workingCopy := opened.Path
-	if _, err := h.service(t, cmdutil.Files{}, filepath.Dir(workingCopy), time.Time{}).CheckNumberUnique(workingCopy); err != nil {
-		t.Fatalf("CheckArchivedNumberUnique(working copy) = %v, want nil", err)
+	for _, path := range []string{opened.Path, archived} {
+		result, err := h.service(t, files, filepath.Dir(path), time.Time{}).Validate(path)
+		if err != nil || result.Duplicate != nil {
+			t.Fatalf("Validate(%s) = duplicate %v, error %v; want neither", path, result.Duplicate, err)
+		}
 	}
-	if _, err := h.service(t, cmdutil.Files{}, archiveDir, time.Time{}).CheckNumberUnique(filepath.Join(archiveDir, "first.yaml")); err != nil {
-		t.Fatalf("CheckArchivedNumberUnique(archived file) = %v, want nil", err)
+
+	result, err := h.service(t, files, filepath.Dir(invoicePath), time.Time{}).Validate(invoicePath)
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	if err != nil || !errors.As(result.Duplicate, &duplicate) || duplicate.ArchivedPath != archived {
+		t.Fatalf("Validate(other file) = duplicate %v, error %v; want %s as the duplicate", result.Duplicate, err, archived)
 	}
 }
 

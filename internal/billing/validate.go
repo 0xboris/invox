@@ -25,7 +25,9 @@ func (s *Service) Validate(path string) (ValidateResult, error) {
 	if err != nil {
 		return ValidateResult{}, err
 	}
-	unread, duplicate := s.CheckNumberUnique(path)
+	// The invoice decoded in s.load, so only the archive can fail here.
+	inv, _ := s.Invoices.Load(path)
+	unread, duplicate := s.numberUnique(path, inv)
 	return ValidateResult{Context: ctx, Duplicate: duplicate, Unread: unread}, nil
 }
 

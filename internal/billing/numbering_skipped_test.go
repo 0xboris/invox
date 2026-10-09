@@ -9,7 +9,6 @@ import (
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 )
 
 func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
@@ -130,18 +129,21 @@ func TestNextInvoiceNumberReportsSkippedArchiveFiles(t *testing.T) {
 				wantUnread = append(wantUnread, filepath.Join(archiveDir, name))
 			}
 
-			number, skipped, unread, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
+			customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+			files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}
+			workDir := t.TempDir()
+			created, err := h.service(t, files, workDir, time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, DryRun: true})
 			if err != nil {
-				t.Fatalf("NextInvoiceNumber returned error: %v", err)
+				t.Fatalf("New returned error: %v", err)
 			}
-			if number != tc.wantNumber {
-				t.Fatalf("number = %q, want %q", number, tc.wantNumber)
+			if created.Number != tc.wantNumber {
+				t.Fatalf("number = %q, want %q", created.Number, tc.wantNumber)
 			}
-			if !reflect.DeepEqual(skipped, wantSkipped) {
-				t.Fatalf("skipped = %q, want %q", skipped, wantSkipped)
+			if !reflect.DeepEqual(created.Skipped, wantSkipped) {
+				t.Fatalf("skipped = %q, want %q", created.Skipped, wantSkipped)
 			}
-			if want := (billing.Unread{Dir: archiveDir, Markdown: wantUnread}); !reflect.DeepEqual(unread, want) {
-				t.Fatalf("unread = %+v, want %+v", unread, want)
+			if want := (billing.Unread{Dir: archiveDir, Markdown: wantUnread}); !reflect.DeepEqual(created.Unread, want) {
+				t.Fatalf("unread = %+v, want %+v", created.Unread, want)
 			}
 		})
 	}

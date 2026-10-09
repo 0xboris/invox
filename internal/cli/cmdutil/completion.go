@@ -39,7 +39,7 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 // shows, and with file names when no name matches.
 func CompleteTemplates(f *Factory) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-		list, err := completionService(f, cmd, Files{}).ListTemplates()
+		list, err := completionService(f, cmd, Files{}).ListTemplates(false)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveDefault
 		}

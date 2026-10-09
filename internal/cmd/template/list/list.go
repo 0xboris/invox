@@ -16,7 +16,6 @@ import (
 type ListOptions struct {
 	IO      *iostreams.IOStreams
 	Service func(cmdutil.Files) *billing.Service
-	Getwd   func() (string, error)
 
 	NamesOnly bool
 	Exporter  *cmdutil.Exporter
@@ -32,7 +31,7 @@ type templateJSON struct {
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List available invoice templates",
@@ -77,15 +76,16 @@ $ invox build invoice.yaml -t multi_vat.tex
 }
 
 func listRun(opts *ListOptions) error {
-	svc := opts.Service(cmdutil.Files{})
-	catalog, err := svc.ListTemplates()
+	// Only --json shows the default template, which takes a search from
+	// the working directory.
+	catalog, err := opts.Service(cmdutil.Files{}).ListTemplates(opts.Exporter != nil)
 	if err != nil {
 		return err
 	}
 	templates, templateDir := catalog.Templates, catalog.Dir
 
 	if opts.Exporter != nil {
-		return exportTemplates(opts, svc, templates)
+		return exportTemplates(opts, catalog)
 	}
 
 	list := tableprinter.Table{
@@ -106,16 +106,10 @@ func listRun(opts *ListOptions) error {
 	return nil
 }
 
-func exportTemplates(opts *ListOptions, svc *billing.Service, templates []billing.Template) error {
-	if _, err := opts.Getwd(); err != nil {
-		return err
-	}
-	defaultTemplate, err := svc.DefaultTemplate()
-	if err != nil {
-		return err
-	}
-	items := make([]templateJSON, 0, len(templates))
-	for _, template := range templates {
+func exportTemplates(opts *ListOptions, catalog billing.TemplateList) error {
+	defaultTemplate := catalog.Default
+	items := make([]templateJSON, 0, len(catalog.Templates))
+	for _, template := range catalog.Templates {
 		items = append(items, templateJSON{
 			Name:    template.Name,
 			Path:    template.Path,

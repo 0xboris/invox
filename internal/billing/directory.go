@@ -53,32 +53,34 @@ type TemplateList struct {
 	// Dir is the directory `template list` reads.
 	Dir       string
 	Templates []Template
+	// Default is the template a command uses when none is named, "" when
+	// there is none or it was not asked for.
+	Default string
 }
 
-// ListTemplates lists the .tex files of the template catalog.
-func (s *Service) ListTemplates() (TemplateList, error) {
+// ListTemplates lists the .tex files of the template catalog and, with
+// withDefault, the default template, which takes a search from the working
+// directory.
+func (s *Service) ListTemplates(withDefault bool) (TemplateList, error) {
 	templates, dir, err := s.Directory.Templates()
+	if err != nil || !withDefault {
+		return TemplateList{Dir: dir, Templates: templates}, err
+	}
+	def, err := s.Directory.Locate(TemplateFile)
+	var notFound *FileNotFoundError
+	if errors.As(err, &notFound) {
+		def, err = "", nil
+	}
 	if err != nil {
 		return TemplateList{}, err
 	}
-	return TemplateList{Dir: dir, Templates: templates}, nil
+	return TemplateList{Dir: dir, Templates: templates, Default: def}, nil
 }
 
-// DefaultTemplate returns the template a command uses when none is named,
-// "" when there is none.
-func (s *Service) DefaultTemplate() (string, error) {
-	path, err := s.Directory.Locate(TemplateFile)
-	var notFound *FileNotFoundError
-	if errors.As(err, &notFound) {
-		return "", nil
-	}
-	return path, err
-}
-
-// Paths reports where each file comes from for a command run in start, in a
-// fixed order: config-dir, config, the support files, then archive.
-func (s *Service) Paths(start string) ([]PathReport, error) {
-	return s.Directory.Paths(start)
+// Paths reports where each file comes from for this run, in a fixed order:
+// config-dir, config, the support files, then archive.
+func (s *Service) Paths() ([]PathReport, error) {
+	return s.Directory.Paths()
 }
 
 // InitResult is what Init set up.

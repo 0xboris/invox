@@ -20,12 +20,12 @@ func (s *Service) numberingSettings() (numbering.Settings, error) {
 	return settings.Numbering, nil
 }
 
-// NextNumber returns the next invoice number of the customer on issueDate:
+// nextNumber returns the next invoice number of the customer on issueDate:
 // above every archived invoice's counter, minimumCounter and the start
 // before it. skipped are the customer's archived invoices from the same
 // period whose numbers do not match the pattern, and unread what the
 // archive walk could not read.
-func (s *Service) NextNumber(customerID, issueDate string, customer invoice.Customer, minimumCounter int64) (number string, skipped []string, unread Unread, err error) {
+func (s *Service) nextNumber(customerID, issueDate string, customer invoice.Customer, minimumCounter int64) (number string, skipped []string, unread Unread, err error) {
 	settings, err := s.numberingSettings()
 	if err != nil {
 		return "", nil, Unread{}, err
@@ -154,7 +154,7 @@ func (s *Service) Increment(path string, dryRun bool) (IncrementResult, error) {
 	if err != nil {
 		return IncrementResult{}, err
 	}
-	next, skipped, unread, err := s.NextNumber(customerID, issueDate, customer, current)
+	next, skipped, unread, err := s.nextNumber(customerID, issueDate, customer, current)
 	if err != nil {
 		return IncrementResult{}, err
 	}

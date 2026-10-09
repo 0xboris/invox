@@ -96,24 +96,10 @@ func archivable(path string, inv invoice.Invoice, status invoice.Status) error {
 	return nil
 }
 
-// CheckNumberUnique returns a *invoice.DuplicateInvoiceNumberError when
-// the invoice at path uses a number that an archived invoice already has.
-// The archived file the invoice was opened from (`archive edit`) does not
-// count as a duplicate.
-func (s *Service) CheckNumberUnique(path string) (Unread, error) {
-	inv, err := s.Invoices.Load(path)
-	if err != nil && !isDecodeError(err) {
-		return Unread{}, err
-	}
-	if inv.Header == nil {
-		return Unread{}, nil
-	}
-	return s.numberUnique(path, inv)
-}
-
 // numberUnique returns a *invoice.DuplicateInvoiceNumberError when an
 // archived invoice other than the one inv, the invoice at path, replaces
-// has its number.
+// has its number. The archived file a working copy from `archive edit` was
+// opened from does not count as a duplicate.
 func (s *Service) numberUnique(path string, inv invoice.Invoice) (Unread, error) {
 	archived, unread, err := s.Archives.Duplicate(path, inv)
 	if err != nil || archived == "" {

@@ -74,7 +74,7 @@ func (s *Service) New(req NewRequest) (NewResult, error) {
 	if err != nil {
 		return NewResult{}, err
 	}
-	number, skipped, unread, err := s.NextNumber(req.CustomerID, issueDate, customer, draftCounter)
+	number, skipped, unread, err := s.nextNumber(req.CustomerID, issueDate, customer, draftCounter)
 	if err != nil {
 		return NewResult{}, err
 	}

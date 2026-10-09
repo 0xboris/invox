@@ -174,8 +174,13 @@ func (s *Store) Templates() ([]billing.Template, string, error) {
 	return templates, dir, nil
 }
 
-// Paths reports where each file comes from for a command run in start.
-func (s *Store) Paths(start string) ([]billing.PathReport, error) {
+// Paths reports where each file comes from for a command run in the
+// working directory.
+func (s *Store) Paths() ([]billing.PathReport, error) {
+	start, err := s.workDir()
+	if err != nil {
+		return nil, err
+	}
 	reports, err := s.Host.Paths(start)
 	if err != nil {
 		return nil, err

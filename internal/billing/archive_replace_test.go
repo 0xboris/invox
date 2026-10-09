@@ -170,18 +170,21 @@ func TestArchiveHistoryIsIgnoredByNumberingAndDuplicateCheck(t *testing.T) {
 	}
 	writeStatusInvoice(t, filepath.Join(historyDir, "old.20261005T123045Z.yaml"), "CUST-001-009", "archived")
 
-	invoiceNumber, _, _, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).NextNumber("CUST-001", "2026-03-06", invoice.Customer{}, 0)
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	files := cmdutil.Files{Customers: customersPath, Issuer: issuerPath, Defaults: defaultsPath}
+	workDir := t.TempDir()
+	created, err := h.service(t, files, workDir, time.Date(2026, 3, 6, 12, 0, 0, 0, time.Local)).New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: workDir, DryRun: true})
 	if err != nil {
-		t.Fatalf("NextInvoiceNumber returned error: %v", err)
+		t.Fatalf("New returned error: %v", err)
 	}
-	if invoiceNumber != "CUST-001-002" {
-		t.Fatalf("NextInvoiceNumber = %q, want CUST-001-002 (backups must not count)", invoiceNumber)
+	if created.Number != "CUST-001-002" {
+		t.Fatalf("New number = %q, want CUST-001-002 (backups must not count)", created.Number)
 	}
 
 	invoicePath := filepath.Join(t.TempDir(), "invoice.yaml")
 	writeStatusInvoice(t, invoicePath, "CUST-001-009", "built")
-	if _, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Time{}).CheckNumberUnique(invoicePath); err != nil {
-		t.Fatalf("CheckArchivedNumberUnique = %v, want nil (backups must not count)", err)
+	if _, err := h.service(t, cmdutil.Files{}, filepath.Dir(invoicePath), time.Time{}).Archive(invoicePath, billing.ArchiveOptions{DryRun: true}); err != nil {
+		t.Fatalf("Archive dry run = %v, want nil (backups must not count as duplicates)", err)
 	}
 
 	list, err := h.service(t, cmdutil.Files{}, t.TempDir(), time.Time{}).ListArchive()

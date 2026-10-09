@@ -27,10 +27,8 @@ var (
 		"Mailer":    {"Draft"},
 	}
 	serviceMethods = []string{
-		"Archive", "Build", "CheckNumberUnique", "DefaultTemplate", "DraftEmail",
-		"EditArchived", "EditablePath", "Increment", "Init",
-		"ListArchive", "ListCustomers", "ListTemplates", "New", "NextNumber", "Paths",
-		"Render", "Validate",
+		"Archive", "Build", "DraftEmail", "EditArchived", "EditablePath", "Increment", "Init",
+		"ListArchive", "ListCustomers", "ListTemplates", "New", "Paths", "Render", "Validate",
 	}
 )
 

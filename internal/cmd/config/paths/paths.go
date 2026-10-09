@@ -15,13 +15,12 @@ import (
 type PathsOptions struct {
 	IO      *iostreams.IOStreams
 	Service func(cmdutil.Files) *billing.Service
-	Getwd   func() (string, error)
 }
 
 // NewCmdPaths returns the config paths command. runF replaces pathsRun in
 // tests.
 func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
-	opts := &PathsOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	opts := &PathsOptions{IO: f.IOStreams, Service: f.Service}
 	return &cobra.Command{
 		Use:               "paths",
 		Short:             "Show where each config and support file is read from",
@@ -61,11 +60,7 @@ Sources:
 }
 
 func pathsRun(opts *PathsOptions) error {
-	cwd, err := opts.Getwd()
-	if err != nil {
-		return err
-	}
-	reports, err := opts.Service(cmdutil.Files{}).Paths(cwd)
+	reports, err := opts.Service(cmdutil.Files{}).Paths()
 	if err != nil {
 		return err
 	}

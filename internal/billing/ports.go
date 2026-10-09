@@ -133,7 +133,8 @@ type Directory interface {
 	Template(ref string) (Template, error)
 	// Templates lists the template catalog and returns its directory.
 	Templates() ([]Template, string, error)
-	Paths(start string) ([]PathReport, error)
+	// Paths reports where each file comes from for this run.
+	Paths() ([]PathReport, error)
 	// EditablePath returns f for an editor, creating config.yaml from its
 	// template when f is ConfigFile and it does not exist.
 	EditablePath(f File) (string, error)
