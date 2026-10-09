@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -18,14 +17,15 @@ import (
 	"github.com/0xboris/invox/internal/env"
 	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // fakeTectonicEnv makes the test binary act as tectonic instead of running
 // tests. installFakeTectonic sets it and puts a copy of the test binary on
-// PATH, so the build tests need no shell and run on every OS.
+// PATH, so the signal tests have a real child process on every OS.
 const fakeTectonicEnv = "INVOX_TEST_FAKE_TECTONIC"
 
-// fakeTectonicPidfileEnv names the file fakeTectonicSleep writes its pid to.
+// fakeTectonicPidfileEnv names the file the fake tectonic writes its pid to.
 const fakeTectonicPidfileEnv = "INVOX_TEST_FAKE_TECTONIC_PIDFILE"
 
 // runMainEnv makes the test binary act as invox, so tests can send it real
@@ -33,11 +33,7 @@ const fakeTectonicPidfileEnv = "INVOX_TEST_FAKE_TECTONIC_PIDFILE"
 const runMainEnv = "INVOX_TEST_RUN_MAIN"
 
 const (
-	fakeTectonicWritePDF = "write-pdf"
-	fakeTectonicFail     = "fail"
-	fakeTectonicExit2    = "exit-2"
-	fakeTectonicChatter  = "chatter"
-	fakeTectonicSleep    = "sleep"
+	fakeTectonicSleep = "sleep"
 	// fakeTectonicSleepIgnoreTerm sleeps like fakeTectonicSleep but ignores
 	// SIGTERM, so invox keeps waiting for it after the first signal.
 	fakeTectonicSleepIgnoreTerm = "sleep-ignore-sigterm"
@@ -51,7 +47,7 @@ func TestMain(m *testing.M) {
 		os.Exit(cli.Main(os.Args[1:], factory.New(iostreams.System(), run.Exec{}, env.System())))
 	}
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
-		os.Exit(runFakeTectonic(mode, os.Args[1:]))
+		os.Exit(runFakeTectonic(mode))
 	}
 	if os.Getenv(fakeChildEnv) != "" {
 		os.Exit(runFakeChild(os.Args[1:]))
@@ -59,66 +55,34 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// runFakeTectonic writes an empty PDF next to the single .tex argument, or
-// fails with exit code 1 (fakeTectonicFail) or 2 (fakeTectonicExit2).
-// fakeTectonicChatter also prints progress to stdout, as tectonic does.
-// fakeTectonicSleep writes its pid to the file named by
-// fakeTectonicPidfileEnv and sleeps for a minute.
-func runFakeTectonic(mode string, args []string) int {
-	switch mode {
-	case fakeTectonicSleep, fakeTectonicSleepIgnoreTerm:
-		if mode == fakeTectonicSleepIgnoreTerm {
-			signal.Ignore(syscall.SIGTERM)
-		}
-		pidfile := os.Getenv(fakeTectonicPidfileEnv)
-		if err := os.WriteFile(pidfile+".tmp", []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
-			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
-			return 1
-		}
-		if err := os.Rename(pidfile+".tmp", pidfile); err != nil {
-			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
-			return 1
-		}
-		time.Sleep(time.Minute)
-		return 0
-	case fakeTectonicFail:
-		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
-		return 1
-	case fakeTectonicExit2:
-		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
-		return 2
+// runFakeTectonic writes its pid to the file named by fakeTectonicPidfileEnv
+// and sleeps for a minute, for the signal tests to stop it.
+func runFakeTectonic(mode string) int {
+	if mode == fakeTectonicSleepIgnoreTerm {
+		signal.Ignore(syscall.SIGTERM)
 	}
-	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "fake tectonic: want one input file, got %q\n", args)
-		return 2
-	}
-
-	if mode == fakeTectonicChatter {
-		fmt.Println("note: running TeX ...")
-		fmt.Println("note: writing `invoice.pdf`")
-	}
-	pdfPath := strings.TrimSuffix(args[0], filepath.Ext(args[0])) + ".pdf"
-	if err := os.WriteFile(pdfPath, nil, 0o644); err != nil {
+	pidfile := os.Getenv(fakeTectonicPidfileEnv)
+	if err := os.WriteFile(pidfile+".tmp", []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
 		return 1
 	}
+	if err := os.Rename(pidfile+".tmp", pidfile); err != nil {
+		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+		return 1
+	}
+	time.Sleep(time.Minute)
 	return 0
 }
 
 func installFakeTectonic(t *testing.T, mode string) {
 	t.Helper()
 
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("os.Executable() returned error: %v", err)
-	}
-
 	name := "tectonic"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	binDir := t.TempDir()
-	copyExecutable(t, self, filepath.Join(binDir, name))
+	copyExecutable(t, testfixture.Executable(t), filepath.Join(binDir, name))
 
 	t.Setenv(fakeTectonicEnv, mode)
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
