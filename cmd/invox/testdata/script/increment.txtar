@@ -24,7 +24,7 @@ stderr '^error: unexpected arguments: extra$'
 # Runtime errors.
 exits 1 invox increment -i missing.yaml
 ! stdout .
-stderr 'missing\.yaml'
+stderr '^error: invoice file missing\.yaml does not exist$'
 ! stderr 'for usage'
 exits 1 invox increment -i foreign.yaml
 ! stdout .

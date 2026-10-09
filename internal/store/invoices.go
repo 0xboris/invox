@@ -18,8 +18,22 @@ import (
 // Load decodes the invoice at path strictly.
 func (s *Store) Load(path string) (invoice.Invoice, error) {
 	var inv invoice.Invoice
-	err := decodeYAMLFile(path, &inv, true)
+	document, err := loadInvoiceDocument(path)
+	if err != nil {
+		return inv, err
+	}
+	err = decodeYAMLDocument(document, path, &inv, true)
 	return inv, err
+}
+
+// loadInvoiceDocument reads the invoice at path. A missing file is a
+// *billing.FileNotFoundError.
+func loadInvoiceDocument(path string) (*yaml.Node, error) {
+	document, err := loadYAMLDocument(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, &billing.FileNotFoundError{File: billing.InvoiceFile, Path: path}
+	}
+	return document, err
 }
 
 // draft is the invoice identity names, with only its customer and the
@@ -190,7 +204,7 @@ func (s *Store) Update(path string, change func(*invoice.Invoice) error) error {
 // Rewrite returns the invoice at path with change applied, as Update
 // writes it.
 func (s *Store) Rewrite(path string, change func(*invoice.Invoice) error) ([]byte, error) {
-	document, err := loadYAMLDocument(path)
+	document, err := loadInvoiceDocument(path)
 	if err != nil {
 		return nil, err
 	}

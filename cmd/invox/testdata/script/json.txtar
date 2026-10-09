@@ -59,7 +59,7 @@ cmp stdout want-huge.json
 # A file that cannot be read is not an invalid invoice: no JSON.
 exits 1 invox validate -i missing.yaml --json valid
 ! stdout .
-stderr 'missing\.yaml'
+stderr '^error: invoice file missing\.yaml does not exist$'
 exits 1 invox validate -i invoice.yaml -c missing.yaml --json valid
 ! stdout .
 stderr '^error: customers file missing\.yaml does not exist$'

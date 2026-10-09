@@ -30,7 +30,12 @@ exits 2 invox render -i invoice.yaml -t nosuch
 ! stdout .
 stderr '^error: template "nosuch" not found; run ''invox template list'' to see the templates$'
 
-# Runtime error: the invoice does not validate; nothing is written.
+# Runtime errors: the invoice does not exist, or does not validate; nothing
+# is written.
+exits 1 invox render -i missing.yaml -o missing.tex
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
+! exists missing.tex
 exits 1 invox render -i foreign.yaml -o foreign.tex
 ! stdout .
 scrubpaths stderr got.txt

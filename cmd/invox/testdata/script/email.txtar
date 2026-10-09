@@ -66,8 +66,12 @@ exits 2 invox email invoice.yaml -p invoice.txt -o draft.eml
 ! stdout .
 stderr '^error: -p, --pdf must end with \.pdf$'
 
-# Runtime errors: the invoice is not built yet, the PDF is missing, and the
-# mail app cannot be opened.
+# Runtime errors: the invoice does not exist or is not built yet, the PDF is
+# missing, and the mail app cannot be opened.
+exits 1 invox email missing.yaml -o missing.eml
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
+! exists missing.eml
 exits 1 invox email draft.yaml -p invoice.pdf -o draft4.eml
 ! stdout .
 scrubpaths stderr got.txt

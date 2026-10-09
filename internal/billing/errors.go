@@ -175,8 +175,8 @@ func (e *ToolFailedError) Error() string {
 }
 func (e *ToolFailedError) Unwrap() error { return e.Err }
 
-// FileNotFoundError means a support file is missing: the one named for
-// this run, at Path, or, when Path is "", any file of its kind. Default is
+// FileNotFoundError means a file invox reads is missing: the one at Path,
+// or, when Path is "", any support file of its kind. Default is
 // where invox looks last, in the config directory. Config is the config
 // file whose paths.* setting named Path, or "". The store wraps that one
 // in a *ConfigError.

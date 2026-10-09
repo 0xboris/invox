@@ -109,6 +109,9 @@ exits 2 invox archive list extra
 stderr '^error: unexpected arguments: extra$'
 
 # Runtime errors.
+exits 1 invox archive add missing.yaml
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
 exits 1 invox archive add draft.yaml
 ! stdout .
 scrubpaths stderr got.txt

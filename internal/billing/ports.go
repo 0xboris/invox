@@ -7,7 +7,8 @@ import (
 	"github.com/0xboris/invox/internal/invoice"
 )
 
-// File is a file invox reads besides the invoice.
+// File is a kind of file invox reads: a support file, config.yaml, or an
+// invoice.
 type File int
 
 const (
@@ -16,10 +17,11 @@ const (
 	DefaultsFile
 	TemplateFile
 	ConfigFile
+	InvoiceFile
 )
 
 func (f File) String() string {
-	return [...]string{"customers", "issuer", "defaults", "template", "config"}[f]
+	return [...]string{"customers", "issuer", "defaults", "template", "config", "invoice"}[f]
 }
 
 // Check says how Create checks the invoice it writes.
@@ -51,7 +53,9 @@ type CreateOptions struct {
 // and layout; TestInvoiceWritesKeepComments pins that.
 type Invoices interface {
 	// Load decodes the invoice at path strictly. Values that do not fit
-	// come back as joined *DecodeError values, with the rest decoded.
+	// come back as joined *DecodeError values, with the rest decoded. A
+	// missing file is a *FileNotFoundError of InvoiceFile, here and in
+	// Update.
 	Load(path string) (invoice.Invoice, error)
 	// Drafts returns the customer and the header's number and status of
 	// the invoices directly in workDir and, when output is set, in the

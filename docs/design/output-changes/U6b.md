@@ -41,3 +41,30 @@ as a file that cannot be read again. Exit code 1, before and after.
 Changed files:
 
 - `cmd/invox/testdata/script/json.txtar`: a new case pins the row.
+
+## An invoice argument that does not exist
+
+`billing.File` gains `InvoiceFile`, and the store's `Load` and `Update` (through `Rewrite`)
+return a `*billing.FileNotFoundError` of it for an invoice file that does not exist. Every verb
+that reads an invoice argument words it the same way. It stays a runtime error (exit 1), like
+a missing support file named on the command line.
+
+| Command | Before | Now |
+| --- | --- | --- |
+| `invox validate /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+| `invox render /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+| `invox build -i /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+| `invox email /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+| `invox increment /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+| `invox archive add /nope.yaml` | `error: open /nope.yaml: no such file or directory` | `error: invoice file /nope.yaml does not exist` |
+
+Changed files (each pins its command's row with a `missing.yaml` case; `validate`,
+`increment` and `json` had one matching only `missing\.yaml`):
+
+- `cmd/invox/testdata/script/validate.txtar`
+- `cmd/invox/testdata/script/render.txtar`
+- `cmd/invox/testdata/script/build.txtar`
+- `cmd/invox/testdata/script/email.txtar`
+- `cmd/invox/testdata/script/increment.txtar`
+- `cmd/invox/testdata/script/archive.txtar`
+- `cmd/invox/testdata/script/json.txtar`
