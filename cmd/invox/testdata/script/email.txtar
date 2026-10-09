@@ -93,9 +93,9 @@ error: email.subject: unknown placeholder {invoice_numbr}
 keep me
 -- invoice.pdf --
 -- want-exists.txt --
-error: existing.eml already exists; pass --force or choose another -o path
+error: existing.eml already exists; pass --force to replace it or choose a different -o/--output path
 -- want-dir.txt --
-error: dir.eml is a directory; choose another -o path
+error: dir.eml is a directory; choose a different -o/--output path
 -- want-force.txt --
 existing.eml
 -- want-force-stderr.txt --

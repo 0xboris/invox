@@ -133,7 +133,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		// for CancelError, so the wrap adds nothing to them.
 		return fmt.Errorf("built %s but failed to archive %s: %w", outputDisplay, invoiceDisplay, stepErr.Err)
 	case err != nil:
-		return cmdutil.UsageError(err)
+		return cmdutil.OutputError(cmdutil.UsageError(err), cmdutil.OutputChoice)
 	}
 	inv := result.Context
 	if result.Archived != nil {

@@ -3,9 +3,7 @@ package email
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -152,7 +150,7 @@ func emailRun(ctx context.Context, opts *EmailOptions) error {
 	}
 	result, err := svc.DraftEmail(ctx, request)
 	if err != nil {
-		return outputExists(cmdutil.UsageError(err), baseDir)
+		return cmdutil.OutputError(cmdutil.UsageError(err), cmdutil.OutputChoice)
 	}
 	shared.WarnUnread(opts.IO, result.Unread, baseDir)
 	message := result.Message
@@ -172,20 +170,6 @@ func emailRun(ctx context.Context, opts *EmailOptions) error {
 		fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(message.Output, baseDir))
 	}
 	return nil
-}
-
-// outputExists words an error about the draft's file for the email
-// command.
-func outputExists(err error, baseDir string) error {
-	var isDir *billing.OutputIsDirError
-	if errors.As(err, &isDir) {
-		return fmt.Errorf("%s is a directory; choose another -o path", cmdutil.DisplayPath(isDir.Path, baseDir))
-	}
-	var pathErr *fs.PathError
-	if errors.Is(err, fs.ErrExist) && errors.As(err, &pathErr) {
-		return fmt.Errorf("%s already exists; pass --force or choose another -o path", cmdutil.DisplayPath(pathErr.Path, baseDir))
-	}
-	return err
 }
 
 func orDefault(value, fallback string) string {

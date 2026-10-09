@@ -101,7 +101,7 @@ func renderRun(_ context.Context, opts *RenderOptions) error {
 
 	ctx, err := svc.Render(billing.RenderRequest{Invoice: invoicePath, Template: opts.Support.Template, Output: outputPath, DryRun: opts.DryRun})
 	if err != nil {
-		return cmdutil.UsageError(err)
+		return cmdutil.OutputError(cmdutil.UsageError(err), cmdutil.OutputChoice)
 	}
 	displayPath := cmdutil.DisplayPath(outputPath, baseDir)
 	verb := "Rendered"

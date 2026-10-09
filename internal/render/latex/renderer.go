@@ -160,8 +160,12 @@ func (Renderer) Render(t billing.Template, ctx *invoice.Context, epc billing.EPC
 }
 
 // Write writes source to path and copies the assets it uses from next to
-// the template, or from the config directories, next to path.
+// the template, or from the config directories, next to path. It returns a
+// *billing.OutputIsDirError when path is a directory.
 func (r Renderer) Write(t billing.Template, source, path string) error {
+	if err := refuseDir(path); err != nil {
+		return err
+	}
 	if err := fsutil.WriteFile(path, []byte(source), fsutil.Public); err != nil {
 		return err
 	}
@@ -196,7 +200,12 @@ func (r Renderer) Write(t billing.Template, source, path string) error {
 
 // Build writes source with t's assets to a scratch directory, named after
 // output, compiles it there with r.Compiler, and copies the PDF to output.
+// It returns a *billing.OutputIsDirError, before compiling, when output is
+// a directory.
 func (r Renderer) Build(ctx context.Context, t billing.Template, source, output string) error {
+	if err := refuseDir(output); err != nil {
+		return err
+	}
 	dir, err := os.MkdirTemp("", "invox-build-")
 	if err != nil {
 		return err
@@ -216,4 +225,13 @@ func (r Renderer) Build(ctx context.Context, t billing.Template, source, output 
 		return err
 	}
 	return fsutil.WriteFile(output, data, fsutil.Public)
+}
+
+// refuseDir returns a *billing.OutputIsDirError when path is a directory or
+// a symlink to one.
+func refuseDir(path string) error {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return &billing.OutputIsDirError{Path: path}
+	}
+	return nil
 }

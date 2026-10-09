@@ -59,3 +59,38 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderRunRefusesADirectoryOutput(t *testing.T) {
+	work := t.TempDir()
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(work, "dir.tex")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ios, _, out, _ := iostreams.Test()
+	err := renderRun(context.Background(), &RenderOptions{
+		IO:          ios,
+		Service:     f.Service,
+		Getwd:       func() (string, error) { return work, nil },
+		InvoicePath: "inv.yaml",
+		OutputPath:  "dir.tex",
+	})
+
+	if want := dir + " is a directory; choose a different -o/--output path"; err == nil || err.Error() != want {
+		t.Fatalf("renderRun error = %v, want %q", err, want)
+	}
+	if out.String() != "" {
+		t.Errorf("stdout = %q, want empty", out.String())
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Errorf("ReadDir(dir.tex) = %v, %v, want it empty", entries, err)
+	}
+}

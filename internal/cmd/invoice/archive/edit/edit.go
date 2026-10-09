@@ -3,7 +3,6 @@ package edit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -91,16 +90,8 @@ func editRun(_ context.Context, opts *EditOptions) error {
 		DryRun:    opts.DryRun,
 	})
 	outputPath, archivePath := edited.Path, edited.Archived
-	var exists *billing.OutputExistsError
-	if errors.As(err, &exists) {
-		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
-	}
-	var isDir *billing.OutputIsDirError
-	if errors.As(err, &isDir) {
-		return fmt.Errorf("%s; choose a different working directory", isDir)
-	}
 	if err != nil {
-		return err
+		return cmdutil.OutputError(err, "a different working directory")
 	}
 
 	verb := "Editing"

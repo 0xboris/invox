@@ -52,7 +52,7 @@ func TestEmailRefusesExistingOutputWithoutForce(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "keep.eml already exists; pass --force or choose another -o path") {
+	if !strings.Contains(stderr, "keep.eml already exists; pass --force to replace it or choose a different -o/--output path") {
 		t.Fatalf("stderr = %q, want an already-exists error with a next step", stderr)
 	}
 	content, err := os.ReadFile(outputPath)

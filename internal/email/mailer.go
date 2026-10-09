@@ -32,9 +32,9 @@ var _ billing.Mailer = Mailer{}
 
 // Draft writes m as an .eml file and opens it: to m.Output, or, for a
 // temporary draft, to a new temporary directory that a draft a day later
-// removes. It returns an *billing.OutputIsDirError when m.Output is a
+// removes. It returns a *billing.OutputIsDirError when m.Output is a
 // directory and, unless m.Overwrite is set, leaves an existing file
-// untouched with an error matching fs.ErrExist. With dryRun it runs the
+// untouched with a *billing.OutputExistsError. With dryRun it runs the
 // same checks and writes nothing.
 func (mailer Mailer) Draft(ctx context.Context, m billing.Message, dryRun bool) (string, error) {
 	if _, err := os.Stat(m.Attachment); err != nil {
@@ -93,11 +93,14 @@ func write(m billing.Message, path string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	writeFile := fsutil.WriteNewFile
 	if overwrite {
-		writeFile = fsutil.WriteFile
+		return fsutil.WriteFile(path, message, fsutil.Public)
 	}
-	return writeFile(path, message, fsutil.Public)
+	err = fsutil.WriteNewFile(path, message, fsutil.Public)
+	if errors.Is(err, fs.ErrExist) {
+		return &billing.OutputExistsError{Path: path}
+	}
+	return err
 }
 
 func checkOutput(path string, overwrite bool) error {
@@ -108,7 +111,7 @@ func checkOutput(path string, overwrite bool) error {
 		return nil
 	}
 	if _, err := os.Lstat(path); err == nil {
-		return &fs.PathError{Op: "write", Path: path, Err: fs.ErrExist}
+		return &billing.OutputExistsError{Path: path}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}

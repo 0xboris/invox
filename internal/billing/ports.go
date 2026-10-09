@@ -252,9 +252,11 @@ type EPC struct {
 type Renderer interface {
 	// Render checks template t and fills it in. It writes nothing.
 	Render(t Template, inv *invoice.Context, epc EPC) (string, error)
-	// Write writes source to path and copies t's assets next to it.
+	// Write writes source to path and copies t's assets next to it. It
+	// returns an *OutputIsDirError when path is a directory.
 	Write(t Template, source, path string) error
-	// Build compiles source, with t's assets, into a PDF at output.
+	// Build compiles source, with t's assets, into a PDF at output. It
+	// returns an *OutputIsDirError when output is a directory.
 	Build(ctx context.Context, t Template, source, output string) error
 }
 

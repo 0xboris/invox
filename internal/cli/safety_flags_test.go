@@ -378,7 +378,7 @@ func TestDryRunFailsWhereTheRunFails(t *testing.T) {
 			}
 			chdirForTest(t, workDir)
 			return []string{"email", "inv.yaml", "-c", customersPath, "-u", issuerPath, "-o", "draft.eml"}, []string{workDir}
-		}, wantStderr: "error: draft.eml already exists; pass --force or choose another -o path\n"},
+		}, wantStderr: "error: draft.eml already exists; pass --force to replace it or choose a different -o/--output path\n"},
 	} {
 		for _, dryRun := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s dry-run=%t", tc.name, dryRun), func(t *testing.T) {

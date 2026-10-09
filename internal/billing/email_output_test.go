@@ -3,7 +3,6 @@ package billing_test
 import (
 	"context"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,8 +37,9 @@ func TestCreateInvoiceEmailDraftRefusesExistingOutputUnlessOverwrite(t *testing.
 	}
 
 	_, err = h.service(t, cmdutil.Files{Customers: customersPath, Issuer: issuerPath}, t.TempDir(), time.Now()).DraftEmail(context.Background(), billing.EmailRequest{Invoice: invoicePath, PDF: pdfPath, Output: outputPath, Keep: true})
-	if !errors.Is(err, fs.ErrExist) {
-		t.Fatalf("CreateInvoiceEmailDraft error = %v, want fs.ErrExist", err)
+	var exists *billing.OutputExistsError
+	if !errors.As(err, &exists) || exists.Path != outputPath {
+		t.Fatalf("CreateInvoiceEmailDraft error = %v, want *billing.OutputExistsError for %s", err, outputPath)
 	}
 	content, err := os.ReadFile(outputPath)
 	if err != nil {

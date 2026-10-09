@@ -70,3 +70,41 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 		})
 	}
 }
+
+// A directory output fails before tectonic runs: the stub runner has no
+// tectonic registered and panics if it is called.
+func TestBuildRunRefusesADirectoryOutputBeforeCompiling(t *testing.T) {
+	work := t.TempDir()
+	ios, _, out, _ := iostreams.Test()
+	f := factorytest.New(t, ios, factorytest.Options{
+		Vars:   map[string]string{"INVOX_CONFIG_DIR": t.TempDir()},
+		Getwd:  func() (string, error) { return work, nil },
+		Runner: runtest.NewStub(t),
+	})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(work, "dir.pdf")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := buildRun(context.Background(), &BuildOptions{
+		IO:          ios,
+		Service:     f.Service,
+		Getwd:       func() (string, error) { return work, nil },
+		InvoicePath: "inv.yaml",
+		OutputPath:  "dir.pdf",
+	})
+
+	if want := dir + " is a directory; choose a different -o/--output path"; err == nil || err.Error() != want {
+		t.Fatalf("buildRun error = %v, want %q", err, want)
+	}
+	if out.String() != "" {
+		t.Errorf("stdout = %q, want empty", out.String())
+	}
+}
