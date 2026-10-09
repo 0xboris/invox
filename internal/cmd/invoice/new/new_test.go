@@ -16,11 +16,10 @@ import (
 
 func TestNewCmdNewParsing(t *testing.T) {
 	tests := []struct {
-		name       string
-		args       []string
-		want       NewOptions
-		wantStderr string
-		wantErr    string
+		name    string
+		args    []string
+		want    NewOptions
+		wantErr string
 	}{
 		{name: "customer only", args: []string{"CUST-001"}, want: NewOptions{CustomerID: "CUST-001"}},
 		{
@@ -33,8 +32,8 @@ func TestNewCmdNewParsing(t *testing.T) {
 			args: []string{"--output=out.yaml", "--defaults=d.yaml", "--customers", "c.yaml", "--issuer", "i.yaml", "--edit", "CUST-001"},
 			want: NewOptions{CustomerID: "CUST-001", OutputPath: "out.yaml", DefaultsPath: "d.yaml", CustomersPath: "c.yaml", IssuerPath: "i.yaml", Edit: true},
 		},
-		{name: "deprecated -s", args: []string{"CUST-001", "-s", "d.yaml"}, want: NewOptions{CustomerID: "CUST-001", DefaultsPath: "d.yaml"}, wantStderr: "warning: -s, --source is deprecated; use --defaults\n"},
-		{name: "deprecated --source", args: []string{"--source", "d.yaml", "CUST-001"}, want: NewOptions{CustomerID: "CUST-001", DefaultsPath: "d.yaml"}, wantStderr: "warning: -s, --source is deprecated; use --defaults\n"},
+		{name: "removed -s", args: []string{"CUST-001", "-s", "d.yaml"}, wantErr: "unknown shorthand flag: -s"},
+		{name: "removed --source", args: []string{"--source", "d.yaml", "CUST-001"}, wantErr: "unknown flag: --source; did you mean --force?"},
 		{name: "missing customer", args: []string{}, wantErr: "missing required arguments: CUSTOMER_ID"},
 		{name: "dangling output", args: []string{"CUST-001", "-o"}, wantErr: "flag needs an argument: -o"},
 		{name: "misspelt flag", args: []string{"CUST-001", "--form-last"}, wantErr: "unknown flag: --form-last; did you mean --from-last?"},
@@ -72,8 +71,8 @@ func TestNewCmdNewParsing(t *testing.T) {
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}
-			if errOut.String() != tc.wantStderr {
-				t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantStderr)
+			if errOut.String() != "" {
+				t.Errorf("stderr = %q, want empty", errOut.String())
 			}
 		})
 	}

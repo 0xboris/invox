@@ -6,12 +6,16 @@ exits 2 invox init --forse
 cmp stderr want-misspelt.txt
 ! exists home/.config/invox/config.yaml
 
-# A single-dash long flag works and warns.
-exec invox init -force
+# A single-dash long flag is a usage error that names the double-dash one,
+# and nothing is written.
+exits 2 invox init -force
 ! stdout .
-stderr '^warning: -force is deprecated; use --force$'
-stderr '^created config.yaml$'
+cmp stderr want-single-dash.txt
+! exists home/.config/invox/config.yaml
 
 -- want-misspelt.txt --
 error: unknown flag: --forse; did you mean --force?
+Run 'invox init --help' for usage.
+-- want-single-dash.txt --
+error: -force is not a flag; use --force
 Run 'invox init --help' for usage.

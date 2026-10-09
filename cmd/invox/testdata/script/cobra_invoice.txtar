@@ -24,14 +24,15 @@ exits 2 invox validate --archiv
 stderr '^error: unknown flag: --archiv$'
 stderr '^Run ''invox validate --help'' for usage\.$'
 
-# Single-dash long flags work and warn. The files don't exist, so validate
-# then fails at run time.
-exits 1 invox validate -input missing.yaml -customers missing.yaml -issuer missing.yaml
+# A single-dash long flag is a usage error that names the double-dash one.
+# pflag would otherwise read -output=x.pdf as -o utput=x.pdf.
+exits 2 invox validate -input missing.yaml -customers missing.yaml -issuer missing.yaml
 ! stdout .
-stderr 'missing\.yaml'
-stderr '^warning: -input is deprecated; use --input$'
-stderr '^warning: -customers is deprecated; use --customers$'
-stderr '^warning: -issuer is deprecated; use --issuer$'
+cmp stderr want-single-dash.txt
+exits 2 invox build -output=x.pdf
+! stdout .
+cmp stderr want-single-dash-output.txt
+! exists utput=x.pdf
 
 -- want-dangling.txt --
 error: flag needs an argument: -o
@@ -42,3 +43,9 @@ Run 'invox new --help' for usage.
 -- want-dashdash.txt --
 error: unexpected arguments: --from-last
 Run 'invox new --help' for usage.
+-- want-single-dash.txt --
+error: -input is not a flag; use --input
+Run 'invox validate --help' for usage.
+-- want-single-dash-output.txt --
+error: -output is not a flag; use --output
+Run 'invox build --help' for usage.

@@ -1,5 +1,4 @@
-// Package email is the `invox email` command, also run as the deprecated
-// `invox send`.
+// Package email is the `invox email` command.
 package email
 
 import (
@@ -43,9 +42,9 @@ type EmailOptions struct {
 func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
 	opts := &EmailOptions{IO: f.IOStreams, Opener: f.Opener, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
-		Use:     "email [INVOICE.yaml | INVOICE.pdf]",
-		Aliases: []string{"send"},
-		Short:   "Create an email draft and open it in the default mail app",
+		Use:        "email [INVOICE.yaml | INVOICE.pdf]",
+		SuggestFor: []string{"send"},
+		Short:      "Create an email draft and open it in the default mail app",
 		Long: `Create an email draft and open it in the default mail app.
 
 Required inputs:
@@ -81,9 +80,6 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 			return shared.TakeInput("email", opts.Getwd, &opts.InvoicePath, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.CalledAs() == "send" {
-				fmt.Fprintln(opts.IO.ErrOut, "warning: send only drafts an email; use 'invox email'")
-			}
 			if err := validate(opts); err != nil {
 				return err
 			}

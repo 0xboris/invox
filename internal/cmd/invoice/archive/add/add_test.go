@@ -16,8 +16,6 @@ import (
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
-// Each case runs as `archive add ARGS` and as `archive ARGS`, its deprecated
-// form, which warns before it runs.
 func TestNewCmdAddParsing(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -36,60 +34,45 @@ func TestNewCmdAddParsing(t *testing.T) {
 		{name: "misspelt flag", args: []string{"x.yaml", "--yse"}, wantErr: "unknown flag: --yse; did you mean --yes?"},
 		{name: "after --", args: []string{"x.yaml", "--", "--yes"}, wantErr: "unexpected arguments: --yes"},
 	}
-	for _, form := range []struct {
-		path        []string
-		command     string
-		wantWarning string
-	}{
-		{path: []string{"archive", "add"}, command: "archive add"},
-		{path: []string{"archive"}, command: "archive", wantWarning: "warning: archive FILE is deprecated; use archive add FILE\n"},
-	} {
-		for _, tc := range tests {
-			t.Run(form.command+"/"+tc.name, func(t *testing.T) {
-				ios, _, _, errOut := iostreams.Test()
-				f := factory.New(ios, run.Exec{}, env.System())
-				var got *AddOptions
-				runF := func(_ context.Context, opts *AddOptions) error {
-					got = opts
-					return nil
-				}
-				archive := &cobra.Command{Use: "archive"}
-				Configure(archive, f, runF, true)
-				archive.AddCommand(NewCmdAdd(f, runF))
-				root := &cobra.Command{Use: "invox"}
-				root.AddCommand(archive)
-				root.SetFlagErrorFunc(cmdutil.FlagErrorFunc)
-				root.SetOut(io.Discard)
-				root.SetErr(io.Discard)
-				root.SetArgs(append(append([]string{}, form.path...), tc.args...))
-				err := root.Execute()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, errOut := iostreams.Test()
+			var got *AddOptions
+			archive := &cobra.Command{Use: "archive"}
+			archive.AddCommand(NewCmdAdd(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *AddOptions) error {
+				got = opts
+				return nil
+			}))
+			root := &cobra.Command{Use: "invox"}
+			root.AddCommand(archive)
+			root.SetFlagErrorFunc(cmdutil.FlagErrorFunc)
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(append([]string{"archive", "add"}, tc.args...))
+			err := root.Execute()
 
-				if tc.wantErr != "" {
-					var flagErr *cmdutil.FlagError
-					if !errors.As(err, &flagErr) || flagErr.Command != form.command || err.Error() != tc.wantErr || got != nil {
-						t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for %s: %q and no run", err, got != nil, form.command, tc.wantErr)
-					}
-					if errOut.String() != "" {
-						t.Errorf("stderr = %q, want nothing", errOut.String())
-					}
-					return
+			if tc.wantErr != "" {
+				var flagErr *cmdutil.FlagError
+				if !errors.As(err, &flagErr) || flagErr.Command != "archive add" || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for archive add: %q and no run", err, got != nil, tc.wantErr)
 				}
-				if err != nil {
-					t.Fatalf("Execute returned error: %v", err)
+				if errOut.String() != "" {
+					t.Errorf("stderr = %q, want nothing", errOut.String())
 				}
-				if got == nil {
-					t.Fatal("runF did not run")
-				}
-				if parsed := (AddOptions{InvoicePath: got.InvoicePath, Yes: got.Yes, DryRun: got.DryRun}); !reflect.DeepEqual(parsed, tc.want) {
-					t.Errorf("parsed %+v, want %+v", parsed, tc.want)
-				}
-				if got.Command != form.command {
-					t.Errorf("Command = %q, want %q", got.Command, form.command)
-				}
-				if errOut.String() != form.wantWarning {
-					t.Errorf("stderr = %q, want %q", errOut.String(), form.wantWarning)
-				}
-			})
-		}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Execute returned error: %v", err)
+			}
+			if got == nil {
+				t.Fatal("runF did not run")
+			}
+			if parsed := (AddOptions{InvoicePath: got.InvoicePath, Yes: got.Yes, DryRun: got.DryRun}); !reflect.DeepEqual(parsed, tc.want) {
+				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
+			}
+			if errOut.String() != "" {
+				t.Errorf("stderr = %q, want nothing", errOut.String())
+			}
+		})
 	}
 }

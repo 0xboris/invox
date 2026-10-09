@@ -14,10 +14,9 @@ exec invox -h
 scrubpaths stdout got.txt
 cmp got.txt want-root.txt
 ! stderr .
-exec invox -help
-scrubpaths stdout got.txt
-cmp got.txt want-root.txt
-cmp stderr want-help-warning.txt
+exits 2 invox -help
+! stdout .
+cmp stderr want-help-single-dash.txt
 
 # Documentation topics.
 exec invox help customers
@@ -74,14 +73,6 @@ exec invox customer edit -h
 scrubpaths stdout got.txt
 cmp got.txt want-customer-edit.txt
 
-# The deprecated customer config keeps its own help page.
-exec invox help customer config
-scrubpaths stdout got.txt
-cmp got.txt want-customer-config.txt
-! stderr .
-exec invox customer config -h
-scrubpaths stdout got.txt
-cmp got.txt want-customer-config.txt
 exec invox config --help
 scrubpaths stdout got.txt
 cmp got.txt want-config.txt
@@ -153,13 +144,6 @@ cmp got.txt want-email.txt
 exec invox email --help
 scrubpaths stdout got.txt
 cmp got.txt want-email.txt
-# send, the deprecated alias of email, prints the email help.
-exec invox help send
-scrubpaths stdout got.txt
-cmp got.txt want-email.txt
-exec invox send --help
-scrubpaths stdout got.txt
-cmp got.txt want-email.txt
 exec invox help build
 scrubpaths stdout got.txt
 cmp got.txt want-build.txt
@@ -174,6 +158,10 @@ cmp got.txt want-archive.txt
 exec invox archive --help
 scrubpaths stdout got.txt
 cmp got.txt want-archive.txt
+exec invox archive
+scrubpaths stdout got.txt
+cmp got.txt want-archive.txt
+! stderr .
 
 exec invox help archive add
 scrubpaths stdout got.txt
@@ -866,82 +854,6 @@ Examples:
   $ invox customer list
   $ invox customer list -c customers.yaml
   $ invox customer list --json id,email
--- want-customer-config.txt --
-Open customers.yaml in your editor.
-
-Default lookup:
-  customers.yaml: upward project search, then $WORK/home/.config/invox/customers.yaml
-  schema/docs: run `invox help customers`
-
-Customer fields:
-  customers.yaml maps CUSTOMER_ID keys to customer data.
-  Use the preferred paths below unless you need an alternate supported path.
-
-Preferred fields:
-  <customer>.name                     Preferred display name used on invoices and in emails
-  <customer>.status                   Optional status shown by customer list
-  <customer>.contact_person           Preferred contact used by email templates
-  <customer>.email_greeting           Preferred greeting used by email templates
-  <customer>.email                    Invoice email when billing.send_invoice_to is unset
-  <customer>.address.street           Billing address street
-  <customer>.address.postal_code      Billing address postal code
-  <customer>.address.city             Billing address city
-  <customer>.address.country          Billing address country
-  <customer>.tax.vat_tax_id           VAT number shown on the invoice
-  <customer>.tax.default_vat_rate     Optional default VAT used by new/validate/render/build/email
-  <customer>.billing.send_invoice_to  Preferred invoice-recipient email override
-  <customer>.billing.currency         Optional billing currency, defaults to EUR
-  <customer>.numbering.code           Value used by {customer_code}
-  <customer>.numbering.start          Override numbering.start for this customer
-
-Alternate supported paths:
-  <customer>.legal_company_name       Alternate path for the customer display name
-  <customer>.billing.email            Alternate path for the invoice email
-  <customer>.billing.contact_person   Alternate path for the customer contact
-  <customer>.billing.email_greeting   Alternate path for the email greeting
-  <customer>.currency                 Alternate path for billing.currency
-
-customers.yaml example:
-CUST-001:
-  name: Appsters GmbH
-  status: active
-  contact_person: Jane Doe
-  email_greeting: Dear Jane Doe,
-  email: office@appsters.example
-  address:
-    street: Hauptstrasse 1
-    postal_code: "1010"
-    city: Vienna
-    country: Austria
-  tax:
-    vat_tax_id: ATU12345678
-    default_vat_rate: 20
-  billing:
-    send_invoice_to: accounting@appsters.example
-    currency: EUR
-    # email: invoices@appsters.example
-    # contact_person: Jane Billing
-    # email_greeting: Dear Accounts Team,
-  numbering:
-    code: APP
-    start: 100
-  # legal_company_name: Appsters GmbH
-  # currency: EUR
-
-Usage:
-  invox customer config [flags]
-
-Flags:
-  -c, --customers string   Path to customers.yaml
-
-Global flags:
-      --config string   Read this config file instead of config.yaml
-  -h, --help            Show help for a command
-      --no-input        Never prompt or open an editor; fail with exit 2 instead
-
-Examples:
-  $ invox customer edit
-  $ invox customer edit -c customers.yaml
 -- want-init.txt --
 Create starter support files in the global config directory.
 
@@ -1412,8 +1324,9 @@ Global flags:
 Examples:
   $ invox version
   $ invox --version
--- want-help-warning.txt --
-warning: -help is deprecated; use --help
+-- want-help-single-dash.txt --
+error: -help is not a flag; use --help
+Run 'invox --help' for usage.
 -- want-customer-edit.txt --
 Open customers.yaml in your editor.
 

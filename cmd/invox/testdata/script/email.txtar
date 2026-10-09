@@ -38,10 +38,11 @@ exec invox email invoice.pdf -o draft2.eml --to someone@example.com --subject 'R
 cmp stdout want-email-to.txt
 cmp stderr want-email-to-stderr.txt
 
-# send is an alias.
-exec invox send -i invoice.yaml -o draft3.eml
-cmp stdout want-send.txt
-cmp stderr want-send-stderr.txt
+# send is not a command.
+exits 2 invox send -i invoice.yaml -o draft3.eml
+! stdout .
+cmp stderr want-send.txt
+! exists draft3.eml
 
 # Without -o, the draft goes into a new temporary directory, which a later run
 # removes after 24 hours; the default <input>.eml is not written. macOS
@@ -105,11 +106,8 @@ Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
 fake open: invoice.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-send.txt --
-draft3.eml
--- want-send-stderr.txt --
-warning: send only drafts an email; use 'invox email'
-fake open: draft3.eml
-Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+error: unknown subcommand "send"; did you mean "email"?
+Run 'invox --help' for usage.
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
 Run 'invox email --help' for usage.

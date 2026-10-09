@@ -10,7 +10,6 @@ func TestCustomerAndConfigHelpMatchesHelpCommand(t *testing.T) {
 		{topic: []string{"help", "customer"}, requests: [][]string{{"customer"}, {"customer", "-h"}, {"customer", "--help"}}},
 		{topic: []string{"help", "customer", "list"}, requests: [][]string{{"customer", "list", "-h"}, {"customer", "list", "-c", "x.yaml", "--help"}}},
 		{topic: []string{"help", "customer", "edit"}, requests: [][]string{{"customer", "edit", "-h"}}},
-		{topic: []string{"help", "customer", "config"}, requests: [][]string{{"customer", "config", "-h"}}},
 		{topic: []string{"help", "config"}, requests: [][]string{{"config", "-h"}, {"config", "--help"}}},
 		{topic: []string{"help", "config", "edit"}, requests: [][]string{{"config", "edit", "-h"}}},
 		{topic: []string{"help", "config", "paths"}, requests: [][]string{{"config", "paths", "-h"}}},

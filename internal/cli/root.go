@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -73,7 +72,15 @@ $ invox archive edit 2026-0001.yaml
 	root.SetIn(ios.In)
 	root.SetOut(ios.Out)
 	root.SetErr(ios.ErrOut)
-	root.SetFlagErrorFunc(cmdutil.FlagErrorFunc)
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		// In `invox send --to x`, the unknown subcommand is the error.
+		if cmd == root {
+			if rest := cmd.Flags().Args(); len(rest) > 0 {
+				return unknownSubcommand(cmd, rest[0])
+			}
+		}
+		return cmdutil.FlagErrorFunc(cmd, err)
+	})
 
 	root.PersistentFlags().String("config", "", "Read this config file instead of config.yaml")
 	root.PersistentFlags().Bool("no-input", false, "Never prompt or open an editor; fail with exit 2 instead")
@@ -113,7 +120,7 @@ $ invox archive edit 2026-0001.yaml
 		&cobra.Group{ID: "setup", Title: "Setup commands"},
 	)
 	root.AddCommand(
-		archivecmd.NewCmdArchive(f, nil),
+		archivecmd.NewCmdArchive(f),
 		configcmd.NewCmdConfig(f, nil),
 		buildcmd.NewCmdBuild(f, nil),
 		newCmdCompletion(),
@@ -195,61 +202,48 @@ func versionFlagToCommand(args []string) []string {
 	return args
 }
 
-// normalizeLongFlags rewrites the single-dash long flags of the command args
-// run, such as -names, to their double-dash form, and warns about each on w.
-func normalizeLongFlags(root *cobra.Command, args []string, w io.Writer) []string {
-	cmd, _, err := root.Find(args)
-	if err != nil {
-		return args
-	}
+// checkSingleDashFlags returns the usage error for the first single-dash word
+// of three or more characters in args that pflag would misread as a group of
+// shorthand flags: one naming a long flag of the command args run, such as
+// -names, or one whose first letter is no shorthand. pflag would read
+// -output=x.pdf as -o utput=x.pdf. A real group such as -ofile.yaml passes.
+func checkSingleDashFlags(root *cobra.Command, args []string) error {
+	// Find fails only on an unknown command, which cobra reports when it runs
+	// args, and it still returns the command it got to.
+	cmd, _, _ := root.Find(args)
 	cmd.InitDefaultHelpFlag()
-	lookup := func(name string) *pflag.Flag {
-		if flag := cmd.Flags().Lookup(name); flag != nil {
-			return flag
-		}
-		return cmd.InheritedFlags().Lookup(name)
-	}
-	takesValue := func(flag *pflag.Flag, arg string) bool {
-		return flag != nil && flag.NoOptDefVal == "" && !strings.Contains(arg, "=")
-	}
+	flags := pflag.NewFlagSet(cmd.Name(), pflag.ContinueOnError)
+	flags.AddFlagSet(cmd.Flags())
+	flags.AddFlagSet(cmd.InheritedFlags())
 
-	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if arg == "--" {
-			return append(out, args[i:]...)
-		}
 		var flag *pflag.Flag
 		switch {
+		case arg == "--":
+			return nil
+		case cmd == root && !strings.HasPrefix(arg, "-"):
+			// An unknown subcommand, which cobra reports.
+			return nil
 		case strings.HasPrefix(arg, "--"):
 			name, _, _ := strings.Cut(arg[2:], "=")
-			flag = lookup(name)
+			flag = flags.Lookup(name)
 		case len(arg) == 2 && arg[0] == '-':
-			flag = cmd.Flags().ShorthandLookup(arg[1:])
-			if flag == nil {
-				flag = cmd.InheritedFlags().ShorthandLookup(arg[1:])
-			}
-		case len(arg) > 2 && arg[0] == '-':
+			flag = flags.ShorthandLookup(arg[1:])
+		case len(arg) > 2 && arg[0] == '-' && isLetter(arg[1]):
 			name, _, _ := strings.Cut(arg[1:], "=")
-			if flag = lookup(name); flag != nil {
-				// A deprecated flag warns about itself, once.
-				if _, deprecated := flag.Annotations[cmdutil.DeprecatedFlagAnnotation]; !deprecated {
-					cmdutil.WarnDeprecated(w, "-"+name, "--"+name)
-				}
-				arg = "-" + arg
-			} else if isLetter(arg[1]) && cmd.Flags().ShorthandLookup(arg[1:2]) == nil && cmd.InheritedFlags().ShorthandLookup(arg[1:2]) == nil {
-				// Not a shorthand cluster such as -ofile.yaml: report it as
-				// the unknown long flag it looks like, with a suggestion.
-				arg = "-" + arg
+			if flags.Lookup(name) != nil {
+				return cmdutil.FlagErrorf(cmdutil.CommandPath(cmd), "-%s is not a flag; use --%s", name, name)
+			}
+			if flags.ShorthandLookup(arg[1:2]) == nil {
+				return cmdutil.FlagErrorFunc(cmd, fmt.Errorf("unknown flag: -%s", name))
 			}
 		}
-		out = append(out, arg)
-		if takesValue(flag, arg) && i+1 < len(args) {
+		if flag != nil && flag.NoOptDefVal == "" && !strings.Contains(arg, "=") {
 			i++
-			out = append(out, args[i])
 		}
 	}
-	return out
+	return nil
 }
 
 func isLetter(b byte) bool {

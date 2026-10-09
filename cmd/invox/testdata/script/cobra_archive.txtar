@@ -21,11 +21,10 @@ exits 2 invox archive list --bogus
 stderr '^error: unknown flag: --bogus$'
 stderr '^Run ''invox archive list --help'' for usage\.$'
 
-# A single-dash long flag works and warns. F.yaml doesn't exist, so archive
-# then fails at run time.
-exits 1 invox archive add F.yaml -yes
+# A single-dash long flag is a usage error that names the double-dash one.
+exits 2 invox archive add F.yaml -yes
 ! stdout .
-stderr '^warning: -yes is deprecated; use --yes$'
+cmp stderr want-single-dash.txt
 
 -- want-misspelt.txt --
 error: unknown flag: --yse; did you mean --yes?
@@ -35,4 +34,7 @@ error: the INVOICE argument F.yaml and -i, --input x.yaml name different files; 
 Run 'invox archive add --help' for usage.
 -- want-dangling.txt --
 error: flag needs an argument: -i
+Run 'invox archive add --help' for usage.
+-- want-single-dash.txt --
+error: -yes is not a flag; use --yes
 Run 'invox archive add --help' for usage.

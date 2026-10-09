@@ -39,7 +39,10 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 	root, helpErr := newRootCmd(f)
 	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
 		// A completion request passes the words typed so far as they are.
-		args = versionFlagToCommand(normalizeLongFlags(root, args, f.IOStreams.ErrOut))
+		if err := checkSingleDashFlags(root, args); err != nil {
+			return exitCode(f.IOStreams, err)
+		}
+		args = versionFlagToCommand(args)
 	}
 	root.SetArgs(args)
 	_, err := root.ExecuteContextC(ctx)

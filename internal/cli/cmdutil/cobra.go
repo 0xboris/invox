@@ -12,14 +12,14 @@ import (
 
 // FlagErrorFunc turns a cobra flag-parsing error into a *FlagError for cmd.
 // --json without a value is the exception: it lists the fields and exits 1.
-// An unknown long flag gets the closest flag name as a suggestion. An error
+// An unknown flag gets the closest long flag name as a suggestion. An error
 // in a global flag points to the root help, which documents it.
 func FlagErrorFunc(cmd *cobra.Command, err error) error {
 	if jsonErr := jsonFlagWithoutValue(cmd, err); jsonErr != nil {
 		return jsonErr
 	}
-	if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
-		if suggestion := closestFlag(cmd, name); suggestion != "" {
+	if name, ok := strings.CutPrefix(err.Error(), "unknown flag: -"); ok {
+		if suggestion := closestFlag(cmd, strings.TrimPrefix(name, "-")); suggestion != "" {
 			err = fmt.Errorf("%w; did you mean --%s?", err, suggestion)
 		}
 	}
@@ -78,25 +78,15 @@ func CommandPath(cmd *cobra.Command) string {
 }
 
 // closestFlag returns the name of cmd's flag nearest to name, or "" when none
-// is within two edits. A hidden flag, such as a deprecated one or one of a
-// deprecated command form, is suggested only when no visible flag is close.
+// is within two edits.
 func closestFlag(cmd *cobra.Command, name string) string {
-	closest := func(hidden bool) string {
-		best, bestDistance := "", 3
-		cmd.Flags().VisitAll(func(f *pflag.Flag) {
-			if f.Hidden != hidden {
-				return
-			}
-			if d := editDistance(name, f.Name); d < bestDistance {
-				best, bestDistance = f.Name, d
-			}
-		})
-		return best
-	}
-	if best := closest(false); best != "" {
-		return best
-	}
-	return closest(true)
+	best, bestDistance := "", 3
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if d := editDistance(name, f.Name); d < bestDistance {
+			best, bestDistance = f.Name, d
+		}
+	})
+	return best
 }
 
 // editDistance is the Levenshtein distance between a and b.

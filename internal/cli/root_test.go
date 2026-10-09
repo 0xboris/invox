@@ -3,81 +3,124 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
 
-func TestNormalizeLongFlags(t *testing.T) {
+// A single-dash word that names a long flag, or that starts with no
+// shorthand, is a usage error. Nothing is rewritten, so -output=x.pdf can't
+// become -o utput=x.pdf.
+func TestSingleDashLongFlagsFail(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     []string
-		want     []string
-		wantWarn string
+		name       string
+		args       []string
+		wantStderr string
 	}{
 		{
-			name:     "single-dash long flag",
-			args:     []string{"template", "list", "-names"},
-			want:     []string{"template", "list", "--names"},
-			wantWarn: "warning: -names is deprecated; use --names\n",
+			name:       "long flag",
+			args:       []string{"template", "list", "-names"},
+			wantStderr: "error: -names is not a flag; use --names\nRun 'invox template list --help' for usage.\n",
 		},
 		{
-			name:     "single-dash long flag with value",
-			args:     []string{"template", "list", "-names=false"},
-			want:     []string{"template", "list", "--names=false"},
-			wantWarn: "warning: -names is deprecated; use --names\n",
+			name:       "long flag with value",
+			args:       []string{"template", "list", "-names=false"},
+			wantStderr: "error: -names is not a flag; use --names\nRun 'invox template list --help' for usage.\n",
 		},
 		{
-			name: "global flags",
-			args: []string{"-no-input", "template", "list", "-config", "-names"},
-			want: []string{"--no-input", "template", "list", "--config", "-names"},
-			wantWarn: "warning: -no-input is deprecated; use --no-input\n" +
-				"warning: -config is deprecated; use --config\n",
+			name:       "long flag that has a shorthand",
+			args:       []string{"new", "CUST-001", "-output=x.pdf"},
+			wantStderr: "error: -output is not a flag; use --output\nRun 'invox new --help' for usage.\n",
 		},
 		{
-			name:     "help flag",
-			args:     []string{"version", "-help"},
-			want:     []string{"version", "--help"},
-			wantWarn: "warning: -help is deprecated; use --help\n",
+			name:       "global flag",
+			args:       []string{"-no-input", "template", "list"},
+			wantStderr: "error: -no-input is not a flag; use --no-input\nRun 'invox template list --help' for usage.\n",
 		},
 		{
-			name: "double-dash and shorthand flags",
-			args: []string{"template", "list", "--names", "-h"},
-			want: []string{"template", "list", "--names", "-h"},
+			name:       "help flag",
+			args:       []string{"version", "-help"},
+			wantStderr: "error: -help is not a flag; use --help\nRun 'invox version --help' for usage.\n",
 		},
 		{
-			name: "after --",
-			args: []string{"template", "list", "--", "-names"},
-			want: []string{"template", "list", "--", "-names"},
+			name:       "version flag on the root",
+			args:       []string{"-version"},
+			wantStderr: "error: -version is not a flag; use --version\nRun 'invox --help' for usage.\n",
 		},
 		{
-			name: "unknown single-dash flag",
-			args: []string{"template", "list", "-bogus"},
-			want: []string{"template", "list", "--bogus"},
+			name:       "unknown word",
+			args:       []string{"template", "list", "-bogus"},
+			wantStderr: "error: unknown flag: -bogus\nRun 'invox template list --help' for usage.\n",
 		},
 		{
-			name: "shorthand cluster and negative number",
-			args: []string{"template", "list", "-hx", "-5"},
-			want: []string{"template", "list", "-hx", "-5"},
+			name:       "after an unknown subcommand",
+			args:       []string{"send", "-input", "x.pdf", "--to", "a@example.com"},
+			wantStderr: "error: unknown subcommand \"send\"; did you mean \"email\"?\nRun 'invox --help' for usage.\n",
 		},
 		{
-			name: "unknown word on the help command",
-			args: []string{"help", "-names"},
-			want: []string{"help", "--names"},
+			name:       "after --",
+			args:       []string{"template", "list", "--", "-names"},
+			wantStderr: "error: unexpected arguments: -names\nRun 'invox template list --help' for usage.\n",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			f, _ := testFactory(t)
-			var warn bytes.Buffer
-			root, _ := newRootCmd(f)
-			got := normalizeLongFlags(root, tc.args, &warn)
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("args = %q, want %q", got, tc.want)
+			dir := t.TempDir()
+			chdirForTest(t, dir)
+			exitCode, stdout, stderr := captureRun(t, tc.args)
+			if exitCode != 2 {
+				t.Errorf("exit code = %d, want 2", exitCode)
 			}
-			if warn.String() != tc.wantWarn {
-				t.Errorf("warnings = %q, want %q", warn.String(), tc.wantWarn)
+			if stdout != "" {
+				t.Errorf("stdout = %q, want empty", stdout)
+			}
+			if stderr != tc.wantStderr {
+				t.Errorf("stderr = %q, want %q", stderr, tc.wantStderr)
+			}
+			if entries, _ := os.ReadDir(dir); len(entries) > 0 {
+				t.Errorf("the working directory has %s, want nothing written", entries[0].Name())
 			}
 		})
+	}
+}
+
+// pflag alone reads -output=x.yaml as -o utput=x.yaml, so new would write
+// utput=x.yaml.
+func TestSingleDashOutputWritesNothing(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-output=x.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	if want := "error: -output is not a flag; use --output\nRun 'invox new --help' for usage.\n"; exitCode != 2 || stdout != "" || stderr != want {
+		t.Fatalf("new -output=x.yaml = (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, want)
+	}
+	if entries, _ := os.ReadDir(workDir); len(entries) > 0 {
+		t.Fatalf("new -output=x.yaml wrote %s, want nothing written", entries[0].Name())
+	}
+}
+
+// A shorthand with its value attached, and a flag value that starts with a
+// dash, are not single-dash long flags.
+func TestShorthandGroupsStillWork(t *testing.T) {
+	customersPath, issuerPath, defaultsPath := writeDraftFixtures(t)
+	writeConfigFile(t, "numbering:\n  pattern: '{customer_id}-{counter:03}'\n  start: 2\n")
+	workDir := t.TempDir()
+	chdirForTest(t, workDir)
+
+	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-ofile.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	if want := "Created file.yaml for CUST-001 (CUST-001-002)\n"; exitCode != 0 || stdout != "file.yaml\n" || stderr != want {
+		t.Fatalf("new -ofile.yaml = (%d, %q, %q), want (0, %q, %q)", exitCode, stdout, stderr, "file.yaml\n", want)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, "file.yaml")); err != nil {
+		t.Fatalf("new -ofile.yaml did not write file.yaml: %v", err)
+	}
+
+	exitCode, stdout, stderr = captureRun(t, []string{"new", "CUST-001", "-n", "-o", "-names.yaml", "-c", customersPath, "-u", issuerPath, "--defaults", defaultsPath})
+	if want := "Would create -names.yaml for CUST-001 (CUST-001-003)\n"; exitCode != 0 || stdout != "-names.yaml\n" || stderr != want {
+		t.Fatalf("new -o -names.yaml = (%d, %q, %q), want (0, %q, %q)", exitCode, stdout, stderr, "-names.yaml\n", want)
 	}
 }
 
@@ -113,7 +156,7 @@ func TestCobraCommandUsageErrors(t *testing.T) {
 		{
 			name:       "unknown single-dash long flag",
 			args:       []string{"template", "list", "-nmaes"},
-			wantStderr: "error: unknown flag: --nmaes; did you mean --names?\nRun 'invox template list --help' for usage.\n",
+			wantStderr: "error: unknown flag: -nmaes; did you mean --names?\nRun 'invox template list --help' for usage.\n",
 		},
 		{
 			name:       "invalid boolean",

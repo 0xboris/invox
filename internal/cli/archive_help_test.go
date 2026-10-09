@@ -7,7 +7,8 @@ func TestArchiveHelpMatchesHelpCommand(t *testing.T) {
 		topic    []string
 		requests [][]string
 	}{
-		{topic: []string{"help", "archive"}, requests: [][]string{{"archive", "-h"}, {"archive", "x.yaml", "--yes", "--help"}}},
+		{topic: []string{"help", "archive"}, requests: [][]string{{"archive"}, {"archive", "-h"}, {"archive", "--help"}}},
+		{topic: []string{"help", "archive", "add"}, requests: [][]string{{"archive", "add", "-h"}, {"archive", "add", "x.yaml", "--yes", "--help"}}},
 		{topic: []string{"help", "archive", "edit"}, requests: [][]string{{"archive", "edit", "-h"}, {"archive", "edit", "x.yaml", "--help"}}},
 		{topic: []string{"help", "archive", "list"}, requests: [][]string{{"archive", "list", "-h"}}},
 	} {

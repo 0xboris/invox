@@ -88,7 +88,7 @@ grep '^  status: draft$' CUST-001-010.yaml
 grep '^  - name: Development$' CUST-001-010.yaml
 
 # Usage errors.
-exits 2 invox archive
+exits 2 invox archive add
 ! stdout .
 cmp stderr want-missing-input.txt
 exits 2 invox archive add a.yaml b.yaml
@@ -203,7 +203,7 @@ home/.config/invox/archive/invoice.yaml
 Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-Run 'invox archive --help' for usage.
+Run 'invox archive add --help' for usage.
 -- want-edit-missing.txt --
 error: missing required arguments: FILENAME
 Run 'invox archive edit --help' for usage.

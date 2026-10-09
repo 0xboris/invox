@@ -14,8 +14,7 @@ import (
 
 // writeHelp writes the help page of cmd, all of it generated from the
 // command tree: the Long text (or the Short one), then usage, subcommands,
-// flags and examples. Command aliases are deprecated names, so it leaves
-// them out. The root page also lists the help topics.
+// flags and examples. The root page also lists the help topics.
 func writeHelp(w io.Writer, cmd *cobra.Command, l billing.Locations) error {
 	description := cmd.Long
 	if description == "" {
@@ -48,7 +47,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, l billing.Locations) error {
 	} else {
 		section("Flags", cmd.LocalFlags().FlagUsages())
 	}
-	if fields, ok := cmd.Annotations[cmdutil.JSONFieldsAnnotation]; ok && !cmd.Flags().Lookup("json").Hidden {
+	if fields, ok := cmd.Annotations[cmdutil.JSONFieldsAnnotation]; ok {
 		section("JSON fields", "  "+strings.ReplaceAll(fields, ",", ", ")+"\n")
 	}
 	section("Examples", indent(cmd.Example))
@@ -118,8 +117,7 @@ func indent(text string) string {
 }
 
 // helpTopic writes the page `invox help ARGS` names: a topic, or the help of
-// a command, including a hidden deprecated name such as `customer config`.
-// Anything else, including `help` itself, is an unknown topic.
+// a command. Anything else, including `help` itself, is an unknown topic.
 func helpTopic(w io.Writer, root *cobra.Command, l billing.Locations, args []string) error {
 	if len(args) == 0 {
 		return writeHelp(w, root, l)
@@ -129,7 +127,7 @@ func helpTopic(w io.Writer, root *cobra.Command, l billing.Locations, args []str
 		return nil
 	}
 	cmd, rest, err := root.Find(args)
-	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() && !cmd.Hidden {
+	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() {
 		return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
 	}
 	return writeHelp(w, cmd, l)

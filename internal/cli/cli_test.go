@@ -403,39 +403,27 @@ func TestHelpDefaultsShowsInvoiceDefaultsDocumentation(t *testing.T) {
 	}
 }
 
-// customer config, the deprecated name of customer edit, still opens the
-// file, after a warning.
 func TestCustomerEditOpensCustomersFile(t *testing.T) {
-	for _, tc := range []struct {
-		verb        string
-		wantWarning string
-	}{
-		{verb: "edit"},
-		{verb: "config", wantWarning: "warning: customer config is deprecated; use customer edit\n"},
-	} {
-		t.Run(tc.verb, func(t *testing.T) {
-			customersPath := filepath.Join(t.TempDir(), "customers.yaml")
-			if err := os.WriteFile(customersPath, []byte("CUST-001: {}\n"), 0o644); err != nil {
-				t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
-			}
+	customersPath := filepath.Join(t.TempDir(), "customers.yaml")
+	if err := os.WriteFile(customersPath, []byte("CUST-001: {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
+	}
 
-			f, stub := testFactory(t)
-			openedPath := expectEditor(f, stub, nil)
+	f, stub := testFactory(t)
+	openedPath := expectEditor(f, stub, nil)
 
-			exitCode, stdout, stderr := captureRunFactory(t, f, []string{"customer", tc.verb, "-c", customersPath})
-			if exitCode != 0 {
-				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-			}
-			if *openedPath != customersPath {
-				t.Fatalf("openedPath = %q, want %q", *openedPath, customersPath)
-			}
-			if want := tc.wantWarning + "Opened " + customersPath + "\n"; stderr != want {
-				t.Fatalf("stderr = %q, want %q", stderr, want)
-			}
-			if stdout != "" {
-				t.Fatalf("stdout = %q, want empty", stdout)
-			}
-		})
+	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"customer", "edit", "-c", customersPath})
+	if exitCode != 0 {
+		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
+	}
+	if *openedPath != customersPath {
+		t.Fatalf("openedPath = %q, want %q", *openedPath, customersPath)
+	}
+	if want := "Opened " + customersPath + "\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 }
 
@@ -1268,29 +1256,6 @@ func TestEmailFindsInvoiceYAMLInArchiveDirForPDFInput(t *testing.T) {
 	}
 }
 
-// send is a hidden alias of email: its help is email's, without the alias,
-// and running it warns that send only drafts an email.
-func TestSendAliasUsesEmailCommand(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"send", "-h"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0", exitCode)
-	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	if !strings.Contains(stdout, "invox email [INVOICE.yaml | INVOICE.pdf] [flags]") || strings.Contains(stdout, "invox send") {
-		t.Fatalf("stdout %q is not the email help without send", stdout)
-	}
-
-	exitCode, stdout, stderr = captureRun(t, []string{"send"})
-	want := "warning: send only drafts an email; use 'invox email'\n" +
-		"error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input\n" +
-		"Run 'invox email --help' for usage.\n"
-	if exitCode != 2 || stdout != "" || stderr != want {
-		t.Fatalf("send = (%d, %q, %q), want (2, \"\", %q)", exitCode, stdout, stderr, want)
-	}
-}
-
 func TestEmailUsesEditableNativeComposeByDefault(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _ := writeContextFixtures(t)
 	source, err := os.ReadFile(invoicePath)
@@ -1449,15 +1414,15 @@ func TestArchiveEditHelpShowsUsage(t *testing.T) {
 }
 
 func TestArchiveRequiresPositionalOrFlagInput(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"archive"})
+	exitCode, stdout, stderr := captureRun(t, []string{"archive", "add"})
 	if exitCode != 2 {
 		t.Fatalf("exitCode = %d, want 2", exitCode)
 	}
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "missing required input: INVOICE.yaml or -i, --input") {
-		t.Fatalf("stderr %q does not contain missing input message", stderr)
+	if want := "error: missing required input: INVOICE.yaml or -i, --input\nRun 'invox archive add --help' for usage.\n"; stderr != want {
+		t.Fatalf("stderr = %q, want %q", stderr, want)
 	}
 }
 

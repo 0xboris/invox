@@ -43,7 +43,6 @@ $ invox customer edit
 	cmd.AddCommand(
 		list.NewCmdList(f, nil),
 		edit.NewCmdEdit(f, nil),
-		edit.NewCmdConfig(f, nil),
 	)
 	return cmd
 }

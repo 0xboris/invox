@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -17,13 +16,12 @@ import (
 )
 
 // AddOptions is what archive add needs: its streams, the user directories,
-// the clock and the parsed flags. Command names the command in its messages.
+// the clock and the parsed flags.
 type AddOptions struct {
 	IO      *iostreams.IOStreams
 	Service func(cmdutil.Files) *billing.Service
 	Getwd   func() (string, error)
 
-	Command     string
 	InvoicePath string
 	Yes         bool
 	DryRun      bool
@@ -47,6 +45,7 @@ type replacedJSON struct {
 
 // NewCmdAdd returns the archive add command. runF replaces addRun in tests.
 func NewCmdAdd(f *cmdutil.Factory, runF func(context.Context, *AddOptions) error) *cobra.Command {
+	opts := &AddOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "add [INVOICE.yaml]",
 		Short: "Archive a built or edited invoice YAML file into the configured archive directory",
@@ -66,32 +65,18 @@ $ invox archive add 2026-03-06.yaml --yes
 $ invox archive add invoice.yaml --dry-run
 $ invox archive add invoice.yaml --json path
 `,
-	}
-	Configure(cmd, f, runF, false)
-	return cmd
-}
-
-// Configure gives cmd the arguments, flags and run of archive add. With
-// deprecated set, cmd is `archive FILE`, the deprecated form of archive add:
-// help and completion leave out its flags and files, and it warns before it
-// archives.
-func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *AddOptions) error, deprecated bool) {
-	opts := &AddOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
-	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		return shared.TakeInput(cmdutil.CommandPath(cmd), opts.Getwd, &opts.InvoicePath, args)
-	}
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		opts.Command = cmdutil.CommandPath(cmd)
-		if err := shared.RequireInput(opts.Command, opts.InvoicePath); err != nil {
-			return err
-		}
-		if deprecated {
-			cmdutil.WarnDeprecated(opts.IO.ErrOut, "archive FILE", "archive add FILE")
-		}
-		if runF != nil {
-			return runF(cmd.Context(), opts)
-		}
-		return addRun(cmd.Context(), opts)
+		Args: func(cmd *cobra.Command, args []string) error {
+			return shared.TakeInput("archive add", opts.Getwd, &opts.InvoicePath, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := shared.RequireInput("archive add", opts.InvoicePath); err != nil {
+				return err
+			}
+			if runF != nil {
+				return runF(cmd.Context(), opts)
+			}
+			return addRun(cmd.Context(), opts)
+		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
@@ -99,10 +84,7 @@ func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, addJSON{})
-	if deprecated {
-		cmd.ValidArgsFunction = cobra.NoFileCompletions
-		cmd.Flags().VisitAll(func(flag *pflag.Flag) { flag.Hidden = true })
-	}
+	return cmd
 }
 
 func addRun(ctx context.Context, opts *AddOptions) error {
@@ -122,7 +104,7 @@ func addRun(ctx context.Context, opts *AddOptions) error {
 		}
 		shared.PrintArchivePreview(opts.IO, result, invoicePath, baseDir)
 	} else {
-		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, opts.Command, invoicePath, baseDir, "")})
+		result, err = svc.Archive(invoicePath, billing.ArchiveOptions{Replace: opts.Yes, Confirm: shared.ConfirmReplace(ctx, opts.IO, "archive add", invoicePath, baseDir, "")})
 		if err != nil {
 			return err
 		}

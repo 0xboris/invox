@@ -1,6 +1,6 @@
 # Commands on cobra parse their flags with pflag: misspelt flags get a
-# suggestion, `--` ends the flags, single-dash long flags still work with a
-# warning, and the global flags work anywhere before `--`.
+# suggestion, `--` ends the flags, a single-dash long flag is a usage error,
+# and the global flags work anywhere before `--`.
 
 # A misspelt flag is a usage error that suggests the right one.
 exits 2 invox template list --nmaes
@@ -22,10 +22,14 @@ exits 2 invox template list -- --names
 ! stdout .
 cmp stderr want-dashdash.txt
 
-# A single-dash long flag works and warns.
-exec invox template list -names
-cmp stdout want-names.txt
+# A single-dash long flag is a usage error that names the double-dash one,
+# and a single-dash word that starts with no shorthand is an unknown flag.
+exits 2 invox template list -names
+! stdout .
 cmp stderr want-single-dash.txt
+exits 2 invox template list -nmaes
+! stdout .
+cmp stderr want-single-dash-misspelt.txt
 
 # --config and --no-input work before and after the command.
 exec invox --config custom.yaml template list --names
@@ -64,10 +68,14 @@ Run 'invox template --help' for usage.
 error: unexpected arguments: --names
 Run 'invox template list --help' for usage.
 -- want-single-dash.txt --
-warning: -names is deprecated; use --names
+error: -names is not a flag; use --names
+Run 'invox template list --help' for usage.
 -- want-config-missing.txt --
 error: flag needs an argument: --config
 Run 'invox --help' for usage.
 -- want-bad-value.txt --
 error: invalid value "bogus" for --names
+Run 'invox template list --help' for usage.
+-- want-single-dash-misspelt.txt --
+error: unknown flag: -nmaes; did you mean --names?
 Run 'invox template list --help' for usage.

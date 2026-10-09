@@ -8,7 +8,7 @@ func TestBuildAndEmailHelpMatchesHelpCommand(t *testing.T) {
 		requests [][]string
 	}{
 		{topic: []string{"help", "build"}, requests: [][]string{{"build", "-h"}, {"build", "x.yaml", "--archive", "--help"}}},
-		{topic: []string{"help", "email"}, requests: [][]string{{"email", "-h"}, {"send", "-h"}, {"send", "x.yaml", "--help"}}},
+		{topic: []string{"help", "email"}, requests: [][]string{{"email", "-h"}, {"email", "x.yaml", "--help"}}},
 	} {
 		exitCode, want, stderr := captureRun(t, tc.topic)
 		if exitCode != 0 || stderr != "" || want == "" {

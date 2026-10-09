@@ -65,12 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 
-- Single-dash long flags such as `-names`, `-input`, `-config` or `-help` still work but print `warning: -NAME is deprecated; use --NAME` on stderr. Use the double-dash form. ([#88](https://github.com/0xboris/invox/pull/88), [#90](https://github.com/0xboris/invox/pull/90), [#91](https://github.com/0xboris/invox/pull/91), [#92](https://github.com/0xboris/invox/pull/92), [#94](https://github.com/0xboris/invox/pull/94), [#95](https://github.com/0xboris/invox/pull/95), [#97](https://github.com/0xboris/invox/pull/97))
 - The legacy `invoice-tool` config directory still works, but a command that reads a file from it prints a warning on stderr. Run `invox init` to copy the files into the invox config directory. ([#87](https://github.com/0xboris/invox/pull/87))
-- `invox archive INVOICE`, `invox customer config`, `invox new -s/--source FILE` and `invox send` still work but print one warning on stderr. Use `invox archive add INVOICE`, `invox customer edit`, `invox new --defaults FILE` and `invox email`; invox only drafts an email. They will be removed no earlier than the next minor release. ([#106](https://github.com/0xboris/invox/pull/106))
 
 ### Removed
 
+- **BREAKING:** the command forms #106 deprecated. `invox archive INVOICE`, `invox customer config`, `invox send` and `invox new -s/--source FILE` exit 2 with a usage error; use `invox archive add INVOICE`, `invox customer edit`, `invox email` and `invox new --defaults FILE`. `invox archive` without a subcommand prints its help, and `invox help customer config` and `invox help send` are unknown topics.
+- **BREAKING:** single-dash long flags. `-names`, `-input`, `-config`, `-help`, `-version` and the like exit 2 with `error: -NAME is not a flag; use --NAME` instead of working with a warning, and a single-dash word that starts with no shorthand letter, such as `-nmaes`, is an unknown flag. pflag would otherwise read `-output=x.pdf` as `-o utput=x.pdf`. Shorthand groups such as `-ofile.yaml` still work.
 - **BREAKING:** the bundled Ubuntu fonts in `fonts/`. A template that needs fonts must ship them in its own template directory, which invox still copies. ([#60](https://github.com/0xboris/invox/pull/60))
 - The `make init`, `validate`, `render`, `email`, `send`, `pdf` and `archive` wrappers. Run the matching `invox` command instead. ([#60](https://github.com/0xboris/invox/pull/60))
 - invox no longer sets `INVOX_EDITOR` for the editor or reads `SHELL`. ([#85](https://github.com/0xboris/invox/pull/85))
