@@ -2,6 +2,7 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -37,8 +38,11 @@ type archivedJSON struct {
 
 // NewCmdList returns the archive list command. runF replaces listRun in
 // tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Getwd: f.Env.Getwd, Service: f.Service}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List archived invoices from the configured archive directory",
@@ -58,17 +62,14 @@ $ invox archive list --json file,customerId,number
 `,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, archivedJSON{})
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
+func listRun(_ context.Context, opts *ListOptions) error {
 	list, err := opts.Service(cmdutil.Files{}).ListArchive()
 	if err != nil {
 		return err

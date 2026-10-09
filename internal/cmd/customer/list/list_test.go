@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -33,7 +34,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ListOptions
-			cmd := NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(opts *ListOptions) error {
+			cmd := NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *ListOptions) error {
 				got = opts
 				return nil
 			})
@@ -77,7 +78,7 @@ func TestListRun(t *testing.T) {
 		Getwd:   func() (string, error) { return work, nil },
 		Support: cmdutil.SupportPaths{Customers: "c.yaml"},
 	}
-	if err := listRun(opts); err != nil {
+	if err := listRun(context.Background(), opts); err != nil {
 		t.Fatalf("listRun returned error: %v", err)
 	}
 	if want := "A-1\tAlpha\tactive\nB-1\tBeta\tinactive\n"; out.String() != want {

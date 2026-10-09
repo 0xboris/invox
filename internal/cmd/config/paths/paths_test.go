@@ -1,6 +1,7 @@
 package paths
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -17,7 +18,7 @@ func TestNewCmdPathsParsing(t *testing.T) {
 	f := factory.New(ios, run.Exec{}, env.System())
 
 	ran := false
-	cmd := NewCmdPaths(f, func(*PathsOptions) error { ran = true; return nil })
+	cmd := NewCmdPaths(f, func(context.Context, *PathsOptions) error { ran = true; return nil })
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{})
@@ -26,7 +27,7 @@ func TestNewCmdPathsParsing(t *testing.T) {
 	}
 
 	ran = false
-	cmd = NewCmdPaths(f, func(*PathsOptions) error { ran = true; return nil })
+	cmd = NewCmdPaths(f, func(context.Context, *PathsOptions) error { ran = true; return nil })
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 	cmd.SetArgs([]string{"extra"})

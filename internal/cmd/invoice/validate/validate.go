@@ -2,6 +2,7 @@
 package validate
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -27,8 +28,11 @@ type ValidateOptions struct {
 
 // NewCmdValidate returns the validate command. runF replaces validateRun in
 // tests.
-func NewCmdValidate(f *cmdutil.Factory, runF func(*ValidateOptions) error) *cobra.Command {
+func NewCmdValidate(f *cmdutil.Factory, runF func(context.Context, *ValidateOptions) error) *cobra.Command {
 	opts := &ValidateOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = validateRun
+	}
 	cmd := &cobra.Command{
 		Use:   "validate [INVOICE.yaml]",
 		Short: "Validate invoice YAML against customers and issuer data",
@@ -56,10 +60,7 @@ $ invox validate invoice.yaml --json valid,total,currency,errors
 			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return validateRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
@@ -70,7 +71,7 @@ $ invox validate invoice.yaml --json valid,total,currency,errors
 	return cmd
 }
 
-func validateRun(opts *ValidateOptions) error {
+func validateRun(_ context.Context, opts *ValidateOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,7 +42,7 @@ func TestEditRunCopiesIntoGetwd(t *testing.T) {
 		Getwd:    func() (string, error) { return work, nil },
 		Filename: filepath.Base(result.Path),
 	}
-	if err := editRun(opts); err != nil {
+	if err := editRun(context.Background(), opts); err != nil {
 		t.Fatalf("editRun returned error: %v", err)
 	}
 	copied := filepath.Join(work, filepath.Base(result.Path))

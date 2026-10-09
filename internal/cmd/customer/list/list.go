@@ -2,6 +2,7 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -32,8 +33,11 @@ type customerJSON struct {
 }
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List all customers from customers.yaml",
@@ -49,10 +53,7 @@ $ invox customer list --json id,email
 `,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
@@ -60,7 +61,7 @@ $ invox customer list --json id,email
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
+func listRun(_ context.Context, opts *ListOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err

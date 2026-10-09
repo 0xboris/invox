@@ -48,6 +48,9 @@ type buildJSON struct {
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
 func NewCmdBuild(f *cmdutil.Factory, runF func(context.Context, *BuildOptions) error) *cobra.Command {
 	opts := &BuildOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = buildRun
+	}
 	cmd := &cobra.Command{
 		Use:   "build [INVOICE.yaml]",
 		Short: "Render and compile an invoice PDF with Tectonic",
@@ -80,10 +83,7 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 			if err := shared.RequireExtension(opts.OutputPath, ".pdf"); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return buildRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")

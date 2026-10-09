@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -31,7 +32,7 @@ func TestNewCmdCompletionParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			f := factorytest.New(t, ios, factorytest.Options{})
 			var got *CompletionOptions
-			cmd := NewCmdCompletion(f, func(opts *CompletionOptions) error {
+			cmd := NewCmdCompletion(f, func(_ context.Context, opts *CompletionOptions) error {
 				got = opts
 				return nil
 			})
@@ -67,7 +68,7 @@ func TestCompletionRunWritesTheScriptToStdout(t *testing.T) {
 	ios, _, out, errOut := iostreams.Test()
 	root := &cobra.Command{Use: "invox"}
 
-	if err := completionRun(&CompletionOptions{IO: ios, Root: root, Shell: "zsh"}); err != nil {
+	if err := completionRun(context.Background(), &CompletionOptions{IO: ios, Root: root, Shell: "zsh"}); err != nil {
 		t.Fatalf("completionRun returned error: %v", err)
 	}
 	if !strings.HasPrefix(out.String(), "#compdef invox\n") {

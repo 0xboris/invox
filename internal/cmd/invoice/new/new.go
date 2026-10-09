@@ -45,6 +45,9 @@ type newJSON struct {
 // NewCmdNew returns the new command. runF replaces newRun in tests.
 func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
 	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = newRun
+	}
 	cmd := &cobra.Command{
 		Use:   "new CUSTOMER_ID",
 		Short: "Create a new invoice YAML file with a generated number and prefilled defaults",
@@ -75,10 +78,7 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml
 			if err := shared.RequireExtension(opts.OutputPath, ".yaml"); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return newRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "Output YAML path (must end with .yaml)")

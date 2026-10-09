@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -31,7 +32,7 @@ func TestValidateRunResolvesInputAgainstGetwd(t *testing.T) {
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",
 	}
-	if err := validateRun(opts); err != nil {
+	if err := validateRun(context.Background(), opts); err != nil {
 		t.Fatalf("validateRun returned error: %v", err)
 	}
 	if !strings.HasPrefix(errOut.String(), "Validation OK: ") {

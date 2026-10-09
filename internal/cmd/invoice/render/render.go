@@ -2,6 +2,7 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,11 @@ type renderJSON struct {
 }
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
-func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Command {
+func NewCmdRender(f *cmdutil.Factory, runF func(context.Context, *RenderOptions) error) *cobra.Command {
 	opts := &RenderOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = renderRun
+	}
 	cmd := &cobra.Command{
 		Use:   "render [INVOICE.yaml]",
 		Short: "Render a LaTeX invoice file from YAML data",
@@ -68,10 +72,7 @@ $ invox render invoice.yaml --json path
 			if err := shared.RequireExtension(opts.OutputPath, ".tex"); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return renderRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
@@ -85,7 +86,7 @@ $ invox render invoice.yaml --json path
 	return cmd
 }
 
-func renderRun(opts *RenderOptions) error {
+func renderRun(_ context.Context, opts *RenderOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err

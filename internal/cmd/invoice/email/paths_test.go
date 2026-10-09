@@ -200,12 +200,13 @@ func (h host) emailDraftPaths(t *testing.T, input, pdf, output string) (draftPat
 		InvoicePath: input,
 		PDFPath:     pdf,
 		OutputPath:  output,
+		KeepDraft:   output != "",
 		Support:     cmdutil.SupportPaths{Customers: customersPath, Issuer: issuerPath},
 	}
 	if err := validate(opts); err != nil {
 		return draftPaths{}, err
 	}
-	err := emailRun(context.Background(), opts, output != "")
+	err := emailRun(context.Background(), opts)
 	return paths, err
 }
 

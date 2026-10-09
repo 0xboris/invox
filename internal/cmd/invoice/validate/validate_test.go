@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -37,7 +38,7 @@ func TestNewCmdValidateParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ValidateOptions
-			cmd := NewCmdValidate(factory.New(ios, run.Exec{}, env.System()), func(opts *ValidateOptions) error {
+			cmd := NewCmdValidate(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *ValidateOptions) error {
 				got = opts
 				return nil
 			})

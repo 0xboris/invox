@@ -46,6 +46,9 @@ type replacedJSON struct {
 // NewCmdAdd returns the archive add command. runF replaces addRun in tests.
 func NewCmdAdd(f *cmdutil.Factory, runF func(context.Context, *AddOptions) error) *cobra.Command {
 	opts := &AddOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = addRun
+	}
 	cmd := &cobra.Command{
 		Use:   "add [INVOICE.yaml]",
 		Short: "Archive a built or edited invoice YAML file into the configured archive directory",
@@ -70,10 +73,7 @@ $ invox archive add invoice.yaml --json path
 			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return addRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")

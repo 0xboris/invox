@@ -1,6 +1,7 @@
 package version
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -27,7 +28,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			f := factory.New(ios, run.Exec{}, env.System())
 			ran := false
-			cmd := NewCmdVersion(f, func(opts *VersionOptions) error {
+			cmd := NewCmdVersion(f, func(_ context.Context, opts *VersionOptions) error {
 				ran = true
 				if opts.IO != ios {
 					t.Error("opts.IO is not the factory's streams")
@@ -58,7 +59,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 
 func TestVersionRun(t *testing.T) {
 	ios, _, out, errOut := iostreams.Test()
-	if err := versionRun(&VersionOptions{IO: ios}); err != nil {
+	if err := versionRun(context.Background(), &VersionOptions{IO: ios}); err != nil {
 		t.Fatalf("versionRun returned error: %v", err)
 	}
 	if got := out.String(); got != "invox version DEV\n" {

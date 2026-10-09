@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -36,7 +37,7 @@ func TestNewCmdListParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			f := factory.New(ios, run.Exec{}, env.System())
 			var got *ListOptions
-			cmd := NewCmdList(f, func(opts *ListOptions) error {
+			cmd := NewCmdList(f, func(_ context.Context, opts *ListOptions) error {
 				got = opts
 				return nil
 			})
@@ -97,7 +98,7 @@ func TestListRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, out, errOut := iostreams.Test()
 			opts := &ListOptions{IO: ios, Service: f.Service, NamesOnly: tc.namesOnly}
-			if err := listRun(opts); err != nil {
+			if err := listRun(context.Background(), opts); err != nil {
 				t.Fatalf("listRun returned error: %v", err)
 			}
 			if got := out.String(); got != tc.want {

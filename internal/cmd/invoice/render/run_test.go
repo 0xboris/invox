@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,7 +47,7 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 				InvoicePath: filepath.Base(created.Path),
 				OutputPath:  tc.outputPath,
 			}
-			if err := renderRun(opts); err != nil {
+			if err := renderRun(context.Background(), opts); err != nil {
 				t.Fatalf("renderRun returned error: %v", err)
 			}
 			if _, err := os.Stat(filepath.Join(work, tc.wantFile)); err != nil {

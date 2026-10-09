@@ -2,6 +2,7 @@
 package paths
 
 import (
+	"context"
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/billing"
@@ -17,8 +18,11 @@ type PathsOptions struct {
 
 // NewCmdPaths returns the config paths command. runF replaces pathsRun in
 // tests.
-func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
+func NewCmdPaths(f *cmdutil.Factory, runF func(context.Context, *PathsOptions) error) *cobra.Command {
 	opts := &PathsOptions{IO: f.IOStreams, Service: f.Service}
+	if runF == nil {
+		runF = pathsRun
+	}
 	return &cobra.Command{
 		Use:               "paths",
 		Short:             "Show where each config and support file is read from",
@@ -44,15 +48,12 @@ Sources:
 `,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return pathsRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 }
 
-func pathsRun(opts *PathsOptions) error {
+func pathsRun(_ context.Context, opts *PathsOptions) error {
 	reports, err := opts.Service(cmdutil.Files{}).Paths()
 	if err != nil {
 		return err

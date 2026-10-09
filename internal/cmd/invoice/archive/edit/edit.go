@@ -2,6 +2,7 @@
 package edit
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -37,8 +38,11 @@ type editJSON struct {
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
-func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
+func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
+	}
 	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
@@ -66,10 +70,7 @@ $ invox archive edit 2026-03-06.yaml --json path
 		Args: cmdutil.ExactArgs("FILENAME"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Filename = strings.TrimSpace(args[0])
-			if runF != nil {
-				return runF(opts)
-			}
-			return editRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing working copy")
@@ -78,7 +79,7 @@ $ invox archive edit 2026-03-06.yaml --json path
 	return cmd
 }
 
-func editRun(opts *EditOptions) error {
+func editRun(_ context.Context, opts *EditOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err

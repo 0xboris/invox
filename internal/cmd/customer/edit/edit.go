@@ -30,6 +30,9 @@ type EditOptions struct {
 // tests.
 func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
+	}
 	cmd := &cobra.Command{
 		Use:               "edit",
 		SuggestFor:        []string{"config"},
@@ -49,10 +52,7 @@ $ invox customer edit -c customers.yaml
 `,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return editRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)

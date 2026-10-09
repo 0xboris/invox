@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -27,7 +28,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		ran := false
 		root := &cobra.Command{Use: "invox"}
 		archive := &cobra.Command{Use: "archive"}
-		archive.AddCommand(NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(*ListOptions) error {
+		archive.AddCommand(NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(context.Context, *ListOptions) error {
 			ran = true
 			return nil
 		}))

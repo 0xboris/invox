@@ -49,8 +49,9 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",
 		OutputPath:  "draft.eml",
+		KeepDraft:   true,
 	}
-	if err := emailRun(context.Background(), opts, true); err != nil {
+	if err := emailRun(context.Background(), opts); err != nil {
 		t.Fatalf("emailRun returned error: %v", err)
 	}
 	want := filepath.Join(work, "draft.eml")
@@ -90,7 +91,7 @@ func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",
 	}
-	err := emailRun(context.Background(), opts, false)
+	err := emailRun(context.Background(), opts)
 	const want = "invoice.status must be `built` or `archived` before creating an email draft, got `draft`"
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("emailRun error = %v, want one containing %q", err, want)

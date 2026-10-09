@@ -23,6 +23,9 @@ type InitOptions struct {
 // NewCmdInit returns the init command. runF replaces initRun in tests.
 func NewCmdInit(f *cmdutil.Factory, runF func(context.Context, *InitOptions) error) *cobra.Command {
 	opts := &InitOptions{IO: f.IOStreams, Service: f.Service}
+	if runF == nil {
+		runF = initRun
+	}
 	cmd := &cobra.Command{
 		Use:               "init",
 		Short:             "Create starter support files in the global config directory",
@@ -42,10 +45,7 @@ Config directory:
 `,
 		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return initRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	return cmd

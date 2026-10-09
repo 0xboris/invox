@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -39,7 +40,7 @@ func TestNewCmdRenderParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *RenderOptions
-			cmd := NewCmdRender(factory.New(ios, run.Exec{}, env.System()), func(opts *RenderOptions) error {
+			cmd := NewCmdRender(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *RenderOptions) error {
 				got = opts
 				return nil
 			})

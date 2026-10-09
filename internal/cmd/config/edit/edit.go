@@ -45,13 +45,13 @@ $ invox --config ./config.yaml config edit
 // command, which config edit is the default of, uses it too.
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) {
 	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
+	}
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	cmd.Args = cmdutil.NoArgs
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if runF != nil {
-			return runF(cmd.Context(), opts)
-		}
-		return editRun(cmd.Context(), opts)
+		return runF(cmd.Context(), opts)
 	}
 }
 

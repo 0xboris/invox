@@ -28,16 +28,22 @@ type EmailOptions struct {
 	InvoicePath string
 	PDFPath     string
 	OutputPath  string
-	Support     cmdutil.SupportPaths
-	To          string
-	Subject     string
-	Force       bool
-	DryRun      bool
+	// KeepDraft is set when -o names the draft's file, even as "": the
+	// user keeps the draft, and the mail app does not compose it.
+	KeepDraft bool
+	Support   cmdutil.SupportPaths
+	To        string
+	Subject   string
+	Force     bool
+	DryRun    bool
 }
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
 func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
 	opts := &EmailOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = emailRun
+	}
 	cmd := &cobra.Command{
 		Use:        "email [INVOICE.yaml | INVOICE.pdf]",
 		SuggestFor: []string{"send"},
@@ -78,10 +84,8 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 			if err := validate(opts); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return emailRun(cmd.Context(), opts, cmd.Flags().Changed("output"))
+			opts.KeepDraft = cmd.Flags().Changed("output")
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML or PDF file")
@@ -120,14 +124,14 @@ func validate(opts *EmailOptions) error {
 	return nil
 }
 
-func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) error {
+func emailRun(ctx context.Context, opts *EmailOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
 	files := opts.Support.Files(baseDir)
-	files.EmailOutput = explicitOutput
+	files.EmailOutput = opts.KeepDraft
 	svc := opts.Service(files)
 	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 	pdfPath := cmdutil.AbsPath(baseDir, orDefault(opts.PDFPath, cmdutil.ReplaceExt(opts.InvoicePath, ".pdf")))
@@ -137,7 +141,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		Invoice:   invoicePath,
 		PDF:       pdfPath,
 		Output:    outputPath,
-		Keep:      explicitOutput,
+		Keep:      opts.KeepDraft,
 		To:        opts.To,
 		Subject:   opts.Subject,
 		Overwrite: opts.Force,
@@ -156,7 +160,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	if opts.DryRun {
 		fmt.Fprintf(opts.IO.ErrOut, "Would open email draft for %s (%s) to %s\n", result.CustomerID, result.Number, message.To)
 		fmt.Fprintf(opts.IO.ErrOut, "Subject: %s\nAttachment: %s\n", message.Subject, cmdutil.DisplayPath(message.Attachment, baseDir))
-		if explicitOutput {
+		if opts.KeepDraft {
 			fmt.Fprintf(opts.IO.ErrOut, "Would write the draft to %s\n", cmdutil.DisplayPath(message.Output, baseDir))
 			fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(message.Output, baseDir))
 		}
@@ -164,7 +168,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "Opened email draft for %s (%s) to %s\n", result.CustomerID, result.Number, message.To)
-	if explicitOutput {
+	if opts.KeepDraft {
 		fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(message.Output, baseDir))
 	}
 	return nil

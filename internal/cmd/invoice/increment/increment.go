@@ -2,6 +2,7 @@
 package increment
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -36,8 +37,11 @@ type incrementJSON struct {
 
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
 // in tests.
-func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
+func NewCmdIncrement(f *cmdutil.Factory, runF func(context.Context, *IncrementOptions) error) *cobra.Command {
 	opts := &IncrementOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = incrementRun
+	}
 	cmd := &cobra.Command{
 		Use:   "increment [INVOICE.yaml]",
 		Short: "Increment the invoice number in an existing invoice YAML file",
@@ -59,10 +63,7 @@ $ invox increment invoice.yaml --json number,previousNumber
 			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return incrementRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
@@ -74,7 +75,7 @@ $ invox increment invoice.yaml --json number,previousNumber
 	return cmd
 }
 
-func incrementRun(opts *IncrementOptions) error {
+func incrementRun(_ context.Context, opts *IncrementOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err

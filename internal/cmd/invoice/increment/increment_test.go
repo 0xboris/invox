@@ -1,6 +1,7 @@
 package increment
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -36,7 +37,7 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *IncrementOptions
-			cmd := NewCmdIncrement(factory.New(ios, run.Exec{}, env.System()), func(opts *IncrementOptions) error {
+			cmd := NewCmdIncrement(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *IncrementOptions) error {
 				got = opts
 				return nil
 			})

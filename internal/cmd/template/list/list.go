@@ -2,6 +2,7 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -29,8 +30,11 @@ type templateJSON struct {
 }
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Service: f.Service}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List available invoice templates",
@@ -58,10 +62,7 @@ $ invox build invoice.yaml -t multi_vat.tex
 			if opts.NamesOnly && opts.Exporter != nil {
 				return cmdutil.FlagErrorf("--names and --json cannot be used together")
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.NamesOnly, "names", false, "Print only template names")
@@ -69,7 +70,7 @@ $ invox build invoice.yaml -t multi_vat.tex
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
+func listRun(_ context.Context, opts *ListOptions) error {
 	// Only --json shows the default template, which takes a search from
 	// the working directory.
 	catalog, err := opts.Service(cmdutil.Files{}).ListTemplates(opts.Exporter != nil)

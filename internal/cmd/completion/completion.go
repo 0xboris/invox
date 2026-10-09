@@ -2,6 +2,7 @@
 package completion
 
 import (
+	"context"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -28,8 +29,11 @@ type CompletionOptions struct {
 
 // NewCmdCompletion returns the completion command. Without a shell it
 // prints its help. runF replaces completionRun in tests.
-func NewCmdCompletion(f *cmdutil.Factory, runF func(*CompletionOptions) error) *cobra.Command {
+func NewCmdCompletion(f *cmdutil.Factory, runF func(context.Context, *CompletionOptions) error) *cobra.Command {
 	opts := &CompletionOptions{IO: f.IOStreams}
+	if runF == nil {
+		runF = completionRun
+	}
 	return &cobra.Command{
 		Use:   "completion <shell>",
 		Short: "Generate shell completion scripts",
@@ -80,14 +84,11 @@ $ invox completion bash > ~/.local/share/bash-completion/completions/invox
 			}
 			opts.Root = cmd.Root()
 			opts.Shell = args[0]
-			if runF != nil {
-				return runF(opts)
-			}
-			return completionRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 }
 
-func completionRun(opts *CompletionOptions) error {
+func completionRun(_ context.Context, opts *CompletionOptions) error {
 	return shells[opts.Shell](opts.Root, opts.IO.Out)
 }

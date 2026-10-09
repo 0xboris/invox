@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -32,7 +33,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			var got *EditOptions
 			root := &cobra.Command{Use: "invox"}
 			archive := &cobra.Command{Use: "archive"}
-			archive.AddCommand(NewCmdEdit(factory.New(ios, run.Exec{}, env.System()), func(opts *EditOptions) error {
+			archive.AddCommand(NewCmdEdit(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EditOptions) error {
 				got = opts
 				return nil
 			}))

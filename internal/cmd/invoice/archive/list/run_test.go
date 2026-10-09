@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestListRunEmptyHint(t *testing.T) {
 			f := factorytest.New(t, nil, tc.in)
 			ios, _, out, errOut := iostreams.Test()
 			ios.SetStdoutTTY(true)
-			if err := listRun(&ListOptions{IO: ios, Getwd: f.Env.Getwd, Service: f.Service}); err != nil {
+			if err := listRun(context.Background(), &ListOptions{IO: ios, Getwd: f.Env.Getwd, Service: f.Service}); err != nil {
 				t.Fatalf("listRun returned error: %v", err)
 			}
 			if out.Len() != 0 {
