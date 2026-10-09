@@ -24,6 +24,49 @@ const (
 
 var tokenPattern = regexp.MustCompile(`\{([a-z_]+)(?::([0-9]+))?\}`)
 
+// counterToken holds the counter. It is the only token that takes a width,
+// {counter:WIDTH}.
+const counterToken = "counter"
+
+// fields are what the tokens of a pattern stand for in one invoice number.
+type fields struct {
+	customerID   string
+	customerCode string
+	issue        time.Time
+}
+
+// tokens holds every token but {counter}.
+var tokens = map[string]struct {
+	// customer marks a token that names the customer; {counter} needs a
+	// separator from it.
+	customer bool
+	value    func(fields) string
+}{
+	"customer_id":   {customer: true, value: func(f fields) string { return f.customerID }},
+	"customer_code": {customer: true, value: func(f fields) string { return f.customerCode }},
+	"year":          {value: func(f fields) string { return f.issue.Format("2006") }},
+	"month":         {value: func(f fields) string { return f.issue.Format("01") }},
+	"day":           {value: func(f fields) string { return f.issue.Format("02") }},
+}
+
+// token is one {name} or {name:width} in a pattern, at pattern[start:end].
+type token struct {
+	name, width string
+	start, end  int
+}
+
+func scan(pattern string) []token {
+	var found []token
+	for _, match := range tokenPattern.FindAllStringSubmatchIndex(pattern, -1) {
+		t := token{name: pattern[match[2]:match[3]], start: match[0], end: match[1]}
+		if match[4] >= 0 {
+			t.width = pattern[match[4]:match[5]]
+		}
+		found = append(found, t)
+	}
+	return found
+}
+
 // maxCounterWidth bounds {counter:WIDTH}; an int64 counter has at most 19
 // digits.
 const maxCounterWidth = 20
@@ -44,49 +87,46 @@ func (s Settings) Validate() error {
 		return fmt.Errorf("numbering.pattern must be valid UTF-8: %q", pattern)
 	}
 
-	matches := tokenPattern.FindAllStringSubmatch(pattern, -1)
-	counterTokens := 0
-	hasCustomerToken := false
 	consumed := tokenPattern.ReplaceAllString(pattern, "")
 	if strings.Contains(consumed, "{") || strings.Contains(consumed, "}") {
 		return fmt.Errorf("numbering.pattern contains unsupported placeholders: %q", pattern)
 	}
 
-	for _, match := range matches {
-		token := match[1]
-		format := match[2]
-		switch token {
-		case "customer_id", "customer_code", "year", "month", "day":
-			if format != "" {
-				return fmt.Errorf("numbering.pattern token {%s} does not support a format", token)
-			}
-			if token == "customer_id" || token == "customer_code" {
-				hasCustomerToken = true
-			}
-		case "counter":
+	found := scan(pattern)
+	counterTokens := 0
+	hasCustomerToken := false
+	for _, t := range found {
+		if t.name == counterToken {
 			counterTokens++
-			if format != "" {
-				if width, err := strconv.Atoi(format); err != nil || width > maxCounterWidth {
-					return fmt.Errorf("numbering.pattern token {counter:%s} uses an invalid width; use at most %d", format, maxCounterWidth)
+			if t.width != "" {
+				if width, err := strconv.Atoi(t.width); err != nil || width > maxCounterWidth {
+					return fmt.Errorf("numbering.pattern token {counter:%s} uses an invalid width; use at most %d", t.width, maxCounterWidth)
 				}
 			}
-		default:
-			return fmt.Errorf("numbering.pattern uses unsupported token {%s}", token)
+			continue
 		}
+		spec, ok := tokens[t.name]
+		if !ok {
+			return fmt.Errorf("numbering.pattern uses unsupported token {%s}", t.name)
+		}
+		if t.width != "" {
+			return fmt.Errorf("numbering.pattern token {%s} does not support a format", t.name)
+		}
+		hasCustomerToken = hasCustomerToken || spec.customer
 	}
 
 	if counterTokens == 0 {
 		return fmt.Errorf("numbering.pattern must contain {counter} or {counter:WIDTH}")
 	}
-	// Two counters only parse back when they hold the same digits, which a
-	// regular expression cannot check.
+	// Two counters only parse back when they hold the same digits, which
+	// Parse does not check.
 	if counterTokens > 1 {
 		return fmt.Errorf("numbering.pattern must contain {counter} only once")
 	}
 	if !hasCustomerToken {
 		return fmt.Errorf("numbering.pattern must contain {customer_id} or {customer_code}")
 	}
-	if err := checkCustomerCounterSeparator(pattern); err != nil {
+	if err := checkCustomerCounterSeparator(pattern, found); err != nil {
 		return err
 	}
 	if s.Start <= 0 {
@@ -99,18 +139,15 @@ func (s Settings) Validate() error {
 // checkCustomerCounterSeparator rejects a customer token directly next to
 // the counter: with {customer_code}{counter}, customer A would read customer
 // A1's invoice A1007 as its own counter 1007.
-func checkCustomerCounterSeparator(pattern string) error {
-	tokens := tokenPattern.FindAllStringSubmatchIndex(pattern, -1)
-	for index := 1; index < len(tokens); index++ {
-		previous, current := tokens[index-1], tokens[index]
-		if previous[1] != current[0] {
+func checkCustomerCounterSeparator(pattern string, found []token) error {
+	for index := 1; index < len(found); index++ {
+		previous, current := found[index-1], found[index]
+		if previous.end != current.start {
 			continue
 		}
-		left := pattern[previous[2]:previous[3]]
-		right := pattern[current[2]:current[3]]
-		for _, pair := range [][2]string{{left, right}, {right, left}} {
-			if (pair[0] == "customer_id" || pair[0] == "customer_code") && pair[1] == "counter" {
-				suggestion := pattern[:current[0]] + "-" + pattern[current[0]:]
+		for _, pair := range [][2]string{{previous.name, current.name}, {current.name, previous.name}} {
+			if tokens[pair[0]].customer && pair[1] == counterToken {
+				suggestion := pattern[:current.start] + "-" + pattern[current.start:]
 				return fmt.Errorf(
 					"numbering.pattern %q needs a separator between {%s} and {counter}, such as %q; "+
 						"invoice numbers in the old format no longer count towards the next number, so set "+
@@ -141,9 +178,10 @@ func InPeriod(pattern, date, issueDate string) bool {
 	if err != nil {
 		return true
 	}
-	layouts := map[string]string{"year": "2006", "month": "01", "day": "02"}
-	for _, match := range tokenPattern.FindAllStringSubmatch(pattern, -1) {
-		if layout, ok := layouts[match[1]]; ok && own.Format(layout) != requested.Format(layout) {
+	// The customer tokens stand for "" on both sides, so only the date
+	// tokens can differ.
+	for _, t := range scan(pattern) {
+		if spec, ok := tokens[t.name]; ok && spec.value(fields{issue: own}) != spec.value(fields{issue: requested}) {
 			return false
 		}
 	}
@@ -154,112 +192,100 @@ func InPeriod(pattern, date, issueDate string) bool {
 // on issueDate. customerCode stands in for {customer_code}; when it is ""
 // the customer ID does.
 func Format(pattern, customerID, customerCode, issueDate string, counter int64) (string, error) {
-	issueTime, customerCode, err := values(customerID, customerCode, issueDate)
+	f, err := newFields(customerID, customerCode, issueDate)
+	if err != nil {
+		return "", err
+	}
+	pieces, widths, err := expand(pattern, f)
 	if err != nil {
 		return "", err
 	}
 
-	replaced := tokenPattern.ReplaceAllStringFunc(pattern, func(token string) string {
-		matches := tokenPattern.FindStringSubmatch(token)
-		if len(matches) != 3 {
-			return token
+	var number strings.Builder
+	for index, width := range widths {
+		number.WriteString(pieces[index])
+		if width == "" {
+			number.WriteString(strconv.FormatInt(counter, 10))
+			continue
 		}
-		name := matches[1]
-		format := matches[2]
-		switch name {
-		case "customer_id":
-			return customerID
-		case "customer_code":
-			return customerCode
-		case "year":
-			return issueTime.Format("2006")
-		case "month":
-			return issueTime.Format("01")
-		case "day":
-			return issueTime.Format("02")
-		case "counter":
-			if format == "" {
-				return strconv.FormatInt(counter, 10)
-			}
-			width, _ := strconv.Atoi(format)
-			return fmt.Sprintf("%0*d", width, counter)
-		default:
-			return token
-		}
-	})
-
-	return strings.TrimSpace(replaced), nil
+		digits, _ := strconv.Atoi(width)
+		fmt.Fprintf(&number, "%0*d", digits, counter)
+	}
+	number.WriteString(pieces[len(widths)])
+	return strings.TrimSpace(number.String()), nil
 }
 
 // Parse returns the counter of invoiceNumber, which must be a number that
 // Format gives for the same pattern, customer and issue date.
 func Parse(pattern, invoiceNumber, customerID, customerCode, issueDate string) (int64, error) {
-	issueTime, customerCode, err := values(customerID, customerCode, issueDate)
+	f, err := newFields(customerID, customerCode, issueDate)
 	if err != nil {
 		return 0, err
 	}
 
 	// Format trims its result, so match against the trimmed pattern.
 	pattern = strings.TrimSpace(pattern)
-
-	var patternBuilder strings.Builder
-	patternBuilder.WriteString("^")
-
-	lastIndex := 0
-	for _, match := range tokenPattern.FindAllStringSubmatchIndex(pattern, -1) {
-		start := match[0]
-		end := match[1]
-		tokenStart := match[2]
-		tokenEnd := match[3]
-
-		patternBuilder.WriteString(regexp.QuoteMeta(pattern[lastIndex:start]))
-
-		token := pattern[tokenStart:tokenEnd]
-		switch token {
-		case "customer_id":
-			patternBuilder.WriteString(regexp.QuoteMeta(customerID))
-		case "customer_code":
-			patternBuilder.WriteString(regexp.QuoteMeta(customerCode))
-		case "year":
-			patternBuilder.WriteString(regexp.QuoteMeta(issueTime.Format("2006")))
-		case "month":
-			patternBuilder.WriteString(regexp.QuoteMeta(issueTime.Format("01")))
-		case "day":
-			patternBuilder.WriteString(regexp.QuoteMeta(issueTime.Format("02")))
-		case "counter":
-			patternBuilder.WriteString(`([0-9]+)`)
-		default:
-			return 0, fmt.Errorf("numbering.pattern uses unsupported token {%s}", token)
-		}
-
-		lastIndex = end
-	}
-	patternBuilder.WriteString(regexp.QuoteMeta(pattern[lastIndex:]))
-	patternBuilder.WriteString("$")
-
-	numberPattern, err := regexp.Compile(patternBuilder.String())
+	pieces, _, err := expand(pattern, f)
 	if err != nil {
-		return 0, fmt.Errorf("numbering.pattern %q: %w", pattern, err)
+		return 0, err
 	}
-	matches := numberPattern.FindStringSubmatch(invoiceNumber)
-	if len(matches) != 2 {
-		return 0, fmt.Errorf("invoice.number %q does not match numbering pattern %q", invoiceNumber, pattern)
+	for _, piece := range pieces {
+		if !utf8.ValidString(piece) {
+			return 0, fmt.Errorf("numbering.pattern %q: invalid UTF-8", pattern)
+		}
 	}
 
-	counter, err := strconv.ParseInt(matches[1], 10, 64)
+	mismatch := fmt.Errorf("invoice.number %q does not match numbering pattern %q", invoiceNumber, pattern)
+	if len(pieces) != 2 {
+		return 0, mismatch
+	}
+	digits, ok := strings.CutPrefix(invoiceNumber, pieces[0])
+	if ok {
+		digits, ok = strings.CutSuffix(digits, pieces[1])
+	}
+	if !ok || digits == "" || strings.Trim(digits, "0123456789") != "" {
+		return 0, mismatch
+	}
+
+	counter, err := strconv.ParseInt(digits, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invoice.number %q contains an invalid counter", invoiceNumber)
 	}
 	return counter, nil
 }
 
-func values(customerID, customerCode, issueDate string) (time.Time, string, error) {
-	issueTime, err := time.Parse(time.DateOnly, issueDate)
+// expand fills in every token of pattern but {counter}. It returns the text
+// around the counters, one piece more than there are counters, and the width
+// of each counter ("" for a plain {counter}).
+func expand(pattern string, f fields) (pieces, widths []string, err error) {
+	var piece strings.Builder
+	last := 0
+	for _, t := range scan(pattern) {
+		piece.WriteString(pattern[last:t.start])
+		last = t.end
+		if t.name == counterToken {
+			pieces = append(pieces, piece.String())
+			widths = append(widths, t.width)
+			piece.Reset()
+			continue
+		}
+		spec, ok := tokens[t.name]
+		if !ok {
+			return nil, nil, fmt.Errorf("numbering.pattern uses unsupported token {%s}", t.name)
+		}
+		piece.WriteString(spec.value(f))
+	}
+	piece.WriteString(pattern[last:])
+	return append(pieces, piece.String()), widths, nil
+}
+
+func newFields(customerID, customerCode, issueDate string) (fields, error) {
+	issue, err := time.Parse(time.DateOnly, issueDate)
 	if err != nil {
-		return time.Time{}, "", fmt.Errorf("invoice.issue_date: expected YYYY-MM-DD, got %q", issueDate)
+		return fields{}, fmt.Errorf("invoice.issue_date: expected YYYY-MM-DD, got %q", issueDate)
 	}
 	if customerCode == "" {
 		customerCode = customerID
 	}
-	return issueTime, customerCode, nil
+	return fields{customerID: customerID, customerCode: customerCode, issue: issue}, nil
 }
