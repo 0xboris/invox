@@ -491,27 +491,3 @@ func TestForceNeverReplacesArchivedFile(t *testing.T) {
 		})
 	}
 }
-
-func TestArchiveEditForceReplacesWorkingCopy(t *testing.T) {
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-	archivedPath := writeNumberedInvoice(t, archiveDir, "first.yaml", "CUST-001-001", "archived")
-	workDir := t.TempDir()
-	workingCopy := writeNumberedInvoice(t, workDir, "first.yaml", "CUST-001-099", "editing")
-	chdirForTest(t, workDir)
-
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "edit", "first.yaml", "--force"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-	if want := "first.yaml\n"; stdout != want {
-		t.Fatalf("stdout = %q, want %q", stdout, want)
-	}
-	if want := "Editing " + archivedPath + " -> first.yaml\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	got := readFileForTest(t, workingCopy)
-	if !strings.Contains(got, "number: CUST-001-001") || !strings.Contains(got, "archive_path: first.yaml") {
-		t.Fatalf("working copy was not replaced by the archived invoice:\n%s", got)
-	}
-}

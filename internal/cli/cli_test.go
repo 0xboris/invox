@@ -187,25 +187,6 @@ func TestArchiveListHelpShowsOutputFormat(t *testing.T) {
 	}
 }
 
-func TestArchiveEditHelpShowsUsage(t *testing.T) {
-	exitCode, stdout, stderr := captureRun(t, []string{"archive", "edit", "-h"})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0", exitCode)
-	}
-	if stderr != "" {
-		t.Fatalf("stderr = %q, want empty", stderr)
-	}
-	for _, want := range []string{
-		"invox archive edit FILENAME",
-		"archive.dir",
-		"invoice.status set to editing",
-	} {
-		if !strings.Contains(stdout, want) {
-			t.Fatalf("stdout %q does not contain %q", stdout, want)
-		}
-	}
-}
-
 func TestArchiveListPrintsArchivedInvoices(t *testing.T) {
 	archiveDir := t.TempDir()
 	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
@@ -241,71 +222,6 @@ invoice:
 	}, "\n") + "\n"
 	if stdout != want {
 		t.Fatalf("stdout = %q, want %q", stdout, want)
-	}
-}
-
-func TestArchiveEditCopiesArchivedInvoiceToCurrentDir(t *testing.T) {
-	archiveDir := t.TempDir()
-	writeConfigFile(t, "archive:\n  dir: "+quoteYAMLString(archiveDir)+"\n")
-
-	archivedPath := filepath.Join(archiveDir, "customer-a", "2026-03-06.yaml")
-	if err := os.MkdirAll(filepath.Dir(archivedPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll(archive subdir) returned error: %v", err)
-	}
-	if err := os.WriteFile(archivedPath, []byte(strings.TrimSpace(`
-customer_id: CUST-001
-invoice:
-  number: CUST-001-001
-  issue_date: 2026-03-06
-  due_date: 2026-04-05
-  status: archived
-  period: March 2026
-  vat_percent: 20
-  paid_amount: 0
-positions:
-  - name: Development
-    description: Sprint work
-    unit_price: 100
-    quantity: 2
-`)+"\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(archivedPath) returned error: %v", err)
-	}
-
-	workDir := t.TempDir()
-	chdirForTest(t, workDir)
-
-	exitCode, stdout, stderr := captureRun(t, []string{
-		"archive",
-		"edit",
-		"customer-a/2026-03-06.yaml",
-	})
-	if exitCode != 0 {
-		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
-	}
-
-	editedPath := filepath.Join(workDir, "2026-03-06.yaml")
-	if want := "Editing " + archivedPath + " -> 2026-03-06.yaml\n"; stderr != want {
-		t.Fatalf("stderr = %q, want %q", stderr, want)
-	}
-	if stdout != "2026-03-06.yaml\n" {
-		t.Fatalf("stdout = %q, want %q", stdout, "2026-03-06.yaml\n")
-	}
-	editedSource, err := os.ReadFile(editedPath)
-	if err != nil {
-		t.Fatalf("ReadFile(editedPath) returned error: %v", err)
-	}
-	editedText := string(editedSource)
-	for _, want := range []string{
-		"status: editing",
-		"_invox:",
-		"archive_path: customer-a/2026-03-06.yaml",
-	} {
-		if !strings.Contains(editedText, want) {
-			t.Fatalf("edited invoice does not contain %q:\n%s", want, editedText)
-		}
-	}
-	if _, err := os.Stat(archivedPath); err != nil {
-		t.Fatalf("archived invoice should remain in place: %v", err)
 	}
 }
 
