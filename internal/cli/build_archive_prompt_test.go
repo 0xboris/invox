@@ -22,9 +22,9 @@ func TestBuildArchiveReplacePromptStderr(t *testing.T) {
 			},
 		},
 		{
-			// tectonic shares stdin, so the prompt reads end of input,
-			// which declines.
-			name: "declined at end of input", terminal: true, answer: "n\n",
+			// Empty input: tectonic runs on the same stdin before the prompt,
+			// so an answer here would go to whichever reads it first.
+			name: "declined at end of input", terminal: true, answer: "",
 			wantStderr: func(archivedPath, historyDir string) string {
 				return "Replace archived invoice " + archivedPath + "? The previous version is kept in " + historyDir + ". [y/N] \n" +
 					"built first.pdf but not archived; the archive was not changed; pass --yes to replace without asking\n"
