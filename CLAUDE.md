@@ -108,6 +108,12 @@ dependencies point inward, from main to the driving and driven adapters to the u
   depguard rule per row of the package table; `internal/archtest` checks the transitive import
   graph with `go list`. A new package or import that crosses a ring fails both; update the
   rules in the same PR when the layering itself changes.
+- `docs/architecture.md` is the architecture map: the rings, the package imports, the ports
+  with their implementers, and each use case with its commands and the port methods it
+  reaches. `TestArchitectureDoc` in `internal/archtest` generates it from the code and fails
+  when it is stale, and a package in no ring fails it too; regenerate it with `make docs`.
+  Before planning a change, follow `.claude/skills/invox-architecture/SKILL.md`: place each
+  part on the map, write the change map and draw it.
 
 ## Quality roadmap
 
@@ -174,7 +180,7 @@ Settled decisions (#9):
 ## Agent workflow: poteto-mode (pstack)
 
 `.claude/skills/` vendors all of [pstack](https://github.com/backnotprop/pstack)'s `skills/`
-at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli` is this repo's own skill.
+at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli` and `invox-architecture` are this repo's own skills.
 `agents/comment-sicko.md` is left out of `.claude/agents/`: "Comment Sicko" isn't a valid
 Claude Code agent name, and `no-comments` falls back to a general subagent with its bundled
 prompt.
@@ -195,9 +201,10 @@ Local edits, all so pstack's GitHub calls work in Claude Code cloud sessions (RE
 
 To update to a newer pstack commit:
 
-1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x PSTACK-LICENSE
-   -x node_modules <old>/skills .claude/skills` must show only the local edits above.
-2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli` and `PSTACK-LICENSE`.
+1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x invox-architecture
+   -x PSTACK-LICENSE -x node_modules <old>/skills .claude/skills` must show only the local edits above.
+2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli`,
+   `invox-architecture` and `PSTACK-LICENSE`.
 3. Re-apply each local edit. `git diff HEAD -- <path>` shows what the copy reverted.
 4. Check: the diff against the new commit shows only the list above;
    `grep -rnE 'gh (pr|issue) |graphql' .claude/` finds only notes that explain the ban; and

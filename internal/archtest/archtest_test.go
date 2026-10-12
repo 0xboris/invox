@@ -152,6 +152,8 @@ var rules = []rule{
 // pkg is the part of go list's output the rules read.
 type pkg struct {
 	ImportPath string
+	Dir        string
+	GoFiles    []string
 	Standard   bool
 	Imports    []string
 	Deps       []string
@@ -316,7 +318,7 @@ func matches(pattern, importPath string) bool {
 func loadGraph(t *testing.T) []pkg {
 	t.Helper()
 
-	cmd := exec.Command("go", "list", "-deps", "-json=ImportPath,Standard,Imports,Deps", "./...")
+	cmd := exec.Command("go", "list", "-deps", "-json=ImportPath,Dir,GoFiles,Standard,Imports,Deps", "./...")
 	cmd.Dir = filepath.Join("..", "..")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
