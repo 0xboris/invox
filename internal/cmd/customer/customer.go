@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/customer/edit"
 	"github.com/0xboris/invox/internal/cmd/customer/list"
 )
@@ -19,15 +18,13 @@ func NewCmdCustomer(f *cmdutil.Factory) *cobra.Command {
 		Long: `Customer-related commands.
 
 Default lookup:
-  customers.yaml: upward project search, then {{.GlobalCustomersPath}}
+  customers.yaml: upward project search, then {{.Customers}}
 
 Documentation:
   Run ` + "`" + `invox help customers` + "`" + ` for the customers.yaml schema reference.
 
-` +
-			helptext.CustomerFieldReference() +
-			"\n" +
-			helptext.CustomerYAMLExample(),
+{{template "customer-fields"}}
+{{template "customer-example"}}`,
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
 $ invox customer edit
@@ -43,7 +40,6 @@ $ invox customer edit
 	cmd.AddCommand(
 		list.NewCmdList(f, nil),
 		edit.NewCmdEdit(f, nil),
-		edit.NewCmdConfig(f, nil),
 	)
 	return cmd
 }

@@ -2,21 +2,20 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
 
 	NamesOnly bool
 	Exporter  *cmdutil.Exporter
@@ -31,8 +30,11 @@ type templateJSON struct {
 }
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List available invoice templates",
@@ -55,20 +57,12 @@ $ invox template list --names
 $ invox template list --json name,default
 $ invox build invoice.yaml -t multi_vat.tex
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("template list", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.NamesOnly && opts.Exporter != nil {
-				return cmdutil.FlagErrorf("template list", "--names and --json cannot be used together")
+				return cmdutil.FlagErrorf("--names and --json cannot be used together")
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.NamesOnly, "names", false, "Print only template names")
@@ -76,19 +70,17 @@ $ invox build invoice.yaml -t multi_vat.tex
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
-	h := opts.Host()
-	templates, err := h.ListTemplates()
+func listRun(_ context.Context, opts *ListOptions) error {
+	// Only --json shows the default template, which takes a search from
+	// the working directory.
+	catalog, err := opts.Service(cmdutil.Files{}).ListTemplates(opts.Exporter != nil)
 	if err != nil {
 		return err
 	}
-	templateDir, err := h.TemplateCatalogDir()
-	if err != nil {
-		return err
-	}
+	templates, templateDir := catalog.Templates, catalog.Dir
 
 	if opts.Exporter != nil {
-		return exportTemplates(opts, h, templates)
+		return exportTemplates(opts, catalog)
 	}
 
 	list := tableprinter.Table{
@@ -109,21 +101,14 @@ func listRun(opts *ListOptions) error {
 	return nil
 }
 
-func exportTemplates(opts *ListOptions, h invoice.Host, templates []invoice.TemplateSummary) error {
-	cwd, err := opts.Getwd()
-	if err != nil {
-		return err
-	}
-	defaultTemplate, err := h.ResolveSupportFile(invoice.Template, filepath.Clean(cwd))
-	if err != nil {
-		return err
-	}
-	items := make([]templateJSON, 0, len(templates))
-	for _, template := range templates {
+func exportTemplates(opts *ListOptions, catalog billing.TemplateList) error {
+	defaultTemplate := catalog.Default
+	items := make([]templateJSON, 0, len(catalog.Templates))
+	for _, template := range catalog.Templates {
 		items = append(items, templateJSON{
 			Name:    template.Name,
 			Path:    template.Path,
-			Default: defaultTemplate.Path != "" && filepath.Clean(defaultTemplate.Path) == filepath.Clean(template.Path),
+			Default: defaultTemplate != "" && filepath.Clean(defaultTemplate) == filepath.Clean(template.Path),
 		})
 	}
 	return opts.Exporter.Write(opts.IO, items)

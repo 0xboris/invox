@@ -1,5 +1,5 @@
 # build and email parse their flags with pflag, so they report bad flags the
-# same way as validate (#47), and send is still an alias of email.
+# same way as validate (#47).
 
 # A misspelt flag after the positional is an unknown flag with a suggestion,
 # not an unexpected argument.
@@ -9,9 +9,6 @@ cmp stderr want-build-misspelt.txt
 exits 2 invox email x.yaml --forse
 ! stdout .
 cmp stderr want-email-misspelt.txt
-exits 2 invox send x.yaml --subjct hi
-! stdout .
-cmp stderr want-send-misspelt.txt
 
 # A dangling flag says which flag needs a value, instead of swallowing the
 # invoice.
@@ -19,12 +16,10 @@ exits 2 invox build x.yaml -o
 ! stdout .
 cmp stderr want-build-dangling.txt
 
-# A single-dash long flag works and warns. There is no template, so build
-# then stops with the usage error for that.
+# A single-dash long flag is a usage error that names the double-dash one.
 exits 2 invox build -input x.yaml -customers c.yaml -issuer u.yaml
 ! stdout .
-stderr '^warning: -input is deprecated; use --input$'
-stderr '^error: template file not found'
+cmp stderr want-build-single-dash.txt
 
 -- want-build-misspelt.txt --
 error: unknown flag: --archiv; did you mean --archive?
@@ -32,9 +27,9 @@ Run 'invox build --help' for usage.
 -- want-email-misspelt.txt --
 error: unknown flag: --forse; did you mean --force?
 Run 'invox email --help' for usage.
--- want-send-misspelt.txt --
-error: unknown flag: --subjct; did you mean --subject?
-Run 'invox email --help' for usage.
 -- want-build-dangling.txt --
 error: flag needs an argument: -o
+Run 'invox build --help' for usage.
+-- want-build-single-dash.txt --
+error: -input is not a flag; use --input
 Run 'invox build --help' for usage.

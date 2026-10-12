@@ -1,0 +1,30 @@
+issuer.yaml reference.
+
+Usage:
+  invox help issuer
+
+Behavior:
+  Shows the supported issuer.yaml shape used by new, validate, render, build, and email.
+  `invox init` writes a starter issuer.yaml with this structure.
+
+Formatting:
+  Top-level keys must start at column 1 with no leading spaces.
+
+{{template "issuer-fields"}}
+
+Rules:
+  payment.due_days must be a non-negative integer.
+  payment.vat_label defaults to VAT when omitted.
+  payment.epc_qr.name defaults to company.legal_company_name.
+  payment.epc_qr.text defaults to invoice.number.
+  payment.epc_qr.label defaults to Pay via EPC-QR.
+  EPC QR generation requires a valid SEPA-scope payment.iban.
+
+Lookup:
+  issuer.yaml: upward project search, then {{.Issuer}}
+
+Examples:
+  invox help issuer
+  invox new CUST-001 -u issuer.yaml
+
+{{template "issuer-example"}}

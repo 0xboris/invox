@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"os"
@@ -6,11 +6,6 @@ import (
 	"strings"
 	"testing"
 )
-
-func chdirForTest(t *testing.T, dir string) {
-	t.Helper()
-	t.Chdir(dir)
-}
 
 // userDirEnvKeys are the variables invox derives the config directory and the
 // default archive directory from on Linux, macOS and Windows.

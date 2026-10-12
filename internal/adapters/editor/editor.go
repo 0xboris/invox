@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -27,8 +28,9 @@ func New(runner run.Runner, ios *iostreams.IOStreams, goos string, getenv func(s
 }
 
 // Edit opens path in the editor and waits for it to exit. When the editor
-// exits non-zero it returns a *run.ExecError whose Name is the editor setting,
-// such as "code -w".
+// is not on PATH it returns a *billing.ToolMissingError, and when it fails
+// a *billing.ToolFailedError; both name the editor setting, such as editor
+// "code -w".
 func (e *Editor) Edit(ctx context.Context, path string) error {
 	editor := e.command()
 	cmd, err := e.invocation(editor, path)
@@ -40,9 +42,12 @@ func (e *Editor) Edit(ctx context.Context, path string) error {
 	cmd.Stderr = e.ios.ErrOut
 
 	err = e.runner.Run(ctx, cmd)
+	if errors.Is(err, run.ErrNotFound) {
+		return &billing.ToolMissingError{Tool: fmt.Sprintf("editor %q", editor), Hint: "Set VISUAL or EDITOR to an installed editor, then rerun this command."}
+	}
 	var execErr *run.ExecError
 	if errors.As(err, &execErr) {
-		return &run.ExecError{Name: editor, Code: execErr.Code, Err: execErr.Err}
+		return &billing.ToolFailedError{Tool: fmt.Sprintf("editor %q", editor), Code: execErr.Code, Err: err}
 	}
 	return err
 }

@@ -1,13 +1,11 @@
-// Package email renders the subject and body of an invoice email from
-// their templates and builds the .eml draft that carries the PDF. It knows
-// the placeholders and the MIME layout, not invoices: the caller fills in
-// Fields.
+// Package email writes an invoice email as an .eml draft that carries the
+// PDF, and opens it. It knows the MIME layout and where temporary drafts
+// go, not invoices: billing writes the subject and body.
 package email
 
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -16,96 +14,11 @@ import (
 	"net/mail"
 	"net/textproto"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
-const (
-	// defaultSubjectTemplate is the subject when the config sets none.
-	defaultSubjectTemplate = "Invoice {invoice_number}"
-	// defaultBodyTemplate is the body when the config sets none.
-	defaultBodyTemplate = `{email_greeting}
-
-Please find attached invoice {invoice_number}.
-Issue date: {issue_date}
-Due date: {due_date}
-Outstanding amount: {outstanding_amount}
-
-Regards,
-{issuer_name}
-`
-)
-
-// Fields are the values the subject and body placeholders stand for, as
-// they appear in the email.
-type Fields struct {
-	CustomerName      string // {customer_name}
-	Greeting          string // {email_greeting}
-	ContactPerson     string // {contact_person}
-	CustomerID        string // {customer_id}
-	InvoiceNumber     string // {invoice_number}
-	IssueDate         string // {issue_date}
-	DueDate           string // {due_date}
-	TotalAmount       string // {total_amount}
-	OutstandingAmount string // {outstanding_amount}
-	PaymentTermsText  string // {payment_terms_text}
-	IssuerName        string // {issuer_name}
-}
-
-// ErrEmptySubject reports a subject template that rendered to nothing.
-var ErrEmptySubject = errors.New("email subject resolved to empty value")
-
-// ErrMultilineSubject reports a subject that rendered to more than one line.
-var ErrMultilineSubject = errors.New("email subject must be a single line")
-
-// Subject renders the subject template, or defaultSubjectTemplate when
-// template is blank, and trims it. The result must be one non-empty line.
-func Subject(template string, f Fields) (string, error) {
-	if strings.TrimSpace(template) == "" {
-		template = defaultSubjectTemplate
-	}
-	subject := strings.TrimSpace(render(template, f))
-	if subject == "" {
-		return "", ErrEmptySubject
-	}
-	if strings.ContainsAny(subject, "\r\n") {
-		return "", ErrMultilineSubject
-	}
-	return subject, nil
-}
-
-// Body renders the body template, or defaultBodyTemplate when template is
-// empty, and ends it with exactly one blank line.
-func Body(template string, f Fields) string {
-	if template == "" {
-		template = defaultBodyTemplate
-	}
-	body := render(template, f)
-	return strings.TrimRight(body, "\n") + "\n\n"
-}
-
-// render replaces every placeholder in template with its field. Line
-// endings become \n.
-func render(template string, f Fields) string {
-	template = strings.ReplaceAll(template, "\r\n", "\n")
-	template = strings.ReplaceAll(template, "\r", "\n")
-	return strings.NewReplacer(
-		"{customer_name}", f.CustomerName,
-		"{email_greeting}", f.Greeting,
-		"{contact_person}", f.ContactPerson,
-		"{customer_id}", f.CustomerID,
-		"{invoice_number}", f.InvoiceNumber,
-		"{issue_date}", f.IssueDate,
-		"{due_date}", f.DueDate,
-		"{total_amount}", f.TotalAmount,
-		"{outstanding_amount}", f.OutstandingAmount,
-		"{payment_terms_text}", f.PaymentTermsText,
-		"{issuer_name}", f.IssuerName,
-	).Replace(template)
-}
-
-// Draft is an email with one PDF attachment, ready to write as .eml.
-type Draft struct {
+// draft is an email with one PDF attachment, ready to write as .eml.
+type draft struct {
 	Recipient     string
 	Subject       string
 	Body          string
@@ -115,10 +28,10 @@ type Draft struct {
 	AttachmentPath string
 }
 
-// Build encodes d as a multipart/mixed message: the body quoted-printable,
+// build encodes d as a multipart/mixed message: the body quoted-printable,
 // pdf base64 under the attachment's base name, dated now, marked unsent so
 // mail clients open it for editing. boundary separates the parts.
-func Build(d Draft, pdf []byte, now time.Time, boundary string) ([]byte, error) {
+func build(d draft, pdf []byte, now time.Time, boundary string) ([]byte, error) {
 	fromAddress := mail.Address{
 		Name:    d.SenderName,
 		Address: d.SenderAddress,

@@ -9,13 +9,15 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 	ios, stdin, stdout, stderr := iostreams.Test()
 	stdin.WriteString(":wq\n")
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	var got run.Cmd
 	var input []byte
 	stub.Register("vi", func(cmd run.Cmd) error {
@@ -44,19 +46,39 @@ func TestEditConnectsStdinAndSendsOutputToStderr(t *testing.T) {
 	}
 }
 
+func TestEditReportsAnEditorThatIsNotInstalled(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	stub := runtest.NewStub(t)
+	stub.Register("nano", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
+	getenv := func(key string) string { return map[string]string{"VISUAL": "nano"}[key] }
+
+	err := editor.New(stub, ios, "linux", getenv).Edit(context.Background(), "a.yaml")
+
+	var missing *billing.ToolMissingError
+	if !errors.As(err, &missing) {
+		t.Fatalf("Edit error = %v, want *billing.ToolMissingError", err)
+	}
+	if want := `editor "nano" not found in PATH`; err.Error() != want {
+		t.Fatalf("Edit error = %q, want %q", err, want)
+	}
+	if want := "Set VISUAL or EDITOR to an installed editor, then rerun this command."; missing.Hint != want {
+		t.Fatalf("Hint = %q, want %q", missing.Hint, want)
+	}
+}
+
 func TestEditReturnsTheEditorsFailure(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	stub.Register("code", func(run.Cmd) error { return &run.ExecError{Name: "code", Code: 3} })
 	getenv := func(key string) string { return map[string]string{"EDITOR": "code -w"}[key] }
 
 	err := editor.New(stub, ios, "linux", getenv).Edit(context.Background(), "a.yaml")
 
-	var execErr *run.ExecError
-	if !errors.As(err, &execErr) {
-		t.Fatalf("Edit error = %v, want *run.ExecError", err)
+	var failed *billing.ToolFailedError
+	if !errors.As(err, &failed) {
+		t.Fatalf("Edit error = %v, want *billing.ToolFailedError", err)
 	}
-	if execErr.Name != "code -w" || execErr.Code != 3 || err.Error() != "exit status 3" {
-		t.Fatalf("Edit error = {Name: %q, Code: %d, %q}, want {Name: %q, Code: 3, %q}", execErr.Name, execErr.Code, err, "code -w", "exit status 3")
+	if want := `editor "code -w" exited with status 3`; failed.Code != 3 || err.Error() != want {
+		t.Fatalf("Edit error = {Code: %d, %q}, want {Code: 3, %q}", failed.Code, err, want)
 	}
 }

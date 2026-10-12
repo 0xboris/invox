@@ -1,24 +1,22 @@
 package helptext
 
 import (
+	_ "embed"
 	"io"
-	"path/filepath"
 	"text/template"
-
-	"github.com/0xboris/invox/internal/invoice"
 )
 
 // The lines of a command's "Default lookup:" section. Like every Long, they
 // are templates that Render fills in from the user's directories.
 const (
-	LookupCustomers = "  customers.yaml: upward project search, then {{.GlobalCustomersPath}}\n" +
+	LookupCustomers = "  customers.yaml: upward project search, then {{.Customers}}\n" +
 		"  schema/docs: run `invox help customers`\n"
-	LookupIssuer = "  issuer.yaml: upward project search, then {{.GlobalIssuerPath}}\n" +
+	LookupIssuer = "  issuer.yaml: upward project search, then {{.Issuer}}\n" +
 		"  schema/docs: run `invox help issuer`\n"
-	LookupDefaults = "  invoice_defaults.yaml: upward project search, then {{.GlobalInvoiceDefaultsPath}}\n" +
+	LookupDefaults = "  invoice_defaults.yaml: upward project search, then {{.Defaults}}\n" +
 		"  schema/docs: run `invox help defaults`\n"
-	LookupTemplate = "  template.tex: upward project search, then {{.GlobalTemplatePath}}\n"
-	LookupArchive  = "  archive.dir: config.yaml, then {{.DefaultArchiveDir}}\n"
+	LookupTemplate = "  template.tex: upward project search, then {{.Template}}\n"
+	LookupArchive  = "  archive.dir: config.yaml, then {{.ArchiveDir}}\n"
 )
 
 // ReplacingArchived is the section on replacing an archived invoice, for
@@ -37,24 +35,38 @@ func ReplacingArchived(withArchiveFlag bool) string {
 		"  --yes only answers the question; every other check still applies.\n"
 }
 
-// Render writes text, a command's Long, with its {{...}} actions filled in
-// from h. They can call the methods of invoice.Host and of data.
-func Render(w io.Writer, text string, h invoice.Host) error {
-	tmpl, err := template.New("").Option("missingkey=error").Parse(text)
+// Locations are where invox keeps its files by default, for help texts.
+// They come from the environment only; nothing is read.
+type Locations struct {
+	ConfigDir  string
+	ConfigFile string
+	Customers  string
+	Issuer     string
+	Defaults   string
+	Template   string
+	ArchiveDir string
+	// ConfigTemplate is the text a new config.yaml starts with.
+	ConfigTemplate string
+}
+
+//go:embed reference.tmpl
+var reference string
+
+// shared holds the sections of reference.tmpl. Render parses each text
+// into a clone of it, so a text can include them with {{template}}.
+var shared = template.Must(template.New("reference.tmpl").Funcs(template.FuncMap{
+	"customerFields":       func() []group { return customerFields },
+	"issuerFields":         func() []group { return issuerFields },
+	"defaultsFields":       func() []group { return defaultsFields },
+	"templatePlaceholders": func() []group { return templatePlaceholders },
+}).Parse(reference))
+
+// Render writes text, a command's Long or a topic page, with its {{...}}
+// actions filled in: the fields of l, and the sections of reference.tmpl.
+func Render(w io.Writer, text string, l Locations) error {
+	tmpl, err := template.Must(shared.Clone()).New("").Parse(text)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, data{h})
-}
-
-type data struct {
-	invoice.Host
-}
-
-// LegacyConfigFile is config.yaml in the legacy directory, or "none".
-func (d data) LegacyConfigFile() string {
-	if dir := d.LegacyConfigDir(); dir != "" {
-		return filepath.Join(dir, "config.yaml")
-	}
-	return "none"
+	return tmpl.Execute(w, l)
 }

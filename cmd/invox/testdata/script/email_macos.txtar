@@ -7,10 +7,20 @@ exec invox email invoice.yaml
 cmp stderr want-email-stderr.txt
 ! exists invoice.eml
 
+# osascript fails: its own output, then the exit status.
+env FAKE_OPEN_FAIL=1
+exits 1 invox email invoice.yaml
+! stdout .
+cmp stderr want-osascript-failed.txt
+env FAKE_OPEN_FAIL=
+
 -- invoice.pdf --
 -- want-email-stderr.txt --
 fake osascript: to=office@appsters.example subject="Invoice CUST-001-001" attachment=invoice.pdf
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+-- want-osascript-failed.txt --
+fake osascript: forced failure
+error: osascript exited with status 1
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

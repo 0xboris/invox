@@ -11,9 +11,8 @@ Usage:
 Environment variables:
   INVOX_CONFIG_DIR
       Config directory to use in place of the default one, on every OS. invox
-      reads config.yaml and the global support files there, `init` writes there,
-      and the legacy directory is not read. It must exist. --config still wins
-      for config.yaml.
+      reads config.yaml and the global support files there, and `init` writes
+      there. It must exist. --config still wins for config.yaml.
   XDG_CONFIG_HOME
       Base directory for the config directory, on every OS.
       Default: $HOME/.config. A relative value is ignored.
@@ -47,12 +46,6 @@ Config directory (config.yaml and the global support files):
   INVOX_CONFIG_DIR replaces it on every OS.
   here:      $HOME/.config/invox
 
-Legacy config directory (deprecated):
-  invoice-tool next to the invox directory, such as $HOME/.config/invoice-tool.
-  A file missing from the invox directory is still read from here, and invox
-  prints a warning. `invox init` copies the files into the invox directory.
-  Not read when INVOX_CONFIG_DIR is set.
-
 Default archive directory (when config.yaml sets no archive.dir):
   Linux:     $XDG_DATA_HOME/invox/invoices, else $HOME/.local/share/invox/invoices
   macOS:     $XDG_DATA_HOME/invox/invoices, else $HOME/Library/Application Support/invox/invoices
@@ -63,7 +56,6 @@ Config file:
   1. --config PATH
   2. config.yaml in INVOX_CONFIG_DIR
   3. config.yaml in the config directory
-  4. config.yaml in the legacy directory
   A --config file that is missing or broken is an error. invox never falls
   back to another config file.
 
@@ -76,7 +68,7 @@ Support file resolution (customers.yaml, issuer.yaml, invoice_defaults.yaml, tem
   1. explicit flag (-c, -u, --defaults, -t)
   2. upward search from the current directory
   3. paths.* in config.yaml, relative to config.yaml
-  4. the file in the config directory, then in the legacy directory
+  4. the file in the config directory
 
 Upward search:
   It always searches the current directory. It goes up to the nearest directory

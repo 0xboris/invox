@@ -8,23 +8,9 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
-
-func readFile(t *testing.T, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-func writeTestFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-}
 
 func symlinkOrSkip(t *testing.T, target, link string) {
 	t.Helper()
@@ -72,13 +58,13 @@ func TestWriteFileCreatesAndReplaces(t *testing.T) {
 	if err := WriteFile(path, []byte("first\n"), Public); err != nil {
 		t.Fatalf("WriteFile(new) returned error: %v", err)
 	}
-	if got := readFile(t, path); got != "first\n" {
+	if got := testfixture.ReadFile(t, path); got != "first\n" {
 		t.Fatalf("content = %q, want %q", got, "first\n")
 	}
 	if err := WriteFile(path, []byte("second\n"), Public); err != nil {
 		t.Fatalf("WriteFile(existing) returned error: %v", err)
 	}
-	if got := readFile(t, path); got != "second\n" {
+	if got := testfixture.ReadFile(t, path); got != "second\n" {
 		t.Fatalf("content = %q, want %q", got, "second\n")
 	}
 	assertNoTempFiles(t, filepath.Dir(path))
@@ -100,7 +86,7 @@ func TestWriteFileWritesThroughSymlinks(t *testing.T) {
 				if err := os.Mkdir(filepath.Dir(target), 0o755); err != nil {
 					t.Fatal(err)
 				}
-				writeTestFile(t, target, "old\n")
+				testfixture.WriteFile(t, target, "old\n")
 				link := filepath.Join(dir, "link.yaml")
 				symlinkOrSkip(t, target, link)
 				return link, link, target, target
@@ -113,7 +99,7 @@ func TestWriteFileWritesThroughSymlinks(t *testing.T) {
 				if err := os.Mkdir(filepath.Dir(target), 0o755); err != nil {
 					t.Fatal(err)
 				}
-				writeTestFile(t, target, "old\n")
+				testfixture.WriteFile(t, target, "old\n")
 				link := filepath.Join(dir, "link.yaml")
 				relative := filepath.Join("real", "invoice.yaml")
 				symlinkOrSkip(t, relative, link)
@@ -133,7 +119,7 @@ func TestWriteFileWritesThroughSymlinks(t *testing.T) {
 			name: "chain of links",
 			setup: func(t *testing.T, dir string) (string, string, string, string) {
 				target := filepath.Join(dir, "invoice.yaml")
-				writeTestFile(t, target, "old\n")
+				testfixture.WriteFile(t, target, "old\n")
 				middle := filepath.Join(dir, "middle.yaml")
 				symlinkOrSkip(t, "invoice.yaml", middle)
 				link := filepath.Join(dir, "link.yaml")
@@ -152,7 +138,7 @@ func TestWriteFileWritesThroughSymlinks(t *testing.T) {
 				t.Fatalf("WriteFile returned error: %v", err)
 			}
 			assertSymlinkTo(t, link, linkTarget)
-			if got := readFile(t, target); got != "new\n" {
+			if got := testfixture.ReadFile(t, target); got != "new\n" {
 				t.Fatalf("target content = %q, want %q", got, "new\n")
 			}
 			assertNoTempFiles(t, dir)
@@ -185,7 +171,7 @@ func TestWriteNewFileCreates(t *testing.T) {
 	if err := WriteNewFile(path, []byte("hello\n"), Public); err != nil {
 		t.Fatalf("WriteNewFile returned error: %v", err)
 	}
-	if got := readFile(t, path); got != "hello\n" {
+	if got := testfixture.ReadFile(t, path); got != "hello\n" {
 		t.Fatalf("content = %q, want %q", got, "hello\n")
 	}
 	assertNoTempFiles(t, filepath.Dir(path))
@@ -203,14 +189,14 @@ func TestWriteNewFileNeverClobbers(t *testing.T) {
 		{
 			name: "existing file",
 			setup: func(t *testing.T, dir, path string) string {
-				writeTestFile(t, path, "keep\n")
+				testfixture.WriteFile(t, path, "keep\n")
 				return "keep\n"
 			},
 		},
 		{
 			name: "symlink to a file",
 			setup: func(t *testing.T, dir, path string) string {
-				writeTestFile(t, filepath.Join(dir, "other.yaml"), "other\n")
+				testfixture.WriteFile(t, filepath.Join(dir, "other.yaml"), "other\n")
 				symlinkOrSkip(t, "other.yaml", path)
 				return "other\n"
 			},
@@ -247,7 +233,7 @@ func TestWriteNewFileNeverClobbers(t *testing.T) {
 				t.Fatalf("entry type changed from %v to %v", before.Mode().Type(), after.Mode().Type())
 			}
 			if want != "" {
-				if got := readFile(t, path); got != want {
+				if got := testfixture.ReadFile(t, path); got != want {
 					t.Fatalf("content = %q, want %q", got, want)
 				}
 			} else if _, err := os.Stat(filepath.Join(dir, "missing.yaml")); !errors.Is(err, fs.ErrNotExist) {
@@ -262,7 +248,7 @@ func TestWriteNewFileLosesRaceWithoutClobbering(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invoice.yaml")
 	testHookBeforeCommit = func(target string) {
-		writeTestFile(t, target, "racer\n")
+		testfixture.WriteFile(t, target, "racer\n")
 	}
 	t.Cleanup(func() { testHookBeforeCommit = nil })
 
@@ -270,7 +256,7 @@ func TestWriteNewFileLosesRaceWithoutClobbering(t *testing.T) {
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("WriteNewFile error = %v, want fs.ErrExist", err)
 	}
-	if got := readFile(t, path); got != "racer\n" {
+	if got := testfixture.ReadFile(t, path); got != "racer\n" {
 		t.Fatalf("content = %q, want the racing writer's %q", got, "racer\n")
 	}
 	assertNoTempFiles(t, dir)
@@ -294,7 +280,7 @@ func TestWriteNewFileWithoutHardLinks(t *testing.T) {
 	if err := WriteNewFile(path, []byte("hello\n"), Public); err != nil {
 		t.Fatalf("WriteNewFile returned error: %v", err)
 	}
-	if got := readFile(t, path); got != "hello\n" {
+	if got := testfixture.ReadFile(t, path); got != "hello\n" {
 		t.Fatalf("content = %q, want %q", got, "hello\n")
 	}
 	assertNoTempFiles(t, dir)
@@ -303,7 +289,7 @@ func TestWriteNewFileWithoutHardLinks(t *testing.T) {
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("WriteNewFile(existing) error = %v, want fs.ErrExist", err)
 	}
-	if got := readFile(t, path); got != "hello\n" {
+	if got := testfixture.ReadFile(t, path); got != "hello\n" {
 		t.Fatalf("content = %q, want %q", got, "hello\n")
 	}
 	assertNoTempFiles(t, dir)
@@ -314,7 +300,7 @@ func TestWriteNewFileWithoutHardLinksLosesRaceWithoutClobbering(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invoice.yaml")
 	testHookBeforeCommit = func(target string) {
-		writeTestFile(t, target, "racer\n")
+		testfixture.WriteFile(t, target, "racer\n")
 	}
 	t.Cleanup(func() { testHookBeforeCommit = nil })
 
@@ -322,7 +308,7 @@ func TestWriteNewFileWithoutHardLinksLosesRaceWithoutClobbering(t *testing.T) {
 	if !errors.Is(err, fs.ErrExist) {
 		t.Fatalf("WriteNewFile error = %v, want fs.ErrExist", err)
 	}
-	if got := readFile(t, path); got != "racer\n" {
+	if got := testfixture.ReadFile(t, path); got != "racer\n" {
 		t.Fatalf("content = %q, want the racing writer's %q", got, "racer\n")
 	}
 	assertNoTempFiles(t, dir)
@@ -332,14 +318,14 @@ func TestWriteFileReplacesRacingFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invoice.yaml")
 	testHookBeforeCommit = func(target string) {
-		writeTestFile(t, target, "racer\n")
+		testfixture.WriteFile(t, target, "racer\n")
 	}
 	t.Cleanup(func() { testHookBeforeCommit = nil })
 
 	if err := WriteFile(path, []byte("winner\n"), Public); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
-	if got := readFile(t, path); got != "winner\n" {
+	if got := testfixture.ReadFile(t, path); got != "winner\n" {
 		t.Fatalf("content = %q, want %q", got, "winner\n")
 	}
 	assertNoTempFiles(t, dir)
@@ -350,7 +336,7 @@ func TestMkdirAllRejectsFile(t *testing.T) {
 
 	dir := t.TempDir()
 	file := filepath.Join(dir, "file")
-	writeTestFile(t, file, "")
+	testfixture.WriteFile(t, file, "")
 	for _, target := range []string{file, filepath.Join(file, "child")} {
 		if err := MkdirAll(target, Private); err == nil {
 			t.Fatalf("MkdirAll(%s) returned nil, want an error", target)

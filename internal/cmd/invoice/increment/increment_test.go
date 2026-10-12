@@ -1,6 +1,7 @@
 package increment
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -21,8 +23,8 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 		want    IncrementOptions
 		wantErr string
 	}{
-		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
-		{name: "long", args: []string{"--input=x.yaml", "--customers", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml"}},
+		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml"}}},
+		{name: "long", args: []string{"--input=x.yaml", "--customers", "c.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml"}}},
 		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml or -i, --input"},
 		{name: "positional input", args: []string{"x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
 		{name: "positional and input naming it", args: []string{"x.yaml", "-i", "x.yaml"}, want: IncrementOptions{InvoicePath: "x.yaml"}},
@@ -35,7 +37,7 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *IncrementOptions
-			cmd := NewCmdIncrement(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *IncrementOptions) error {
+			cmd := NewCmdIncrement(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *IncrementOptions) error {
 				got = opts
 				return nil
 			})
@@ -49,8 +51,8 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "increment" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for increment: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}
@@ -60,7 +62,7 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := IncrementOptions{InvoicePath: got.InvoicePath, CustomersPath: got.CustomersPath}
+			parsed := IncrementOptions{InvoicePath: got.InvoicePath, Support: got.Support}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

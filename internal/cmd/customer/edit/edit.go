@@ -1,87 +1,59 @@
-// Package edit is the `invox customer edit` command, also run as the
-// deprecated `invox customer config`.
+// Package edit is the `invox customer edit` command.
 package edit
 
 import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // EditOptions is what customer edit needs: its streams, the editor, the user
-// directories and the parsed flags. Command names the command in its
-// messages.
+// directories and the parsed flags.
 type EditOptions struct {
-	IO     *iostreams.IOStreams
-	Editor *editor.Editor
-	Host   func() invoice.Host
-	Getwd  func() (string, error)
+	IO      *iostreams.IOStreams
+	Editor  *editor.Editor
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
-	Command       string
-	CustomersPath string
+	Support cmdutil.SupportPaths
 }
 
 // NewCmdEdit returns the customer edit command. runF replaces editRun in
 // tests.
 func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
-	return newCmd(f, runF, "edit")
-}
-
-// NewCmdConfig returns `customer config`, the hidden, deprecated name of
-// customer edit, which warns before it runs.
-func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
-	cmd := newCmd(f, runF, "config")
-	cmd.Hidden = true
-	run := cmd.RunE
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		cmdutil.WarnDeprecated(cmd.ErrOrStderr(), "customer config", "customer edit")
-		return run(cmd, args)
+	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
 	}
-	return cmd
-}
-
-func newCmd(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error, name string) *cobra.Command {
-	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Command: "customer " + name}
 	cmd := &cobra.Command{
-		Use:               name,
+		Use:               "edit",
+		SuggestFor:        []string{"config"},
 		Short:             "Open customers.yaml in your editor",
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Long: `Open customers.yaml in your editor.
 
 Default lookup:
 ` +
-			helptext.LookupCustomers +
-			"\n" +
-			helptext.CustomerFieldReference() +
-			"\n" +
-			helptext.CustomerYAMLExample(),
+			helptext.LookupCustomers + `
+{{template "customer-fields"}}
+{{template "customer-example"}}`,
 		Example: `$ invox customer edit
 $ invox customer edit -c customers.yaml
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf(opts.Command, "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(cmd.Context(), opts)
-			}
-			return editRun(cmd.Context(), opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	return cmd
 }
 
@@ -91,13 +63,14 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), opts.Command, invoice.Customers, opts.CustomersPath, baseDir)
+	svc := opts.Service(opts.Support.Files(baseDir))
+	customersPath, err := svc.EditablePath(billing.CustomersFile)
 	if err != nil {
-		return err
+		return cmdutil.UsageError(err)
 	}
 
-	displayPath := invoice.DisplayPath(customersPath, baseDir)
-	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, customersPath, "edit "+displayPath+" directly"); err != nil {
+	displayPath := cmdutil.DisplayPath(customersPath, baseDir)
+	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, customersPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", customersPath, err)
 	}
 

@@ -6,8 +6,10 @@
 package archive
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/fsutil"
 )
 
@@ -27,234 +30,162 @@ const historyDirName = ".history"
 // backupTimeFormat is the UTC timestamp in a backup's file name.
 const backupTimeFormat = "20060102T150405Z"
 
-// Store is the archive directory as configured (archive.dir). Dir may be a
-// symlink, and every path the Store reports stays below Dir as configured,
+// store is the archive directory as configured (archive.dir). Dir may be a
+// symlink, and every path the store reports stays below Dir as configured,
 // not below the symlink's target. An empty Dir is an archive with no files.
-type Store struct {
+type store struct {
 	Dir string
 }
 
 // HistoryDir is where Backup keeps previous versions.
-func (s Store) HistoryDir() string {
+func (s store) HistoryDir() string {
 	return filepath.Join(s.Dir, historyDirName)
 }
 
 // Walk calls visit for every archived invoice file below the root, in the
-// lexical order of filepath.WalkDir. A missing or empty Dir has no files. A
-// Dir that is not a directory is an error. Backups in the history directory
-// are not archived invoices and are skipped.
-func (s Store) Walk(visit func(path string) error) error {
+// lexical order of filepath.WalkDir, and returns the Markdown files it
+// skipped, sorted. A missing or empty Dir has no files. A Dir that is not a
+// directory is an error. Backups in the history directory are not archived
+// invoices and are skipped.
+func (s store) Walk(visit func(path string) error) ([]string, error) {
 	return s.walk(func(path, _ string) error { return visit(path) })
 }
 
-func (s Store) walk(visit func(path, rel string) error) error {
+func (s store) walk(visit func(path, rel string) error) ([]string, error) {
 	if strings.TrimSpace(s.Dir) == "" {
-		return nil
+		return nil, nil
 	}
 	info, err := os.Stat(s.Dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%s: archive.dir must point to a directory", s.Dir)
+		return nil, fmt.Errorf("%s: archive.dir must point to a directory", s.Dir)
 	}
 
 	root, err := filepath.EvalSymlinks(s.Dir)
 	if err != nil {
 		root = s.Dir
 	}
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	var markdown []string
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if entry.IsDir() && isHistoryDir(root, path) {
 			return filepath.SkipDir
 		}
-		if entry.IsDir() || !isInvoiceFile(path) {
+		if entry.IsDir() || !isInvoiceFile(path) && !isMarkdownInvoice(path) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
+		if !isInvoiceFile(path) {
+			markdown = append(markdown, filepath.Join(s.Dir, rel))
+			return nil
+		}
 		return visit(filepath.Join(s.Dir, rel), rel)
 	})
+	sort.Strings(markdown)
+	return markdown, err
 }
 
-// Identity is what the archive lists of an archived invoice.
-type Identity struct {
-	CustomerID    string
-	IssueDate     string
-	Status        string
-	InvoiceNumber string
-}
-
-// Reader reads the Identity of the archived invoice at path. ok is false
-// for a file that is not an invoice, which List leaves out.
-type Reader func(path string) (Identity, bool, error)
-
-// Entry is an archived invoice: where it is and what it says about itself.
-type Entry struct {
-	// Path is the file, below Store.Dir as configured.
-	Path string
-	// Filename is Path relative to the root, as `archive list` prints it.
-	Filename string
-	Identity
-}
+// Reader reads what the archived invoice at path says about itself. ok is
+// false for a file that is not an invoice, which Archive.Entries leaves out.
+// Entries sets Path and Filename.
+type Reader func(path string) (entry billing.ArchiveEntry, ok bool, err error)
 
 // List reads every archived invoice with read and returns them sorted by
-// Filename.
-func (s Store) List(read Reader) ([]Entry, error) {
-	entries := make([]Entry, 0)
-	err := s.walk(func(path, rel string) error {
-		identity, ok, err := read(path)
+// Filename, with what the archive holds that invox no longer reads.
+func (s store) List(read Reader) ([]billing.ArchiveEntry, billing.Unread, error) {
+	entries := make([]billing.ArchiveEntry, 0)
+	markdown, err := s.walk(func(path, rel string) error {
+		entry, ok, err := read(path)
 		if err != nil || !ok {
 			return err
 		}
-		entries = append(entries, Entry{Path: path, Filename: rel, Identity: identity})
+		entry.Path, entry.Filename = path, rel
+		entries = append(entries, entry)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, billing.Unread{}, err
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Filename < entries[j].Filename
 	})
-	return entries, nil
+	return entries, billing.Unread{Dir: s.Dir, Markdown: markdown}, nil
 }
 
-// Newer reports whether e was issued after other: by issue date, where a
-// date that parses beats one that does not, then by invoice number,
-// Filename and Path.
-func (e Entry) Newer(other Entry) bool {
-	leftDate, leftOK := parseIssueDate(e.IssueDate)
-	rightDate, rightOK := parseIssueDate(other.IssueDate)
-
-	switch {
-	case leftOK && !rightOK:
-		return true
-	case !leftOK && rightOK:
-		return false
-	case leftOK && rightOK && !leftDate.Equal(rightDate):
-		return leftDate.After(rightDate)
-	}
-
-	switch {
-	case e.InvoiceNumber != other.InvoiceNumber:
-		return e.InvoiceNumber > other.InvoiceNumber
-	case e.Filename != other.Filename:
-		return e.Filename > other.Filename
-	default:
-		return e.Path > other.Path
-	}
-}
-
-func parseIssueDate(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false
-	}
-	parsed, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		return time.Time{}, false
-	}
-	return parsed, true
-}
-
-// Target is a file inside the archive, named relative to the root.
-type Target struct {
+// archivedFile is a file inside the archive, named relative to the root.
+type archivedFile struct {
 	Path string
 	Rel  string
 }
 
-// Resolve turns a name relative to the root into a Target. The name must
-// not be empty, absolute, outside the root or inside the history directory.
-// The file need not exist.
-func (s Store) Resolve(name string) (Target, error) {
+// Resolve turns a name relative to the root into an archivedFile. The name
+// must not be empty, absolute, outside the root or inside the history
+// directory. The file need not exist.
+func (s store) Resolve(name string) (archivedFile, error) {
 	dir := filepath.Clean(s.Dir)
 	cleanName := filepath.Clean(strings.TrimSpace(name))
 	if cleanName == "" || cleanName == "." {
-		return Target{}, fmt.Errorf("archive filename must not be empty")
+		return archivedFile{}, fmt.Errorf("archive filename must not be empty")
 	}
 	if filepath.IsAbs(cleanName) {
-		return Target{}, fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
+		return archivedFile{}, fmt.Errorf("archive filename must be relative to archive.dir, got %s", cleanName)
 	}
 
 	path := filepath.Join(dir, cleanName)
 	rel, err := filepath.Rel(dir, path)
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return Target{}, fmt.Errorf("%s must stay within %s", cleanName, dir)
+		return archivedFile{}, fmt.Errorf("%s must stay within %s", cleanName, dir)
 	}
 	if isInHistory(rel) {
-		return Target{}, fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, historyDirName)
+		return archivedFile{}, fmt.Errorf("%s is a backup in %s, not an archived invoice", cleanName, historyDirName)
 	}
-	return Target{Path: path, Rel: filepath.Clean(rel)}, nil
+	return archivedFile{Path: path, Rel: filepath.Clean(rel)}, nil
 }
 
 // Find is Resolve for a name that must exist as a file.
-func (s Store) Find(name string) (Target, error) {
+func (s store) Find(name string) (archivedFile, error) {
 	target, err := s.Resolve(name)
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	info, err := os.Stat(target.Path)
 	if errors.Is(err, os.ErrNotExist) {
-		return Target{}, fmt.Errorf("%s does not exist in %s", target.Rel, s.Dir)
+		return archivedFile{}, fmt.Errorf("%s does not exist in %s", target.Rel, s.Dir)
 	}
 	if err != nil {
-		return Target{}, err
+		return archivedFile{}, err
 	}
 	if info.IsDir() {
-		return Target{}, fmt.Errorf("%s: archived invoice must be a file", target.Path)
+		return archivedFile{}, fmt.Errorf("%s: archived invoice must be a file", target.Path)
+	}
+	if isMarkdown(target.Path) {
+		return archivedFile{}, fmt.Errorf("%s is a Markdown invoice, which invox no longer reads; convert it to .yaml", target.Path)
 	}
 	return target, nil
-}
-
-// Edit describes the working copy `archive edit` makes of a Target.
-type Edit struct {
-	// Filename is the working copy's file name.
-	Filename string
-	// Target is where re-archiving the working copy writes it, relative to
-	// the root.
-	Target string
-	// Replace is the archived file the working copy supersedes, relative to
-	// the root, or "" when that is Target itself.
-	Replace string
-}
-
-// Edit returns the working copy of t. A Markdown archived invoice is edited
-// as YAML and re-archived as YAML, replacing the Markdown original.
-func (t Target) Edit() Edit {
-	rel := filepath.Clean(t.Rel)
-	if isMarkdown(rel) {
-		yamlRel := strings.TrimSuffix(rel, filepath.Ext(rel)) + ".yaml"
-		return Edit{Filename: filepath.Base(yamlRel), Target: yamlRel, Replace: rel}
-	}
-	return Edit{Filename: filepath.Base(rel), Target: rel}
-}
-
-// Backup records an archived file that re-archiving replaced and where its
-// previous version was kept.
-type Backup struct {
-	Path       string
-	BackupPath string
 }
 
 // Backup copies each archived file to
 // <Dir>/.history/<dir>/<name>.<UTC timestamp><ext>, keeping its directory
 // below the root. An existing backup is never replaced: a second backup in
 // the same second gets a counter.
-func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
+func (s store) Backup(paths []string, now time.Time) ([]billing.Backup, error) {
 	dir := filepath.Clean(s.Dir)
 	stamp := now.UTC().Format(backupTimeFormat)
 
-	backups := make([]Backup, 0, len(paths))
+	backups := make([]billing.Backup, 0, len(paths))
 	for _, path := range paths {
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
@@ -268,7 +199,7 @@ func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
 		if err != nil {
 			return nil, fmt.Errorf("back up %s: %w", path, err)
 		}
-		backups = append(backups, Backup{Path: path, BackupPath: backupPath})
+		backups = append(backups, billing.Backup{Path: path, BackupPath: backupPath})
 	}
 	return backups, nil
 }
@@ -295,29 +226,20 @@ func writeBackup(path, stamp string, data []byte) (string, error) {
 	}
 }
 
-// ExistingFiles returns the paths that exist, without duplicates. A
-// directory is an error.
-func ExistingFiles(paths ...string) ([]string, error) {
-	var existing []string
-	seen := make(map[string]bool)
-	for _, path := range paths {
-		if path == "" || seen[path] {
-			continue
-		}
-		seen[path] = true
-		info, err := os.Stat(path)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("%s: archived invoice must be a file", path)
-		}
-		existing = append(existing, path)
+// existingFile reports whether a file exists at path. A directory is an
+// error.
+func existingFile(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
 	}
-	return existing, nil
+	if err != nil {
+		return false, err
+	}
+	if info.IsDir() {
+		return false, fmt.Errorf("%s: archived invoice must be a file", path)
+	}
+	return true, nil
 }
 
 // isHistoryDir reports whether dir is the history directory directly below
@@ -335,14 +257,32 @@ func isInHistory(rel string) bool {
 }
 
 // isInvoiceFile reports whether path has the extension of an archived
-// invoice: YAML, or Markdown with the invoice as front matter.
+// invoice.
 func isInvoiceFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":
 		return true
 	default:
-		return isMarkdown(path)
+		return false
 	}
+}
+
+// isMarkdownInvoice reports whether path is a Markdown file that opens with
+// a `---` line, which invox used to read as an archived invoice with its
+// front matter. The walk reports them as unread, and leaves out other
+// Markdown files, such as a README.
+func isMarkdownInvoice(path string) bool {
+	if !isMarkdown(path) {
+		return false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	head := make([]byte, len("---\r\n"))
+	n, _ := io.ReadFull(file, head)
+	_ = file.Close()
+	return bytes.HasPrefix(head[:n], []byte("---\n")) || bytes.HasPrefix(head[:n], []byte("---\r\n"))
 }
 
 func isMarkdown(path string) bool {

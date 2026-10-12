@@ -2,27 +2,28 @@
 package increment
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 type IncrementOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
-	InvoicePath   string
-	CustomersPath string
-	DryRun        bool
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	Support     cmdutil.SupportPaths
+	DryRun      bool
+	Exporter    *cmdutil.Exporter
 }
 
 // incrementJSON is the --json output of increment: the invoice and its old
@@ -36,8 +37,11 @@ type incrementJSON struct {
 
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
 // in tests.
-func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
-	opts := &IncrementOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdIncrement(f *cmdutil.Factory, runF func(context.Context, *IncrementOptions) error) *cobra.Command {
+	opts := &IncrementOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = incrementRun
+	}
 	cmd := &cobra.Command{
 		Use:   "increment [INVOICE.yaml]",
 		Short: "Increment the invoice number in an existing invoice YAML file",
@@ -54,49 +58,40 @@ $ invox increment invoices/2026-0022.yaml -c customers.yaml
 $ invox increment invoice.yaml --dry-run
 $ invox increment invoice.yaml --json number,previousNumber
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("increment", opts.Getwd, &opts.InvoicePath, args)
-		},
+		Args: shared.TakeInput(opts.Getwd, &opts.InvoicePath),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := shared.RequireInput("increment", opts.InvoicePath); err != nil {
+			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return incrementRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the old and new number and change nothing")
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, incrementJSON{})
 	return cmd
 }
 
-func incrementRun(opts *IncrementOptions) error {
+func incrementRun(_ context.Context, opts *IncrementOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "increment", invoice.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	svc := opts.Service(opts.Support.Files(baseDir))
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	incremented, err := h.IncrementInvoiceNumber(invoicePath, customersPath, opts.DryRun)
+	incremented, err := svc.Increment(invoicePath, opts.DryRun)
 	if err != nil {
-		return err
+		return cmdutil.UsageError(err)
 	}
-	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.SkippedArchiveFiles, baseDir)
+	shared.WarnUnread(opts.IO, incremented.Unread, baseDir)
+	shared.WarnSkippedArchiveFiles(opts.IO, incremented.CustomerID, incremented.Skipped, baseDir)
 
-	displayPath := invoice.DisplayPath(invoicePath, baseDir)
+	displayPath := cmdutil.DisplayPath(invoicePath, baseDir)
 	verb := "Incremented"
 	if opts.DryRun {
 		verb = "Would increment"

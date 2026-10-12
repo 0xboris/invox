@@ -8,6 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/run/runtest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -94,7 +95,7 @@ func TestEditRunsTheEditorSetting(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
-			stub := run.NewStub(t)
+			stub := runtest.NewStub(t)
 			var got run.Cmd
 			stub.Register(tc.wantName, func(cmd run.Cmd) error {
 				got = cmd
@@ -132,7 +133,7 @@ func TestEditRunsTheEditorSetting(t *testing.T) {
 
 func TestEditRejectsAnUnterminatedQuote(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	stub := run.NewStub(t)
+	stub := runtest.NewStub(t)
 	getenv := func(key string) string { return map[string]string{"EDITOR": "vim 'x"}[key] }
 
 	err := editor.New(stub, ios, "linux", getenv).Edit(context.Background(), "a.yaml")

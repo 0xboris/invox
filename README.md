@@ -149,9 +149,9 @@ Both are generated from the command tree, so they match the binary.
 
 The help topics are `config`, `customers`, `issuer`, `defaults`, `template`, `environment` and `exit-codes`. `invox help environment` lists the environment variables, the default directories on each OS and the order in which flags, `config.yaml` and defaults apply. `invox help exit-codes` lists the exit statuses.
 
-Older command forms still work and print a deprecation warning on stderr. Use the new forms:
+Older command forms were removed and now fail with exit 2. Use the new forms:
 
-| Deprecated | Use |
+| Removed | Use |
 | --- | --- |
 | `invox archive FILE` | `invox archive add FILE` |
 | `invox customer config` | `invox customer edit` |

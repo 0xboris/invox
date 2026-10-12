@@ -2,26 +2,27 @@
 package paths
 
 import (
-	"strings"
-
+	"context"
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type PathsOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
 }
 
 // NewCmdPaths returns the config paths command. runF replaces pathsRun in
 // tests.
-func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
-	opts := &PathsOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdPaths(f *cmdutil.Factory, runF func(context.Context, *PathsOptions) error) *cobra.Command {
+	opts := &PathsOptions{IO: f.IOStreams, Service: f.Service}
+	if runF == nil {
+		runF = pathsRun
+	}
 	return &cobra.Command{
 		Use:               "paths",
 		Short:             "Show where each config and support file is read from",
@@ -39,34 +40,21 @@ Sources:
   flag     the --config option
   env      INVOX_CONFIG_DIR
   default  the default config or archive directory
-  legacy   the deprecated invoice-tool directory
   project  the upward search from the current directory
   config   a paths.* or archive.dir setting in config.yaml
   none     not found
 `,
 		Example: `$ invox config paths
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("config paths", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return pathsRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 }
 
-func pathsRun(opts *PathsOptions) error {
-	cwd, err := opts.Getwd()
-	if err != nil {
-		return err
-	}
-	reports, err := opts.Host().Paths(cwd)
+func pathsRun(_ context.Context, opts *PathsOptions) error {
+	reports, err := opts.Service(cmdutil.Files{}).Paths()
 	if err != nil {
 		return err
 	}
@@ -79,12 +67,11 @@ func pathsRun(opts *PathsOptions) error {
 }
 
 // sourceWords are the SOURCE column.
-var sourceWords = map[invoice.Source]string{
-	invoice.SourceNone:     "none",
-	invoice.SourceExplicit: "flag",
-	invoice.SourceEnvDir:   "env",
-	invoice.SourceDefault:  "default",
-	invoice.SourceLegacy:   "legacy",
-	invoice.SourceProject:  "project",
-	invoice.SourceConfig:   "config",
+var sourceWords = map[billing.Source]string{
+	billing.SourceNone:     "none",
+	billing.SourceExplicit: "flag",
+	billing.SourceEnvDir:   "env",
+	billing.SourceDefault:  "default",
+	billing.SourceProject:  "project",
+	billing.SourceConfig:   "config",
 }

@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // fakeChildEnv makes the test binary print the base names of its arguments
@@ -24,18 +25,9 @@ func runFakeChild(args []string) int {
 	return 0
 }
 
-func testExecutable(t *testing.T) string {
-	t.Helper()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatalf("os.Executable() returned error: %v", err)
-	}
-	return self
-}
-
 func TestEditorSendsEditorStdoutToStderr(t *testing.T) {
 	t.Setenv(fakeChildEnv, "1")
-	t.Setenv("VISUAL", `"`+testExecutable(t)+`"`)
+	t.Setenv("VISUAL", `"`+testfixture.Executable(t)+`"`)
 	ios, _, stdout, stderr := iostreams.Test()
 
 	ed := editor.New(run.Exec{}, ios, runtime.GOOS, os.Getenv)

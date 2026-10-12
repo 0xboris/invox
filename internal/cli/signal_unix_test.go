@@ -1,6 +1,6 @@
 //go:build unix
 
-package cli
+package cli_test
 
 import (
 	"errors"
@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 func assertProcessGone(t *testing.T, pid int) {
@@ -23,7 +25,7 @@ func assertProcessGone(t *testing.T, pid int) {
 func TestBuildExitsWithSignalCodeOnRealSignal(t *testing.T) {
 	for _, tc := range signalCases {
 		t.Run(tc.name, func(t *testing.T) {
-			customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+			fx := testfixture.WriteContext(t)
 			pidfile := installSleepingTectonic(t)
 			tempDir := isolateTempDir(t)
 			isolateUserDirs(t)
@@ -31,7 +33,7 @@ func TestBuildExitsWithSignalCodeOnRealSignal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cmd := exec.Command(self, "build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath)
+			cmd := exec.Command(self, "build", fx.Invoice, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template)
 			cmd.Env = append(os.Environ(), runMainEnv+"=1")
 			// Files, not buffers: Wait would also wait for a leftover tectonic
 			// to close a pipe, and hide that invox itself had exited.
@@ -60,7 +62,7 @@ func TestBuildExitsWithSignalCodeOnRealSignal(t *testing.T) {
 				t.Fatal("invox did not exit within 30s of the signal")
 			}
 
-			stdout, stderr := readFileForTest(t, stdoutPath), readFileForTest(t, stderrPath)
+			stdout, stderr := testfixture.ReadFile(t, stdoutPath), testfixture.ReadFile(t, stderrPath)
 			var exitErr *exec.ExitError
 			if !errors.As(waitErr, &exitErr) || exitErr.ExitCode() != tc.exitCode {
 				t.Fatalf("invox exited with %v, want exit status %d, stderr=%q", waitErr, tc.exitCode, stderr)
@@ -75,7 +77,7 @@ func TestBuildExitsWithSignalCodeOnRealSignal(t *testing.T) {
 }
 
 func TestSecondSignalEndsInvoxAtOnce(t *testing.T) {
-	customersPath, issuerPath, invoicePath, templatePath := writeContextFixtures(t)
+	fx := testfixture.WriteContext(t)
 	installFakeTectonic(t, fakeTectonicSleepIgnoreTerm)
 	pidfile := filepath.Join(t.TempDir(), "tectonic.pid")
 	t.Setenv(fakeTectonicPidfileEnv, pidfile)
@@ -85,7 +87,7 @@ func TestSecondSignalEndsInvoxAtOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(self, "build", invoicePath, "-c", customersPath, "-u", issuerPath, "-t", templatePath)
+	cmd := exec.Command(self, "build", fx.Invoice, "-c", fx.Customers, "-u", fx.Issuer, "-t", fx.Template)
 	cmd.Env = append(os.Environ(), runMainEnv+"=1")
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)

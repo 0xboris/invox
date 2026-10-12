@@ -1,0 +1,110 @@
+{{/*
+The help sections that commands and topics share. A Long or a topic page
+includes one with {{template "NAME"}}. The tables come from reference.go.
+*/}}
+
+{{- define "field-groups"}}
+{{- range $i, $group := .}}{{if $i}}
+{{end}}{{$group.Title}}:
+{{range $group.Rows}}  {{printf "%-35s %s" .Name .Description}}
+{{end}}{{end}}
+{{- end}}
+
+{{- define "customer-fields"}}Customer fields:
+  customers.yaml maps CUSTOMER_ID keys to customer data.
+  Use the preferred paths below unless you need an alternate supported path.
+
+{{template "field-groups" customerFields}}
+{{- end}}
+
+{{- define "issuer-fields"}}Issuer fields:
+  issuer.yaml contains your own company and payment details.
+  Required fields are validated by new, validate, render, build, and email.
+
+{{template "field-groups" issuerFields}}
+{{- end}}
+
+{{- define "defaults-fields"}}invoice_defaults.yaml fields:
+  invoice_defaults.yaml is the source document for `invox new`.
+  The created invoice later also gains a top-level customer_id.
+
+{{template "field-groups" defaultsFields}}
+{{- end}}
+
+{{- define "template-placeholders"}}Available .tex placeholders:
+{{range templatePlaceholders}}  {{.Title}}:
+{{range .Rows}}    {{printf "%-32s %s" .Name .Description}}
+{{end}}{{end}}
+{{end}}
+
+{{- define "customer-example"}}customers.yaml example:
+CUST-001:
+  name: Appsters GmbH
+  status: active
+  contact_person: Jane Doe
+  email_greeting: Dear Jane Doe,
+  email: office@appsters.example
+  address:
+    street: Hauptstrasse 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+  tax:
+    vat_tax_id: ATU12345678
+    default_vat_rate: 20
+  billing:
+    send_invoice_to: accounting@appsters.example
+    currency: EUR
+    # email: invoices@appsters.example
+    # contact_person: Jane Billing
+    # email_greeting: Dear Accounts Team,
+  numbering:
+    code: APP
+    start: 100
+  # legal_company_name: Appsters GmbH
+  # currency: EUR
+{{end}}
+
+{{- define "issuer-example"}}issuer.yaml example:
+company:
+  legal_company_name: Boris Consulting
+  company_registration_number: FN 123456a
+  vat_tax_id: ATU87654321
+  website: https://example.com
+  email: hello@example.com
+  address:
+    street: Ring 1
+    postal_code: "1010"
+    city: Vienna
+    country: Austria
+payment:
+  bank_name: Test Bank
+  iban: AT611904300234573201
+  bic: BKAUATWW
+  due_days: 30
+  payment_terms_text: Pay within 30 days
+  vat_label: VAT
+  epc_qr:
+    label: Pay via EPC-QR
+    purpose: SUPP
+    information: Scan to pay this invoice
+    # name: Boris Consulting
+    # text: 2026-0001
+{{end}}
+
+{{- define "defaults-example"}}invoice_defaults.yaml example:
+invoice:
+  number: ""
+  issue_date: ""
+  due_date: ""
+  status: draft
+  period: "Leistungszeitraum: "
+  vat_percent: 20
+  paid_amount: 0
+positions:
+  - name: Example position
+    description: Description of the delivered service
+    unit_price: 100
+    quantity: 1
+    # vat_percent: 20
+{{end}}

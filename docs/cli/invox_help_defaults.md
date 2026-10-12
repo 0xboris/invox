@@ -39,11 +39,6 @@ Position fields:
   positions[].quantity                Line-item quantity; must be > 0 on the final invoice
   positions[].vat_percent             Optional per-line VAT override
 
-Unsupported legacy keys:
-  line_items                          Unsupported; use positions
-  invoice.period_label                Unsupported; use invoice.period
-  invoice.vat_rate_percent            Unsupported; use invoice.vat_percent
-
 
 Rules:
   `new` sets customer_id, invoice.number, invoice.issue_date, invoice.due_date, invoice.status, and invoice.paid_amount.

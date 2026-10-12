@@ -10,8 +10,7 @@ Behavior:
   Existing config.yaml files are left unchanged.
 
 Config paths:
-  preferred: $HOME/.config/invox/config.yaml
-  legacy fallback: $HOME/.config/invoice-tool/config.yaml
+  default: $HOME/.config/invox/config.yaml
   --config PATH and INVOX_CONFIG_DIR change them; see `invox help environment`.
   `invox config paths` shows the config file and the support files in use.
 
@@ -47,6 +46,7 @@ email template placeholders:
   {outstanding_amount}   Outstanding amount with currency
   {payment_terms_text}   issuer.payment.payment_terms_text
   {issuer_name}          issuer.company.legal_company_name
+  Any other {name} in email.subject, email.body or --subject fails the email command.
 
 Customer overrides:
   customers.<CUSTOMER_ID>.numbering.start  Override numbering.start for one customer

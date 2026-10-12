@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/0xboris/invox/internal/invoice"
 )
 
 func FuzzLatexEscape(f *testing.F) {
@@ -104,7 +106,7 @@ func FuzzValidateTemplatePlaceholders(f *testing.F) {
 		"@@INVOICE_NUMBER@@":  "INV-1",
 		"@@LINE_ITEMS_ROWS@@": `Consulting & 100,00 \euro\\`,
 	})
-	items := []Item{{
+	items := []invoice.LineItem{{
 		Name:           "Consulting",
 		UnitPrice:      big.NewRat(100, 1),
 		Quantity:       big.NewRat(2, 1),

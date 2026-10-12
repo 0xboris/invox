@@ -23,7 +23,7 @@ scrubpaths stderr got.txt
 cmp got.txt want-broken.txt
 exits 1 invox validate -i missing.yaml
 ! stdout .
-stderr 'missing\.yaml'
+stderr '^error: invoice file missing\.yaml does not exist$'
 
 # A negative paid_amount is invalid.
 exits 1 invox validate -i negative.yaml

@@ -10,9 +10,9 @@ exits 2 invox customer lsit
 ! stdout .
 cmp stderr want-subcommand.txt
 
-# A single-dash long flag works and warns.
-exec invox customer list -customers other.yaml
-cmp stdout want-list-other.tsv
+# A single-dash long flag is a usage error that names the double-dash one.
+exits 2 invox customer list -customers other.yaml
+! stdout .
 cmp stderr want-single-dash.txt
 
 # A dangling flag says which flag needs a value.
@@ -41,7 +41,8 @@ Run 'invox customer list --help' for usage.
 error: unknown customer subcommand "lsit"; did you mean "list" or "edit"?
 Run 'invox customer --help' for usage.
 -- want-single-dash.txt --
-warning: -customers is deprecated; use --customers
+error: -customers is not a flag; use --customers
+Run 'invox customer list --help' for usage.
 -- want-dangling.txt --
 error: flag needs an argument: --customers
 Run 'invox customer list --help' for usage.

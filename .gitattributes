@@ -1,0 +1,7 @@
+# Embedded templates become help pages and the starter config.yaml byte for
+# byte; keep LF line endings on every OS.
+*.tmpl text eol=lf
+
+# docs/architecture.md is compared byte for byte with what TestArchitectureDoc
+# generates.
+docs/architecture.md text eol=lf

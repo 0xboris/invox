@@ -38,10 +38,11 @@ exec invox email invoice.pdf -o draft2.eml --to someone@example.com --subject 'R
 cmp stdout want-email-to.txt
 cmp stderr want-email-to-stderr.txt
 
-# send is an alias.
-exec invox send -i invoice.yaml -o draft3.eml
-cmp stdout want-send.txt
-cmp stderr want-send-stderr.txt
+# send is not a command.
+exits 2 invox send -i invoice.yaml -o draft3.eml
+! stdout .
+cmp stderr want-send.txt
+! exists draft3.eml
 
 # Without -o, the draft goes into a new temporary directory, which a later run
 # removes after 24 hours; the default <input>.eml is not written. macOS
@@ -65,27 +66,51 @@ exits 2 invox email invoice.yaml -p invoice.txt -o draft.eml
 ! stdout .
 stderr '^error: -p, --pdf must end with \.pdf$'
 
-# Runtime errors: the invoice is not built yet, the PDF is missing, and the
-# mail app cannot be opened.
+# Runtime errors: the invoice does not exist or is not built yet, the PDF is
+# missing, and the mail app cannot be opened.
+exits 1 invox email missing.yaml -o missing.eml
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
+! exists missing.eml
 exits 1 invox email draft.yaml -p invoice.pdf -o draft4.eml
 ! stdout .
 scrubpaths stderr got.txt
 cmp got.txt want-not-built.txt
 exits 1 invox email invoice.yaml -p missing.pdf -o draft5.eml
 ! stdout .
-stderr '^error: read missing\.pdf: '
+stderr '^error: PDF file missing\.pdf does not exist$'
 env FAKE_OPEN_FAIL=1
+env OPENER=xdg-open
+[darwin] env OPENER=open
+[windows] env OPENER=cmd
 exits 1 invox email invoice.yaml -o draft6.eml
 ! stdout .
-cmp stderr want-open-failed.txt
+cmpenv stderr want-open-failed.txt
+env FAKE_OPEN_FAIL=
+env SAVEDPATH=$PATH
+mkdir empty
+env PATH=$WORK${/}empty
+exits 1 $BIN${/}invox$exe email invoice.yaml -o draft8.eml
+! stdout .
+cmpenv stderr want-no-opener.txt
+exists draft8.eml
+env PATH=$SAVEDPATH
 
+# A subject placeholder invox does not know fails before anything is drafted.
+exits 1 invox email invoice.yaml -o draft7.eml --subject 'Invoice {invoice_numbr}'
+! stdout .
+cmp stderr want-unknown-placeholder.txt
+! exists draft7.eml
+
+-- want-unknown-placeholder.txt --
+error: email.subject: unknown placeholder {invoice_numbr}
 -- keep.eml --
 keep me
 -- invoice.pdf --
 -- want-exists.txt --
-error: existing.eml already exists; pass --force or choose another -o path
+error: existing.eml already exists; pass --force to replace it or choose a different -o/--output path
 -- want-dir.txt --
-error: dir.eml is a directory; choose another -o path
+error: dir.eml is a directory; choose a different -o/--output path
 -- want-force.txt --
 existing.eml
 -- want-force-stderr.txt --
@@ -105,11 +130,8 @@ Opened email draft for CUST-001 (CUST-001-001) to someone@example.com
 fake open: invoice.eml
 Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
 -- want-send.txt --
-draft3.eml
--- want-send-stderr.txt --
-warning: send only drafts an email; use 'invox email'
-fake open: draft3.eml
-Opened email draft for CUST-001 (CUST-001-001) to office@appsters.example
+error: unknown subcommand "send"; did you mean "email"?
+Run 'invox --help' for usage.
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml, INVOICE.pdf, or -i, --input
 Run 'invox email --help' for usage.
@@ -117,7 +139,9 @@ Run 'invox email --help' for usage.
 error: draft.yaml: invoice.status must be `built` or `archived` before creating an email draft, got `draft`
 -- want-open-failed.txt --
 fake open: forced failure
-error: created draft6.eml but failed to open it: exit status 1
+error: created draft6.eml but failed to open it: $OPENER exited with status 1
+-- want-no-opener.txt --
+error: created draft8.eml but failed to open it: $OPENER not found in PATH
 -- home/.config/invox/config.yaml --
 archive:
   dir: archive

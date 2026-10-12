@@ -28,7 +28,7 @@ cmp stderr want-tcsh.txt
 
 exits 2 invox completion zsh extra
 ! stdout .
-stderr '^error: unexpected arguments: zsh extra$'
+stderr '^error: unexpected arguments: extra$'
 
 # The shells and the subcommands.
 exec invox __complete completion ''

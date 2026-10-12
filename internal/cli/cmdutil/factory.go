@@ -1,98 +1,40 @@
 package cmdutil
 
 import (
-	"path/filepath"
-	"strings"
-	"sync"
-
-	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/opener"
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/adapters/tectonic"
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
+// Files are the files a command names on its command line: the support
+// files as absolute paths, "" to look them up, and whether -o names the
+// email draft.
+type Files struct {
+	Customers string
+	Issuer    string
+	Defaults  string
+	// EmailOutput is set when the email draft goes to a file the user
+	// named, which rules out the mail app.
+	EmailOutput bool
+}
+
 // Factory holds what commands use to reach outside invox: the standard
-// streams, the process environment and the external programs.
+// streams, the process environment, the programs the user interacts with
+// and the use cases.
 type Factory struct {
 	IOStreams *iostreams.IOStreams
 	Env       env.Env
-	Compiler  *tectonic.Compiler
 	Editor    *editor.Editor
 	Opener    *opener.Opener
-	// Mailer is nil where Apple Mail is not available.
-	Mailer *applemail.Composer
 	// ConfigFile is the --config value as typed, "" when not given. Main
-	// sets it before anything calls Host.
+	// sets it before anything calls Service.
 	ConfigFile string
-
-	host func() invoice.Host
-}
-
-// NewFactory returns a Factory whose adapters run programs with runner on the
-// OS e.GOOS and read the editor settings with e.Getenv.
-func NewFactory(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *Factory {
-	f := &Factory{
-		IOStreams: ios,
-		Env:       e,
-		Compiler:  tectonic.New(runner, ios, e.GOOS),
-		Editor:    editor.New(runner, ios, e.GOOS, e.Getenv),
-		Opener:    opener.New(runner, ios, e.GOOS),
-	}
-	f.host = sync.OnceValue(func() invoice.Host { return newHost(e, f.ConfigFile) })
-	if e.GOOS == "darwin" {
-		f.Mailer = applemail.New(runner, ios)
-	}
-	return f
-}
-
-// Host returns the user directories, resolved from Env on the first call so
-// that a test can set up its environment after building the Factory.
-func (f *Factory) Host() invoice.Host {
-	return f.host()
-}
-
-// newHost resolves the user directories. Relative directory values are
-// ignored, as the XDG spec asks, so every directory the Host holds is
-// absolute. configFile and INVOX_CONFIG_DIR are made absolute against the
-// working directory.
-func newHost(e env.Env, configFile string) invoice.Host {
-	home, err := e.HomeDir()
-	if err != nil {
-		home = ""
-	}
-	cwd, err := e.Getwd()
-	if err != nil {
-		cwd = ""
-	}
-	return invoice.NewHost(invoice.HostInputs{
-		GOOS:          e.GOOS,
-		Home:          absOnly(home),
-		XDGConfigHome: absOnly(e.Getenv("XDG_CONFIG_HOME")),
-		XDGDataHome:   absOnly(e.Getenv("XDG_DATA_HOME")),
-		AppData:       absOnly(e.Getenv("APPDATA")),
-		ConfigDir:     absAgainst(cwd, e.Getenv("INVOX_CONFIG_DIR")),
-		ConfigFile:    absAgainst(cwd, configFile),
-	})
-}
-
-func absOnly(path string) string {
-	path = strings.TrimSpace(path)
-	if !filepath.IsAbs(path) {
-		return ""
-	}
-	return filepath.Clean(path)
-}
-
-func absAgainst(cwd, path string) string {
-	if path == "" {
-		return ""
-	}
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
-	}
-	return filepath.Join(cwd, path)
+	// Service returns the use cases for a command that names files.
+	Service func(Files) *billing.Service
+	// Locations are where invox keeps its files by default, for help
+	// texts.
+	Locations func() helptext.Locations
 }

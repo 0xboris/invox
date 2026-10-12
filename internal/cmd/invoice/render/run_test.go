@@ -1,12 +1,14 @@
 package render
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/billing"
+	"github.com/0xboris/invox/internal/cli/cmdutil"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -24,11 +26,12 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			work := t.TempDir()
-			host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
-			if _, _, err := host.InitializeConfigDir(); err != nil {
+			f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+			svc := f.Service(cmdutil.Files{})
+			if _, err := svc.Init(); err != nil {
 				t.Fatal(err)
 			}
-			created, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"})
+			created, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,12 +42,12 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 			ios, _, out, _ := iostreams.Test()
 			opts := &RenderOptions{
 				IO:          ios,
-				Host:        func() invoice.Host { return host },
+				Service:     f.Service,
 				Getwd:       func() (string, error) { return work, nil },
 				InvoicePath: filepath.Base(created.Path),
 				OutputPath:  tc.outputPath,
 			}
-			if err := renderRun(opts); err != nil {
+			if err := renderRun(context.Background(), opts); err != nil {
 				t.Fatalf("renderRun returned error: %v", err)
 			}
 			if _, err := os.Stat(filepath.Join(work, tc.wantFile)); err != nil {
@@ -54,5 +57,40 @@ func TestRenderRunResolvesPathsAgainstGetwd(t *testing.T) {
 				t.Errorf("stdout = %q, want %q", got, tc.wantFile+"\n")
 			}
 		})
+	}
+}
+
+func TestRenderRunRefusesADirectoryOutput(t *testing.T) {
+	work := t.TempDir()
+	f := factorytest.New(t, nil, factorytest.Options{GOOS: "linux", Vars: map[string]string{"INVOX_CONFIG_DIR": t.TempDir()}, Getwd: func() (string, error) { return work, nil }})
+	svc := f.Service(cmdutil.Files{})
+	if _, err := svc.Init(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.New(billing.NewRequest{CustomerID: "CUST-001", WorkDir: work, Output: filepath.Join(work, "inv.yaml")}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(work, "dir.tex")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ios, _, out, _ := iostreams.Test()
+	err := renderRun(context.Background(), &RenderOptions{
+		IO:          ios,
+		Service:     f.Service,
+		Getwd:       func() (string, error) { return work, nil },
+		InvoicePath: "inv.yaml",
+		OutputPath:  "dir.tex",
+	})
+
+	if want := dir + " is a directory; choose a different -o/--output path"; err == nil || err.Error() != want {
+		t.Fatalf("renderRun error = %v, want %q", err, want)
+	}
+	if out.String() != "" {
+		t.Errorf("stdout = %q, want empty", out.String())
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Errorf("ReadDir(dir.tex) = %v, %v, want it empty", entries, err)
 	}
 }

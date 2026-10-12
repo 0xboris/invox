@@ -1,10 +1,12 @@
-package cli
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 // brokenConfigSource is a config.yaml with a YAML syntax error on line 3.
@@ -12,11 +14,11 @@ const brokenConfigSource = "paths:\n  customers: customers.yaml\n  issuer: issue
 
 // setupBrokenConfig writes a broken config.yaml into a fresh XDG_CONFIG_HOME
 // and moves into an empty working directory, so nothing is found locally.
-func setupBrokenConfig(t *testing.T) string {
+func setupBrokenConfig(t *testing.T, x *clitest.Invox) string {
 	t.Helper()
 
-	configPath := writeConfigFile(t, brokenConfigSource)
-	chdirForTest(t, t.TempDir())
+	configPath := x.WriteConfig(brokenConfigSource)
+	x.Chdir(t.TempDir())
 	return configPath
 }
 
@@ -35,9 +37,11 @@ func TestBrokenConfigDoesNotBlockCommandsThatDoNotNeedIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupBrokenConfig(t)
+			x := clitest.New(t)
 
-			exitCode, stdout, stderr := captureRun(t, tt.args)
+			setupBrokenConfig(t, x)
+
+			exitCode, stdout, stderr := x.Run(tt.args)
 			if exitCode != 0 {
 				t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 			}
@@ -52,9 +56,11 @@ func TestBrokenConfigDoesNotBlockCommandsThatDoNotNeedIt(t *testing.T) {
 }
 
 func TestBrokenConfigInitSucceeds(t *testing.T) {
-	configPath := setupBrokenConfig(t)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"init"})
+	configPath := setupBrokenConfig(t, x)
+
+	exitCode, stdout, stderr := x.Run([]string{"init"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -77,12 +83,12 @@ func TestBrokenConfigInitSucceeds(t *testing.T) {
 }
 
 func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
-	configPath := setupBrokenConfig(t)
+	x := clitest.New(t)
 
-	f, stub := testFactory(t)
-	openedPath := expectEditor(f, stub, nil)
+	configPath := setupBrokenConfig(t, x)
+	openedPath := x.ExpectEditor(nil)
 
-	exitCode, stdout, stderr := captureRunFactory(t, f, []string{"config"})
+	exitCode, stdout, stderr := x.Run([]string{"config"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -98,12 +104,14 @@ func TestBrokenConfigConfigOpensTheFile(t *testing.T) {
 }
 
 func TestBrokenConfigCustomerListWithExplicitPath(t *testing.T) {
-	setupBrokenConfig(t)
+	x := clitest.New(t)
+
+	setupBrokenConfig(t, x)
 	if err := os.WriteFile("customers.yaml", []byte("CUST-001:\n  legal_company_name: Appsters GmbH\n  status: active\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	exitCode, stdout, stderr := captureRun(t, []string{"customer", "list", "-c", "./customers.yaml"})
+	exitCode, stdout, stderr := x.Run([]string{"customer", "list", "-c", "./customers.yaml"})
 	if exitCode != 0 {
 		t.Fatalf("exitCode = %d, want 0, stderr=%q", exitCode, stderr)
 	}
@@ -126,9 +134,11 @@ func TestBrokenConfigUsageErrorsExitTwo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupBrokenConfig(t)
+			x := clitest.New(t)
 
-			exitCode, stdout, stderr := captureRun(t, tt.args)
+			setupBrokenConfig(t, x)
+
+			exitCode, stdout, stderr := x.Run(tt.args)
 			if exitCode != 2 {
 				t.Fatalf("exitCode = %d, want 2, stderr=%q", exitCode, stderr)
 			}
@@ -146,9 +156,11 @@ func TestBrokenConfigUsageErrorsExitTwo(t *testing.T) {
 }
 
 func TestBrokenConfigNeededReportsFileLineAndHint(t *testing.T) {
-	configPath := setupBrokenConfig(t)
+	x := clitest.New(t)
 
-	exitCode, stdout, stderr := captureRun(t, []string{"validate", "-i", filepath.Join("missing", "x.yaml")})
+	configPath := setupBrokenConfig(t, x)
+
+	exitCode, stdout, stderr := x.Run([]string{"validate", "-i", filepath.Join("missing", "x.yaml")})
 	if exitCode != 1 {
 		t.Fatalf("exitCode = %d, want 1, stderr=%q", exitCode, stderr)
 	}

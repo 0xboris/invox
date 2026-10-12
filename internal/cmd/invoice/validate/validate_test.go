@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -21,8 +23,8 @@ func TestNewCmdValidateParsing(t *testing.T) {
 		want    ValidateOptions
 		wantErr string
 	}{
-		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml", "-u", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml", IssuerPath: "u.yaml"}},
-		{name: "long", args: []string{"--input", "x.yaml", "--customers=c.yaml", "--issuer", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", CustomersPath: "c.yaml", IssuerPath: "u.yaml"}},
+		{name: "short", args: []string{"-i", "x.yaml", "-c", "c.yaml", "-u", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml"}}},
+		{name: "long", args: []string{"--input", "x.yaml", "--customers=c.yaml", "--issuer", "u.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml"}}},
 		{name: "misspelt archive", args: []string{"--archiv"}, wantErr: "unknown flag: --archiv"},
 		{name: "no input", args: []string{}, wantErr: "missing required input: INVOICE.yaml or -i, --input"},
 		{name: "positional input", args: []string{"x.yaml"}, want: ValidateOptions{InvoicePath: "x.yaml"}},
@@ -36,7 +38,7 @@ func TestNewCmdValidateParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ValidateOptions
-			cmd := NewCmdValidate(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *ValidateOptions) error {
+			cmd := NewCmdValidate(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *ValidateOptions) error {
 				got = opts
 				return nil
 			})
@@ -50,8 +52,8 @@ func TestNewCmdValidateParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "validate" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for validate: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}
@@ -61,7 +63,7 @@ func TestNewCmdValidateParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := ValidateOptions{InvoicePath: got.InvoicePath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath}
+			parsed := ValidateOptions{InvoicePath: got.InvoicePath, Support: got.Support}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

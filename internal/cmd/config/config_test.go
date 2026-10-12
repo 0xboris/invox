@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cmd/config/edit"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -33,7 +34,7 @@ func TestNewCmdConfigParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			ran := false
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdConfig(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *edit.EditOptions) error {
+			root.AddCommand(NewCmdConfig(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *edit.EditOptions) error {
 				ran = opts.Editor != nil
 				return nil
 			}))

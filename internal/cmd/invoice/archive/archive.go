@@ -1,10 +1,8 @@
 // Package archive is the `invox archive` noun: its add, edit and list
-// subcommands, and `archive FILE`, the deprecated form of `archive add FILE`.
+// subcommands.
 package archive
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
@@ -14,9 +12,9 @@ import (
 	"github.com/0xboris/invox/internal/cmd/invoice/archive/list"
 )
 
-// NewCmdArchive returns the archive command and its subcommands. runF
-// replaces the run of `archive FILE` in tests.
-func NewCmdArchive(f *cmdutil.Factory, runF func(context.Context, *add.AddOptions) error) *cobra.Command {
+// NewCmdArchive returns the archive command and its subcommands. Without a
+// subcommand it prints its help.
+func NewCmdArchive(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "archive <subcommand>",
 		Short: "Archive invoices, and list or edit archived ones",
@@ -28,8 +26,14 @@ Default lookup:
 $ invox archive list
 $ invox archive edit 2026-03-06.yaml
 `,
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			return cmdutil.UnknownSubcommandError(cmd, args[0])
+		},
 	}
-	add.Configure(cmd, f, runF, true)
 	cmd.AddCommand(add.NewCmdAdd(f, nil), edit.NewCmdEdit(f, nil), list.NewCmdList(f, nil))
 	return cmd
 }

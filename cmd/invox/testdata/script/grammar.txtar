@@ -63,6 +63,52 @@ exits 2 invox config edit extra
 ! stdout .
 cmp stderr want-config-edit-extra.txt
 
+# The forms #106 deprecated are gone: archive FILE, customer config, send
+# and new -s/--source are usage errors, and help has no page for them.
+exits 2 invox archive invoice.yaml
+! stdout .
+cmp stderr want-archive-file.txt
+exists invoice.yaml
+exits 2 invox customer config
+! stdout .
+cmp stderr want-customer-config.txt
+exits 2 invox send invoice.yaml --to someone@example.com
+! stdout .
+cmp stderr want-send.txt
+exits 2 invox new CUST-001 -s defaults.yaml
+! stdout .
+cmp stderr want-new-s.txt
+exits 2 invox new CUST-001 --source defaults.yaml
+! stdout .
+cmp stderr want-new-source.txt
+exits 2 invox help customer config
+! stdout .
+cmp stderr want-help-customer-config.txt
+exits 2 invox help send
+! stdout .
+cmp stderr want-help-send.txt
+
+-- want-archive-file.txt --
+error: unknown archive subcommand "invoice.yaml"
+Run 'invox archive --help' for usage.
+-- want-customer-config.txt --
+error: unknown customer subcommand "config"; did you mean "edit"?
+Run 'invox customer --help' for usage.
+-- want-send.txt --
+error: unknown subcommand "send"; did you mean "email"?
+Run 'invox --help' for usage.
+-- want-new-s.txt --
+error: unknown shorthand flag: -s
+Run 'invox new --help' for usage.
+-- want-new-source.txt --
+error: unknown flag: --source; did you mean --force?
+Run 'invox new --help' for usage.
+-- want-help-customer-config.txt --
+error: unknown help topic "customer config"
+Run 'invox --help' for usage.
+-- want-help-send.txt --
+error: unknown help topic "send"
+Run 'invox --help' for usage.
 -- want-validate.txt --
 Validation OK: CUST-001-001 for CUST-001, 2 line item(s), total 252,00 €
 -- want-render-stdout.txt --

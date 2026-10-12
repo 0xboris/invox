@@ -2,22 +2,25 @@
 package list
 
 import (
-	"strings"
+	"context"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/cmd/invoice/shared"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
-// ListOptions is what archive list needs: its streams and the user
-// directories.
+// ListOptions is what archive list needs: its streams, the working
+// directory and the user directories.
 type ListOptions struct {
-	IO   *iostreams.IOStreams
-	Host func() invoice.Host
+	IO      *iostreams.IOStreams
+	Getwd   func() (string, error)
+	Service func(cmdutil.Files) *billing.Service
 
 	Exporter *cmdutil.Exporter
 }
@@ -35,8 +38,11 @@ type archivedJSON struct {
 
 // NewCmdList returns the archive list command. runF replaces listRun in
 // tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
+	opts := &ListOptions{IO: f.IOStreams, Getwd: f.Env.Getwd, Service: f.Service}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List archived invoices from the configured archive directory",
@@ -54,33 +60,27 @@ Output:
 		Example: `$ invox archive list
 $ invox archive list --json file,customerId,number
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("archive list", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, archivedJSON{})
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
-	h := opts.Host()
-	archivedInvoices, err := h.ListArchivedInvoices()
+func listRun(_ context.Context, opts *ListOptions) error {
+	list, err := opts.Service(cmdutil.Files{}).ListArchive()
 	if err != nil {
 		return err
 	}
-	archiveDir, err := h.ResolveArchiveDir()
-	if err != nil {
-		return err
+	archivedInvoices, archiveDir := list.Entries, list.Dir
+	// The working directory only shortens the paths of the warning.
+	baseDir := ""
+	if cwd, err := opts.Getwd(); err == nil {
+		baseDir = filepath.Clean(cwd)
 	}
+	shared.WarnUnread(opts.IO, list.Unread, baseDir)
 
 	if opts.Exporter != nil {
 		items := make([]archivedJSON, 0, len(archivedInvoices))
@@ -91,22 +91,22 @@ func listRun(opts *ListOptions) error {
 				CustomerID: archived.CustomerID,
 				Number:     archived.Number,
 				IssueDate:  archived.IssueDate,
-				Status:     archived.Status,
+				Status:     string(archived.Status),
 			})
 		}
 		return opts.Exporter.Write(opts.IO, items)
 	}
 
-	list := tableprinter.Table{
+	table := tableprinter.Table{
 		Columns:   []tableprinter.Column{{Header: "FILE"}, {Header: "CUSTOMER"}, {Header: "ISSUE DATE"}, {Header: "STATUS"}},
 		EmptyHint: "No archived invoices found in " + archiveDir,
 	}
 	if archiveDir == "" {
-		list.EmptyHint = "No archived invoices found"
+		table.EmptyHint = "No archived invoices found"
 	}
 	for _, archived := range archivedInvoices {
-		list.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, archived.Status)
+		table.AddRow(archived.Filename, archived.CustomerID, archived.IssueDate, string(archived.Status))
 	}
-	list.Print(opts.IO)
+	table.Print(opts.IO)
 	return nil
 }

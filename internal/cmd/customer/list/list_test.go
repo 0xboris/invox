@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -10,7 +11,8 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/factory"
+	"github.com/0xboris/invox/internal/factory/factorytest"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -32,7 +34,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ListOptions
-			cmd := NewCmdList(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *ListOptions) error {
+			cmd := NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *ListOptions) error {
 				got = opts
 				return nil
 			})
@@ -55,8 +57,8 @@ func TestNewCmdListParsing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Execute returned error: %v", err)
 			}
-			if got == nil || got.CustomersPath != tc.wantCustomers {
-				t.Fatalf("opts = %+v, want CustomersPath %q", got, tc.wantCustomers)
+			if got == nil || got.Support.Customers != tc.wantCustomers {
+				t.Fatalf("opts = %+v, want customers %q", got, tc.wantCustomers)
 			}
 		})
 	}
@@ -67,16 +69,16 @@ func TestListRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(work, "c.yaml"), []byte("B-1:\n  name: Beta\n  status: inactive\nA-1:\n  name: Alpha\n  status: active\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	f := factorytest.New(t, nil, factorytest.Options{ConfigDir: t.TempDir(), Getwd: func() (string, error) { return work, nil }})
 
 	ios, _, out, errOut := iostreams.Test()
 	opts := &ListOptions{
-		IO:            ios,
-		Host:          func() invoice.Host { return host },
-		Getwd:         func() (string, error) { return work, nil },
-		CustomersPath: "c.yaml",
+		IO:      ios,
+		Service: f.Service,
+		Getwd:   func() (string, error) { return work, nil },
+		Support: cmdutil.SupportPaths{Customers: "c.yaml"},
 	}
-	if err := listRun(opts); err != nil {
+	if err := listRun(context.Background(), opts); err != nil {
 		t.Fatalf("listRun returned error: %v", err)
 	}
 	if want := "A-1\tAlpha\tactive\nB-1\tBeta\tinactive\n"; out.String() != want {

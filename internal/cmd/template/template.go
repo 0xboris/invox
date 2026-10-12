@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/template/list"
 )
 
@@ -23,8 +22,7 @@ Description:
 
 Important rules:
   Placeholder names are case-sensitive and must match exactly.
-  Unknown placeholders are left unchanged in the rendered TeX.
-  @@VAT_RATE@@ and @@VAT_AMOUNT@@ are unsupported; use @@VAT_SUMMARY_ROWS@@.
+  An unknown placeholder fails render and build; the error names it.
   Most placeholders are LaTeX-escaped automatically.
   Dates render as DD.MM.YYYY.
   Money renders as 1.234,56 \euro for EUR, or with the currency code otherwise.
@@ -49,8 +47,7 @@ Template workflow:
   Run ` + "`" + `invox build invoice.yaml` + "`" + ` after the rendered LaTeX looks correct.
   Run ` + "`" + `invox template list` + "`" + ` to discover templates addressable by name with -t/--template.
 
-` +
-			helptext.TemplatePlaceholderReference(),
+{{template "template-placeholders"}}`,
 		Example: `$ invox template list
 $ invox template list --names
 $ invox render -i invoice.yaml -t multi_vat.tex

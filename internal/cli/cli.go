@@ -3,15 +3,11 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/config"
 )
 
 const commandName = "invox"
@@ -37,47 +33,28 @@ func mainContext(ctx context.Context, args []string, f *cmdutil.Factory) int {
 		f.IOStreams.SetNeverPrompt(true)
 	}
 	root, helpErr := newRootCmd(f)
-	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
-		// A completion request passes the words typed so far as they are.
-		args = versionFlagToCommand(normalizeLongFlags(root, args, f.IOStreams.ErrOut))
-	}
-	root.SetArgs(args)
-	_, err := root.ExecuteContextC(ctx)
+	cmd, err := execute(ctx, root, args)
 	if err == nil {
 		err = helpErr()
-	}
-	warnLegacyFiles(f)
-	var configErr *config.Error
-	if f.ConfigFile != "" && errors.As(err, &configErr) {
-		err = &configFlagError{err: err, path: f.ConfigFile}
 	}
 	var sigErr *SignalError
 	if err != nil && errors.As(context.Cause(ctx), &sigErr) &&
 		!(sigErr.Signal == syscall.SIGINT && errors.Is(err, cmdutil.CancelError)) {
 		err = sigErr
 	}
-	return exitCode(f.IOStreams, err)
+	return exitCode(f, cmd, err)
 }
 
-// warnLegacyFiles prints one line when the command read files from the
-// deprecated config directory.
-func warnLegacyFiles(f *cmdutil.Factory) {
-	h := f.Host()
-	used := h.LegacyFilesUsed()
-	if len(used) == 0 {
-		return
-	}
-	legacyDir := h.LegacyConfigDir()
-	names := make([]string, len(used))
-	for i, path := range used {
-		names[i] = path
-		if rel, err := filepath.Rel(legacyDir, path); err == nil {
-			names[i] = rel
+// execute runs args on root. It returns the command args named, whose help
+// explains a usage error, with the command's error.
+func execute(ctx context.Context, root *cobra.Command, args []string) (*cobra.Command, error) {
+	if len(args) == 0 || (args[0] != cobra.ShellCompRequestCmd && args[0] != cobra.ShellCompNoDescRequestCmd) {
+		// A completion request passes the words typed so far as they are.
+		if cmd, err := checkSingleDashFlags(root, args); err != nil {
+			return cmd, err
 		}
+		args = versionFlagToCommand(args)
 	}
-	list, pronoun := names[0], "it"
-	if len(names) > 1 {
-		list, pronoun = strings.Join(names[:len(names)-1], ", ")+" and "+names[len(names)-1], "them"
-	}
-	fmt.Fprintf(f.IOStreams.ErrOut, "warning: using %s from deprecated config directory %s; run '%s init' to copy %s to %s\n", list, legacyDir, commandName, pronoun, h.ConfigDir())
+	root.SetArgs(args)
+	return root.ExecuteContextC(ctx)
 }

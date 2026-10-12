@@ -2,34 +2,37 @@
 package validate
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
 	"github.com/0xboris/invox/internal/cmd/invoice/shared"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/money"
 )
 
 type ValidateOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
-	InvoicePath   string
-	CustomersPath string
-	IssuerPath    string
-	Exporter      *cmdutil.Exporter
+	InvoicePath string
+	Support     cmdutil.SupportPaths
+	Exporter    *cmdutil.Exporter
 }
 
 // NewCmdValidate returns the validate command. runF replaces validateRun in
 // tests.
-func NewCmdValidate(f *cmdutil.Factory, runF func(*ValidateOptions) error) *cobra.Command {
-	opts := &ValidateOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdValidate(f *cmdutil.Factory, runF func(context.Context, *ValidateOptions) error) *cobra.Command {
+	opts := &ValidateOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = validateRun
+	}
 	cmd := &cobra.Command{
 		Use:   "validate [INVOICE.yaml]",
 		Short: "Validate invoice YAML against customers and issuer data",
@@ -52,49 +55,34 @@ JSON output:
 $ invox validate invoices/2026-0021.yaml -c customers.yaml -u issuer.yaml
 $ invox validate invoice.yaml --json valid,total,currency,errors
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			return shared.TakeInput("validate", opts.Getwd, &opts.InvoicePath, args)
-		},
+		Args: shared.TakeInput(opts.Getwd, &opts.InvoicePath),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := shared.RequireInput("validate", opts.InvoicePath); err != nil {
+			if err := shared.RequireInput(opts.InvoicePath); err != nil {
 				return err
 			}
-			if runF != nil {
-				return runF(opts)
-			}
-			return validateRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile, billing.IssuerFile)
 	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
-	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, validationJSON{})
 	return cmd
 }
 
-func validateRun(opts *ValidateOptions) error {
+func validateRun(_ context.Context, opts *ValidateOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "validate", invoice.Customers, opts.CustomersPath, baseDir)
-	if err != nil {
-		return err
-	}
-	issuerPath, err := cmdutil.SupportPath(h, "validate", invoice.Issuer, opts.IssuerPath, baseDir)
-	if err != nil {
-		return err
-	}
-	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
+	svc := opts.Service(opts.Support.Files(baseDir))
+	invoicePath := cmdutil.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	result, err := svc.Validate(invoicePath)
 	if err != nil {
+		err = cmdutil.UsageError(err)
 		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
 			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {
 				return writeErr
@@ -102,8 +90,10 @@ func validateRun(opts *ValidateOptions) error {
 		}
 		return err
 	}
+	ctx := result.Context
 
-	shared.WarnArchivedDuplicate(opts.IO, h, invoicePath, baseDir)
+	shared.WarnUnread(opts.IO, result.Unread, baseDir)
+	shared.WarnArchivedDuplicate(opts.IO, result.Duplicate, invoicePath, baseDir)
 
 	fmt.Fprintf(
 		opts.IO.ErrOut,

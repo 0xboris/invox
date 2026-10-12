@@ -1,11 +1,9 @@
 package invoice
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"sort"
-	"strings"
 
 	"github.com/0xboris/invox/internal/money"
 )
@@ -17,7 +15,7 @@ type Context struct {
 	Customer         Customer
 	Company          Company
 	Payment          Payment
-	Invoice          InvoiceHeader
+	Header           Header
 	LineItems        []LineItem
 	Currency         string
 	VATBreakdowns    []VATBreakdown
@@ -45,118 +43,37 @@ type VATBreakdown struct {
 	VATAmountCents int64
 }
 
-// LoadContext decodes the three files, validates them together and computes
-// the invoice totals. It reports every problem at once: values that do not
-// decode (*DecodeError, with file and line), then an unknown customer_id
-// and the fields that are missing or out of range. Validation skips the
-// fields that did not decode.
-func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error) {
-	customers, err := loadCustomerTable(customersPath)
-	if err != nil {
-		return nil, err
-	}
-	var issuer IssuerFile
-	issuerErr := decodeYAMLFile(issuerPath, &issuer, true)
-	if issuerErr != nil && !isDecodeError(issuerErr) {
-		return nil, issuerErr
-	}
-	var invoiceFile InvoiceFile
-	invoiceErr := decodeYAMLFile(invoicePath, &invoiceFile, true)
-	if invoiceErr != nil && !isDecodeError(invoiceErr) {
-		return nil, invoiceErr
-	}
-
-	var problems []Problem
-	var unknownCustomer error
-	customerID := invoiceFile.CustomerID.Trim()
-	// customer stays nil when the invoice names no usable customer, so its
-	// fields are not reported missing one by one.
-	var customer *Customer
-	var customerErr error
-	if customerID == "" {
-		if !within("customer_id", failedFields(invoiceErr)) {
-			problems = append(problems, Problem{File: invoicePath, Field: "customer_id", Message: "missing `customer_id`"})
+// firstRate returns the first rate that is set, nil when none is: the
+// position's own, then the invoice's, then the customer's default.
+func firstRate(rates ...Rate) *big.Rat {
+	for _, rate := range rates {
+		if rate.IsSet() {
+			return rate.Percent()
 		}
-	} else if found, ok, err := customers.customer(customerID, true); !ok {
-		unknownCustomer = &UnknownCustomerError{Path: invoicePath, CustomerID: customerID}
-	} else {
-		customer, customerErr = &found, err
 	}
-	decodeErr := errors.Join(customerErr, issuerErr, invoiceErr)
-	failed := failedFields(decodeErr)
+	return nil
+}
 
-	header := invoiceFile.Invoice
-	if header == nil {
-		problems = append(problems, Problem{File: invoicePath, Field: "invoice", Message: "missing `invoice` mapping"})
-		header = &InvoiceHeader{}
-	}
-	company := issuer.Company
-	if company == nil {
-		problems = append(problems, Problem{File: issuerPath, Field: "issuer.company", Message: "missing `company` mapping"})
-		company = &Company{}
-	}
-	payment := issuer.Payment
-	if payment == nil {
-		problems = append(problems, Problem{File: issuerPath, Field: "issuer.payment", Message: "missing `payment` mapping"})
-		payment = &Payment{}
-	}
-	if len(invoiceFile.Positions) == 0 && !within("positions", failed) {
-		problems = append(problems, Problem{File: invoicePath, Field: "positions", Message: "`positions` must be a non-empty list"})
-	}
-	var fieldProblems []string
-	if customer != nil {
-		fieldProblems = append(fieldProblems, customer.validate()...)
-	}
-	fieldProblems = append(fieldProblems, company.validate()...)
-	fieldProblems = append(fieldProblems, header.validate()...)
-	fieldProblems = append(fieldProblems, payment.validate()...)
-
-	var customerVATRate Rate
-	if customer != nil {
-		customerVATRate = customer.Tax.DefaultVATRate
-	}
-	// A rate that did not decode may be the one that applies, so a missing
-	// rate is not reported while one did not decode.
-	vatUndecoded := within("invoice.vat_percent", failed) || within("customer.tax.default_vat_rate", failed)
-	items := make([]LineItem, 0, len(invoiceFile.Positions))
-	missingVATReported := false
-	for index, position := range invoiceFile.Positions {
-		fieldProblems = append(fieldProblems, position.validate(index+1)...)
-		rate := firstRate(position.VATPercent, header.VATPercent, customerVATRate)
-		positionVATUndecoded := within(fmt.Sprintf("positions[%d].vat_percent", index+1), failed)
-		if rate == nil && !missingVATReported && !vatUndecoded && !positionVATUndecoded {
-			fieldProblems = append(fieldProblems, "invoice.vat_percent: missing value")
-			missingVATReported = true
-		}
+// NewContext computes the totals of b, which Validate found no problems
+// with. Its customer and its issuer's company and payment are set.
+func NewContext(b Bundle) (*Context, error) {
+	header, customer := b.Invoice.Header, b.Customer
+	items := make([]LineItem, 0, len(b.Invoice.Positions))
+	for _, position := range b.Invoice.Positions {
 		items = append(items, LineItem{
 			Name:           string(position.Name),
 			Description:    string(position.Description),
 			UnitPrice:      position.UnitPrice.Rat(),
 			Quantity:       position.Quantity.Rat(),
-			VATRatePercent: rate,
+			VATRatePercent: firstRate(position.VATPercent, header.VATPercent, customer.Tax.DefaultVATRate),
 		})
 	}
-	// Every field problem starts with the path of its field.
-	for _, problem := range fieldProblems {
-		if field, message, _ := strings.Cut(problem, ": "); !within(field, failed) {
-			problems = append(problems, Problem{Field: field, Message: message})
-		}
-	}
-
-	var validationErr error
-	if len(problems) > 0 {
-		validationErr = &ValidationError{Problems: problems}
-	}
-	if err := errors.Join(unknownCustomer, decodeErr, validationErr); err != nil {
-		return nil, err
-	}
-
 	ctx := &Context{
-		CustomerID:    customerID,
+		CustomerID:    b.Invoice.CustomerID.Trim(),
 		Customer:      *customer,
-		Company:       *company,
-		Payment:       *payment,
-		Invoice:       *header,
+		Company:       *b.Issuer.Company,
+		Payment:       *b.Issuer.Payment,
+		Header:        *header,
 		Currency:      customer.BillingCurrency(),
 		CustomerEmail: customer.InvoiceEmail(),
 		InvoiceNumber: header.Number.Trim(),
@@ -167,22 +84,6 @@ func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error
 		return nil, err
 	}
 	return ctx, nil
-}
-
-func isDecodeError(err error) bool {
-	var decodeErr *DecodeError
-	return errors.As(err, &decodeErr)
-}
-
-// firstRate returns the first rate that is set, nil when none is: the
-// position's own, then the invoice's, then the customer's default.
-func firstRate(rates ...Rate) *big.Rat {
-	for _, rate := range rates {
-		if rate.isSet() {
-			return rate.Percent()
-		}
-	}
-	return nil
 }
 
 // computeTotals sets the line totals, the VAT per rate and the invoice

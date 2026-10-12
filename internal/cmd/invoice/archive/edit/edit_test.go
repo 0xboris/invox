@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -31,7 +33,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			var got *EditOptions
 			root := &cobra.Command{Use: "invox"}
 			archive := &cobra.Command{Use: "archive"}
-			archive.AddCommand(NewCmdEdit(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *EditOptions) error {
+			archive.AddCommand(NewCmdEdit(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EditOptions) error {
 				got = opts
 				return nil
 			}))
@@ -44,8 +46,8 @@ func TestNewCmdEditParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "archive edit" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for archive edit: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}

@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/testfixture"
 )
 
 // cancelChildEnv makes the test binary act as a long-running child for the
@@ -72,7 +74,7 @@ func startCancelChild(t *testing.T, mode string) *cancelRun {
 	t.Cleanup(cancel)
 	r := &cancelRun{cancel: cancel, done: make(chan error, 1), stdout: new(bytes.Buffer)}
 	go func() {
-		r.done <- Exec{}.Run(ctx, Cmd{Name: testExecutable(t), Stdout: r.stdout})
+		r.done <- Exec{}.Run(ctx, Cmd{Name: testfixture.Executable(t), Stdout: r.stdout})
 	}()
 
 	deadline := time.Now().Add(30 * time.Second)

@@ -1,6 +1,7 @@
 // Package fsutil writes files so that a reader never sees a partial file:
 // data goes to a temporary file next to the target, is synced, and then
-// replaces or claims the target in one step.
+// replaces or claims the target in one step. Abs resolves a path against a
+// base directory.
 package fsutil
 
 import (

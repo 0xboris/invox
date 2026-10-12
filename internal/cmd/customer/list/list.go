@@ -2,25 +2,25 @@
 package list
 
 import (
+	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 	"github.com/0xboris/invox/internal/tableprinter"
 )
 
 type ListOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
-	CustomersPath string
-	Exporter      *cmdutil.Exporter
+	Support  cmdutil.SupportPaths
+	Exporter *cmdutil.Exporter
 }
 
 // customerJSON is a customer in --json output.
@@ -33,8 +33,11 @@ type customerJSON struct {
 }
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdList(f *cmdutil.Factory, runF func(context.Context, *ListOptions) error) *cobra.Command {
+	opts := &ListOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = listRun
+	}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List all customers from customers.yaml",
@@ -48,47 +51,35 @@ Default lookup:
 $ invox customer list -c customers.yaml
 $ invox customer list --json id,email
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return cmdutil.FlagErrorf("customer list", "unexpected arguments: %s", strings.Join(args, " "))
-			}
-			return nil
-		},
+		Args: cmdutil.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if runF != nil {
-				return runF(opts)
-			}
-			return listRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
-	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
+	cmdutil.AddSupportFlags(cmd, f, &opts.Support, billing.CustomersFile)
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, customerJSON{})
 	return cmd
 }
 
-func listRun(opts *ListOptions) error {
+func listRun(_ context.Context, opts *ListOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), "customer list", invoice.Customers, opts.CustomersPath, baseDir)
+	svc := opts.Service(opts.Support.Files(baseDir))
+	list, err := svc.ListCustomers()
 	if err != nil {
-		return err
+		return cmdutil.UsageError(err)
 	}
-
-	customers, err := invoice.ListCustomers(customersPath)
-	if err != nil {
-		return err
-	}
+	customers, customersPath := list.Customers, list.File
 
 	if opts.Exporter != nil {
 		items := make([]customerJSON, 0, len(customers))
 		for _, customer := range customers {
 			items = append(items, customerJSON{
 				ID:       customer.ID,
-				Name:     customer.LegalCompanyName,
+				Name:     customer.Name,
 				Status:   customer.Status,
 				Email:    customer.Email,
 				Currency: customer.Currency,
@@ -97,13 +88,13 @@ func listRun(opts *ListOptions) error {
 		return opts.Exporter.Write(opts.IO, items)
 	}
 
-	list := tableprinter.Table{
+	table := tableprinter.Table{
 		Columns:   []tableprinter.Column{{Header: "ID"}, {Header: "NAME", MaxWidth: 40}, {Header: "STATUS"}},
-		EmptyHint: "No customers found in " + invoice.DisplayPath(customersPath, baseDir),
+		EmptyHint: "No customers found in " + cmdutil.DisplayPath(customersPath, baseDir),
 	}
 	for _, customer := range customers {
-		list.AddRow(customer.ID, customer.LegalCompanyName, customer.Status)
+		table.AddRow(customer.ID, customer.Name, customer.Status)
 	}
-	list.Print(opts.IO)
+	table.Print(opts.IO)
 	return nil
 }

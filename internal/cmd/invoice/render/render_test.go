@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"errors"
 	"io"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -21,8 +23,8 @@ func TestNewCmdRenderParsing(t *testing.T) {
 		want    RenderOptions
 		wantErr string
 	}{
-		{name: "short", args: []string{"-i", "x.yaml", "-o", "o.tex", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "plain"}},
-		{name: "long", args: []string{"--input", "x.yaml", "--output", "o.tex", "--customers", "c.yaml", "--issuer", "u.yaml", "--template", "t.tex"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "t.tex"}},
+		{name: "short", args: []string{"-i", "x.yaml", "-o", "o.tex", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml", Template: "plain"}}},
+		{name: "long", args: []string{"--input", "x.yaml", "--output", "o.tex", "--customers", "c.yaml", "--issuer", "u.yaml", "--template", "t.tex"}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: "o.tex", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml", Template: "t.tex"}}},
 		{name: "wrong output extension", args: []string{"-i", "x.yaml", "-o", "o.pdf"}, wantErr: "-o, --output must end with .tex"},
 		{name: "upper-case output extension", args: []string{"-i", "x.yaml", "-o", "OUT.TEX"}, wantErr: "-o, --output must end with .tex"},
 		{name: "blank output", args: []string{"-i", "x.yaml", "-o", " "}, want: RenderOptions{InvoicePath: "x.yaml", OutputPath: " "}},
@@ -38,7 +40,7 @@ func TestNewCmdRenderParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *RenderOptions
-			cmd := NewCmdRender(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *RenderOptions) error {
+			cmd := NewCmdRender(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *RenderOptions) error {
 				got = opts
 				return nil
 			})
@@ -52,8 +54,8 @@ func TestNewCmdRenderParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "render" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for render: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}
@@ -63,7 +65,7 @@ func TestNewCmdRenderParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := RenderOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath, TemplatePath: got.TemplatePath}
+			parsed := RenderOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, Support: got.Support}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

@@ -1,6 +1,7 @@
 package list
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -26,7 +28,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		ran := false
 		root := &cobra.Command{Use: "invox"}
 		archive := &cobra.Command{Use: "archive"}
-		archive.AddCommand(NewCmdList(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(*ListOptions) error {
+		archive.AddCommand(NewCmdList(factory.New(ios, run.Exec{}, env.System()), func(context.Context, *ListOptions) error {
 			ran = true
 			return nil
 		}))
@@ -44,8 +46,8 @@ func TestNewCmdListParsing(t *testing.T) {
 			continue
 		}
 		var flagErr *cmdutil.FlagError
-		if !errors.As(err, &flagErr) || flagErr.Command != "archive list" || err.Error() != tc.wantErr || ran {
-			t.Errorf("%q: Execute error = %#v, runF ran = %v; want FlagError for archive list: %q and no run", tc.args, err, ran, tc.wantErr)
+		if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || ran {
+			t.Errorf("%q: Execute error = %#v, runF ran = %v; want FlagError %q and no run", tc.args, err, ran, tc.wantErr)
 		}
 	}
 }

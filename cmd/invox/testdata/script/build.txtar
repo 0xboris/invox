@@ -24,8 +24,11 @@ exits 2 invox build invoice.yaml other.yaml
 ! stdout .
 stderr '^error: unexpected arguments: other\.yaml$'
 
-# Runtime errors: tectonic fails, or is not installed. The invoice status is
-# left alone.
+# Runtime errors: the invoice does not exist, tectonic fails, or tectonic is
+# not installed. The invoice status is left alone.
+exits 1 invox build missing.yaml
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
 env FAKE_TECTONIC_FAIL=1
 exits 1 invox build draft.yaml
 ! stdout .

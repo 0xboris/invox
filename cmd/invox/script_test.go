@@ -17,8 +17,8 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli"
-	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 	// suite needs no shell scripts and runs on Windows.
 	testscript.Main(m, map[string]func(){
 		"invox": func() {
-			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())
+			f := factory.New(iostreams.System(), run.Exec{}, env.System())
 			os.Exit(cli.Main(os.Args[1:], f))
 		},
 		"tectonic":  func() { os.Exit(fakeTectonic(os.Args[1:])) },
@@ -224,8 +224,13 @@ func fakeOpen(args []string) int {
 
 // fakeOsascript stands in for the Apple Mail AppleScript that `invox email`
 // runs on macOS. invox passes the message after "--" as recipient, subject,
-// body, attachment and sender.
+// body, attachment and sender. Like fakeOpen, it fails when FAKE_OPEN_FAIL
+// is set.
 func fakeOsascript(args []string) int {
+	if os.Getenv(fakeOpenFailEnv) != "" {
+		fmt.Fprintln(os.Stderr, "fake osascript: forced failure")
+		return 1
+	}
 	for i, arg := range args {
 		if arg != "--" {
 			continue

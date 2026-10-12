@@ -61,7 +61,7 @@ func AddJSONFlags(cmd *cobra.Command, exporter **Exporter, exportType any) {
 					continue
 				}
 				if !slices.Contains(fields, field) {
-					return FlagErrorf(CommandPath(cmd), "unknown JSON field: %q\nAvailable fields:\n%s", field, fieldList(fields))
+					return FlagErrorf("unknown JSON field: %q\nAvailable fields:\n%s", field, fieldList(fields))
 				}
 				selected = append(selected, field)
 			}

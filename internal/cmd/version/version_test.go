@@ -1,6 +1,7 @@
 package version
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -19,14 +21,14 @@ func TestNewCmdVersionParsing(t *testing.T) {
 		wantErr string
 	}{
 		{name: "no arguments", args: []string{}, wantRun: true},
-		{name: "extra arguments", args: []string{"a", "b"}, wantErr: "unexpected arguments for version: a b"},
+		{name: "extra arguments", args: []string{"a", "b"}, wantErr: "unexpected arguments: a b"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := factory.New(ios, run.Exec{}, env.System())
 			ran := false
-			cmd := NewCmdVersion(f, func(opts *VersionOptions) error {
+			cmd := NewCmdVersion(f, func(_ context.Context, opts *VersionOptions) error {
 				ran = true
 				if opts.IO != ios {
 					t.Error("opts.IO is not the factory's streams")
@@ -48,8 +50,8 @@ func TestNewCmdVersionParsing(t *testing.T) {
 				return
 			}
 			var flagErr *cmdutil.FlagError
-			if !errors.As(err, &flagErr) || flagErr.Command != "version" || err.Error() != tc.wantErr {
-				t.Fatalf("Execute error = %#v, want FlagError for version: %q", err, tc.wantErr)
+			if !errors.As(err, &flagErr) || err.Error() != tc.wantErr {
+				t.Fatalf("Execute error = %#v, want FlagError %q", err, tc.wantErr)
 			}
 		})
 	}
@@ -57,7 +59,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 
 func TestVersionRun(t *testing.T) {
 	ios, _, out, errOut := iostreams.Test()
-	if err := versionRun(&VersionOptions{IO: ios}); err != nil {
+	if err := versionRun(context.Background(), &VersionOptions{IO: ios}); err != nil {
 		t.Fatalf("versionRun returned error: %v", err)
 	}
 	if got := out.String(); got != "invox version DEV\n" {

@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/env"
+	"github.com/0xboris/invox/internal/factory"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -23,7 +24,7 @@ func TestNewCmdBuildParsing(t *testing.T) {
 		wantErr string
 	}{
 		{name: "positional input", args: []string{"x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
-		{name: "flags after the positional", args: []string{"x.yaml", "-o", "o.pdf", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain", "--archive", "--yes"}, want: BuildOptions{InvoicePath: "x.yaml", OutputPath: "o.pdf", CustomersPath: "c.yaml", IssuerPath: "u.yaml", TemplatePath: "plain", Archive: true, Yes: true}},
+		{name: "flags after the positional", args: []string{"x.yaml", "-o", "o.pdf", "-c", "c.yaml", "-u", "u.yaml", "-t", "plain", "--archive", "--yes"}, want: BuildOptions{InvoicePath: "x.yaml", OutputPath: "o.pdf", Support: cmdutil.SupportPaths{Customers: "c.yaml", Issuer: "u.yaml", Template: "plain"}, Archive: true, Yes: true}},
 		{name: "input flag", args: []string{"--input", "x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
 		{name: "input flag and positional", args: []string{"-i", "x.yaml", "y.yaml"}, wantErr: "the INVOICE argument y.yaml and -i, --input x.yaml name different files; pass only one"},
 		{name: "input flag naming the positional", args: []string{"-i", "x.yaml", "x.yaml"}, want: BuildOptions{InvoicePath: "x.yaml"}},
@@ -37,7 +38,7 @@ func TestNewCmdBuildParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *BuildOptions
-			cmd := NewCmdBuild(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *BuildOptions) error {
+			cmd := NewCmdBuild(factory.New(ios, run.Exec{}, env.System()), func(_ context.Context, opts *BuildOptions) error {
 				got = opts
 				return nil
 			})
@@ -51,8 +52,8 @@ func TestNewCmdBuildParsing(t *testing.T) {
 
 			if tc.wantErr != "" {
 				var flagErr *cmdutil.FlagError
-				if !errors.As(err, &flagErr) || flagErr.Command != "build" || err.Error() != tc.wantErr || got != nil {
-					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError for build: %q and no run", err, got != nil, tc.wantErr)
+				if !errors.As(err, &flagErr) || err.Error() != tc.wantErr || got != nil {
+					t.Fatalf("Execute error = %#v, runF ran = %v; want FlagError %q and no run", err, got != nil, tc.wantErr)
 				}
 				return
 			}
@@ -62,7 +63,7 @@ func TestNewCmdBuildParsing(t *testing.T) {
 			if got == nil {
 				t.Fatal("runF did not run")
 			}
-			parsed := BuildOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, CustomersPath: got.CustomersPath, IssuerPath: got.IssuerPath, TemplatePath: got.TemplatePath, Archive: got.Archive, Yes: got.Yes}
+			parsed := BuildOptions{InvoicePath: got.InvoicePath, OutputPath: got.OutputPath, Support: got.Support, Archive: got.Archive, Yes: got.Yes}
 			if !reflect.DeepEqual(parsed, tc.want) {
 				t.Errorf("parsed %+v, want %+v", parsed, tc.want)
 			}

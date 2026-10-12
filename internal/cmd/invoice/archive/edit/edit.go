@@ -2,25 +2,25 @@
 package edit
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
 	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // EditOptions is what archive edit needs: its streams, the user directories
 // and the archived file to copy.
 type EditOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO      *iostreams.IOStreams
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 
 	Filename string
 	Force    bool
@@ -37,8 +37,11 @@ type editJSON struct {
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
-func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
-	opts := &EditOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
+	opts := &EditOptions{IO: f.IOStreams, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
+	}
 	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
@@ -63,21 +66,10 @@ $ invox archive edit customer-a/2026-03-06.yaml
 $ invox archive edit 2026-03-06.yaml --force
 $ invox archive edit 2026-03-06.yaml --json path
 `,
-		Args: func(cmd *cobra.Command, args []string) error {
-			switch {
-			case len(args) == 0:
-				return cmdutil.FlagErrorf("archive edit", "missing required arguments: FILENAME")
-			case len(args) > 1:
-				return cmdutil.FlagErrorf("archive edit", "unexpected arguments: %s", strings.Join(args[1:], " "))
-			}
-			return nil
-		},
+		Args: cmdutil.ExactArgs("FILENAME"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Filename = strings.TrimSpace(args[0])
-			if runF != nil {
-				return runF(opts)
-			}
-			return editRun(opts)
+			return runF(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing working copy")
@@ -86,37 +78,30 @@ $ invox archive edit 2026-03-06.yaml --json path
 	return cmd
 }
 
-func editRun(opts *EditOptions) error {
+func editRun(_ context.Context, opts *EditOptions) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
 
-	outputPath, archivePath, err := opts.Host().EditArchivedInvoice(opts.Filename, baseDir, invoice.EditArchiveOptions{
+	edited, err := opts.Service(cmdutil.Files{}).EditArchived(opts.Filename, baseDir, billing.EditOptions{
 		Overwrite: opts.Force,
 		DryRun:    opts.DryRun,
 	})
-	var exists *invoice.OutputExistsError
-	if errors.As(err, &exists) {
-		return fmt.Errorf("%s; pass --force to replace it or choose a different working directory", exists)
-	}
-	var isDir *invoice.OutputIsDirError
-	if errors.As(err, &isDir) {
-		return fmt.Errorf("%s; choose a different working directory", isDir)
-	}
+	outputPath, archivePath := edited.Path, edited.Archived
 	if err != nil {
-		return err
+		return cmdutil.OutputError(err, "a different working directory")
 	}
 
 	verb := "Editing"
 	if opts.DryRun {
 		verb = "Would copy"
 	}
-	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, invoice.DisplayPath(archivePath, baseDir), invoice.DisplayPath(outputPath, baseDir))
+	fmt.Fprintf(opts.IO.ErrOut, "%s %s -> %s\n", verb, cmdutil.DisplayPath(archivePath, baseDir), cmdutil.DisplayPath(outputPath, baseDir))
 	if opts.Exporter != nil {
 		return opts.Exporter.Write(opts.IO, editJSON{Path: outputPath, ArchivedPath: archivePath})
 	}
-	fmt.Fprintln(opts.IO.Out, invoice.DisplayPath(outputPath, baseDir))
+	fmt.Fprintln(opts.IO.Out, cmdutil.DisplayPath(outputPath, baseDir))
 	return nil
 }

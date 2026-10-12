@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/invoice"
+	"github.com/0xboris/invox/internal/billing"
 )
 
 // The completion funcs below read the same files as the commands. Any error,
@@ -23,18 +23,14 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		flagValue, _ := cmd.Flags().GetString("customers")
-		path, err := SupportPath(completionHost(f, cmd), "", invoice.Customers, flagValue, cwd)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		customers, err := invoice.ListCustomers(path)
+		flagValue, _ := cmd.Flags().GetString(supportFlags[billing.CustomersFile].name)
+		list, err := completionService(f, cmd, Files{Customers: AbsFlag(cwd, flagValue)}).ListCustomers()
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		var ids []cobra.Completion
-		for _, customer := range customers {
-			ids = append(ids, cobra.CompletionWithDesc(customer.ID, customer.LegalCompanyName))
+		for _, customer := range list.Customers {
+			ids = append(ids, cobra.CompletionWithDesc(customer.ID, customer.Name))
 		}
 		return ids, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -44,12 +40,12 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 // shows, and with file names when no name matches.
 func CompleteTemplates(f *Factory) cobra.CompletionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-		templates, err := completionHost(f, cmd).ListTemplates()
+		list, err := completionService(f, cmd, Files{}).ListTemplates(false)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveDefault
 		}
 		var names []cobra.Completion
-		for _, template := range templates {
+		for _, template := range list.Templates {
 			if strings.HasPrefix(template.Name, toComplete) {
 				names = append(names, template.Name)
 			}
@@ -68,12 +64,12 @@ func CompleteArchivedInvoices(f *Factory) cobra.CompletionFunc {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		archived, err := completionHost(f, cmd).ListArchivedInvoices()
+		archived, err := completionService(f, cmd, Files{}).ListArchive()
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		var files []cobra.Completion
-		for _, entry := range archived {
+		for _, entry := range archived.Entries {
 			files = append(files, cobra.CompletionWithDesc(entry.Filename, entry.CustomerID))
 		}
 		return files, cobra.ShellCompDirectiveNoFileComp
@@ -92,12 +88,12 @@ func CompleteInputFile(exts ...string) cobra.CompletionFunc {
 	}
 }
 
-// completionHost returns the Host for a completion request on cmd. Main
-// sets ConfigFile from --config before a command runs, but a completion
-// request runs no command, so this reads the flag itself.
-func completionHost(f *Factory, cmd *cobra.Command) invoice.Host {
+// completionService returns the use cases for a completion request on cmd.
+// Main sets ConfigFile from --config before a command runs, but a
+// completion request runs no command, so this reads the flag itself.
+func completionService(f *Factory, cmd *cobra.Command, files Files) *billing.Service {
 	if configFile, _ := cmd.Flags().GetString("config"); configFile != "" {
 		f.ConfigFile = configFile
 	}
-	return f.Host()
+	return f.Service(files)
 }

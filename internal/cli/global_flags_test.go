@@ -1,8 +1,10 @@
-package cli
+package cli_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/clitest"
 )
 
 // --no-input works anywhere before --, and is an argument after it.
@@ -22,7 +24,9 @@ func TestNoInputAnywhereBeforeDoubleDash(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			exitCode, stdout, stderr := captureRun(t, tc.args)
+			x := clitest.New(t)
+
+			exitCode, stdout, stderr := x.Run(tc.args)
 			if exitCode != 2 || stdout != "" || !strings.HasPrefix(stderr, tc.wantPrefix) {
 				t.Fatalf("exit %d, stdout %q, stderr %q; want exit 2, no stdout, stderr starting %q", exitCode, stdout, stderr, tc.wantPrefix)
 			}
@@ -33,13 +37,14 @@ func TestNoInputAnywhereBeforeDoubleDash(t *testing.T) {
 // --no-input after the command's own flags still keeps new -e from opening
 // an editor, after it created the invoice.
 func TestNoInputAfterNewEdit(t *testing.T) {
-	isolateUserDirs(t)
-	if exitCode, _, stderr := captureRun(t, []string{"init"}); exitCode != 0 {
+	x := clitest.New(t)
+
+	if exitCode, _, stderr := x.Run([]string{"init"}); exitCode != 0 {
 		t.Fatalf("init: exit %d, stderr %q", exitCode, stderr)
 	}
-	chdirForTest(t, t.TempDir())
+	x.Chdir(t.TempDir())
 
-	exitCode, stdout, stderr := captureRun(t, []string{"new", "CUST-001", "-e", "--no-input"})
+	exitCode, stdout, stderr := x.Run([]string{"new", "CUST-001", "-e", "--no-input"})
 	const want = "but cannot open an editor: prompts are disabled (--no-input or INVOX_PROMPT_DISABLED)"
 	if exitCode != 2 || stdout != "" || !strings.HasPrefix(stderr, "error: created ") || !strings.Contains(stderr, want) {
 		t.Fatalf("exit %d, stdout %q, stderr %q; want exit 2, no stdout, an error that the invoice was created %s", exitCode, stdout, stderr, want)

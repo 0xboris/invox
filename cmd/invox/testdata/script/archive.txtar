@@ -42,12 +42,19 @@ scrubpaths stderr got.txt
 cmp got.txt want-archive.txt
 ! exists second.yaml
 
-# archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS,
-# including Markdown invoices with YAML front matter.
+# archive list prints FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS.
+# A Markdown invoice is no longer read: one warning names it, and archive
+# edit refuses it.
 cp legacy.md home/.config/invox/archive/legacy.md
 exec invox archive list
 cmp stdout want-list.tsv
-! stderr .
+scrubpaths stderr got.txt
+cmp got.txt want-markdown-warning.txt
+exits 1 invox archive edit legacy.md
+! stdout .
+scrubpaths stderr got.txt
+cmp got.txt want-edit-markdown.txt
+rm home/.config/invox/archive/legacy.md
 
 # archive edit copies an archived invoice back for editing; archiving the
 # working copy replaces the archived one. stdin is not a terminal here, so
@@ -88,7 +95,7 @@ grep '^  status: draft$' CUST-001-010.yaml
 grep '^  - name: Development$' CUST-001-010.yaml
 
 # Usage errors.
-exits 2 invox archive
+exits 2 invox archive add
 ! stdout .
 cmp stderr want-missing-input.txt
 exits 2 invox archive add a.yaml b.yaml
@@ -102,6 +109,9 @@ exits 2 invox archive list extra
 stderr '^error: unexpected arguments: extra$'
 
 # Runtime errors.
+exits 1 invox archive add missing.yaml
+! stdout .
+stderr '^error: invoice file missing\.yaml does not exist$'
 exits 1 invox archive add draft.yaml
 ! stdout .
 scrubpaths stderr got.txt
@@ -191,9 +201,13 @@ Would archive invoice.yaml -> home/.config/invox/archive/invoice.yaml
 Would archive second.yaml -> home/.config/invox/archive/second.yaml
 -- want-archive.txt --
 Archived second.yaml -> home/.config/invox/archive/second.yaml
+-- want-markdown-warning.txt --
+warning: 1 Markdown invoice in home/.config/invox/archive is no longer read; convert it to .yaml to include it:
+  home/.config/invox/archive/legacy.md
+-- want-edit-markdown.txt --
+error: home/.config/invox/archive/legacy.md is a Markdown invoice, which invox no longer reads; convert it to .yaml
 -- want-list.tsv --
 invoice.yaml	CUST-001	2026-03-06	archived
-legacy.md	CUST-MD	2026-03-05	archived
 second.yaml	CUST-003	2026-03-07	archived
 -- want-edit.txt --
 Editing home/.config/invox/archive/invoice.yaml -> invoice.yaml
@@ -203,7 +217,7 @@ home/.config/invox/archive/invoice.yaml
 Created CUST-001-010.yaml for CUST-001 (CUST-001-010)
 -- want-missing-input.txt --
 error: missing required input: INVOICE.yaml or -i, --input
-Run 'invox archive --help' for usage.
+Run 'invox archive add --help' for usage.
 -- want-edit-missing.txt --
 error: missing required arguments: FILENAME
 Run 'invox archive edit --help' for usage.

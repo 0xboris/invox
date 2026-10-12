@@ -5,25 +5,22 @@ package edit
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/invoice"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
 // EditOptions is what config edit needs: its streams, the editor and the
-// user directories. Command names the command in its messages.
+// user directories.
 type EditOptions struct {
-	IO     *iostreams.IOStreams
-	Editor *editor.Editor
-	Host   func() invoice.Host
-	Getwd  func() (string, error)
-
-	Command string
+	IO      *iostreams.IOStreams
+	Editor  *editor.Editor
+	Service func(cmdutil.Files) *billing.Service
+	Getwd   func() (string, error)
 }
 
 // NewCmdEdit returns the config edit command. runF replaces editRun in tests.
@@ -47,25 +44,19 @@ $ invox --config ./config.yaml config edit
 // Configure gives cmd the arguments and run of config edit. The config
 // command, which config edit is the default of, uses it too.
 func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) {
-	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd}
-	cmd.ValidArgsFunction = cobra.NoFileCompletions
-	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 {
-			return cmdutil.FlagErrorf(cmdutil.CommandPath(cmd), "unexpected arguments: %s", strings.Join(args, " "))
-		}
-		return nil
+	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Service: f.Service, Getwd: f.Env.Getwd}
+	if runF == nil {
+		runF = editRun
 	}
+	cmd.ValidArgsFunction = cobra.NoFileCompletions
+	cmd.Args = cmdutil.NoArgs
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		opts.Command = cmdutil.CommandPath(cmd)
-		if runF != nil {
-			return runF(cmd.Context(), opts)
-		}
-		return editRun(cmd.Context(), opts)
+		return runF(cmd.Context(), opts)
 	}
 }
 
 func editRun(ctx context.Context, opts *EditOptions) error {
-	configPath, err := opts.Host().EditableConfigPath()
+	configPath, err := opts.Service(cmdutil.Files{}).EditablePath(billing.ConfigFile)
 	if err != nil {
 		return err
 	}
@@ -73,9 +64,9 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	if err != nil {
 		return err
 	}
-	displayPath := invoice.DisplayPath(configPath, baseDir)
+	displayPath := cmdutil.DisplayPath(configPath, baseDir)
 
-	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, configPath, "edit "+displayPath+" directly"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, configPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", configPath, err)
 	}
 

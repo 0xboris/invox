@@ -3,8 +3,10 @@ package opener
 
 import (
 	"context"
+	"errors"
 
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/iostreams"
 )
 
@@ -22,7 +24,9 @@ func New(runner run.Runner, ios *iostreams.IOStreams, goos string) *Opener {
 }
 
 // Open hands path to the OS. It returns when the opening program exits, which
-// can be before the application has read the file.
+// can be before the application has read the file. It returns a
+// *billing.ToolMissingError when the program is not on PATH, and a
+// *billing.ToolFailedError when it fails.
 func (o *Opener) Open(ctx context.Context, path string) error {
 	cmd := run.Cmd{Stdout: o.ios.ErrOut, Stderr: o.ios.ErrOut}
 	switch o.goos {
@@ -33,5 +37,13 @@ func (o *Opener) Open(ctx context.Context, path string) error {
 	default:
 		cmd.Name, cmd.Args = "xdg-open", []string{path}
 	}
-	return o.runner.Run(ctx, cmd)
+	err := o.runner.Run(ctx, cmd)
+	if errors.Is(err, run.ErrNotFound) {
+		return &billing.ToolMissingError{Tool: cmd.Name}
+	}
+	var execErr *run.ExecError
+	if errors.As(err, &execErr) {
+		return &billing.ToolFailedError{Tool: cmd.Name, Code: execErr.Code, Err: err}
+	}
+	return err
 }

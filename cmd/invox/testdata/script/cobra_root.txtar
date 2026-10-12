@@ -24,10 +24,10 @@ exits 2 invox -- customer list
 ! stdout .
 cmp stderr want-dashdash.txt
 
-# -version works and warns like every other single-dash long flag.
-exec invox -version
-stdout '^invox version DEV$'
-cmp stderr want-version-warning.txt
+# -version is a usage error like every other single-dash long flag.
+exits 2 invox -version
+! stdout .
+cmp stderr want-version-single-dash.txt
 
 -- want-subcommand.txt --
 error: unknown subcommand "custmer"; did you mean "customer"?
@@ -41,5 +41,6 @@ Run 'invox --help' for usage.
 -- want-dashdash.txt --
 error: unknown subcommand "--"
 Run 'invox --help' for usage.
--- want-version-warning.txt --
-warning: -version is deprecated; use --version
+-- want-version-single-dash.txt --
+error: -version is not a flag; use --version
+Run 'invox --help' for usage.

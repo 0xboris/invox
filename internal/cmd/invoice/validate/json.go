@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 
+	"github.com/0xboris/invox/internal/billing"
 	"github.com/0xboris/invox/internal/invoice"
 )
 
@@ -29,7 +30,7 @@ type problemJSON struct {
 }
 
 // invalidInvoiceProblems returns the problems in err, an error from
-// invoice.LoadContext, and reports whether err is only problems with the
+// billing.Service.Validate, and reports whether err is only problems with the
 // invoice's content. It reports false when a file could not be read. An
 // error it has no structure for, such as malformed YAML or an amount too
 // large to total, is a problem with only a message.
@@ -38,7 +39,7 @@ func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 	var walk func(error) bool
 	walk = func(err error) bool {
 		switch e := err.(type) {
-		case *invoice.DecodeError:
+		case *billing.DecodeError:
 			field := e.Path
 			if field == "" {
 				field = e.Field
@@ -58,7 +59,8 @@ func invalidInvoiceProblems(err error) ([]problemJSON, bool) {
 			}
 		default:
 			var pathErr *fs.PathError
-			if errors.As(err, &pathErr) {
+			var notFound *billing.FileNotFoundError
+			if errors.As(err, &pathErr) || errors.As(err, &notFound) {
 				return false
 			}
 			problems = append(problems, problemJSON{Message: err.Error()})
