@@ -1,57 +1,59 @@
 # The architecture in invox
 
-This guide shows where each part of `docs/ARCHITECTURE.md` sits in invox today. invox adopted the architecture after it was built, so its packages do not follow the kit's template layout yet. `architecture.json` maps each package to a kind, and `architecture-baseline.json` accepts the violations the code had on adoption. New code follows the rules; old code is fixed as it is touched.
+This guide shows where each part of `docs/ARCHITECTURE.md` sits in invox. `architecture.json` maps each directory to a module kind, and `docs/architecture/modules.md` lists the result. The code has no accepted violations, so there is no baseline file: `python3 tools/archcheck.py` fails on any violation.
 
 ## Layout
 
 ```
-cmd/invox/main.go                composition root: builds the Factory and runs cli.Main
-internal/cli/                    composition root: the cobra root, global flags, exit codes, signals, help rendering
-internal/cmd/<noun>/<verb>/      UI of the <noun> slice: one cobra command per package
-internal/cmd/invoice/shared/     UI shared by the invoice slice's commands
-internal/cli/cmdutil/            shared UI: the Factory, error types, prompts, completion helpers
-internal/cli/helptext/           shared UI: help topics and reference tables
-internal/tableprinter/           shared UI: table output
-internal/invoice/                domain: loading, validation, VAT totals, numbering, render, email and archive steps
-internal/money/                  domain: decimals, cents, 1.234,56 formatting
-internal/epc/                    domain: EPC QR code rules and payload
-internal/email/                  domain: subject and body templates, the .eml MIME layout
-internal/render/latex/           domain: LaTeX escaping, rows, line item blocks, template checks
-internal/adapters/<name>/        adapters: run (the only package that starts programs), tectonic, editor, opener, applemail
-internal/archive/                adapter: the archive directory
-internal/config/                 adapter: config file loading
-internal/fsutil/                 adapter: file system helpers
-internal/env/                    utilities: env.Env, the clock, GOOS, home and working directory
-internal/iostreams/              utilities: stdin, stdout, stderr and TTY detection
-internal/build/                  utilities: version information
-internal/docs/gen/               tool: regenerates docs/cli and share/man; the release binary may not import it
+cmd/invox/main.go                      composition: os.Exit(app.Main(os.Args[1:], app.Live()))
+internal/app/                          composition root: Dependencies, the adapters, one wire_<slice>.go per slice
+internal/features/<slice>/ui/          UI of a slice: one cobra command per package, NewCmdX(f, runF)
+internal/features/<slice>/ui/shared/   the slice's Factory and what its commands share
+internal/features/cli/ui/              the cli slice: cli.Main, the cobra root, global flags, exit codes, help rendering, completion
+internal/sharedui/cmdutil/             shared UI: error types, FlagErrorFunc, prompts, the editor gate
+internal/sharedui/tableprinter/        shared UI: table output
+internal/domain/invoice/               domain: loading, validation, VAT totals, numbering, the render, email and archive steps, HostSource
+internal/domain/ports/                 domain: the ports (Files, PDFCompiler, Editor, Opener, MailComposer)
+internal/domain/config/                domain: the config.yaml schema
+internal/domain/archive/               domain: the archive directory: walk, list, name resolution, .history backups
+internal/domain/money/                 domain: decimals, cents, 1.234,56 formatting
+internal/domain/epc/                   domain: EPC QR code rules and payload
+internal/domain/email/                 domain: subject and body templates, the .eml MIME layout
+internal/domain/latex/                 domain: LaTeX escaping, rows, line item blocks, template checks
+internal/domain/helptext/              domain: help topics, reference tables and lookup lines
+internal/adapters/fsutil/              adapter: ports.Files on the real file system
+internal/adapters/platform/            adapter: the process environment, streams, terminals and signals
+internal/adapters/programs/run/        adapter: run.Runner, the only package that starts programs
+internal/adapters/programs/<name>/     adapters: tectonic, editor, opener and applemail on top of run.Runner
+internal/adapters/starter/             adapter: the files invox init writes, embedded
+internal/adapters/buildinfo/           adapter: the version stamped in at link time
+internal/utilities/env/                utilities: env.Env (GOOS, Getenv, HomeDir, Getwd, Now)
+internal/utilities/iostreams/          utilities: stdin, stdout, stderr and TTY flags
+internal/utilities/proc/               utilities: ExitError, SignalError and the Ctrl-C hold
+internal/docs/gen/                     tool: regenerates docs/cli and share/man; the release binary may not import it
 ```
 
-Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. A slice's UI module is its whole `internal/cmd/<noun>` tree. invox has no use case modules yet. Commands call `internal/invoice` directly.
+Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`, plus `cli`, which owns the root command. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
 
-## Where new code goes today
+`app.Dependencies` holds the streams, the `env.Env`, the `invoice.HostSource` and the adapters behind their ports. Each `wire_<slice>.go` copies what its slice needs into that slice's `shared.Factory` and returns the slice's commands. `config.go` is the one composition file with a decision in it: Apple Mail exists only on macOS.
 
-`tools/new.py` generates the kit's template layout (`internal/features/<slice>`, `internal/app`), which invox does not have. Do not run its `slice`, `usecase` or `port` commands here. Build by hand and copy the closest existing code:
+## Where new code goes
 
-- **A new command.** A package under `internal/cmd/<noun>/<verb>` with an Options struct, `NewCmdX(f, runF)` and a run function, like `internal/cmd/invoice/validate`. Register it in its noun's parent command. A new noun is a new slice.
+`tools/new.py` generates use cases and HTTP handlers, which invox does not use. Do not run it here. Build by hand and copy the closest existing code:
+
+- **A new command.** A package under `internal/features/<noun>/ui/<verb>` with an Options struct, `NewCmdX(f, runF)` and a run function, like `internal/features/invoice/ui/validate`. Register it in its noun's parent command, or in the slice's `wire_<noun>.go` for a top-level command. A new noun is a new slice, with its own `ui/shared.Factory` and `internal/app/wire_<noun>.go`, and an entry in `commandGroups` in `internal/features/cli/ui/root.go`.
 - **A business rule or value.** A function or type in the domain module that owns the concept, with its name in `GLOSSARY.md`. A rule that only one command uses still goes into the domain.
-- **A program invox runs.** An adapter under `internal/adapters/<name>` that wraps one program on top of `run.Runner`, like `internal/adapters/tectonic`. The command gets it from the `cmdutil.Factory`.
+- **File access.** Through `ports.Files`, which the `invoice.Host` carries (`h.Files()`). Domain code never imports `os`.
+- **A program invox runs.** A port in `internal/domain/ports`, and an adapter under `internal/adapters/programs/<name>` that implements it on top of `run.Runner`, like `internal/adapters/programs/tectonic`. `internal/app` builds it into `Dependencies` and copies it into the slices' Factories.
 - **Output.** Commands write to the `IOStreams` they are given. The domain returns data and typed errors and never prints.
-- **The environment, the clock or the platform.** Read them from the `env.Env` that the caller passes in. Only `env.System()` and `iostreams.System()` touch the process.
+- **The environment, the clock or the platform.** Read them from the `env.Env` that the caller passes in. Only `platform.Env()` and `platform.Streams()` touch the process.
 
-## Moving toward the template layout
+## Other checks of the same layers
 
-The baseline lists what does not fit yet. The biggest groups:
-
-- `internal/invoice` performs file I/O and parses YAML, and it imports the `archive`, `config` and `fsutil` adapters. The kit wants that I/O behind ports with adapters implementing them.
-- Commands and `cmdutil` import adapters directly. The kit wants a composition root that creates adapters and passes them in.
-- `internal/cli` holds the composition root plus help rendering and signal handling, which the kit keeps out of the composition root.
-- `iostreams` and `env` read the process, which utilities may not.
-
-When a change removes violations, run `python3 tools/archcheck.py --write-baseline` in the same pull request so the baseline goes down. The baseline never goes up.
+`./check` runs `tools/archcheck.py`. Two older checks state parts of the same rules and stay in place: depguard and forbidigo in `.golangci.yml` check each file's imports and calls, and `internal/archtest` checks the transitive import graph. `internal/adapters/platform` holds the tests that only `platform` reads the process environment and streams. A change to the layering updates all of them in the same pull request.
 
 ## Tests
 
 - `go test -race -shuffle=on ./...` runs in `./check`, so tests must pass in any order and without data races.
-- CLI tests use `captureRun` and the e2e suite in `cmd/invox/testdata/script` pins every command's stdout, stderr and exit code. CLAUDE.md's Testing section has the details.
+- CLI tests in `internal/app` use `captureRun` and `testFactory`, which return a `*app.Dependencies`. The e2e suite in `cmd/invox/testdata/script` pins every command's stdout, stderr and exit code. CLAUDE.md's Testing section has the details.
 - `./check` runs gofmt, `go mod tidy -diff`, vet, build and the tests. CI also runs golangci-lint, govulncheck, fuzzing and the tests on macOS and Windows.

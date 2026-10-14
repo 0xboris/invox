@@ -19,7 +19,7 @@ Answer each question for the change. Quote the file and line for every problem.
 8. Does a change to a stored format or a wire contract only add things? Renamed or removed fields need a migration path, and unknown enumeration values need an unknown case.
 9. Does each new behavior have a test that would fail without it, written against results and state rather than internal calls?
 10. Are business concepts named as in `GLOSSARY.md`?
-11. Does code in `internal/invoice` or another domain module print, read the environment or the clock, call `os.Exit`, or mention CLI flags? The CLI layer does those, and the domain returns data and typed errors.
+11. Does code in `internal/domain` print, read the environment or the clock, call `os.Exit`, or mention CLI flags? The commands do those, and the domain returns data and typed errors.
 12. Does the change alter stdout or stderr content, exit codes, flag names, or the YAML and `.eml` formats without the issue asking for it, or without updating the tests and testscript goldens that pin them?
 
 Report the problems in order of severity, each with the fix you recommend. If you find none, say so in one line. Do not edit files.
