@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # invox
 
 Go CLI for YAML- and LaTeX-driven invoices: `new`, `validate`, `render`, `build` (via
@@ -6,6 +8,8 @@ Go CLI for YAML- and LaTeX-driven invoices: `new`, `validate`, `render`, `build`
 ## Commands
 
 ```sh
+./check                        # archcheck, gofmt, tidy, vet, build, race tests; agents run it after each step
+python3 tools/archcheck.py     # the architecture check alone (architecture.json, architecture-baseline.json)
 go build ./...                 # or: make build  (-> ./bin/invox)
 go test -race ./...            # or: make test
 go vet ./...
@@ -17,7 +21,11 @@ make vulncheck                 # govulncheck ./... (needs vuln.go.dev)
 
 CI (`.github/workflows/ci.yml`) runs the tests on linux/macos/windows with Go 1.24 (the
 minimum in `go.mod`) and stable, and gofmt/vet/tidy, golangci-lint and govulncheck on Linux.
-Keep all of it green.
+`.github/workflows/check.yml` runs `./check`. Keep all of it green.
+
+A Stop hook (`tools/agent-stop-check.sh`, wired in `.claude/settings.json`) runs `./check`
+before an agent ends a turn that changed files, and sends failures back once. Before opening a
+PR, ask the `architecture-reviewer` subagent to review the change.
 
 ## Layout
 
@@ -53,10 +61,13 @@ Keep all of it green.
   `money`. `internal/archive` (the archive directory: walk, list, name resolution, `.history`
   backups) imports only `fsutil`; `invoice` hands it a reader for the YAML.
 - `internal/invoice/starter`: files embedded for `invox init`.
-- The layering above is enforced. depguard and forbidigo in `.golangci.yml` check each file;
-  `internal/archtest` checks the transitive import graph with `go list`. A new package or
-  import that crosses a layer fails both; update the rules in the same PR when the layering
-  itself changes.
+- The layering above is enforced. `tools/archcheck.py` maps every package to a module kind in
+  `architecture.json` (`docs/architecture/go.md` explains the mapping) and fails on any
+  violation that `architecture-baseline.json` does not accept. depguard and forbidigo in
+  `.golangci.yml` check each file; `internal/archtest` checks the transitive import graph with
+  `go list`. A new package needs a module in `architecture.json` and a regenerated
+  `docs/architecture/modules.md`; update the rules in the same PR when the layering itself
+  changes.
 
 ## Quality roadmap
 
@@ -108,7 +119,8 @@ Settled decisions (#9):
 ## Agent workflow: poteto-mode (pstack)
 
 `.claude/skills/` vendors all of [pstack](https://github.com/backnotprop/pstack)'s `skills/`
-at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli` is this repo's own skill.
+at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli`, `new-slice` and `new-port`
+are this repo's own skills.
 `agents/comment-sicko.md` is left out of `.claude/agents/`: "Comment Sicko" isn't a valid
 Claude Code agent name, and `no-comments` falls back to a general subagent with its bundled
 prompt.
@@ -129,9 +141,9 @@ Local edits, all so pstack's GitHub calls work in Claude Code cloud sessions (RE
 
 To update to a newer pstack commit:
 
-1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x PSTACK-LICENSE
+1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x new-slice -x new-port -x PSTACK-LICENSE
    -x node_modules <old>/skills .claude/skills` must show only the local edits above.
-2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli` and `PSTACK-LICENSE`.
+2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli`, `new-slice`, `new-port` and `PSTACK-LICENSE`.
 3. Re-apply each local edit. `git diff HEAD -- <path>` shows what the copy reverted.
 4. Check: the diff against the new commit shows only the list above;
    `grep -rnE 'gh (pr|issue) |graphql' .claude/` finds only notes that explain the ban; and

@@ -1,62 +1,57 @@
-# The architecture in Go
+# The architecture in invox
 
-This guide shows how each part of `docs/ARCHITECTURE.md` looks in this Go project. The notes slice is the working example for every section.
+This guide shows where each part of `docs/ARCHITECTURE.md` sits in invox today. invox adopted the architecture after it was built, so its packages do not follow the kit's template layout yet. `architecture.json` maps each package to a kind, and `architecture-baseline.json` accepts the violations the code had on adoption. New code follows the rules; old code is fixed as it is touched.
 
 ## Layout
 
 ```
-cmd/server/main.go                    composition root: entry point
-internal/app/                         composition root: app.go, config.go, live.go, wire_<slice>.go
-internal/domain/                      domain: model, rules, ports
-internal/domain/middleware/           domain: middleware
-internal/features/<slice>/ui/         UI of a slice (HTTP handlers)
-internal/features/<slice>/usecases/   use cases of a slice
-internal/sharedui/                    shared UI, such as httpjson
-internal/adapters/<name>/             one directory per adapter
-internal/utilities/
-internal/testsupport/
+cmd/invox/main.go                composition root: builds the Factory and runs cli.Main
+internal/cli/                    composition root: the cobra root, global flags, exit codes, signals, help rendering
+internal/cmd/<noun>/<verb>/      UI of the <noun> slice: one cobra command per package
+internal/cmd/invoice/shared/     UI shared by the invoice slice's commands
+internal/cli/cmdutil/            shared UI: the Factory, error types, prompts, completion helpers
+internal/cli/helptext/           shared UI: help topics and reference tables
+internal/tableprinter/           shared UI: table output
+internal/invoice/                domain: loading, validation, VAT totals, numbering, render, email and archive steps
+internal/money/                  domain: decimals, cents, 1.234,56 formatting
+internal/epc/                    domain: EPC QR code rules and payload
+internal/email/                  domain: subject and body templates, the .eml MIME layout
+internal/render/latex/           domain: LaTeX escaping, rows, line item blocks, template checks
+internal/adapters/<name>/        adapters: run (the only package that starts programs), tectonic, editor, opener, applemail
+internal/archive/                adapter: the archive directory
+internal/config/                 adapter: config file loading
+internal/fsutil/                 adapter: file system helpers
+internal/env/                    utilities: env.Env, the clock, GOOS, home and working directory
+internal/iostreams/              utilities: stdin, stdout, stderr and TTY detection
+internal/build/                  utilities: version information
+internal/docs/gen/               tool: regenerates docs/cli and share/man; the release binary may not import it
 ```
 
-A module is a directory and every package below it. `internal/domain/middleware` belongs to the domain module. Slice directories use lowercase names without separators, such as `recurringtransactions`. `python3 tools/new.py slice <Name>` creates the directories, their tests, and the wiring file, and adds the wiring call to `internal/app/app.go`.
+Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. A slice's UI module is its whole `internal/cmd/<noun>` tree. invox has no use case modules yet. Commands call `internal/invoice` directly.
 
-## Domain
+## Where new code goes today
 
-- **Model.** Structs and named types. A value with rules has unexported fields and a constructor that returns an error, like `NewNoteTitle`. Treat its zero value as invalid.
-- **Rules.** Plain functions, like `NewestFirst`.
-- **Errors.** Exported sentinel errors or error types, like `ErrTitleEmpty`. Callers check them with `errors.Is` or `errors.As`, and code wraps underlying errors with `fmt.Errorf("...: %w", err)`.
-- **Ports.** Interfaces in `ports.go` or in a file per port. Methods that may do I/O take a `context.Context` first.
-- **Middleware.** A struct in `domain/middleware` that wraps a port and implements it, like `LoggingNoteStore`.
+`tools/new.py` generates the kit's template layout (`internal/features/<slice>`, `internal/app`), which invox does not have. Do not run its `slice`, `usecase` or `port` commands here. Build by hand and copy the closest existing code:
 
-The domain may import the standard library except the I/O packages that `architecture.json` lists under `io-packages`, such as `net/...`, `os`, and `database/sql`. It may use the `time.Time` type but must not call `time.Now`, `time.Sleep`, or similar functions. Take the time from the `Clock` port.
+- **A new command.** A package under `internal/cmd/<noun>/<verb>` with an Options struct, `NewCmdX(f, runF)` and a run function, like `internal/cmd/invoice/validate`. Register it in its noun's parent command. A new noun is a new slice.
+- **A business rule or value.** A function or type in the domain module that owns the concept, with its name in `GLOSSARY.md`. A rule that only one command uses still goes into the domain.
+- **A program invox runs.** An adapter under `internal/adapters/<name>` that wraps one program on top of `run.Runner`, like `internal/adapters/tectonic`. The command gets it from the `cmdutil.Factory`.
+- **Output.** Commands write to the `IOStreams` they are given. The domain returns data and typed errors and never prints.
+- **The environment, the clock or the platform.** Read them from the `env.Env` that the caller passes in. Only `env.System()` and `iostreams.System()` touch the process.
 
-## Slices
+## Moving toward the template layout
 
-- **Use cases** are structs with unexported port fields, a `NewX` constructor, and a `Run(ctx, ...)` method.
-- **Handlers** live in the slice's `ui` package. A `Handler` takes its use cases and a logger in `NewHandler` and registers its routes in `Register(mux)`. Request and response types stay in the handler file and map to and from domain types.
-- A handler logs the errors it handles and maps domain errors to status codes with `errors.Is`.
-- Use `sharedui/httpjson` to read and write JSON. Reading ignores unknown fields, so newer clients can send fields that this version does not know yet.
+The baseline lists what does not fit yet. The biggest groups:
 
-UI code may not make outgoing HTTP requests or touch the file system. Put that behind a port.
+- `internal/invoice` performs file I/O and parses YAML, and it imports the `archive`, `config` and `fsutil` adapters. The kit wants that I/O behind ports with adapters implementing them.
+- Commands and `cmdutil` import adapters directly. The kit wants a composition root that creates adapters and passes them in.
+- `internal/cli` holds the composition root plus help rendering and signal handling, which the kit keeps out of the composition root.
+- `iostreams` and `env` read the process, which utilities may not.
 
-## Adapters
+When a change removes violations, run `python3 tools/archcheck.py --write-baseline` in the same pull request so the baseline goes down. The baseline never goes up.
 
-An adapter package imports the domain and whatever libraries it needs. It keeps its stored or wire records unexported and maps them to domain types. Guard mutable state with a `sync.Mutex`. The `filestore` adapter shows atomic writes: it writes a temporary file and then renames it.
+## Tests
 
-For SQL databases, keep numbered migrations in the adapter, and never edit a migration that has shipped.
-
-## Composition root
-
-- `app.go` defines `Dependencies` and `New`. `New` applies the mandatory middleware and calls one `wireX` method per slice.
-- `wire_<slice>.go` builds the slice's use cases and handler, and decides which optional middleware the slice gets.
-- `live.go` creates the real adapters, and `config.go` reads the environment.
-- `cmd/server/main.go` reads the config, builds the app, and starts the server.
-- Control flow is allowed in `config.go`. Elsewhere only `if err != nil {` and `if err := ...; err != nil {` are allowed, for error handling.
-
-## Test support and tests
-
-- Tests use the standard `testing` package. Domain and middleware tests that need test support live in external test packages, such as `domain_test`, to avoid an import cycle.
-- Fakes guard their state with a mutex and can inject a failure, like `FakeNoteStore.FailNextCall`. Like the real store, the fake returns notes in no particular order, so tests must not depend on map order.
-- A contract is a function that takes `*testing.T` and a constructor, like `NoteStoreContract`. `fakes_test.go` runs it against the fake, and the adapter's test runs it against the real implementation, with `t.TempDir()` for files.
-- `internal/app/app_test.go` is the composition test. It builds the app with fakes and calls it through `httptest`.
-
-`./check` runs `gofmt`, `go vet`, and `go test -race -shuffle=on`, so tests must pass in any order and without data races.
+- `go test -race -shuffle=on ./...` runs in `./check`, so tests must pass in any order and without data races.
+- CLI tests use `captureRun` and the e2e suite in `cmd/invox/testdata/script` pins every command's stdout, stderr and exit code. CLAUDE.md's Testing section has the details.
+- `./check` runs gofmt, `go mod tidy -diff`, vet, build and the tests. CI also runs golangci-lint, govulncheck, fuzzing and the tests on macOS and Windows.

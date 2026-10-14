@@ -2,7 +2,7 @@
 
 This document describes how the code is organized and why. It gives every agent and every person who works here the same picture: which kinds of modules exist, what each holds, which may depend on which, and how a change is verified.
 
-The language guide in `docs/architecture/` shows how each part looks in this project's language. `docs/architecture/modules.md` lists every module with its kind; the check generates it. The Notes slice is the reference implementation: when you write a kind of code for the first time, copy its structure.
+The language guide in `docs/architecture/` shows how each part looks in this project's language. `docs/architecture/modules.md` lists every module with its kind; the check generates it. invox has no reference slice. When you write a kind of code for the first time, copy the existing code that `docs/architecture/go.md` names.
 
 `./check` enforces most of this document. A forbidden import, a file outside every module, or feature code in the composition root fails the check with a message that names the fix. The rest of this document covers the judgment calls that no tool can make.
 
@@ -44,7 +44,7 @@ A slice is one capability of the product, such as transactions, budgets, or recu
 - Slices never depend on each other. When two slices need the same type or rule, it moves into the domain.
 - Use cases are never shared. Each slice writes its own use cases, even when two of them look alike. The rules they use are shared, through the domain.
 - A new capability gets a new slice. Do not grow an existing slice into something it was not made for.
-- Create slices with `python3 tools/new.py slice <Name>`.
+- Create slices by hand, as `docs/architecture/go.md` describes. `tools/new.py` targets a layout invox does not have yet.
 
 ## The domain
 
@@ -74,7 +74,7 @@ When code needs something from outside the process, the domain declares a port a
 - Every dependency arrives through a constructor or a parameter. There are no singletons, global registries, or service locators, so an agent can see what a piece of code depends on by reading it.
 - Each third-party library that performs I/O sits behind one adapter.
 - Add an interface only at a module boundary or to isolate something slow or nondeterministic. Inside a module, use concrete types.
-- Create ports with `python3 tools/new.py port <Name>`. It also creates the shared fake and the contract suite.
+- Create adapters by hand, as `docs/architecture/go.md` describes.
 
 ## Middleware
 
@@ -135,10 +135,10 @@ Ask these questions in order. The first yes decides.
 
 1. Does it decide something by business rules, or compute a business value? A domain rule.
 2. Does it describe a business concept? The domain model, with its name in `GLOSSARY.md`.
-3. Does it need something from outside the process? A port in the domain and an adapter: `python3 tools/new.py port <Name>`.
+3. Does it need something from outside the process? A port in the domain and an adapter.
 4. Must it happen on every write through a port? Middleware in the domain, applied in the composition root.
-5. Does it carry out an operation for one capability? A use case in that capability's slice: `python3 tools/new.py usecase <Slice> <Name>`.
-6. Is it a new capability? A new slice: `python3 tools/new.py slice <Name>`.
+5. Does it carry out an operation for one capability? A use case in that capability's slice.
+6. Is it a new capability? A new slice.
 7. Does it show output or receive input? The UI module of its slice, or shared UI when several slices use it and it has no business meaning.
 8. Does it create objects, read configuration, or start the process? The composition root.
 9. Is it a helper with no business meaning? Utilities.
