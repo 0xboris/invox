@@ -11,34 +11,21 @@
 
   "modules": [
     {"path": "cmd/*", "kind": "composition", "name": "cmd/{1}"},
-    {"path": "internal/cli", "kind": "composition", "name": "cli"},
+    {"path": "internal/app", "kind": "composition", "name": "app"},
     {"path": "internal/docs/gen", "kind": "tool", "name": "docs/gen"},
-
-    {"path": "internal/cmd/*", "kind": "ui", "name": "{1}/ui", "slice": "{1}"},
-    {"path": "internal/cli/cmdutil", "kind": "shared-ui", "name": "cmdutil"},
-    {"path": "internal/cli/helptext", "kind": "shared-ui", "name": "helptext"},
-    {"path": "internal/tableprinter", "kind": "shared-ui", "name": "tableprinter"},
-
-    {"path": "internal/invoice", "kind": "domain", "name": "invoice"},
-    {"path": "internal/money", "kind": "domain", "name": "money"},
-    {"path": "internal/epc", "kind": "domain", "name": "epc"},
-    {"path": "internal/email", "kind": "domain", "name": "email"},
-    {"path": "internal/render/latex", "kind": "domain", "name": "render/latex"},
-
+    {"path": "internal/domain", "kind": "domain", "name": "domain"},
+    {"path": "internal/features/*/usecases", "kind": "usecases", "name": "{1}/usecases", "slice": "{1}"},
+    {"path": "internal/features/*/ui", "kind": "ui", "name": "{1}/ui", "slice": "{1}"},
+    {"path": "internal/sharedui", "kind": "shared-ui", "name": "sharedui"},
     {"path": "internal/adapters/*", "kind": "adapter", "name": "adapters/{1}"},
-    {"path": "internal/archive", "kind": "adapter", "name": "archive"},
-    {"path": "internal/config", "kind": "adapter", "name": "config"},
-    {"path": "internal/fsutil", "kind": "adapter", "name": "fsutil"},
-
-    {"path": "internal/env", "kind": "utilities", "name": "env"},
-    {"path": "internal/iostreams", "kind": "utilities", "name": "iostreams"},
-    {"path": "internal/build", "kind": "utilities", "name": "build"}
+    {"path": "internal/utilities", "kind": "utilities", "name": "utilities"},
+    {"path": "internal/testsupport", "kind": "test-support", "name": "testsupport"}
   ],
 
   "kinds": {
     "domain": {
-      "mayImport": ["domain", "utilities"],
-      "external": {"allow": ["std"], "deny": ["@io-packages"]},
+      "mayImport": ["utilities"],
+      "external": {"allow": ["std", "gopkg.in/yaml.v3"], "deny": ["@io-packages"]},
       "forbiddenCalls": ["@io"]
     },
     "usecases": {

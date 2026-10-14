@@ -8,7 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 func TestComposePassesTheMessageAsArguments(t *testing.T) {

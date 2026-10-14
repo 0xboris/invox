@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // Compiler runs tectonic. Its output goes to stderr, so stdout carries only

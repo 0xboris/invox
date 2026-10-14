@@ -18,13 +18,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/cli"
-	"github.com/0xboris/invox/internal/cli/cmdutil"
-	"github.com/0xboris/invox/internal/cli/helptext"
-	"github.com/0xboris/invox/internal/env"
-	"github.com/0xboris/invox/internal/fsutil"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/app"
+	"github.com/0xboris/invox/internal/domain/helptext"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // home stands in for the home directory in the help, and is printed as $HOME.
@@ -48,7 +48,7 @@ func main() {
 }
 
 func generate(dir string) error {
-	pages := commandPages(cli.NewRootCmd(newFactory()))
+	pages := commandPages(app.NewRootCmd(newFactory()))
 	root := pages[0]
 	for _, topic := range helptext.Topics {
 		if topic.Print == nil {
@@ -133,7 +133,7 @@ func (p *page) isTopic() bool {
 func helpText(words []string) (string, error) {
 	f := newFactory()
 	ios := f.IOStreams
-	if code := cli.Main(append([]string{"help"}, words...), f); code != 0 {
+	if code := app.Main(append([]string{"help"}, words...), f); code != 0 {
 		return "", fmt.Errorf("invox help %s: exit %d: %s", strings.Join(words, " "), code, ios.ErrOut)
 	}
 	return strings.ReplaceAll(fmt.Sprint(ios.Out), home, "$HOME"), nil

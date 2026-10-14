@@ -5,7 +5,7 @@ import (
 	"context"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // Opener runs open, xdg-open or `cmd /c start`. Their output goes to stderr,

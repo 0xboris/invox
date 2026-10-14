@@ -8,7 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 func TestEditRunsTheEditorSetting(t *testing.T) {

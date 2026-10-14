@@ -44,18 +44,18 @@ var rules = []rule{
 	{
 		name:   "nothing below the command layer depends on commands, the CLI or flag parsing",
 		pkgs:   []string{mod + "..."},
-		except: []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/docs/gen/...", mod + "internal/archtest"},
-		deny:   []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
+		except: []string{mod + "cmd/...", mod + "internal/app/...", mod + "internal/features/...", mod + "internal/sharedui/cmdutil", mod + "internal/docs/gen/...", mod + "internal/archtest"},
+		deny:   []string{mod + "cmd/...", mod + "internal/app/...", mod + "internal/features/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
 	},
 	{
 		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/archive", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/render/..."},
-		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
+		pkgs: []string{mod + "internal/adapters/archive", mod + "internal/adapters/config", mod + "internal/domain/email", mod + "internal/domain/epc", mod + "internal/domain/invoice/...", mod + "internal/domain/money", mod + "internal/domain/latex/..."},
+		deny: []string{mod + "internal/utilities/iostreams", mod + "internal/sharedui/tableprinter", mod + "internal/adapters/..."},
 	},
 	{
 		name: "adapters import only run and iostreams",
-		pkgs: []string{mod + "internal/adapters/...", mod + "internal/tableprinter"},
-		only: []string{mod + "internal/adapters/run", mod + "internal/iostreams"},
+		pkgs: []string{mod + "internal/adapters/...", mod + "internal/sharedui/tableprinter"},
+		only: []string{mod + "internal/adapters/run", mod + "internal/utilities/iostreams"},
 	},
 	{
 		name:        "only internal/adapters/run starts programs",
@@ -65,18 +65,18 @@ var rules = []rule{
 	},
 	{
 		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/build", mod + "internal/email", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money"},
+		pkgs: []string{mod + "internal/adapters/build", mod + "internal/domain/email", mod + "internal/utilities/env", mod + "internal/domain/epc", mod + "internal/adapters/fsutil", mod + "internal/utilities/iostreams", mod + "internal/domain/money"},
 		only: []string{},
 	},
 	{
-		name: "internal/render/latex imports only money",
-		pkgs: []string{mod + "internal/render/latex"},
-		only: []string{mod + "internal/money"},
+		name: "internal/domain/latex/latex imports only money",
+		pkgs: []string{mod + "internal/domain/latex/latex"},
+		only: []string{mod + "internal/domain/money"},
 	},
 	{
-		name: "internal/archive imports only fsutil",
-		pkgs: []string{mod + "internal/archive"},
-		only: []string{mod + "internal/fsutil"},
+		name: "internal/adapters/archive imports only fsutil",
+		pkgs: []string{mod + "internal/adapters/archive"},
+		only: []string{mod + "internal/adapters/fsutil"},
 	},
 }
 
@@ -113,11 +113,11 @@ func TestCommandsImportOnlyTheirOwnSubcommands(t *testing.T) {
 
 	var violations []string
 	for _, p := range loadGraph(t) {
-		if !matches(mod+"internal/cmd/...", p.ImportPath) {
+		if !matches(mod+"internal/features/...", p.ImportPath) {
 			continue
 		}
 		for _, imp := range p.Imports {
-			if !matches(mod+"internal/cmd/...", imp) || matches(p.ImportPath+"/...", imp) {
+			if !matches(mod+"internal/features/...", imp) || matches(p.ImportPath+"/...", imp) {
 				continue
 			}
 			if path.Base(imp) == "shared" && strings.HasPrefix(p.ImportPath, path.Dir(imp)+"/") {

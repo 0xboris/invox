@@ -8,7 +8,7 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 func TestOpenRunsTheOSOpener(t *testing.T) {

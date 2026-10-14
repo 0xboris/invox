@@ -1,0 +1,146 @@
+package app
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
+)
+
+// fakeTectonicEnv makes the test binary act as tectonic instead of running
+// tests. installFakeTectonic sets it and puts a copy of the test binary on
+// PATH, so the build tests need no shell and run on every OS.
+const fakeTectonicEnv = "INVOX_TEST_FAKE_TECTONIC"
+
+// fakeTectonicPidfileEnv names the file fakeTectonicSleep writes its pid to.
+const fakeTectonicPidfileEnv = "INVOX_TEST_FAKE_TECTONIC_PIDFILE"
+
+// runMainEnv makes the test binary act as invox, so tests can send it real
+// signals.
+const runMainEnv = "INVOX_TEST_RUN_MAIN"
+
+const (
+	fakeTectonicWritePDF = "write-pdf"
+	fakeTectonicFail     = "fail"
+	fakeTectonicExit2    = "exit-2"
+	fakeTectonicChatter  = "chatter"
+	fakeTectonicSleep    = "sleep"
+	// fakeTectonicSleepIgnoreTerm sleeps like fakeTectonicSleep but ignores
+	// SIGTERM, so invox keeps waiting for it after the first signal.
+	fakeTectonicSleepIgnoreTerm = "sleep-ignore-sigterm"
+)
+
+func TestMain(m *testing.M) {
+	if os.Getenv(runMainEnv) != "" {
+		// Unset so the programs invox runs, such as the fake tectonic, are not
+		// invox too.
+		_ = os.Unsetenv(runMainEnv)
+		os.Exit(Main(os.Args[1:], cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())))
+	}
+	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
+		os.Exit(runFakeTectonic(mode, os.Args[1:]))
+	}
+	if os.Getenv(fakeChildEnv) != "" {
+		os.Exit(runFakeChild(os.Args[1:]))
+	}
+	os.Exit(m.Run())
+}
+
+// runFakeTectonic writes an empty PDF next to the single .tex argument, or
+// fails with exit code 1 (fakeTectonicFail) or 2 (fakeTectonicExit2).
+// fakeTectonicChatter also prints progress to stdout, as tectonic does.
+// fakeTectonicSleep writes its pid to the file named by
+// fakeTectonicPidfileEnv and sleeps for a minute.
+func runFakeTectonic(mode string, args []string) int {
+	switch mode {
+	case fakeTectonicSleep, fakeTectonicSleepIgnoreTerm:
+		if mode == fakeTectonicSleepIgnoreTerm {
+			signal.Ignore(syscall.SIGTERM)
+		}
+		pidfile := os.Getenv(fakeTectonicPidfileEnv)
+		if err := os.WriteFile(pidfile+".tmp", []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+			return 1
+		}
+		if err := os.Rename(pidfile+".tmp", pidfile); err != nil {
+			fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+			return 1
+		}
+		time.Sleep(time.Minute)
+		return 0
+	case fakeTectonicFail:
+		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
+		return 1
+	case fakeTectonicExit2:
+		fmt.Fprintln(os.Stderr, "fake tectonic: forced failure")
+		return 2
+	}
+	if len(args) != 1 {
+		fmt.Fprintf(os.Stderr, "fake tectonic: want one input file, got %q\n", args)
+		return 2
+	}
+
+	if mode == fakeTectonicChatter {
+		fmt.Println("note: running TeX ...")
+		fmt.Println("note: writing `invoice.pdf`")
+	}
+	pdfPath := strings.TrimSuffix(args[0], filepath.Ext(args[0])) + ".pdf"
+	if err := os.WriteFile(pdfPath, nil, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "fake tectonic: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func installFakeTectonic(t *testing.T, mode string) {
+	t.Helper()
+
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable() returned error: %v", err)
+	}
+
+	name := "tectonic"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	binDir := t.TempDir()
+	copyExecutable(t, self, filepath.Join(binDir, name))
+
+	t.Setenv(fakeTectonicEnv, mode)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func copyExecutable(t *testing.T, src, dst string) {
+	t.Helper()
+
+	in, err := os.Open(src)
+	if err != nil {
+		t.Fatalf("open %s: %v", src, err)
+	}
+	defer in.Close() //nolint:errcheck // read-only source; the copy already succeeded or failed the test
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		t.Fatalf("create %s: %v", dst, err)
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		t.Fatalf("copy %s to %s: %v", src, dst, err)
+	}
+	if err := out.Close(); err != nil {
+		t.Fatalf("close %s: %v", dst, err)
+	}
+}

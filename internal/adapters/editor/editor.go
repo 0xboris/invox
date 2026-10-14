@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // Editor runs $VISUAL, then $EDITOR, then the OS default. The editor's output

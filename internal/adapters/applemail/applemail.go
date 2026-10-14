@@ -5,7 +5,7 @@ import (
 	"context"
 
 	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/iostreams"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // Message is the email to compose.

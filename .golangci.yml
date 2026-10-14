@@ -47,24 +47,24 @@ linters:
         below-commands:
           files:
             - "**/internal/adapters/**"
-            - "**/internal/archive/**"
-            - "**/internal/build/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
-            - "**/internal/invoice/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
-            - "**/internal/render/**"
-            - "**/internal/tableprinter/**"
+            - "**/internal/adapters/archive/**"
+            - "**/internal/adapters/build/**"
+            - "**/internal/adapters/config/**"
+            - "**/internal/domain/email/**"
+            - "**/internal/utilities/env/**"
+            - "**/internal/domain/epc/**"
+            - "**/internal/adapters/fsutil/**"
+            - "**/internal/domain/invoice/**"
+            - "**/internal/utilities/iostreams/**"
+            - "**/internal/domain/money/**"
+            - "**/internal/domain/latex/**"
+            - "**/internal/sharedui/tableprinter/**"
           deny:
             - pkg: github.com/0xboris/invox/cmd
               desc: imports point down only
-            - pkg: github.com/0xboris/invox/internal/cli
+            - pkg: github.com/0xboris/invox/internal/app
               desc: the CLI layer (root, cmdutil, helptext) sits above this package
-            - pkg: github.com/0xboris/invox/internal/cmd
+            - pkg: github.com/0xboris/invox/internal/features
               desc: commands sit above this package
             - pkg: github.com/spf13/cobra
               desc: only commands know about cobra
@@ -74,18 +74,18 @@ linters:
         below-commands-flag:
           files:
             - "**/internal/adapters/**"
-            - "**/internal/archive/**"
-            - "**/internal/build/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
-            - "**/internal/invoice/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
-            - "**/internal/render/**"
-            - "**/internal/tableprinter/**"
+            - "**/internal/adapters/archive/**"
+            - "**/internal/adapters/build/**"
+            - "**/internal/adapters/config/**"
+            - "**/internal/domain/email/**"
+            - "**/internal/utilities/env/**"
+            - "**/internal/domain/epc/**"
+            - "**/internal/adapters/fsutil/**"
+            - "**/internal/domain/invoice/**"
+            - "**/internal/utilities/iostreams/**"
+            - "**/internal/domain/money/**"
+            - "**/internal/domain/latex/**"
+            - "**/internal/sharedui/tableprinter/**"
             - "!$test"
           deny:
             - pkg: flag
@@ -94,17 +94,17 @@ linters:
         # terminal nor runs programs; the CLI layer does both.
         domain:
           files:
-            - "**/internal/archive/**"
-            - "**/internal/config/**"
-            - "**/internal/email/**"
-            - "**/internal/epc/**"
-            - "**/internal/invoice/**"
-            - "**/internal/money/**"
-            - "**/internal/render/**"
+            - "**/internal/adapters/archive/**"
+            - "**/internal/adapters/config/**"
+            - "**/internal/domain/email/**"
+            - "**/internal/domain/epc/**"
+            - "**/internal/domain/invoice/**"
+            - "**/internal/domain/money/**"
+            - "**/internal/domain/latex/**"
           deny:
-            - pkg: github.com/0xboris/invox/internal/iostreams
+            - pkg: github.com/0xboris/invox/internal/utilities/iostreams
               desc: return data; the command renders it
-            - pkg: github.com/0xboris/invox/internal/tableprinter
+            - pkg: github.com/0xboris/invox/internal/sharedui/tableprinter
               desc: return data; the command renders it
             - pkg: github.com/0xboris/invox/internal/adapters
               desc: the CLI layer runs programs; the domain takes their results
@@ -114,42 +114,42 @@ linters:
           list-mode: strict
           files:
             - "**/internal/adapters/**"
-            - "**/internal/tableprinter/**"
+            - "**/internal/sharedui/tableprinter/**"
             - "!$test"
           allow:
             - $gostd
             - github.com/0xboris/invox/internal/adapters/run
-            - github.com/0xboris/invox/internal/iostreams
+            - github.com/0xboris/invox/internal/utilities/iostreams
         # Leaf packages. Each states the only module packages it may import.
         stdlib-only:
           list-mode: strict
           files:
-            - "**/internal/build/**"
-            - "**/internal/email/**"
-            - "**/internal/env/**"
-            - "**/internal/epc/**"
-            - "**/internal/fsutil/**"
-            - "**/internal/iostreams/**"
-            - "**/internal/money/**"
+            - "**/internal/adapters/build/**"
+            - "**/internal/domain/email/**"
+            - "**/internal/utilities/env/**"
+            - "**/internal/domain/epc/**"
+            - "**/internal/adapters/fsutil/**"
+            - "**/internal/utilities/iostreams/**"
+            - "**/internal/domain/money/**"
             - "!$test"
           allow:
             - $gostd
         render-latex:
           list-mode: strict
           files:
-            - "**/internal/render/latex/**"
+            - "**/internal/domain/latex/latex/**"
             - "!$test"
           allow:
             - $gostd
-            - github.com/0xboris/invox/internal/money
+            - github.com/0xboris/invox/internal/domain/money
         archive:
           list-mode: strict
           files:
-            - "**/internal/archive/**"
+            - "**/internal/adapters/archive/**"
             - "!$test"
           allow:
             - $gostd
-            - github.com/0xboris/invox/internal/fsutil
+            - github.com/0xboris/invox/internal/adapters/fsutil
         # internal/adapters/run is the only package that starts programs.
         only-run-execs:
           files:
@@ -241,29 +241,29 @@ linters:
         linters: [forbidigo]
         text: "`os\\.Exit`"
       # env.System reads the process environment, the clock and GOOS.
-      - path: ^internal/env/env\.go$
+      - path: ^internal/utilities/env/env\.go$
         linters: [forbidigo]
         text: "`(os\\.Getenv|time\\.Now|runtime\\.GOOS)`"
       # iostreams.System wraps the process streams; newSystem reads
       # INVOX_FORCE_TTY.
-      - path: ^internal/iostreams/iostreams\.go$
+      - path: ^internal/utilities/iostreams/iostreams\.go$
         linters: [forbidigo]
         text: "`(os\\.(Stdin|Stdout|Stderr)|os\\.Getenv)`"
       # TIOCGETA/TCGETS through syscall.Syscall needs unsafe.Pointer.
-      - path: ^internal/iostreams/terminal_ioctl\.go$
+      - path: ^internal/utilities/iostreams/terminal_ioctl\.go$
         linters: [gosec]
         text: G103
       # syscall.Umask returns a 0-0777 mask, so the conversion can't overflow.
-      - path: ^internal/fsutil/umask_unix\.go$
+      - path: ^internal/adapters/fsutil/umask_unix\.go$
         linters: [gosec]
         text: G115
       # The template placeholder table names its column Token; the values
       # are placeholders such as @@EPC_QR_CODE@@, not credentials.
-      - path: ^internal/cli/helptext/reference\.go$
+      - path: ^internal/domain/helptext/reference\.go$
         linters: [gosec]
         text: G101
       # SilentError and CancelError keep gh's cmdutil names.
-      - path: ^internal/cli/cmdutil/errors\.go$
+      - path: ^internal/sharedui/cmdutil/errors\.go$
         linters: [staticcheck]
         text: ST1012
 
