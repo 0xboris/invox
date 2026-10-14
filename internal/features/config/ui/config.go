@@ -5,12 +5,11 @@ package config
 import (
 	"context"
 
-	"github.com/0xboris/invox/internal/features/config/ui/shared"
-
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/features/config/ui/edit"
 	"github.com/0xboris/invox/internal/features/config/ui/paths"
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
 )
 
 // NewCmdConfig returns the config command and its subcommands. Without a

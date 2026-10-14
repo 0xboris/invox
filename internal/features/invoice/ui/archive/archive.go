@@ -5,14 +5,13 @@ package archive
 import (
 	"context"
 
-	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
-
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/add"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/edit"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/list"
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 )
 
 // NewCmdArchive returns the archive command and its subcommands. runF

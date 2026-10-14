@@ -6,14 +6,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
-	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
-
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -39,7 +36,7 @@ func TestNewCmdIncrementParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *IncrementOptions
-			cmd := NewCmdIncrement(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}, func(opts *IncrementOptions) error {
+			cmd := NewCmdIncrement(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} })}, func(opts *IncrementOptions) error {
 				got = opts
 				return nil
 			})

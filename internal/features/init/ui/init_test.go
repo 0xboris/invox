@@ -6,12 +6,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/init/ui/shared"
-
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -32,7 +28,7 @@ func TestNewCmdInitParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *InitOptions
-			cmd := NewCmdInit(&shared.Factory{IOStreams: ios, Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}, func(_ context.Context, opts *InitOptions) error {
+			cmd := NewCmdInit(&shared.Factory{IOStreams: ios, Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} })}, func(_ context.Context, opts *InitOptions) error {
 				got = opts
 				return nil
 			})

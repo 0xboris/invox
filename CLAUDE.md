@@ -35,7 +35,8 @@ each directory to its module kind and says where new code goes.
 - `cmd/invox/main.go`: shim. It exits with `app.Main(os.Args[1:], app.Live())`.
 - `internal/app`: the composition root. `Dependencies` holds the streams, the `env.Env`, the
   `invoice.HostSource` and the adapters behind their ports; `NewDependencies` builds them,
-  `Live` from the running process. Each `wire_<slice>.go` builds that slice's `shared.Factory`
+  `Live` from the running process; `config.go` resolves the user directories from the
+  `env.Env` for `invoice.HostSource`. Each `wire_<slice>.go` builds that slice's `shared.Factory`
   and returns its commands, and `Main` hands them to `cli.Main` under the signal context. Only
   `config.go` may hold a decision (Apple Mail exists only on macOS). The CLI tests live here.
 - `internal/features/<slice>/ui`: one slice per command noun (`config`, `customer`, `init`,

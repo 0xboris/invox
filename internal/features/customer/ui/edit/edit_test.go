@@ -6,14 +6,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
-	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/features/customer/ui/shared"
-
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -44,7 +41,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			t.Run(form.name+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
 				var got *EditOptions
-				cmd := form.newCmd(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files), Editor: stubEditor{}}, func(_ context.Context, opts *EditOptions) error {
+				cmd := form.newCmd(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), Editor: stubEditor{}}, func(_ context.Context, opts *EditOptions) error {
 					got = opts
 					return nil
 				})

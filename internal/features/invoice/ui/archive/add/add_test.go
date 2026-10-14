@@ -7,14 +7,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
-	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
-
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -50,7 +47,7 @@ func TestNewCmdAddParsing(t *testing.T) {
 		for _, tc := range tests {
 			t.Run(form.command+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
-				f := &shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}
+				f := &shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} })}
 				var got *AddOptions
 				runF := func(_ context.Context, opts *AddOptions) error {
 					got = opts

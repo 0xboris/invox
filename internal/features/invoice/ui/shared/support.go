@@ -9,16 +9,12 @@ import (
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 
-// supportFlags names, for each support file, the flag that sets it, its
-// config key, its file name and where invox looks for it by default.
-var supportFlags = map[invoice.SupportFile]struct {
-	label, flag, key, name string
-	global                 func(invoice.Host) string
-}{
-	invoice.Customers: {"customers", "-c/--customers", "paths.customers", "customers.yaml", invoice.Host.GlobalCustomersPath},
-	invoice.Issuer:    {"issuer", "-u/--issuer", "paths.issuer", "issuer.yaml", invoice.Host.GlobalIssuerPath},
-	invoice.Defaults:  {"defaults", "--defaults", "paths.defaults", "invoice_defaults.yaml", invoice.Host.GlobalInvoiceDefaultsPath},
-	invoice.Template:  {"template", "-t/--template", "paths.template", "template.tex", invoice.Host.GlobalTemplatePath},
+// supportFlags names the flag that sets each support file.
+var supportFlags = map[invoice.SupportFile]string{
+	invoice.Customers: "-c/--customers",
+	invoice.Issuer:    "-u/--issuer",
+	invoice.Defaults:  "--defaults",
+	invoice.Template:  "-t/--template",
 }
 
 // SupportPath returns the absolute path of the support file kind that
@@ -26,19 +22,12 @@ var supportFlags = map[invoice.SupportFile]struct {
 // else the file found from baseDir. Finding none is a usage error that names
 // the ways to provide it.
 func SupportPath(h invoice.Host, command string, kind invoice.SupportFile, flagValue, baseDir string) (string, error) {
-	path := flagValue
-	if strings.TrimSpace(path) == "" {
-		found, err := h.ResolveSupportFile(kind, baseDir)
-		if err != nil {
-			return "", err
-		}
-		path = found.Path
+	path, err := h.SupportPath(kind, flagValue, baseDir)
+	var notFound *invoice.SupportFileNotFoundError
+	if errors.As(err, &notFound) {
+		return "", cmdutil.FlagErrorf(command, "%s; pass %s, %s", notFound, supportFlags[kind], notFound.Remedy())
 	}
-	if strings.TrimSpace(path) == "" {
-		s := supportFlags[kind]
-		return "", cmdutil.FlagErrorf(command, "%s file not found; pass %s, set %s in config.yaml, or place %s at %s", s.label, s.flag, s.key, s.name, s.global(h))
-	}
-	return invoice.AbsPath(filepath.Clean(baseDir), path), nil
+	return path, err
 }
 
 // TemplatePath returns the absolute path of the template that command

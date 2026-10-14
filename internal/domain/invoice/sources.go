@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -214,4 +215,41 @@ func (h Host) fold(path string) string {
 		return strings.ToLower(path)
 	}
 	return path
+}
+
+// SupportPath returns the absolute path of kind for a command run in
+// baseDir: given made absolute against baseDir when it is set, else the file
+// ResolveSupportFile finds. Finding none is a *SupportFileNotFoundError.
+func (h Host) SupportPath(kind SupportFile, given, baseDir string) (string, error) {
+	path := given
+	if strings.TrimSpace(path) == "" {
+		found, err := h.ResolveSupportFile(kind, baseDir)
+		if err != nil {
+			return "", err
+		}
+		path = found.Path
+	}
+	if strings.TrimSpace(path) == "" {
+		return "", &SupportFileNotFoundError{Kind: kind, GlobalPath: filepath.Join(h.ConfigDir(), supportFiles[kind].globalNames[0])}
+	}
+	return AbsPath(filepath.Clean(baseDir), path), nil
+}
+
+// SupportFileNotFoundError means a command was given no file of Kind and
+// found none.
+type SupportFileNotFoundError struct {
+	Kind SupportFile
+	// GlobalPath is where the config directory would hold it.
+	GlobalPath string
+}
+
+func (e *SupportFileNotFoundError) Error() string {
+	return supportFiles[e.Kind].name + " file not found"
+}
+
+// Remedy names the ways to provide the file besides the command line, such
+// as "set paths.customers in config.yaml, or place customers.yaml at PATH".
+func (e *SupportFileNotFoundError) Remedy() string {
+	file := supportFiles[e.Kind]
+	return fmt.Sprintf("set paths.%s in config.yaml, or place %s at %s", file.name, file.globalNames[0], e.GlobalPath)
 }

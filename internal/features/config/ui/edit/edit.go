@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/0xboris/invox/internal/features/config/ui/shared"
-
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )

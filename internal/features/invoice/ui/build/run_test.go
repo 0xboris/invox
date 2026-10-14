@@ -49,7 +49,7 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 			})
 			opts := &BuildOptions{
 				IO:          ios,
-				Compiler:    tectonic.New(stub, ios, "linux"),
+				Compiler:    tectonic.New(stub, ios),
 				Host:        func() invoice.Host { return host },
 				Getwd:       func() (string, error) { return work, nil },
 				Now:         time.Now,

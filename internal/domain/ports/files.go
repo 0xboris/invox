@@ -51,6 +51,8 @@ type Files interface {
 	// fs.ErrExist when something is already there. Missing directories get
 	// perm.Dir.
 	WriteNewFile(path string, data []byte, perm Perm) error
-	// MkdirAll creates dir and its missing parents with perm.Dir.
+	// MkdirAll creates dir with perm.Dir. Missing parents get perm.Dir too,
+	// except under an Exact perm, where they get Public.Dir so that only dir
+	// itself is private.
 	MkdirAll(dir string, perm Perm) error
 }

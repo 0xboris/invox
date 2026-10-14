@@ -7,12 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/0xboris/invox/internal/features/customer/ui/shared"
-
 	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/platform"
 	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -35,7 +34,7 @@ func TestNewCmdListParsing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			var got *ListOptions
-			cmd := NewCmdList(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}, func(opts *ListOptions) error {
+			cmd := NewCmdList(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} })}, func(opts *ListOptions) error {
 				got = opts
 				return nil
 			})

@@ -51,7 +51,7 @@ func Main(ctx context.Context, args []string, f *Factory, commands ...*cobra.Com
 		!(sigErr.Interrupt && errors.Is(err, cmdutil.CancelError)) {
 		err = sigErr
 	}
-	return exitCode(f.IOStreams, f.Env.Getwd, err)
+	return exitCode(f.IOStreams, f.Env, err)
 }
 
 // warnLegacyFiles prints one line when the command read files from the

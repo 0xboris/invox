@@ -16,14 +16,13 @@ import (
 type Compiler struct {
 	runner run.Runner
 	ios    *iostreams.IOStreams
-	goos   string
 }
 
 var _ ports.PDFCompiler = (*Compiler)(nil)
 
-// New returns a Compiler that runs tectonic with runner on the OS goos.
-func New(runner run.Runner, ios *iostreams.IOStreams, goos string) *Compiler {
-	return &Compiler{runner: runner, ios: ios, goos: goos}
+// New returns a Compiler that runs tectonic with runner.
+func New(runner run.Runner, ios *iostreams.IOStreams) *Compiler {
+	return &Compiler{runner: runner, ios: ios}
 }
 
 // Build compiles texPath into a PDF next to it. It returns a
@@ -39,7 +38,7 @@ func (c *Compiler) Build(ctx context.Context, texPath string) error {
 		Stderr: c.ios.ErrOut,
 	})
 	if errors.Is(err, run.ErrNotFound) {
-		return &NotInstalledError{GOOS: c.goos}
+		return &NotInstalledError{}
 	}
 	return err
 }

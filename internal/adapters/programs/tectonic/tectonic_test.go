@@ -29,7 +29,7 @@ func TestBuildRunsTectonicInTheFilesDirectory(t *testing.T) {
 	})
 	texPath := filepath.Join("build", "tmp", "invoice.tex")
 
-	if err := tectonic.New(stub, ios, "linux").Build(context.Background(), texPath); err != nil {
+	if err := tectonic.New(stub, ios).Build(context.Background(), texPath); err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
@@ -58,7 +58,7 @@ func TestBuildReturnsExecErrorWhenTectonicFails(t *testing.T) {
 	stub := run.NewStub(t)
 	stub.Register("tectonic", func(run.Cmd) error { return &run.ExecError{Name: "tectonic", Code: 1} })
 
-	err := tectonic.New(stub, ios, "linux").Build(context.Background(), "invoice.tex")
+	err := tectonic.New(stub, ios).Build(context.Background(), "invoice.tex")
 
 	var execErr *run.ExecError
 	if !errors.As(err, &execErr) || execErr.Code != 1 {
@@ -66,33 +66,18 @@ func TestBuildReturnsExecErrorWhenTectonicFails(t *testing.T) {
 	}
 }
 
-func TestBuildReportsMissingTectonicWithAnInstallHint(t *testing.T) {
-	tests := []struct {
-		goos string
-		hint string
-	}{
-		{"darwin", "Install it with 'brew install tectonic', then rerun this command."},
-		{"linux", "Install it from https://tectonic-typesetting.github.io, then rerun this command."},
-		{"windows", "Install it from https://tectonic-typesetting.github.io, then rerun this command."},
+func TestBuildReportsMissingTectonic(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	stub := run.NewStub(t)
+	stub.Register("tectonic", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
+
+	err := tectonic.New(stub, ios).Build(context.Background(), "invoice.tex")
+
+	var notInstalled *tectonic.NotInstalledError
+	if !errors.As(err, &notInstalled) {
+		t.Fatalf("Build error = %v, want *NotInstalledError", err)
 	}
-	for _, tc := range tests {
-		t.Run(tc.goos, func(t *testing.T) {
-			ios, _, _, _ := iostreams.Test()
-			stub := run.NewStub(t)
-			stub.Register("tectonic", func(run.Cmd) error { return fmt.Errorf("exec: %w", run.ErrNotFound) })
-
-			err := tectonic.New(stub, ios, tc.goos).Build(context.Background(), "invoice.tex")
-
-			var notInstalled *tectonic.NotInstalledError
-			if !errors.As(err, &notInstalled) {
-				t.Fatalf("Build error = %v, want *NotInstalledError", err)
-			}
-			if got, want := err.Error(), "tectonic not found in PATH"; got != want {
-				t.Fatalf("Error() = %q, want %q", got, want)
-			}
-			if got := notInstalled.InstallHint(); got != tc.hint {
-				t.Fatalf("InstallHint() = %q, want %q", got, tc.hint)
-			}
-		})
+	if got, want := err.Error(), "tectonic not found in PATH"; got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
 	}
 }

@@ -4,11 +4,10 @@ package customer
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/features/customer/ui/shared"
-
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/customer/ui/edit"
 	"github.com/0xboris/invox/internal/features/customer/ui/list"
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 

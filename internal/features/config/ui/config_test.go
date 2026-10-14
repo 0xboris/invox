@@ -6,15 +6,12 @@ import (
 	"io"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
-	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/features/config/ui/shared"
-
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/config/ui/edit"
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -37,7 +34,7 @@ func TestNewCmdConfigParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			ran := false
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdConfig(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files), Editor: stubEditor{}}, func(_ context.Context, opts *edit.EditOptions) error {
+			root.AddCommand(NewCmdConfig(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), Editor: stubEditor{}}, func(_ context.Context, opts *edit.EditOptions) error {
 				ran = opts.Editor != nil
 				return nil
 			}))

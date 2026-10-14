@@ -9,15 +9,17 @@ import (
 
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
-// getwdNone is a getwd that fails, so exitCode leaves paths as they are.
-func getwdNone() (string, error) { return "", errors.New("no working directory") }
+// envNone is a Linux env.Env whose Getwd fails, so exitCode leaves paths as
+// they are.
+var envNone = env.Env{GOOS: "linux", Getwd: func() (string, error) { return "", errors.New("no working directory") }}
 
-// getwdAt is a getwd that returns dir.
-func getwdAt(dir string) func() (string, error) {
-	return func() (string, error) { return dir, nil }
+// envAt is a Linux env.Env whose working directory is dir.
+func envAt(dir string) env.Env {
+	return env.Env{GOOS: "linux", Getwd: func() (string, error) { return dir, nil }}
 }
 
 func TestExitCodeMapsErrorTypes(t *testing.T) {
@@ -42,7 +44,7 @@ func TestExitCodeMapsErrorTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ios, _, _, stderr := iostreams.Test()
-			if got := exitCode(ios, getwdNone, tt.err); got != tt.wantCode {
+			if got := exitCode(ios, envNone, tt.err); got != tt.wantCode {
 				t.Errorf("exitCode = %d, want %d", got, tt.wantCode)
 			}
 			if got := stderr.String(); got != tt.wantStderr {
@@ -57,7 +59,7 @@ func TestRuntimeErrorShowsPathsRelativeToWorkingDir(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "b.yaml")
 	ios, _, _, stderr := iostreams.Test()
 
-	exitCode(ios, getwdAt(cwd), fmt.Errorf("%s and %s", filepath.Join(cwd, "sub", "a.yaml"), outside))
+	exitCode(ios, envAt(cwd), fmt.Errorf("%s and %s", filepath.Join(cwd, "sub", "a.yaml"), outside))
 
 	if want := "error: " + filepath.Join("sub", "a.yaml") + " and " + outside + "\n"; stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)
@@ -65,12 +67,26 @@ func TestRuntimeErrorShowsPathsRelativeToWorkingDir(t *testing.T) {
 }
 
 func TestMissingTectonicPrintsInstallHint(t *testing.T) {
-	ios, _, _, stderr := iostreams.Test()
+	tests := []struct {
+		goos string
+		hint string
+	}{
+		{"darwin", "Install it with 'brew install tectonic', then rerun this command."},
+		{"linux", "Install it from https://tectonic-typesetting.github.io, then rerun this command."},
+		{"windows", "Install it from https://tectonic-typesetting.github.io, then rerun this command."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.goos, func(t *testing.T) {
+			ios, _, _, stderr := iostreams.Test()
+			e := envNone
+			e.GOOS = tc.goos
 
-	exitCode(ios, getwdNone, fmt.Errorf("build: %w", &ports.CompilerNotInstalledError{GOOS: "darwin"}))
+			exitCode(ios, e, fmt.Errorf("build: %w", &ports.CompilerNotInstalledError{}))
 
-	if want := "error: build: tectonic not found in PATH\nInstall it with 'brew install tectonic', then rerun this command.\n"; stderr.String() != want {
-		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+			if want := "error: build: tectonic not found in PATH\n" + tc.hint + "\n"; stderr.String() != want {
+				t.Errorf("stderr = %q, want %q", stderr.String(), want)
+			}
+		})
 	}
 }
 
@@ -79,7 +95,7 @@ func TestRuntimeErrorKeepsPathsThatOnlyContainWorkingDir(t *testing.T) {
 	mirror := filepath.Join(t.TempDir(), "mirror") + filepath.Join(cwd, "bad.yaml")
 	ios, _, _, stderr := iostreams.Test()
 
-	exitCode(ios, getwdAt(cwd), fmt.Errorf("%s: invalid", mirror))
+	exitCode(ios, envAt(cwd), fmt.Errorf("%s: invalid", mirror))
 
 	if want := "error: " + mirror + ": invalid\n"; stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)

@@ -4,10 +4,9 @@ package template
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/features/template/ui/shared"
-
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/template/ui/list"
+	"github.com/0xboris/invox/internal/features/template/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 

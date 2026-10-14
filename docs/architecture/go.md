@@ -33,9 +33,9 @@ internal/utilities/proc/               utilities: ExitError, SignalError and the
 internal/docs/gen/                     tool: regenerates docs/cli and share/man; the release binary may not import it
 ```
 
-Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`, plus `cli`, which owns the root command. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
+Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. `cli` is the application shell, not a capability: it owns the root command, help, exit codes and completion, and receives the other slices' commands. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
 
-`app.Dependencies` holds the streams, the `env.Env`, the `invoice.HostSource` and the adapters behind their ports. Each `wire_<slice>.go` copies what its slice needs into that slice's `shared.Factory` and returns the slice's commands. `config.go` is the one composition file with a decision in it: Apple Mail exists only on macOS.
+`app.Dependencies` holds the streams, the `env.Env`, the `invoice.HostSource` and the adapters behind their ports. Each `wire_<slice>.go` copies what its slice needs into that slice's `shared.Factory` and returns the slice's commands. `config.go` is the one composition file with decisions in it: Apple Mail exists only on macOS, and the user directories are resolved from the environment there, on first use, before the domain gets them as `invoice.HostInputs`.
 
 ## Where new code goes
 
@@ -43,7 +43,7 @@ Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template
 
 - **A new command.** A package under `internal/features/<noun>/ui/<verb>` with an Options struct, `NewCmdX(f, runF)` and a run function, like `internal/features/invoice/ui/validate`. Register it in its noun's parent command, or in the slice's `wire_<noun>.go` for a top-level command. A new noun is a new slice, with its own `ui/shared.Factory` and `internal/app/wire_<noun>.go`, and an entry in `commandGroups` in `internal/features/cli/ui/root.go`.
 - **A business rule or value.** A function or type in the domain module that owns the concept, with its name in `GLOSSARY.md`. A rule that only one command uses still goes into the domain.
-- **File access.** Through `ports.Files`, which the `invoice.Host` carries (`h.Files()`). Domain code never imports `os`.
+- **File access.** Through `ports.Files`, which the `invoice.Host` carries (`h.Files()`). Domain code never imports `os`. `Files` mirrors `os` and `filepath` because it replaced direct calls one for one; prefer adding a purpose-named port (an archive store, the support files) over widening it.
 - **A program invox runs.** A port in `internal/domain/ports`, and an adapter under `internal/adapters/programs/<name>` that implements it on top of `run.Runner`, like `internal/adapters/programs/tectonic`. `internal/app` builds it into `Dependencies` and copies it into the slices' Factories.
 - **Output.** Commands write to the `IOStreams` they are given. The domain returns data and typed errors and never prints.
 - **The environment, the clock or the platform.** Read them from the `env.Env` that the caller passes in. Only `platform.Env()` and `platform.Streams()` touch the process.

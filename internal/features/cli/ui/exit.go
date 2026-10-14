@@ -13,14 +13,15 @@ import (
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 	"github.com/0xboris/invox/internal/utilities/proc"
 )
 
-// exitCode reports err on ios.ErrOut, with paths below the directory getwd
-// returns made relative, and returns the code invox exits with. It is the
-// only place that maps errors to exit codes.
-func exitCode(ios *iostreams.IOStreams, getwd func() (string, error), err error) int {
+// exitCode reports err on ios.ErrOut, with paths below the working directory
+// of e made relative, and returns the code invox exits with. It is the only
+// place that maps errors to exit codes.
+func exitCode(ios *iostreams.IOStreams, e env.Env, err error) int {
 	var flagErr *cmdutil.FlagError
 	var sigErr *proc.SignalError
 	switch {
@@ -37,14 +38,14 @@ func exitCode(ios *iostreams.IOStreams, getwd func() (string, error), err error)
 		if flagErr.Command != "" {
 			command += " " + flagErr.Command
 		}
-		printError(ios.ErrOut, getwd, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, command))
+		printError(ios.ErrOut, e.Getwd, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, command))
 		return 2
 	}
 	message := err.Error()
-	if hint := errorHint(err); hint != "" {
+	if hint := errorHint(err, e.GOOS); hint != "" {
 		message += "\n" + hint
 	}
-	printError(ios.ErrOut, getwd, message)
+	printError(ios.ErrOut, e.Getwd, message)
 	return 1
 }
 
@@ -59,8 +60,9 @@ func printError(w io.Writer, getwd func() (string, error), message string) {
 	fmt.Fprintf(w, "error: %s\n", message)
 }
 
-// errorHint returns the next step that fixes err, or "" when there is none.
-func errorHint(err error) string {
+// errorHint returns the next step that fixes err on the OS goos, or "" when
+// there is none.
+func errorHint(err error, goos string) string {
 	var unknownCustomer *invoice.UnknownCustomerError
 	var configErr *config.Error
 	var duplicate *invoice.DuplicateInvoiceNumberError
@@ -82,9 +84,17 @@ func errorHint(err error) string {
 	case errors.As(err, &duplicate):
 		return fmt.Sprintf("Run '%s increment -i %s' to give it the next free number, then archive it again.", commandName, duplicate.InvoicePath)
 	case errors.As(err, &noTectonic):
-		return noTectonic.InstallHint()
+		return tectonicInstallHint(goos)
 	}
 	return ""
+}
+
+// tectonicInstallHint tells the user how to install tectonic on the OS goos.
+func tectonicInstallHint(goos string) string {
+	if goos == "darwin" {
+		return "Install it with 'brew install tectonic', then rerun this command."
+	}
+	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."
 }
 
 // configFlagError is a config error in the file named with --config, whose

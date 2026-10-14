@@ -36,17 +36,7 @@ type MailMessage struct {
 }
 
 // CompilerNotInstalledError means the PDF compiler, tectonic, is not on
-// PATH. GOOS selects the install hint.
-type CompilerNotInstalledError struct {
-	GOOS string
-}
+// PATH.
+type CompilerNotInstalledError struct{}
 
 func (e *CompilerNotInstalledError) Error() string { return "tectonic not found in PATH" }
-
-// InstallHint tells the user how to install tectonic on their OS.
-func (e *CompilerNotInstalledError) InstallHint() string {
-	if e.GOOS == "darwin" {
-		return "Install it with 'brew install tectonic', then rerun this command."
-	}
-	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."
-}

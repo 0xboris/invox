@@ -9,7 +9,8 @@ import (
 	"github.com/0xboris/invox/internal/utilities/proc"
 )
 
-// Editor opens a file in the user's editor and returns when it exits.
+// Editor opens a file in the user's editor and returns when it exits. It has
+// the method set of ports.Editor, which shared UI may not import.
 type Editor interface {
 	Edit(ctx context.Context, path string) error
 }
@@ -17,7 +18,6 @@ type Editor interface {
 // OpenInEditor opens path in ed for command. Without a terminal, or with
 // prompting disabled, it starts no editor and returns a *FlagError that ends
 // with nextStep, what the user can do instead.
-
 func OpenInEditor(ctx context.Context, ios *iostreams.IOStreams, ed Editor, command, path, nextStep string) error {
 	if reason := WhyNoPrompt(ios); reason != "" {
 		return FlagErrorf(command, "cannot open an editor: %s; %s", reason, nextStep)

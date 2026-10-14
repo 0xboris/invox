@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/0xboris/invox/internal/features/version/ui/shared"
-
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/features/version/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )

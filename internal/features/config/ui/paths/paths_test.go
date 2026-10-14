@@ -5,19 +5,16 @@ import (
 	"io"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/platform"
-	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/config/ui/shared"
-
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 func TestNewCmdPathsParsing(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	f := &shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}
+	f := &shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} })}
 
 	ran := false
 	cmd := NewCmdPaths(f, func(*PathsOptions) error { ran = true; return nil })

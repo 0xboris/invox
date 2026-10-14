@@ -46,8 +46,8 @@ func NewDependencies(ios *iostreams.IOStreams, runner run.Runner, e env.Env) *De
 	return &Dependencies{
 		IOStreams: ios,
 		Env:       e,
-		Hosts:     invoice.NewHostSource(e, fsutil.Files{}, starter.Files),
-		Compiler:  tectonic.New(runner, ios, e.GOOS),
+		Hosts:     invoice.NewHostSource(hostResolver(e, fsutil.Files{}, starter.Files)),
+		Compiler:  tectonic.New(runner, ios),
 		Editor:    editor.New(runner, ios, e.GOOS, e.Getenv),
 		Opener:    opener.New(runner, ios, e.GOOS),
 		Mailer:    mailComposer(runner, ios, e.GOOS),
