@@ -1,0 +1,18 @@
+# Gate files: they define the checks, so changes need the owner's review.
+/architecture.json            @0xboris
+/architecture-baseline.json   @0xboris
+/check                        @0xboris
+/tools/                       @0xboris
+/.claude/                     @0xboris
+/.github/                     @0xboris
+/AGENTS.md                    @0xboris
+/CLAUDE.md                    @0xboris
+/docs/ARCHITECTURE.md         @0xboris
+/docs/architecture/           @0xboris
+
+# The module map is generated, so it needs no owner.
+/docs/architecture/modules.md
+
+# The composition root: legitimate changes are a few lines of wiring, so they are cheap to review.
+/cmd/                         @0xboris
+/internal/app/                @0xboris

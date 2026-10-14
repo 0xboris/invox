@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# The one command that verifies the project. Agents run it after every step.
+# It prints only failures; full logs go to .check/ .
+set -uo pipefail
+cd "$(dirname "$0")"
+mkdir -p .check
+status=0
+
+step() {
+  local name="$1"; shift
+  if "$@" > ".check/$name.log" 2>&1; then
+    echo "ok    $name"
+  else
+    echo "FAIL  $name   (full log: .check/$name.log)"
+    head -60 ".check/$name.log"
+    status=1
+  fi
+}
+
+gofmt_clean() {
+  local unformatted
+  unformatted=$(gofmt -l cmd internal)
+  [ -z "$unformatted" ] || { echo "Run gofmt -w on:"; echo "$unformatted"; return 1; }
+}
+
+step architecture python3 tools/archcheck.py
+step module-map python3 tools/archcheck.py --module-map docs/architecture/modules.md
+step format gofmt_clean
+step vet go vet ./...
+step test go test -race -shuffle=on -timeout=60s ./...
+
+exit $status

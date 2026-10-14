@@ -1,0 +1,86 @@
+// The module map and the import rules that tools/archcheck.py enforces.
+// docs/ARCHITECTURE.md explains the kinds. This is a gate file: change it
+// on purpose, in its own commit, with the owner's approval.
+{
+  "language": "go",
+  "sourceRoots": ["."],
+  "testFiles": ["**/*_test.go"],
+  "ignore": [],
+  "glossary": "GLOSSARY.md",
+
+  "modules": [
+    {"path": "cmd/*", "kind": "composition", "name": "cmd/{1}"},
+    {"path": "internal/app", "kind": "composition", "name": "app"},
+    {"path": "internal/domain", "kind": "domain", "name": "domain"},
+    {"path": "internal/features/*/usecases", "kind": "usecases", "name": "{1}/usecases", "slice": "{1}"},
+    {"path": "internal/features/*/ui", "kind": "ui", "name": "{1}/ui", "slice": "{1}"},
+    {"path": "internal/sharedui", "kind": "shared-ui", "name": "sharedui"},
+    {"path": "internal/adapters/*", "kind": "adapter", "name": "adapters/{1}"},
+    {"path": "internal/utilities", "kind": "utilities", "name": "utilities"},
+    {"path": "internal/testsupport", "kind": "test-support", "name": "testsupport"}
+  ],
+
+  "kinds": {
+    "domain": {
+      "mayImport": ["utilities"],
+      "external": {"allow": ["std"], "deny": ["@io-packages"]},
+      "forbiddenCalls": ["@io"]
+    },
+    "usecases": {
+      "mayImport": ["domain", "utilities"],
+      "external": {"allow": ["std"], "deny": ["@io-packages"]},
+      "forbiddenCalls": ["@io"]
+    },
+    "ui": {
+      "mayImport": ["usecases@same-slice", "domain", "shared-ui", "utilities"],
+      "external": {"allow": ["std"], "deny": ["os", "os/*", "database/*", "math/rand", "math/rand/*", "crypto/rand", "syscall"]},
+      "forbiddenCalls": ["@io", "@http-client"]
+    },
+    "shared-ui": {
+      "mayImport": ["utilities"],
+      "external": {"allow": ["std"], "deny": ["os", "os/*", "database/*", "math/rand", "math/rand/*", "crypto/rand", "syscall"]},
+      "forbiddenCalls": ["@io", "@http-client"],
+      "bannedTerms": "glossary"
+    },
+    "adapter": {
+      "mayImport": ["domain", "utilities"],
+      "external": {"allow": ["*"]}
+    },
+    "composition": {
+      "mayImport": ["*"],
+      "external": {"allow": ["std"]},
+      "composition": {
+        "allowedFiles": ["main.go", "app.go", "config.go", "live.go", "wire_*.go"],
+        "controlFlowAllowedIn": ["config.go"],
+        "controlFlowAllowedPatterns": ["^\\s*if err != nil \\{", "^\\s*if err := .*; err != nil \\{"],
+        "maxLines": 400
+      }
+    },
+    "utilities": {
+      "mayImport": [],
+      "external": {"allow": ["std"], "deny": ["@io-packages"]},
+      "forbiddenCalls": ["@io"],
+      "bannedTerms": "glossary"
+    },
+    "test-support": {
+      "mayImport": ["domain", "utilities"],
+      "external": {"allow": ["std"]}
+    }
+  },
+
+  "externalSets": {
+    "io-packages": ["net", "net/*", "os", "os/*", "io/fs", "io/ioutil", "database/*", "math/rand", "math/rand/*",
+                    "crypto/rand", "syscall", "log", "log/*", "embed", "runtime/debug", "plugin"]
+  },
+
+  "forbiddenCallSets": {
+    "io": [
+      {"pattern": "\\btime\\.(Now|Since|Until|Sleep|After|AfterFunc|Tick|NewTicker|NewTimer)\\(", "fix": "Take the time from the Clock port."},
+      {"pattern": "\\bfmt\\.Print(f|ln)?\\(", "fix": "Log through the utilities.Logger interface."}
+    ],
+    "http-client": [
+      {"pattern": "\\bhttp\\.(Get|Post|PostForm|Head|NewRequest|NewRequestWithContext|DefaultClient)\\b",
+       "fix": "Outgoing requests are I/O. Declare a port in the domain and implement it in an adapter."}
+    ]
+  }
+}
