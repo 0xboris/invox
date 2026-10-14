@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -34,7 +33,7 @@ func testEnv(root string, getwd func() (string, error)) env.Env {
 
 func runWithEnv(e env.Env, args ...string) (int, string, string) {
 	ios, _, _, _ := iostreams.Test()
-	exitCode := Main(args, cmdutil.NewFactory(ios, run.Exec{}, e))
+	exitCode := Main(args, NewDependencies(ios, run.Exec{}, e))
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }
 

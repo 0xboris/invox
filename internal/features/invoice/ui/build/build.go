@@ -11,20 +11,20 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
+	"github.com/0xboris/invox/internal/utilities/proc"
 )
 
 // BuildOptions is what build needs: its streams, the compiler, the user
 // directories and the parsed flags.
 type BuildOptions struct {
 	IO       *iostreams.IOStreams
-	Compiler *tectonic.Compiler
+	Compiler ports.PDFCompiler
 	Host     func() invoice.Host
 	Getwd    func() (string, error)
 	Now      func() time.Time
@@ -51,7 +51,7 @@ type buildJSON struct {
 }
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
-func NewCmdBuild(f *cmdutil.Factory, runF func(context.Context, *BuildOptions) error) *cobra.Command {
+func NewCmdBuild(f *shared.Factory, runF func(context.Context, *BuildOptions) error) *cobra.Command {
 	opts := &BuildOptions{IO: f.IOStreams, Compiler: f.Compiler, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:   "build [INVOICE.yaml]",
@@ -101,12 +101,12 @@ $ invox build invoices/2026-0021.yaml -o out/2026-0021.pdf -c customers.yaml -u 
 	cmd.Flags().BoolVar(&opts.Archive, "archive", false, "Archive the invoice after a successful build")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print what would be built and archived, and change nothing (does not run Tectonic)")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "pdf")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
-	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
+	_ = cmd.RegisterFlagCompletionFunc("template", shared.CompleteTemplates(f))
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, buildJSON{})
 	return cmd
 }
@@ -118,15 +118,15 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "build", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "build", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "build", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := shared.SupportPath(h, "build", invoice.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	templatePath, err := cmdutil.TemplatePath(h, "build", opts.TemplatePath, baseDir)
+	templatePath, err := shared.TemplatePath(h, "build", opts.TemplatePath, baseDir)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir, printResult)
 	}
 	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
-		var execErr *run.ExecError
+		var execErr *proc.ExitError
 		if errors.As(err, &execErr) {
 			return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
 		}

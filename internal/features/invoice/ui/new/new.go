@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
@@ -22,7 +22,7 @@ import (
 
 type NewOptions struct {
 	IO     *iostreams.IOStreams
-	Editor *editor.Editor
+	Editor ports.Editor
 	Host   func() invoice.Host
 	Getwd  func() (string, error)
 	Now    func() time.Time
@@ -47,7 +47,7 @@ type newJSON struct {
 }
 
 // NewCmdNew returns the new command. runF replaces newRun in tests.
-func NewCmdNew(f *cmdutil.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
+func NewCmdNew(f *shared.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
 	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:   "new CUSTOMER_ID",
@@ -106,7 +106,7 @@ $ invox new CUST-001 -o invoices/2026-0022.yaml --defaults invoice_defaults.yaml
 	cmd.Flags().BoolVar(&opts.FromLast, "from-last", false, "Use the latest archived invoice for this customer as the source document")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the number and path the invoice would get and write nothing")
-	cmd.ValidArgsFunction = cmdutil.CompleteCustomerIDs(f)
+	cmd.ValidArgsFunction = shared.CompleteCustomerIDs(f)
 	_ = cmd.MarkFlagFilename("output", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("defaults", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
@@ -122,15 +122,15 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "new", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "new", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "new", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := shared.SupportPath(h, "new", invoice.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	defaultsPath, err := cmdutil.SupportPath(h, "new", invoice.Defaults, opts.DefaultsPath, baseDir)
+	defaultsPath, err := shared.SupportPath(h, "new", invoice.Defaults, opts.DefaultsPath, baseDir)
 	var notFound *cmdutil.FlagError
 	if opts.FromLast && errors.As(err, &notFound) {
 		// --from-last copies the last archived invoice instead.

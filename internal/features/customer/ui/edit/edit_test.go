@@ -6,11 +6,15 @@ import (
 	"io"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/starter"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -30,7 +34,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 	}
 	for _, form := range []struct {
 		name        string
-		newCmd      func(*cmdutil.Factory, func(context.Context, *EditOptions) error) *cobra.Command
+		newCmd      func(*shared.Factory, func(context.Context, *EditOptions) error) *cobra.Command
 		wantWarning string
 	}{
 		{name: "edit", newCmd: NewCmdEdit},
@@ -40,7 +44,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			t.Run(form.name+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
 				var got *EditOptions
-				cmd := form.newCmd(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(_ context.Context, opts *EditOptions) error {
+				cmd := form.newCmd(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files), Editor: stubEditor{}}, func(_ context.Context, opts *EditOptions) error {
 					got = opts
 					return nil
 				})
@@ -70,3 +74,8 @@ func TestNewCmdEditParsing(t *testing.T) {
 		}
 	}
 }
+
+// stubEditor is an editor that never opens.
+type stubEditor struct{}
+
+func (stubEditor) Edit(context.Context, string) error { return nil }

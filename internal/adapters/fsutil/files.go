@@ -24,6 +24,7 @@ func (Files) SameFile(a, b fs.FileInfo) bool                { return os.SameFile
 func (Files) Remove(path string) error                      { return os.Remove(path) }
 func (Files) RemoveAll(path string) error                   { return os.RemoveAll(path) }
 func (Files) MkdirTemp(dir, pattern string) (string, error) { return os.MkdirTemp(dir, pattern) }
+func (Files) TempDir() string                               { return os.TempDir() }
 
 func (Files) WriteFile(path string, data []byte, perm Perm) error {
 	return WriteFile(path, data, perm)

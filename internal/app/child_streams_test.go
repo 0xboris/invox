@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/editor"
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/programs/editor"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 

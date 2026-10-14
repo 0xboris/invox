@@ -39,6 +39,8 @@ type Files interface {
 	Remove(path string) error
 	RemoveAll(path string) error
 	MkdirTemp(dir, pattern string) (string, error)
+	// TempDir returns the directory for temporary files.
+	TempDir() string
 
 	// WriteFile atomically replaces or creates path with data. If path is a
 	// symlink, the file it points to is written and the link is kept. An

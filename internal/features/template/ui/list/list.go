@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/template/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
@@ -31,7 +33,7 @@ type templateJSON struct {
 }
 
 // NewCmdList returns the template list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",

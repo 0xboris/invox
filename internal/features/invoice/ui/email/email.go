@@ -7,17 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/applemail"
-	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
@@ -27,9 +25,9 @@ import (
 // draft, the user directories and the parsed flags.
 type EmailOptions struct {
 	IO     *iostreams.IOStreams
-	Opener *opener.Opener
+	Opener ports.Opener
 	// Mailer is nil where Apple Mail is not available.
-	Mailer *applemail.Composer
+	Mailer ports.MailComposer
 	Host   func() invoice.Host
 	Getwd  func() (string, error)
 	Now    func() time.Time
@@ -46,7 +44,7 @@ type EmailOptions struct {
 }
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
-func NewCmdEmail(f *cmdutil.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
+func NewCmdEmail(f *shared.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
 	opts := &EmailOptions{IO: f.IOStreams, Opener: f.Opener, Mailer: f.Mailer, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:     "email [INVOICE.yaml | INVOICE.pdf]",
@@ -108,7 +106,7 @@ $ invox email invoices/2026-0021.yaml -p out/2026-0021.pdf -o drafts/2026-0021.e
 	cmd.Flags().StringVar(&opts.Subject, "subject", "", "Email subject override, supports placeholders")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Overwrite an existing output file")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the recipient, subject and attachment, and neither write nor open a draft")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml", "pdf")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml", "pdf")
 	_ = cmd.MarkFlagFilename("pdf", "pdf")
 	_ = cmd.MarkFlagFilename("output", "eml")
@@ -152,11 +150,11 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "email", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "email", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "email", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := shared.SupportPath(h, "email", invoice.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
@@ -211,7 +209,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 
 	switch {
 	case opts.Mailer != nil && !explicitOutput:
-		if err := opts.Mailer.Compose(ctx, applemail.Message{
+		if err := opts.Mailer.Compose(ctx, ports.MailMessage{
 			To:         message.Recipient,
 			Subject:    message.Subject,
 			Body:       message.Body,
@@ -228,21 +226,22 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, baseDir), err)
 		}
 	default:
-		pruneEmailDrafts(os.TempDir(), opts.Now().Add(-draftMaxAge))
-		draftDir, err := os.MkdirTemp("", draftDirPrefix+"*")
+		files := h.Files()
+		pruneEmailDrafts(files, files.TempDir(), opts.Now().Add(-draftMaxAge))
+		draftDir, err := files.MkdirTemp("", draftDirPrefix+"*")
 		if err != nil {
 			return fmt.Errorf("create temporary draft directory: %w", err)
 		}
 		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
 		if err := draft(draftPath, false); err != nil {
-			_ = os.RemoveAll(draftDir)
+			_ = files.RemoveAll(draftDir)
 			return err
 		}
 		// The draft stays in its temporary directory: the mail app can read it
 		// after the opener returns, so invox cannot know when to delete it.
 		// pruneEmailDrafts removes it on a run a day later.
 		if err := opts.Opener.Open(ctx, draftPath); err != nil {
-			_ = os.RemoveAll(draftDir)
+			_ = files.RemoveAll(draftDir)
 			return fmt.Errorf("failed to open email draft: %w", err)
 		}
 	}
@@ -264,8 +263,8 @@ func orDefault(value, fallback string) string {
 // pruneEmailDrafts removes the temporary draft directories in dir that earlier
 // runs left behind and that were last modified before cutoff. It skips
 // anything that is not a directory, so a symlink is never followed.
-func pruneEmailDrafts(dir string, cutoff time.Time) {
-	entries, err := os.ReadDir(dir)
+func pruneEmailDrafts(files ports.Files, dir string, cutoff time.Time) {
+	entries, err := files.ReadDir(dir)
 	if err != nil {
 		return
 	}
@@ -277,6 +276,6 @@ func pruneEmailDrafts(dir string, cutoff time.Time) {
 		if err != nil || !info.ModTime().Before(cutoff) {
 			continue
 		}
-		_ = os.RemoveAll(filepath.Join(dir, entry.Name()))
+		_ = files.RemoveAll(filepath.Join(dir, entry.Name()))
 	}
 }

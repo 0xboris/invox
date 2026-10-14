@@ -5,11 +5,15 @@ import (
 	"io"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/starter"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/template/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -26,7 +30,7 @@ func TestNewCmdTemplateUnknownSubcommand(t *testing.T) {
 		t.Run(tc.arg, func(t *testing.T) {
 			ios, _, out, _ := iostreams.Test()
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdTemplate(cmdutil.NewFactory(ios, run.Exec{}, env.System())))
+			root.AddCommand(NewCmdTemplate(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}))
 			root.SetOut(io.Discard)
 			root.SetErr(io.Discard)
 			root.SetArgs([]string{"template", tc.arg})

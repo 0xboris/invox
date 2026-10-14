@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/build"
+	"github.com/0xboris/invox/internal/adapters/buildinfo"
 )
 
 func setBuildInfo(t *testing.T, version, date string) {
 	t.Helper()
 
-	oldVersion, oldDate := build.Version, build.Date
-	build.Version, build.Date = version, date
+	oldVersion, oldDate := buildinfo.Version, buildinfo.Date
+	buildinfo.Version, buildinfo.Date = version, date
 	t.Cleanup(func() {
-		build.Version, build.Date = oldVersion, oldDate
+		buildinfo.Version, buildinfo.Date = oldVersion, oldDate
 	})
 }
 

@@ -5,17 +5,18 @@ package config
 import (
 	"context"
 
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/features/config/ui/edit"
 	"github.com/0xboris/invox/internal/features/config/ui/paths"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 
 // NewCmdConfig returns the config command and its subcommands. Without a
 // subcommand it runs config edit. runF replaces the run of config edit in
 // tests.
-func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *edit.EditOptions) error) *cobra.Command {
+func NewCmdConfig(f *shared.Factory, runF func(context.Context, *edit.EditOptions) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Open config.yaml in your editor",

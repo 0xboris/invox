@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -96,7 +95,7 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			tempDir := isolateTempDir(t)
 			isolateUserDirs(t)
 			ios, _, stdout, stderr := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := NewDependencies(ios, run.Exec{}, platform.Env())
 			ctx, cancel := context.WithCancelCause(context.Background())
 			t.Cleanup(func() { cancel(nil) })
 
@@ -110,7 +109,7 @@ func TestBuildCancelledBySignalStopsTectonicAndCleansUp(t *testing.T) {
 			}()
 			pid := waitForPid(t, pidfile, done)
 			start := time.Now()
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(platform.NewSignalError(tc.signal))
 			select {
 			case <-done:
 			case <-time.After(30 * time.Second):

@@ -5,9 +5,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/features/version/ui/shared"
+
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -24,7 +24,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := &shared.Factory{IOStreams: ios}
 			ran := false
 			cmd := NewCmdVersion(f, func(opts *VersionOptions) error {
 				ran = true
@@ -57,7 +57,7 @@ func TestNewCmdVersionParsing(t *testing.T) {
 
 func TestVersionRun(t *testing.T) {
 	ios, _, out, errOut := iostreams.Test()
-	if err := versionRun(&VersionOptions{IO: ios}); err != nil {
+	if err := versionRun(&VersionOptions{IO: ios, Version: "DEV"}); err != nil {
 		t.Fatalf("versionRun returned error: %v", err)
 	}
 	if got := out.String(); got != "invox version DEV\n" {

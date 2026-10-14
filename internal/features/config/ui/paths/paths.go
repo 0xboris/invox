@@ -4,6 +4,8 @@ package paths
 import (
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
@@ -20,7 +22,7 @@ type PathsOptions struct {
 
 // NewCmdPaths returns the config paths command. runF replaces pathsRun in
 // tests.
-func NewCmdPaths(f *cmdutil.Factory, runF func(*PathsOptions) error) *cobra.Command {
+func NewCmdPaths(f *shared.Factory, runF func(*PathsOptions) error) *cobra.Command {
 	opts := &PathsOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	return &cobra.Command{
 		Use:               "paths",

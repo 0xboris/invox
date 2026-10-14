@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/proc"
 )
 
 // guardSignals keeps SIGINT and SIGTERM caught for the whole test, so a
-// signal the test sends to itself after signalContext stopped listening
+// signal the test sends to itself after platform.SignalContext stopped listening
 // cannot end the test binary.
 func guardSignals(t *testing.T) {
 	t.Helper()
@@ -36,7 +38,7 @@ func kill(t *testing.T, sig syscall.Signal) {
 }
 
 // signalUntilDone sends sig to the test process until ctx is done. A signal
-// that arrives while signalContext has an unread one is dropped, so one send
+// that arrives while platform.SignalContext has an unread one is dropped, so one send
 // is not enough.
 func signalUntilDone(t *testing.T, ctx context.Context, sig syscall.Signal) {
 	t.Helper()
@@ -62,7 +64,7 @@ func TestCtrlCWhileTheEditorRunsReachesOnlyTheEditor(t *testing.T) {
 	f, stub := testFactory(t)
 	f.IOStreams.SetStdinTTY(true)
 	f.IOStreams.SetStderrTTY(true)
-	ctx, stop := signalContext(context.Background())
+	ctx, stop := platform.SignalContext(context.Background())
 	defer stop()
 
 	// The editor sees Ctrl-C, then SIGTERM. Only SIGTERM may cancel the run,
@@ -75,8 +77,8 @@ func TestCtrlCWhileTheEditorRunsReachesOnlyTheEditor(t *testing.T) {
 
 	exitCode := mainContext(ctx, []string{"config"}, f)
 
-	var sigErr *SignalError
-	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Signal != syscall.SIGTERM {
+	var sigErr *proc.SignalError
+	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Number != int(syscall.SIGTERM) {
 		t.Fatalf("cancel cause = %v, want SIGTERM", context.Cause(ctx))
 	}
 	if exitCode != 143 {
@@ -86,15 +88,15 @@ func TestCtrlCWhileTheEditorRunsReachesOnlyTheEditor(t *testing.T) {
 
 func TestCtrlCCancelsAgainAfterTheEditorExits(t *testing.T) {
 	guardSignals(t)
-	ctx, stop := signalContext(context.Background())
+	ctx, stop := platform.SignalContext(context.Background())
 	defer stop()
 
-	release := cmdutil.HoldInterrupt(ctx)
+	release := proc.HoldInterrupt(ctx)
 	release()
 	signalUntilDone(t, ctx, syscall.SIGINT)
 
-	var sigErr *SignalError
-	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Signal != syscall.SIGINT {
+	var sigErr *proc.SignalError
+	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Number != int(syscall.SIGINT) {
 		t.Fatalf("cancel cause = %v, want SIGINT", context.Cause(ctx))
 	}
 }
@@ -103,7 +105,7 @@ func TestCtrlCCancelsAgainAfterOpenInEditorReturns(t *testing.T) {
 	guardSignals(t)
 	f, stub := testFactory(t)
 	expectEditor(f, stub, nil)
-	ctx, stop := signalContext(context.Background())
+	ctx, stop := platform.SignalContext(context.Background())
 	defer stop()
 
 	if err := cmdutil.OpenInEditor(ctx, f.IOStreams, f.Editor, "config", filepath.Join(t.TempDir(), "config.yaml"), "edit it"); err != nil {
@@ -111,8 +113,8 @@ func TestCtrlCCancelsAgainAfterOpenInEditorReturns(t *testing.T) {
 	}
 	signalUntilDone(t, ctx, syscall.SIGINT)
 
-	var sigErr *SignalError
-	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Signal != syscall.SIGINT {
+	var sigErr *proc.SignalError
+	if !errors.As(context.Cause(ctx), &sigErr) || sigErr.Number != int(syscall.SIGINT) {
 		t.Fatalf("cancel cause = %v, want SIGINT", context.Cause(ctx))
 	}
 }

@@ -19,10 +19,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/app"
 	"github.com/0xboris/invox/internal/domain/helptext"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -42,13 +42,13 @@ func main() {
 	dir := flag.String("dir", ".", "repository root to write docs/cli and share/man/man1 under")
 	flag.Parse()
 	if err := generate(*dir); err != nil {
-		fmt.Fprintln(iostreams.System().ErrOut, "gen:", err)
+		fmt.Fprintln(platform.Streams().ErrOut, "gen:", err)
 		os.Exit(1)
 	}
 }
 
 func generate(dir string) error {
-	pages := commandPages(app.NewRootCmd(newFactory()))
+	pages := commandPages(app.NewRootCmd(newDependencies()))
 	root := pages[0]
 	for _, topic := range helptext.Topics {
 		if topic.Print == nil {
@@ -131,19 +131,19 @@ func (p *page) isTopic() bool {
 
 // helpText runs `invox help WORDS` and returns what it prints.
 func helpText(words []string) (string, error) {
-	f := newFactory()
-	ios := f.IOStreams
-	if code := app.Main(append([]string{"help"}, words...), f); code != 0 {
+	d := newDependencies()
+	ios := d.IOStreams
+	if code := app.Main(append([]string{"help"}, words...), d); code != 0 {
 		return "", fmt.Errorf("invox help %s: exit %d: %s", strings.Join(words, " "), code, ios.ErrOut)
 	}
 	return strings.ReplaceAll(fmt.Sprint(ios.Out), home, "$HOME"), nil
 }
 
-// newFactory returns a Factory for a Linux user with no environment
+// newDependencies returns Dependencies for a Linux user with no environment
 // variables set, so the docs are the same wherever they are generated.
-func newFactory() *cmdutil.Factory {
+func newDependencies() *app.Dependencies {
 	ios, _, _, _ := iostreams.Test()
-	return cmdutil.NewFactory(ios, run.Exec{}, env.Env{
+	return app.NewDependencies(ios, run.Exec{}, env.Env{
 		GOOS:    "linux",
 		Getenv:  func(string) string { return "" },
 		HomeDir: func() (string, error) { return home, nil },

@@ -36,7 +36,7 @@ type incrementJSON struct {
 
 // NewCmdIncrement returns the increment command. runF replaces incrementRun
 // in tests.
-func NewCmdIncrement(f *cmdutil.Factory, runF func(*IncrementOptions) error) *cobra.Command {
+func NewCmdIncrement(f *shared.Factory, runF func(*IncrementOptions) error) *cobra.Command {
 	opts := &IncrementOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "increment [INVOICE.yaml]",
@@ -70,7 +70,7 @@ $ invox increment invoice.yaml --json number,previousNumber
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print the old and new number and change nothing")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, incrementJSON{})
@@ -84,7 +84,7 @@ func incrementRun(opts *IncrementOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "increment", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "increment", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}

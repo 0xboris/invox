@@ -12,6 +12,7 @@ May import: utilities.
 
 May import: its own slice's usecases, domain, shared-ui, utilities.
 
+- `cli/ui`, slice cli: `internal/features/cli/ui`
 - `config/ui`, slice config: `internal/features/config/ui`
 - `customer/ui`, slice customer: `internal/features/customer/ui`
 - `init/ui`, slice init: `internal/features/init/ui`
@@ -29,13 +30,11 @@ May import: utilities.
 
 May import: domain, utilities.
 
-- `adapters/applemail`: `internal/adapters/applemail`
-- `adapters/editor`: `internal/adapters/editor`
+- `adapters/buildinfo`: `internal/adapters/buildinfo`
 - `adapters/fsutil`: `internal/adapters/fsutil`
-- `adapters/opener`: `internal/adapters/opener`
-- `adapters/run`: `internal/adapters/run`
+- `adapters/platform`: `internal/adapters/platform`
+- `adapters/programs`: `internal/adapters/programs`
 - `adapters/starter`: `internal/adapters/starter`
-- `adapters/tectonic`: `internal/adapters/tectonic`
 
 ## composition
 

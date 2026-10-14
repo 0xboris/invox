@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/init/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
@@ -24,7 +26,7 @@ type InitOptions struct {
 }
 
 // NewCmdInit returns the init command. runF replaces initRun in tests.
-func NewCmdInit(f *cmdutil.Factory, runF func(context.Context, *InitOptions) error) *cobra.Command {
+func NewCmdInit(f *shared.Factory, runF func(context.Context, *InitOptions) error) *cobra.Command {
 	opts := &InitOptions{IO: f.IOStreams, Host: f.Host}
 	cmd := &cobra.Command{
 		Use:               "init",

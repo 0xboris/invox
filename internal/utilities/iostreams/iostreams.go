@@ -6,7 +6,6 @@ package iostreams
 import (
 	"bytes"
 	"io"
-	"os"
 )
 
 type IOStreams struct {
@@ -20,20 +19,15 @@ type IOStreams struct {
 	neverPrompt bool
 }
 
-// System returns the process streams. INVOX_FORCE_TTY set to anything but
-// the empty string makes stdout count as a terminal.
-func System() *IOStreams {
-	return newSystem(os.Stdin, os.Stdout, os.Stderr)
-}
-
-func newSystem(in, out, errOut *os.File) *IOStreams {
+// New returns streams on in, out and errOut, with the given terminal flags.
+func New(in io.ReadCloser, out, errOut io.Writer, stdinIsTTY, stdoutIsTTY, stderrIsTTY bool) *IOStreams {
 	return &IOStreams{
 		In:          in,
 		Out:         out,
 		ErrOut:      errOut,
-		stdinIsTTY:  isTerminal(in),
-		stdoutIsTTY: os.Getenv("INVOX_FORCE_TTY") != "" || isTerminal(out),
-		stderrIsTTY: isTerminal(errOut),
+		stdinIsTTY:  stdinIsTTY,
+		stdoutIsTTY: stdoutIsTTY,
+		stderrIsTTY: stderrIsTTY,
 	}
 }
 

@@ -5,13 +5,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
-// The test Factory's adapters run as on Linux with VISUAL and EDITOR unset,
+// The test Dependencies' adapters run as on Linux with VISUAL and EDITOR unset,
 // where the editor is vi and documents open with xdg-open.
 const (
 	testGOOS   = "linux"
@@ -19,18 +18,18 @@ const (
 	testOpener = "xdg-open"
 )
 
-func testFactory(t *testing.T) (*cmdutil.Factory, *run.Stub) {
+func testFactory(t *testing.T) (*Dependencies, *run.Stub) {
 	t.Helper()
 	return testFactoryEnv(t, nil)
 }
 
 // testFactoryEnv is testFactory with the variables in vars set.
-func testFactoryEnv(t *testing.T, vars map[string]string) (*cmdutil.Factory, *run.Stub) {
+func testFactoryEnv(t *testing.T, vars map[string]string) (*Dependencies, *run.Stub) {
 	t.Helper()
 
 	ios, _, _, _ := iostreams.Test()
 	stub := run.NewStub(t)
-	e := env.System()
+	e := platform.Env()
 	e.GOOS = testGOOS
 	e.Getenv = func(key string) string {
 		if value, ok := vars[key]; ok {
@@ -43,12 +42,12 @@ func testFactoryEnv(t *testing.T, vars map[string]string) (*cmdutil.Factory, *ru
 		}
 		return ""
 	}
-	return cmdutil.NewFactory(ios, stub, e), stub
+	return NewDependencies(ios, stub, e), stub
 }
 
 // expectEditor makes f's stdin and stderr terminals, so the editor may open,
 // and expects one editor run that returns err.
-func expectEditor(f *cmdutil.Factory, stub *run.Stub, err error) *string {
+func expectEditor(f *Dependencies, stub *run.Stub, err error) *string {
 	f.IOStreams.SetStdinTTY(true)
 	f.IOStreams.SetStderrTTY(true)
 	opened := new(string)
@@ -68,7 +67,7 @@ func expectOpener(stub *run.Stub, err error) *string {
 	return opened
 }
 
-func captureRunFactory(t *testing.T, f *cmdutil.Factory, args []string) (int, string, string) {
+func captureRunFactory(t *testing.T, f *Dependencies, args []string) (int, string, string) {
 	t.Helper()
 
 	isolateUserDirs(t)

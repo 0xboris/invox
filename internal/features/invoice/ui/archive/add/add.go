@@ -48,7 +48,7 @@ type replacedJSON struct {
 }
 
 // NewCmdAdd returns the archive add command. runF replaces addRun in tests.
-func NewCmdAdd(f *cmdutil.Factory, runF func(context.Context, *AddOptions) error) *cobra.Command {
+func NewCmdAdd(f *shared.Factory, runF func(context.Context, *AddOptions) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [INVOICE.yaml]",
 		Short: "Archive a built or edited invoice YAML file into the configured archive directory",
@@ -77,7 +77,7 @@ $ invox archive add invoice.yaml --json path
 // deprecated set, cmd is `archive FILE`, the deprecated form of archive add:
 // help and completion leave out its flags and files, and it warns before it
 // archives.
-func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *AddOptions) error, deprecated bool) {
+func Configure(cmd *cobra.Command, f *shared.Factory, runF func(context.Context, *AddOptions) error, deprecated bool) {
 	opts := &AddOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		return shared.TakeInput(cmdutil.CommandPath(cmd), opts.Getwd, &opts.InvoicePath, args)
@@ -98,7 +98,7 @@ func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().BoolVar(&opts.Yes, "yes", false, "Replace an archived invoice without asking")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Print where the invoice would be archived and change nothing")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, addJSON{})
 	if deprecated {

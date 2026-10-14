@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/helptext"
@@ -33,7 +35,7 @@ type customerJSON struct {
 }
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",
@@ -73,7 +75,7 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), "customer list", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.CustomersPath(opts.Host(), "customer list", opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}

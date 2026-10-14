@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/config/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -19,7 +21,7 @@ import (
 // user directories. Command names the command in its messages.
 type EditOptions struct {
 	IO     *iostreams.IOStreams
-	Editor *editor.Editor
+	Editor ports.Editor
 	Host   func() invoice.Host
 	Getwd  func() (string, error)
 
@@ -27,7 +29,7 @@ type EditOptions struct {
 }
 
 // NewCmdEdit returns the config edit command. runF replaces editRun in tests.
-func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
+func NewCmdEdit(f *shared.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit",
 		Short: "Open config.yaml in your editor",
@@ -46,7 +48,7 @@ $ invox --config ./config.yaml config edit
 
 // Configure gives cmd the arguments and run of config edit. The config
 // command, which config edit is the default of, uses it too.
-func Configure(cmd *cobra.Command, f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) {
+func Configure(cmd *cobra.Command, f *shared.Factory, runF func(context.Context, *EditOptions) error) {
 	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	cmd.Args = func(cmd *cobra.Command, args []string) error {

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/fsutil"
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
+	"github.com/0xboris/invox/internal/adapters/programs/tectonic"
 	"github.com/0xboris/invox/internal/adapters/starter"
-	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )

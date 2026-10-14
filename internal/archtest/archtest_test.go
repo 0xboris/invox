@@ -49,34 +49,39 @@ var rules = []rule{
 	},
 	{
 		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/adapters/archive", mod + "internal/adapters/config", mod + "internal/domain/email", mod + "internal/domain/epc", mod + "internal/domain/invoice/...", mod + "internal/domain/money", mod + "internal/domain/latex/..."},
-		deny: []string{mod + "internal/utilities/iostreams", mod + "internal/sharedui/tableprinter", mod + "internal/adapters/..."},
+		pkgs: []string{mod + "internal/domain/..."},
+		deny: []string{mod + "internal/utilities/iostreams", mod + "internal/sharedui/...", mod + "internal/adapters/..."},
 	},
 	{
-		name: "adapters import only run and iostreams",
-		pkgs: []string{mod + "internal/adapters/...", mod + "internal/sharedui/tableprinter"},
-		only: []string{mod + "internal/adapters/run", mod + "internal/utilities/iostreams"},
+		name: "adapters import only the domain's ports, run and the utilities",
+		pkgs: []string{mod + "internal/adapters/..."},
+		only: []string{mod + "internal/domain/ports", mod + "internal/adapters/programs/run", mod + "internal/utilities/..."},
 	},
 	{
-		name:        "only internal/adapters/run starts programs",
+		name: "shared UI imports only the utilities",
+		pkgs: []string{mod + "internal/sharedui/..."},
+		only: []string{mod + "internal/utilities/...", "github.com/spf13/cobra", "github.com/spf13/pflag"},
+	},
+	{
+		name:        "only internal/adapters/programs/run starts programs",
 		pkgs:        []string{mod + "..."},
-		except:      []string{mod + "internal/adapters/run"},
+		except:      []string{mod + "internal/adapters/programs/run"},
 		denyImports: []string{"os/exec"},
 	},
 	{
 		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/adapters/build", mod + "internal/domain/email", mod + "internal/utilities/env", mod + "internal/domain/epc", mod + "internal/adapters/fsutil", mod + "internal/utilities/iostreams", mod + "internal/domain/money"},
+		pkgs: []string{mod + "internal/adapters/buildinfo", mod + "internal/domain/email", mod + "internal/domain/epc", mod + "internal/domain/money", mod + "internal/domain/ports", mod + "internal/utilities/..."},
 		only: []string{},
 	},
 	{
-		name: "internal/domain/latex/latex imports only money",
-		pkgs: []string{mod + "internal/domain/latex/latex"},
+		name: "internal/domain/latex imports only money",
+		pkgs: []string{mod + "internal/domain/latex"},
 		only: []string{mod + "internal/domain/money"},
 	},
 	{
-		name: "internal/adapters/archive imports only fsutil",
-		pkgs: []string{mod + "internal/adapters/archive"},
-		only: []string{mod + "internal/adapters/fsutil"},
+		name: "internal/domain/archive imports only the ports",
+		pkgs: []string{mod + "internal/domain/archive"},
+		only: []string{mod + "internal/domain/ports"},
 	},
 }
 

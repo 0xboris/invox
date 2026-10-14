@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 )
 
 func TestSignalAtInitLegacyPrompt(t *testing.T) {
@@ -36,9 +35,9 @@ func TestSignalAtInitLegacyPrompt(t *testing.T) {
 			t.Cleanup(func() { _ = unanswered.Close() })
 			ios.In = stdin
 			isolateUserDirs(t)
-			f := cmdutil.NewFactory(ios, run.Exec{}, env.System())
+			f := NewDependencies(ios, run.Exec{}, platform.Env())
 			ctx, cancel := context.WithCancelCause(context.Background())
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(platform.NewSignalError(tc.signal))
 
 			exitCode := make(chan int, 1)
 			go func() { exitCode <- mainContext(ctx, []string{"init"}, f) }()

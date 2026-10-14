@@ -9,10 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/applemail"
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/applemail"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -2303,6 +2302,6 @@ func captureRunStreams(t *testing.T, ios *iostreams.IOStreams, args []string) (i
 	t.Helper()
 
 	isolateUserDirs(t)
-	exitCode := Main(args, cmdutil.NewFactory(ios, run.Exec{}, env.System()))
+	exitCode := Main(args, NewDependencies(ios, run.Exec{}, platform.Env()))
 	return exitCode, ios.Out.(*bytes.Buffer).String(), ios.ErrOut.(*bytes.Buffer).String()
 }

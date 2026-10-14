@@ -1,6 +1,6 @@
 # golangci-lint v2. CI pins the version in .github/workflows/ci.yml; run it
 # locally with `make lint`. internal/archtest asserts the same import rules on
-# the transitive import graph.
+# the transitive import graph, and tools/archcheck.py the kit's layers.
 version: "2"
 
 run:
@@ -41,29 +41,22 @@ linters:
   settings:
     depguard:
       rules:
-        # Imports point down: main -> cli -> cmd -> cmdutil -> domain and
-        # adapters. Nothing below the command layer knows about commands,
-        # flags or the CLI.
+        # Imports point down: cmd -> app -> features -> sharedui and domain ->
+        # utilities. Adapters implement the domain's ports, and only app
+        # imports them. Nothing below the commands knows about commands,
+        # flags or the CLI. tools/archcheck.py checks the same layers from
+        # architecture.json.
         below-commands:
           files:
             - "**/internal/adapters/**"
-            - "**/internal/adapters/archive/**"
-            - "**/internal/adapters/build/**"
-            - "**/internal/adapters/config/**"
-            - "**/internal/domain/email/**"
-            - "**/internal/utilities/env/**"
-            - "**/internal/domain/epc/**"
-            - "**/internal/adapters/fsutil/**"
-            - "**/internal/domain/invoice/**"
-            - "**/internal/utilities/iostreams/**"
-            - "**/internal/domain/money/**"
-            - "**/internal/domain/latex/**"
+            - "**/internal/domain/**"
+            - "**/internal/utilities/**"
             - "**/internal/sharedui/tableprinter/**"
           deny:
             - pkg: github.com/0xboris/invox/cmd
               desc: imports point down only
             - pkg: github.com/0xboris/invox/internal/app
-              desc: the CLI layer (root, cmdutil, helptext) sits above this package
+              desc: the composition root sits above this package
             - pkg: github.com/0xboris/invox/internal/features
               desc: commands sit above this package
             - pkg: github.com/spf13/cobra
@@ -74,87 +67,85 @@ linters:
         below-commands-flag:
           files:
             - "**/internal/adapters/**"
-            - "**/internal/adapters/archive/**"
-            - "**/internal/adapters/build/**"
-            - "**/internal/adapters/config/**"
-            - "**/internal/domain/email/**"
-            - "**/internal/utilities/env/**"
-            - "**/internal/domain/epc/**"
-            - "**/internal/adapters/fsutil/**"
-            - "**/internal/domain/invoice/**"
-            - "**/internal/utilities/iostreams/**"
-            - "**/internal/domain/money/**"
-            - "**/internal/domain/latex/**"
+            - "**/internal/domain/**"
+            - "**/internal/utilities/**"
             - "**/internal/sharedui/tableprinter/**"
             - "!$test"
           deny:
             - pkg: flag
               desc: only commands know about flags
         # The domain returns data and typed errors. It neither writes to the
-        # terminal nor runs programs; the CLI layer does both.
+        # terminal nor runs programs; it reaches files and programs through
+        # the ports in internal/domain/ports. Its tests may use the real
+        # file system adapter.
         domain:
           files:
-            - "**/internal/adapters/archive/**"
-            - "**/internal/adapters/config/**"
-            - "**/internal/domain/email/**"
-            - "**/internal/domain/epc/**"
-            - "**/internal/domain/invoice/**"
-            - "**/internal/domain/money/**"
-            - "**/internal/domain/latex/**"
+            - "**/internal/domain/**"
+            - "!$test"
           deny:
             - pkg: github.com/0xboris/invox/internal/utilities/iostreams
               desc: return data; the command renders it
-            - pkg: github.com/0xboris/invox/internal/sharedui/tableprinter
+            - pkg: github.com/0xboris/invox/internal/sharedui
               desc: return data; the command renders it
             - pkg: github.com/0xboris/invox/internal/adapters
-              desc: the CLI layer runs programs; the domain takes their results
-        # Adapters wrap one program each on top of run.Runner and write to
-        # IOStreams; they know nothing about the domain.
+              desc: declare a port in internal/domain/ports; app passes the adapter in
+        # Adapters implement the domain's ports on top of run.Runner, the
+        # file system and the process; they know nothing else of the domain.
         adapters:
           list-mode: strict
           files:
             - "**/internal/adapters/**"
-            - "**/internal/sharedui/tableprinter/**"
             - "!$test"
           allow:
             - $gostd
-            - github.com/0xboris/invox/internal/adapters/run
-            - github.com/0xboris/invox/internal/utilities/iostreams
+            - github.com/0xboris/invox/internal/domain/ports
+            - github.com/0xboris/invox/internal/adapters/programs/run
+            - github.com/0xboris/invox/internal/utilities
+        # Shared UI holds no business rules, so it imports no domain package.
+        sharedui:
+          list-mode: strict
+          files:
+            - "**/internal/sharedui/**"
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/0xboris/invox/internal/utilities
+            - github.com/spf13/cobra
+            - github.com/spf13/pflag
         # Leaf packages. Each states the only module packages it may import.
         stdlib-only:
           list-mode: strict
           files:
-            - "**/internal/adapters/build/**"
+            - "**/internal/adapters/buildinfo/**"
             - "**/internal/domain/email/**"
-            - "**/internal/utilities/env/**"
             - "**/internal/domain/epc/**"
-            - "**/internal/adapters/fsutil/**"
-            - "**/internal/utilities/iostreams/**"
             - "**/internal/domain/money/**"
+            - "**/internal/domain/ports/**"
+            - "**/internal/utilities/**"
             - "!$test"
           allow:
             - $gostd
-        render-latex:
+        domain-latex:
           list-mode: strict
           files:
-            - "**/internal/domain/latex/latex/**"
+            - "**/internal/domain/latex/**"
             - "!$test"
           allow:
             - $gostd
             - github.com/0xboris/invox/internal/domain/money
-        archive:
+        domain-archive:
           list-mode: strict
           files:
-            - "**/internal/adapters/archive/**"
+            - "**/internal/domain/archive/**"
             - "!$test"
           allow:
             - $gostd
-            - github.com/0xboris/invox/internal/adapters/fsutil
-        # internal/adapters/run is the only package that starts programs.
+            - github.com/0xboris/invox/internal/domain/ports
+        # internal/adapters/programs/run is the only package that starts programs.
         only-run-execs:
           files:
             - $all
-            - "!**/internal/adapters/run/run.go"
+            - "!**/internal/adapters/programs/run/run.go"
             - "!$test"
           deny:
             - pkg: os/exec
@@ -185,13 +176,13 @@ linters:
         - pattern: ^os\.Exit$
           msg: return an error; cli.Main picks the exit code and main exits
         - pattern: ^os\.(Stdin|Stdout|Stderr)$
-          msg: use the injected IOStreams; only iostreams.System touches the process streams
+          msg: use the injected IOStreams; only platform.Streams touches the process streams
         - pattern: ^os\.(Getenv|LookupEnv)$
-          msg: read env.Env; only env.System reads the process environment
+          msg: read env.Env; only platform.Env reads the process environment
         - pattern: ^time\.Now$
-          msg: use env.Env.Now; only env.System reads the clock
+          msg: use env.Env.Now; only platform.Env reads the clock
         - pattern: ^runtime\.GOOS$
-          msg: use env.Env.GOOS; only env.System reads runtime.GOOS
+          msg: use env.Env.GOOS; only platform.Env reads runtime.GOOS
         - pattern: ^exec\.Command(Context)?$
           pkg: ^os/exec$
           msg: start programs through run.Runner
@@ -240,17 +231,13 @@ linters:
       - path: ^internal/docs/gen/main\.go$
         linters: [forbidigo]
         text: "`os\\.Exit`"
-      # env.System reads the process environment, the clock and GOOS.
-      - path: ^internal/utilities/env/env\.go$
+      # platform.Env reads the process environment, the clock and GOOS;
+      # platform.Streams wraps the process streams and reads INVOX_FORCE_TTY.
+      - path: ^internal/adapters/platform/platform\.go$
         linters: [forbidigo]
-        text: "`(os\\.Getenv|time\\.Now|runtime\\.GOOS)`"
-      # iostreams.System wraps the process streams; newSystem reads
-      # INVOX_FORCE_TTY.
-      - path: ^internal/utilities/iostreams/iostreams\.go$
-        linters: [forbidigo]
-        text: "`(os\\.(Stdin|Stdout|Stderr)|os\\.Getenv)`"
+        text: "`(os\\.(Getenv|Stdin|Stdout|Stderr)|time\\.Now|runtime\\.GOOS)`"
       # TIOCGETA/TCGETS through syscall.Syscall needs unsafe.Pointer.
-      - path: ^internal/utilities/iostreams/terminal_ioctl\.go$
+      - path: ^internal/adapters/platform/terminal_ioctl\.go$
         linters: [gosec]
         text: G103
       # syscall.Umask returns a 0-0777 mask, so the conversion can't overflow.

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 )
 
 // editorCase is one command that opens an editor. setup creates the files it

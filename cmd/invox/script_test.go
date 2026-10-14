@@ -15,11 +15,7 @@ import (
 
 	"github.com/rogpeppe/go-internal/testscript"
 
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/app"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
-	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 // The end-to-end suite in testdata/script pins what every command prints to
@@ -51,8 +47,7 @@ func TestMain(m *testing.M) {
 	// suite needs no shell scripts and runs on Windows.
 	testscript.Main(m, map[string]func(){
 		"invox": func() {
-			f := cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())
-			os.Exit(app.Main(os.Args[1:], f))
+			os.Exit(app.Main(os.Args[1:], app.Live()))
 		},
 		"tectonic":  func() { os.Exit(fakeTectonic(os.Args[1:])) },
 		"open":      func() { os.Exit(fakeOpen(os.Args[1:])) },

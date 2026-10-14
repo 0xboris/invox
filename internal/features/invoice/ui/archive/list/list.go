@@ -4,6 +4,8 @@ package list
 import (
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/helptext"
@@ -35,7 +37,7 @@ type archivedJSON struct {
 
 // NewCmdList returns the archive list command. runF replaces listRun in
 // tests.
-func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
+func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command {
 	opts := &ListOptions{IO: f.IOStreams, Host: f.Host}
 	cmd := &cobra.Command{
 		Use:               "list",

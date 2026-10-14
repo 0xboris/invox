@@ -3,101 +3,10 @@ package app
 import (
 	"bytes"
 	"context"
-	"slices"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/platform"
 )
-
-func TestNormalizeLongFlags(t *testing.T) {
-	tests := []struct {
-		name     string
-		args     []string
-		want     []string
-		wantWarn string
-	}{
-		{
-			name:     "single-dash long flag",
-			args:     []string{"template", "list", "-names"},
-			want:     []string{"template", "list", "--names"},
-			wantWarn: "warning: -names is deprecated; use --names\n",
-		},
-		{
-			name:     "single-dash long flag with value",
-			args:     []string{"template", "list", "-names=false"},
-			want:     []string{"template", "list", "--names=false"},
-			wantWarn: "warning: -names is deprecated; use --names\n",
-		},
-		{
-			name: "global flags",
-			args: []string{"-no-input", "template", "list", "-config", "-names"},
-			want: []string{"--no-input", "template", "list", "--config", "-names"},
-			wantWarn: "warning: -no-input is deprecated; use --no-input\n" +
-				"warning: -config is deprecated; use --config\n",
-		},
-		{
-			name:     "help flag",
-			args:     []string{"version", "-help"},
-			want:     []string{"version", "--help"},
-			wantWarn: "warning: -help is deprecated; use --help\n",
-		},
-		{
-			name: "double-dash and shorthand flags",
-			args: []string{"template", "list", "--names", "-h"},
-			want: []string{"template", "list", "--names", "-h"},
-		},
-		{
-			name: "after --",
-			args: []string{"template", "list", "--", "-names"},
-			want: []string{"template", "list", "--", "-names"},
-		},
-		{
-			name: "unknown single-dash flag",
-			args: []string{"template", "list", "-bogus"},
-			want: []string{"template", "list", "--bogus"},
-		},
-		{
-			name: "shorthand cluster and negative number",
-			args: []string{"template", "list", "-hx", "-5"},
-			want: []string{"template", "list", "-hx", "-5"},
-		},
-		{
-			name: "unknown word on the help command",
-			args: []string{"help", "-names"},
-			want: []string{"help", "--names"},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			f, _ := testFactory(t)
-			var warn bytes.Buffer
-			root, _ := newRootCmd(f)
-			got := normalizeLongFlags(root, tc.args, &warn)
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("args = %q, want %q", got, tc.want)
-			}
-			if warn.String() != tc.wantWarn {
-				t.Errorf("warnings = %q, want %q", warn.String(), tc.wantWarn)
-			}
-		})
-	}
-}
-
-func TestVersionFlagToCommand(t *testing.T) {
-	tests := []struct {
-		args []string
-		want []string
-	}{
-		{args: []string{"--version"}, want: []string{"version"}},
-		{args: []string{"--version", "extra"}, want: []string{"version", "extra"}},
-		{args: []string{"--no-input", "--config", "c.yaml", "--config=d.yaml", "--version"}, want: []string{"--no-input", "--config", "c.yaml", "--config=d.yaml", "version"}},
-		{args: []string{"new", "--version"}, want: []string{"new", "--version"}},
-		{args: []string{}, want: []string{}},
-	}
-	for _, tc := range tests {
-		if got := versionFlagToCommand(tc.args); !slices.Equal(got, tc.want) {
-			t.Errorf("versionFlagToCommand(%q) = %q, want %q", tc.args, got, tc.want)
-		}
-	}
-}
 
 func TestCobraCommandUsageErrors(t *testing.T) {
 	tests := []struct {
@@ -201,7 +110,7 @@ func TestCobraCommandErrorBecomesSignal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f, _ := testFactory(t)
 			ctx, cancel := context.WithCancelCause(context.Background())
-			cancel(&SignalError{Signal: tc.signal})
+			cancel(platform.NewSignalError(tc.signal))
 
 			exitCode := mainContext(ctx, []string{"template", "list", "--bogus"}, f)
 			if exitCode != tc.exitCode {
@@ -220,7 +129,7 @@ func TestCobraCommandAppliesGlobalFlags(t *testing.T) {
 	if !f.IOStreams.PromptDisabled() {
 		t.Error("--no-input after the command did not disable prompts")
 	}
-	if f.ConfigFile != "custom.yaml" {
-		t.Errorf("ConfigFile = %q, want %q", f.ConfigFile, "custom.yaml")
+	if got := f.Hosts.ConfigFile(); got != "custom.yaml" {
+		t.Errorf("ConfigFile = %q, want %q", got, "custom.yaml")
 	}
 }

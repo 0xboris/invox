@@ -5,11 +5,15 @@ import (
 	"io"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/starter"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/run"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -31,7 +35,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			var got *EditOptions
 			root := &cobra.Command{Use: "invox"}
 			archive := &cobra.Command{Use: "archive"}
-			archive.AddCommand(NewCmdEdit(cmdutil.NewFactory(ios, run.Exec{}, env.System()), func(opts *EditOptions) error {
+			archive.AddCommand(NewCmdEdit(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(platform.Env(), fsutil.Files{}, starter.Files)}, func(opts *EditOptions) error {
 				got = opts
 				return nil
 			}))

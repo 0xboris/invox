@@ -28,7 +28,7 @@ type ValidateOptions struct {
 
 // NewCmdValidate returns the validate command. runF replaces validateRun in
 // tests.
-func NewCmdValidate(f *cmdutil.Factory, runF func(*ValidateOptions) error) *cobra.Command {
+func NewCmdValidate(f *shared.Factory, runF func(*ValidateOptions) error) *cobra.Command {
 	opts := &ValidateOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "validate [INVOICE.yaml]",
@@ -68,7 +68,7 @@ $ invox validate invoice.yaml --json valid,total,currency,errors
 	cmd.Flags().StringVarP(&opts.InvoicePath, "input", "i", "", "Input invoice YAML file")
 	cmd.Flags().StringVarP(&opts.CustomersPath, "customers", "c", "", "Path to customers.yaml")
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
@@ -83,11 +83,11 @@ func validateRun(opts *ValidateOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "validate", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "validate", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "validate", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := shared.SupportPath(h, "validate", invoice.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}

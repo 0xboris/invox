@@ -4,6 +4,8 @@ package customer
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/customer/ui/edit"
 	"github.com/0xboris/invox/internal/features/customer/ui/list"
@@ -12,7 +14,7 @@ import (
 
 // NewCmdCustomer returns the customer command and its subcommands. Without a
 // subcommand it prints its help.
-func NewCmdCustomer(f *cmdutil.Factory) *cobra.Command {
+func NewCmdCustomer(f *shared.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "customer <subcommand>",
 		Short: "Customer-related commands",

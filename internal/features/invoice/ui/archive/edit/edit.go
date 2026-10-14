@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/helptext"
@@ -37,12 +39,12 @@ type editJSON struct {
 
 // NewCmdEdit returns the archive edit command. runF replaces editRun in
 // tests.
-func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Command {
+func NewCmdEdit(f *shared.Factory, runF func(*EditOptions) error) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "edit FILENAME",
 		Short:             "Copy an archived invoice into the current directory and mark it as editing",
-		ValidArgsFunction: cmdutil.CompleteArchivedInvoices(f),
+		ValidArgsFunction: shared.CompleteArchivedInvoices(f),
 		Long: `Copy an archived invoice into the current directory and mark it as editing.
 
 Required inputs:

@@ -22,6 +22,15 @@ import sys
 from collections import defaultdict
 
 SKIP_DIRS = {".git", ".build", ".swiftpm", "build", "DerivedData", "node_modules", "dist", "vendor", ".idea", ".vscode"}
+# Build output and vendored code sit at the project root. Below it these names
+# are ordinary packages, such as a Go command package named build.
+ROOT_ONLY_SKIP_DIRS = {"build", "dist", "vendor"}
+
+
+def skip_dir(name, at_root):
+    if name.startswith("."):
+        return True
+    return name in SKIP_DIRS and (at_root or name not in ROOT_ONLY_SKIP_DIRS)
 DEFAULT_EXTENSIONS = {"swift": [".swift"], "go": [".go"], "typescript": [".ts", ".tsx", ".mts", ".cts"]}
 CONTROL_FLOW = {
     "swift": ["if", "guard", "switch", "for", "while", "repeat", "catch"],
@@ -191,7 +200,7 @@ class Project:
                         continue
                     regex = glob_to_regex(segment)
                     for entry in sorted(os.listdir(directory)):
-                        if entry.startswith(".") or entry in SKIP_DIRS:
+                        if skip_dir(entry, base == ""):
                             continue
                         if os.path.isdir(os.path.join(directory, entry)) and regex.match(entry):
                             next_results.append((os.path.join(base, entry) if base else entry, captures + [entry]))
@@ -229,7 +238,8 @@ class Project:
         production, test, unmapped = [], [], []
         for root in roots:
             for directory, dirs, files in os.walk(os.path.join(self.root, root)):
-                dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith("."))
+                at_root = os.path.normpath(directory) == os.path.normpath(self.root)
+                dirs[:] = sorted(d for d in dirs if not skip_dir(d, at_root))
                 for file in sorted(files):
                     if not file.endswith(self.extensions) or file.endswith(".d.ts"):
                         continue

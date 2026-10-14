@@ -13,10 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/run"
-	"github.com/0xboris/invox/internal/sharedui/cmdutil"
-	"github.com/0xboris/invox/internal/utilities/env"
-	"github.com/0xboris/invox/internal/utilities/iostreams"
+	"github.com/0xboris/invox/internal/adapters/platform"
+	"github.com/0xboris/invox/internal/adapters/programs/run"
 )
 
 // fakeTectonicEnv makes the test binary act as tectonic instead of running
@@ -47,7 +45,7 @@ func TestMain(m *testing.M) {
 		// Unset so the programs invox runs, such as the fake tectonic, are not
 		// invox too.
 		_ = os.Unsetenv(runMainEnv)
-		os.Exit(Main(os.Args[1:], cmdutil.NewFactory(iostreams.System(), run.Exec{}, env.System())))
+		os.Exit(Main(os.Args[1:], NewDependencies(platform.Streams(), run.Exec{}, platform.Env())))
 	}
 	if mode := os.Getenv(fakeTectonicEnv); mode != "" {
 		os.Exit(runFakeTectonic(mode, os.Args[1:]))

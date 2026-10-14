@@ -39,7 +39,7 @@ type renderJSON struct {
 }
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
-func NewCmdRender(f *cmdutil.Factory, runF func(*RenderOptions) error) *cobra.Command {
+func NewCmdRender(f *shared.Factory, runF func(*RenderOptions) error) *cobra.Command {
 	opts := &RenderOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "render [INVOICE.yaml]",
@@ -84,12 +84,12 @@ $ invox render invoice.yaml --json path
 	cmd.Flags().StringVarP(&opts.IssuerPath, "issuer", "u", "", "Path to issuer.yaml")
 	cmd.Flags().StringVarP(&opts.TemplatePath, "template", "t", "", "Template path or name")
 	cmd.Flags().BoolVarP(&opts.DryRun, "dry-run", "n", false, "Check the invoice and template, print the output path and write nothing")
-	cmd.ValidArgsFunction = cmdutil.CompleteInputFile("yaml", "yml")
+	cmd.ValidArgsFunction = shared.CompleteInputFile("yaml", "yml")
 	_ = cmd.MarkFlagFilename("input", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("output", "tex")
 	_ = cmd.MarkFlagFilename("customers", "yaml", "yml")
 	_ = cmd.MarkFlagFilename("issuer", "yaml", "yml")
-	_ = cmd.RegisterFlagCompletionFunc("template", cmdutil.CompleteTemplates(f))
+	_ = cmd.RegisterFlagCompletionFunc("template", shared.CompleteTemplates(f))
 	cmdutil.AddJSONFlags(cmd, &opts.Exporter, renderJSON{})
 	return cmd
 }
@@ -101,15 +101,15 @@ func renderRun(opts *RenderOptions) error {
 	}
 	baseDir := filepath.Clean(cwd)
 	h := opts.Host()
-	customersPath, err := cmdutil.SupportPath(h, "render", invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.SupportPath(h, "render", invoice.Customers, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
-	issuerPath, err := cmdutil.SupportPath(h, "render", invoice.Issuer, opts.IssuerPath, baseDir)
+	issuerPath, err := shared.SupportPath(h, "render", invoice.Issuer, opts.IssuerPath, baseDir)
 	if err != nil {
 		return err
 	}
-	templatePath, err := cmdutil.TemplatePath(h, "render", opts.TemplatePath, baseDir)
+	templatePath, err := shared.TemplatePath(h, "render", opts.TemplatePath, baseDir)
 	if err != nil {
 		return err
 	}

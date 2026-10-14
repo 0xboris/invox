@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestPruneEmailDraftsRemovesOnlyStaleDraftDirectories(t *testing.T) {
@@ -41,8 +43,8 @@ func TestPruneEmailDraftsRemovesOnlyStaleDraftDirectories(t *testing.T) {
 		want = append(want, "invox-email-link")
 	}
 
-	pruneEmailDrafts(dir, now.Add(-draftMaxAge))
-	pruneEmailDrafts(dir, now.Add(-draftMaxAge))
+	pruneEmailDrafts(fsutil.Files{}, dir, now.Add(-draftMaxAge))
+	pruneEmailDrafts(fsutil.Files{}, dir, now.Add(-draftMaxAge))
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {

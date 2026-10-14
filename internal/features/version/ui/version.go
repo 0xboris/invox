@@ -5,20 +5,24 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/version/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/build"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 type VersionOptions struct {
 	IO *iostreams.IOStreams
+	// Version is the release version, such as "v1.2.3", or "DEV", and Date
+	// its release date (YYYY-MM-DD) or "".
+	Version, Date string
 }
 
 // NewCmdVersion returns the version command. runF replaces versionRun in tests.
-func NewCmdVersion(f *cmdutil.Factory, runF func(*VersionOptions) error) *cobra.Command {
-	opts := &VersionOptions{IO: f.IOStreams}
+func NewCmdVersion(f *shared.Factory, runF func(*VersionOptions) error) *cobra.Command {
+	opts := &VersionOptions{IO: f.IOStreams, Version: f.Version, Date: f.Date}
 	return &cobra.Command{
 		Use:               "version",
 		Short:             "Show the invox version",
@@ -43,9 +47,9 @@ $ invox --version
 
 func versionRun(opts *VersionOptions) error {
 	w := opts.IO.Out
-	fmt.Fprintf(w, "invox version %s", strings.TrimPrefix(build.Version, "v"))
-	if build.Date != "" {
-		fmt.Fprintf(w, " (%s)", build.Date)
+	fmt.Fprintf(w, "invox version %s", strings.TrimPrefix(opts.Version, "v"))
+	if opts.Date != "" {
+		fmt.Fprintf(w, " (%s)", opts.Date)
 	}
 	fmt.Fprintln(w)
 	return nil

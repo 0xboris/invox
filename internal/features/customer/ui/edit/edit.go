@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/editor"
 	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -22,7 +24,7 @@ import (
 // messages.
 type EditOptions struct {
 	IO     *iostreams.IOStreams
-	Editor *editor.Editor
+	Editor ports.Editor
 	Host   func() invoice.Host
 	Getwd  func() (string, error)
 
@@ -32,13 +34,13 @@ type EditOptions struct {
 
 // NewCmdEdit returns the customer edit command. runF replaces editRun in
 // tests.
-func NewCmdEdit(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
+func NewCmdEdit(f *shared.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
 	return newCmd(f, runF, "edit")
 }
 
 // NewCmdConfig returns `customer config`, the hidden, deprecated name of
 // customer edit, which warns before it runs.
-func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
+func NewCmdConfig(f *shared.Factory, runF func(context.Context, *EditOptions) error) *cobra.Command {
 	cmd := newCmd(f, runF, "config")
 	cmd.Hidden = true
 	run := cmd.RunE
@@ -49,7 +51,7 @@ func NewCmdConfig(f *cmdutil.Factory, runF func(context.Context, *EditOptions) e
 	return cmd
 }
 
-func newCmd(f *cmdutil.Factory, runF func(context.Context, *EditOptions) error, name string) *cobra.Command {
+func newCmd(f *shared.Factory, runF func(context.Context, *EditOptions) error, name string) *cobra.Command {
 	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Command: "customer " + name}
 	cmd := &cobra.Command{
 		Use:               name,
@@ -91,7 +93,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 		return err
 	}
 	baseDir := filepath.Clean(cwd)
-	customersPath, err := cmdutil.SupportPath(opts.Host(), opts.Command, invoice.Customers, opts.CustomersPath, baseDir)
+	customersPath, err := shared.CustomersPath(opts.Host(), opts.Command, opts.CustomersPath, baseDir)
 	if err != nil {
 		return err
 	}
