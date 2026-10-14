@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	inv, err := LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestBuildInvoicePDFCompilesTheRenderedTeXAndCopiesThePDF(t *testing.T) {
 
 func TestBuildInvoicePDFReturnsTheCompileError(t *testing.T) {
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	inv, err := LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

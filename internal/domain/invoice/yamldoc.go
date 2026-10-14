@@ -3,15 +3,14 @@ package invoice
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
-func loadYAMLDocument(path string) (*yaml.Node, error) {
-	source, err := os.ReadFile(path)
+func loadYAMLDocument(files ports.Files, path string) (*yaml.Node, error) {
+	source, err := files.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -31,12 +30,12 @@ func parseYAMLDocumentSource(source []byte, label string) (*yaml.Node, error) {
 }
 
 // writeYAMLDocument replaces path with document, keeping the file's mode.
-func writeYAMLDocument(path string, document *yaml.Node) error {
+func writeYAMLDocument(files ports.Files, path string, document *yaml.Node) error {
 	data, err := encodeYAMLDocument(document)
 	if err != nil {
 		return err
 	}
-	return fsutil.WriteFile(path, data, fsutil.Public)
+	return files.WriteFile(path, data, ports.Public)
 }
 
 func encodeYAMLDocument(document *yaml.Node) ([]byte, error) {

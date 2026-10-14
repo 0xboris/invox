@@ -9,14 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // historyDirName is the directory below the archive root that keeps the
@@ -31,7 +30,8 @@ const backupTimeFormat = "20060102T150405Z"
 // symlink, and every path the Store reports stays below Dir as configured,
 // not below the symlink's target. An empty Dir is an archive with no files.
 type Store struct {
-	Dir string
+	Dir   string
+	Files ports.Files
 }
 
 // HistoryDir is where Backup keeps previous versions.
@@ -51,8 +51,8 @@ func (s Store) walk(visit func(path, rel string) error) error {
 	if strings.TrimSpace(s.Dir) == "" {
 		return nil
 	}
-	info, err := os.Stat(s.Dir)
-	if errors.Is(err, os.ErrNotExist) {
+	info, err := s.Files.Stat(s.Dir)
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
@@ -62,11 +62,11 @@ func (s Store) walk(visit func(path, rel string) error) error {
 		return fmt.Errorf("%s: archive.dir must point to a directory", s.Dir)
 	}
 
-	root, err := filepath.EvalSymlinks(s.Dir)
+	root, err := s.Files.EvalSymlinks(s.Dir)
 	if err != nil {
 		root = s.Dir
 	}
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	return s.Files.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -203,8 +203,8 @@ func (s Store) Find(name string) (Target, error) {
 	if err != nil {
 		return Target{}, err
 	}
-	info, err := os.Stat(target.Path)
-	if errors.Is(err, os.ErrNotExist) {
+	info, err := s.Files.Stat(target.Path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return Target{}, fmt.Errorf("%s does not exist in %s", target.Rel, s.Dir)
 	}
 	if err != nil {
@@ -260,11 +260,11 @@ func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
 		if err != nil {
 			return nil, err
 		}
-		source, err := os.ReadFile(path)
+		source, err := s.Files.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		backupPath, err := writeBackup(filepath.Join(dir, historyDirName, rel), stamp, source)
+		backupPath, err := writeBackup(s.Files, filepath.Join(dir, historyDirName, rel), stamp, source)
 		if err != nil {
 			return nil, fmt.Errorf("back up %s: %w", path, err)
 		}
@@ -276,7 +276,7 @@ func (s Store) Backup(paths []string, now time.Time) ([]Backup, error) {
 // writeBackup writes data to path with stamp inserted before the extension,
 // adding a counter when a backup with that name already exists. The data is
 // synced to disk before it returns the backup's path.
-func writeBackup(path, stamp string, data []byte) (string, error) {
+func writeBackup(files ports.Files, path, stamp string, data []byte) (string, error) {
 	ext := filepath.Ext(path)
 	stem := strings.TrimSuffix(path, ext)
 	for counter := 1; ; counter++ {
@@ -284,7 +284,7 @@ func writeBackup(path, stamp string, data []byte) (string, error) {
 		if counter > 1 {
 			candidate = stem + "." + stamp + "-" + strconv.Itoa(counter) + ext
 		}
-		err := fsutil.WriteNewFile(candidate, data, fsutil.Private)
+		err := files.WriteNewFile(candidate, data, ports.Private)
 		if errors.Is(err, fs.ErrExist) {
 			continue
 		}
@@ -297,7 +297,7 @@ func writeBackup(path, stamp string, data []byte) (string, error) {
 
 // ExistingFiles returns the paths that exist, without duplicates. A
 // directory is an error.
-func ExistingFiles(paths ...string) ([]string, error) {
+func ExistingFiles(files ports.Files, paths ...string) ([]string, error) {
 	var existing []string
 	seen := make(map[string]bool)
 	for _, path := range paths {
@@ -305,8 +305,8 @@ func ExistingFiles(paths ...string) ([]string, error) {
 			continue
 		}
 		seen[path] = true
-		info, err := os.Stat(path)
-		if errors.Is(err, os.ErrNotExist) {
+		info, err := files.Stat(path)
+		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 		if err != nil {

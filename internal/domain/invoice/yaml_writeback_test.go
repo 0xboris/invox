@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 const commentedInvoice = `# Invoice for ACME
@@ -31,17 +33,17 @@ func TestInvoiceWritesKeepComments(t *testing.T) {
 	}{
 		{
 			name:  "MarkInvoiceBuilt",
-			write: MarkInvoiceBuilt,
+			write: func(path string) error { return MarkInvoiceBuilt(fsutil.Files{}, path) },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: built #", 1),
 		},
 		{
 			name:  "SetInvoiceStatus",
-			write: func(path string) error { return SetInvoiceStatus(path, "archived") },
+			write: func(path string) error { return SetInvoiceStatus(fsutil.Files{}, path, "archived") },
 			want:  strings.Replace(commentedInvoice, "status: draft #", "status: archived #", 1),
 		},
 		{
 			name:  "writeInvoiceNumber",
-			write: func(path string) error { return writeInvoiceNumber(path, "CUST-001-002") },
+			write: func(path string) error { return writeInvoiceNumber(fsutil.Files{}, path, "CUST-001-002") },
 			want:  strings.Replace(commentedInvoice, "number: CUST-001-001", "number: CUST-001-002", 1),
 		},
 	}
@@ -74,7 +76,7 @@ func TestArchivedMarkdownInvoiceUsesTheInvoiceDecoder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	identity, ok, err := archivedInvoiceIdentity(path)
+	identity, ok, err := archivedInvoiceIdentity(fsutil.Files{}, path)
 	if err != nil || !ok {
 		t.Fatalf("archivedInvoiceIdentity = ok %v, error %v; want an invoice", ok, err)
 	}
@@ -83,7 +85,7 @@ func TestArchivedMarkdownInvoiceUsesTheInvoiceDecoder(t *testing.T) {
 		t.Fatalf("identity = %q, want %q", got, want)
 	}
 
-	document, ok, err := loadArchivedInvoiceDocument(path)
+	document, ok, err := loadArchivedInvoiceDocument(fsutil.Files{}, path)
 	if err != nil || !ok {
 		t.Fatalf("loadArchivedInvoiceDocument = ok %v, error %v", ok, err)
 	}

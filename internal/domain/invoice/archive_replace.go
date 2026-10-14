@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/archive"
+	"github.com/0xboris/invox/internal/domain/archive"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // ArchiveOptions controls ArchiveInvoice.
@@ -48,9 +49,9 @@ func (e *ArchiveReplaceError) Error() string {
 // MarkInvoiceBuilt sets invoice.status to `built` after a successful PDF
 // build. An archived invoice keeps `archived`: rebuilding its PDF does not
 // take it out of the archive.
-func MarkInvoiceBuilt(invoicePath string) error {
+func MarkInvoiceBuilt(files ports.Files, invoicePath string) error {
 	var identity invoiceIdentity
-	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil && !isDecodeError(err) {
+	if err := decodeYAMLFile(files, invoicePath, &identity, false); err != nil && !isDecodeError(err) {
 		return err
 	}
 	status := ""
@@ -60,7 +61,7 @@ func MarkInvoiceBuilt(invoicePath string) error {
 	if StatusAfterBuild(status) == "archived" {
 		return nil
 	}
-	return SetInvoiceStatus(invoicePath, "built")
+	return SetInvoiceStatus(files, invoicePath, "built")
 }
 
 // StatusAfterBuild is the invoice.status a successful build leaves: `built`,

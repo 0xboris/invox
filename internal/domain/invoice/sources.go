@@ -1,11 +1,11 @@
 package invoice
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/config"
+	"github.com/0xboris/invox/internal/domain/config"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // Source says where a resolved path came from.
@@ -55,10 +55,11 @@ var supportFiles = [...]struct {
 // project search wins, then paths.* in the config file, then the config
 // directory. Path is "" when nothing is found.
 func (h Host) ResolveSupportFile(kind SupportFile, start string) (Resolved, error) {
+	files := h.files
 	file := supportFiles[kind]
 	for _, dir := range h.projectDirs(start) {
 		for _, name := range file.localNames {
-			if path := filepath.Join(dir, name); fileExists(path) {
+			if path := filepath.Join(dir, name); fileExists(files, path) {
 				return Resolved{Path: path, Source: SourceProject}, nil
 			}
 		}
@@ -134,9 +135,10 @@ var projectMarkers = []string{".git", "invox.yaml", "invoice_defaults.yaml"}
 // the home directory unless start is home. Without a marker it covers the
 // directories below home, or only start when start is not under home.
 func (h Host) projectDirs(start string) []string {
+	files := h.files
 	start = filepath.Clean(start)
 	dirs := []string{start}
-	if hasProjectMarker(start) {
+	if hasProjectMarker(files, start) {
 		return dirs
 	}
 	homes := h.homeForms()
@@ -151,7 +153,7 @@ func (h Host) projectDirs(start string) []string {
 		}
 		dir = parent
 		dirs = append(dirs, dir)
-		if hasProjectMarker(dir) {
+		if hasProjectMarker(files, dir) {
 			return dirs
 		}
 	}
@@ -161,9 +163,9 @@ func (h Host) projectDirs(start string) []string {
 	return dirs[:1]
 }
 
-func hasProjectMarker(dir string) bool {
+func hasProjectMarker(files ports.Files, dir string) bool {
 	for _, marker := range projectMarkers {
-		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+		if _, err := files.Stat(filepath.Join(dir, marker)); err == nil {
 			return true
 		}
 	}
@@ -174,13 +176,14 @@ func hasProjectMarker(dir string) bool {
 // its symlinks resolved, because the working directory usually comes back in
 // the resolved form. An unknown home gives none.
 func (h Host) homeForms() []string {
+	files := h.files
 	home := strings.TrimSpace(h.home)
 	if home == "" {
 		return nil
 	}
 	home = filepath.Clean(home)
 	forms := []string{home}
-	if real, err := filepath.EvalSymlinks(home); err == nil && !h.samePath(real, home) {
+	if real, err := files.EvalSymlinks(home); err == nil && !h.samePath(real, home) {
 		forms = append(forms, real)
 	}
 	return forms

@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xboris/invox/internal/domain/money"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/domain/money"
 )
 
 // A scalarField decodes itself from one YAML node. decodeScalar reports a

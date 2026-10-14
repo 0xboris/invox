@@ -30,12 +30,11 @@ May import: utilities.
 May import: domain, utilities.
 
 - `adapters/applemail`: `internal/adapters/applemail`
-- `adapters/archive`: `internal/adapters/archive`
-- `adapters/config`: `internal/adapters/config`
 - `adapters/editor`: `internal/adapters/editor`
 - `adapters/fsutil`: `internal/adapters/fsutil`
 - `adapters/opener`: `internal/adapters/opener`
 - `adapters/run`: `internal/adapters/run`
+- `adapters/starter`: `internal/adapters/starter`
 - `adapters/tectonic`: `internal/adapters/tectonic`
 
 ## composition

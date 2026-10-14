@@ -2,10 +2,10 @@ package invoice
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/0xboris/invox/internal/domain/money"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // UnknownCustomerError reports a customer_id that customers.yaml does not
@@ -41,8 +41,8 @@ func (e *OutputIsDirError) Error() string {
 
 // refuseDirOutput returns an OutputIsDirError when path is a directory or a
 // symlink to one.
-func refuseDirOutput(path string) error {
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
+func refuseDirOutput(files ports.Files, path string) error {
+	if info, err := files.Stat(path); err == nil && info.IsDir() {
 		return &OutputIsDirError{Path: path}
 	}
 	return nil

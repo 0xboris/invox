@@ -1,15 +1,18 @@
 package invoice
 
 import (
+	"io/fs"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 // The starter is built by tectonic (XeTeX). inputenc/fontenc drop or mangle
 // non-ASCII text there, and without \tracinglostchars=3 a missing glyph is
 // silently dropped while the build still succeeds (#22).
 func TestStarterTemplateUsesUnicodeFontSetup(t *testing.T) {
-	source, err := starterFiles.ReadFile("starter/template.tex")
+	source, err := fs.ReadFile(starter.Files, "template.tex")
 	if err != nil {
 		t.Fatalf("ReadFile(starter/template.tex) returned error: %v", err)
 	}

@@ -3,6 +3,8 @@ package invoice
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 // Regression tests for the #17 bugs that the fuzz targets in fuzz_test.go
@@ -83,7 +85,7 @@ func TestLoadContextRejectsAmountsAboveMaximum(t *testing.T) {
 				replaceInFixture(t, invoicePath, "vat_percent: 20", "vat_percent: 0")
 			}
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, subtotal %d, total %d", ctx.SubtotalCents, ctx.TotalCents)

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestRenderInvoiceShowsSubCentUnitPrice(t *testing.T) {
@@ -13,7 +15,7 @@ func TestRenderInvoiceShowsSubCentUnitPrice(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

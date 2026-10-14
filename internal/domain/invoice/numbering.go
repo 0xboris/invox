@@ -3,7 +3,6 @@ package invoice
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 type NumberingSettings struct {
@@ -196,6 +195,7 @@ func validateCustomerCounterSeparator(pattern string) error {
 }
 
 func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, customer Customer) (int64, []string, error) {
+	files := h.files
 	store, err := h.archiveStore()
 	if err != nil {
 		return 0, nil, err
@@ -204,7 +204,7 @@ func (h Host) highestArchivedCounter(pattern, customerID, issueDate string, cust
 	var highest int64
 	var skipped []string
 	err = store.Walk(func(path string) error {
-		identity, ok, err := readArchivedIdentity(path)
+		identity, ok, err := readArchivedIdentity(files, path)
 		if err != nil || !ok || identity.InvoiceNumber == "" {
 			return err
 		}
@@ -254,6 +254,7 @@ func inNumberingPeriod(pattern, date, issueDate string) bool {
 // before either is archived do not get the same number. Files that cannot be
 // parsed, are not invoices, or do not match the numbering pattern are ignored.
 func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, customer Customer) (int64, error) {
+	files := h.files
 	settings, err := h.ResolveNumberingSettings()
 	if err != nil {
 		return 0, err
@@ -267,7 +268,7 @@ func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, c
 		}
 		seen[dir] = true
 
-		entries, err := os.ReadDir(dir)
+		entries, err := files.ReadDir(dir)
 		if err != nil {
 			// The draft scan is best effort: the archive check still
 			// guarantees uniqueness, so an unreadable directory must not
@@ -288,7 +289,7 @@ func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, c
 				continue
 			}
 
-			invoiceNumber, ok := draftInvoiceNumber(filepath.Join(dir, entry.Name()))
+			invoiceNumber, ok := draftInvoiceNumber(files, filepath.Join(dir, entry.Name()))
 			if !ok {
 				continue
 			}
@@ -308,9 +309,9 @@ func (h Host) highestDraftCounter(dirs []string, customerID, issueDate string, c
 // far smaller.
 const maxDraftScanSize = 1 << 20
 
-func draftInvoiceNumber(path string) (string, bool) {
+func draftInvoiceNumber(files ports.Files, path string) (string, bool) {
 	var identity invoiceIdentity
-	if err := decodeYAMLFile(path, &identity, false); err != nil || identity.Invoice == nil {
+	if err := decodeYAMLFile(files, path, &identity, false); err != nil || identity.Invoice == nil {
 		return "", false
 	}
 	switch identity.Invoice.Status.Trim() {
@@ -449,8 +450,8 @@ func numberingValues(customerID string, customer Customer, issueDate string) (ti
 	return issueTime, customerCode, nil
 }
 
-func writeInvoiceNumber(path, invoiceNumber string) error {
-	document, err := loadYAMLDocument(path)
+func writeInvoiceNumber(files ports.Files, path, invoiceNumber string) error {
+	document, err := loadYAMLDocument(files, path)
 	if err != nil {
 		return err
 	}
@@ -483,7 +484,7 @@ func writeInvoiceNumber(path, invoiceNumber string) error {
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	return fsutil.WriteFile(path, buffer.Bytes(), fsutil.Public)
+	return files.WriteFile(path, buffer.Bytes(), ports.Public)
 }
 
 func findMappingValue(node *yaml.Node, key string) *yaml.Node {

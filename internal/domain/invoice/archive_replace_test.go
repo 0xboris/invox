@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/archive"
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/archive"
 )
 
 // archiveBackupTime is the time the replacement tests archive at, so the
@@ -26,7 +27,7 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 	}
 	// Set notes instead of appending it, so editing an invoice that was
 	// already edited once still writes a single notes key.
-	document, err := loadYAMLDocument(workingCopy)
+	document, err := loadYAMLDocument(fsutil.Files{}, workingCopy)
 	if err != nil {
 		t.Fatalf("loadYAMLDocument returned error: %v", err)
 	}
@@ -35,8 +36,8 @@ func editArchivedForTest(t *testing.T, h Host, archiveName string) string {
 		t.Fatalf("documentRootMapping returned error: %v", err)
 	}
 	setMappingString(root, "notes", "edited")
-	if err := writeYAMLDocument(workingCopy, document); err != nil {
-		t.Fatalf("writeYAMLDocument(%s) returned error: %v", workingCopy, err)
+	if err := writeYAMLDocument(fsutil.Files{}, workingCopy, document); err != nil {
+		t.Fatalf("writeYAMLDocument(fsutil.Files{}, %s) returned error: %v", workingCopy, err)
 	}
 	return workingCopy
 }
@@ -169,7 +170,7 @@ func TestArchiveInvoiceReplaceStillChecksDuplicateNumbers(t *testing.T) {
 	original := readTestFile(t, firstPath)
 
 	workingCopy := editArchivedForTest(t, h, "first.yaml")
-	if err := writeInvoiceNumber(workingCopy, "CUST-001-002"); err != nil {
+	if err := writeInvoiceNumber(fsutil.Files{}, workingCopy, "CUST-001-002"); err != nil {
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 
@@ -235,7 +236,7 @@ func TestMarkInvoiceBuiltKeepsArchivedStatus(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "invoice.yaml")
 			writeStatusInvoice(t, path, "CUST-001-001", tc.status)
 
-			if err := MarkInvoiceBuilt(path); err != nil {
+			if err := MarkInvoiceBuilt(fsutil.Files{}, path); err != nil {
 				t.Fatalf("MarkInvoiceBuilt returned error: %v", err)
 			}
 			if source := readTestFile(t, path); !strings.Contains(source, "status: "+tc.want+"\n") {

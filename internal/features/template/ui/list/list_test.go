@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
@@ -78,7 +80,7 @@ func TestListRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
 
 	tests := []struct {
 		name      string

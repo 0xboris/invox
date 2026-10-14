@@ -4,15 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/domain/email"
 	"github.com/0xboris/invox/internal/domain/money"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 type EmailDraftResult struct {
@@ -74,8 +73,9 @@ func (h Host) ResolveEmailDraftPaths(inputPath, pdfPath, outputPath string) (Ema
 }
 
 func (h Host) resolveInvoicePathForPDF(pdfPath string) (string, error) {
+	files := h.files
 	siblingCandidates := invoiceYAMLCandidatesForPDF(pdfPath)
-	if path := firstExistingPath(siblingCandidates...); path != "" {
+	if path := firstExistingPath(files, siblingCandidates...); path != "" {
 		return path, nil
 	}
 
@@ -96,6 +96,7 @@ func invoiceYAMLCandidatesForPDF(pdfPath string) []string {
 }
 
 func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
+	files := h.files
 	store, err := h.archiveStore()
 	if err != nil {
 		return "", err
@@ -108,7 +109,7 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 	for _, path := range invoiceYAMLCandidatesForPDF(pdfPath) {
 		basenames = append(basenames, filepath.Base(path))
 	}
-	if path := firstExistingPath(
+	if path := firstExistingPath(files,
 		filepath.Join(store.Dir, basenames[0]),
 		filepath.Join(store.Dir, basenames[1]),
 	); path != "" {
@@ -149,11 +150,12 @@ func (h Host) archivedInvoicePathForPDF(pdfPath string) (string, error) {
 // to outputPath as an .eml draft. Unless overwrite is set, an existing
 // outputPath is left untouched and the returned error matches fs.ErrExist.
 func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, outputPath string, overwrite bool) (EmailDraftResult, error) {
-	if err := CheckEmailDraftOutput(outputPath, overwrite); err != nil {
+	files := h.files
+	if err := CheckEmailDraftOutput(files, outputPath, overwrite); err != nil {
 		return EmailDraftResult{}, err
 	}
 
-	pdfBytes, err := os.ReadFile(emailMessage.AttachmentPath)
+	pdfBytes, err := files.ReadFile(emailMessage.AttachmentPath)
 	if err != nil {
 		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
@@ -162,11 +164,11 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, 
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
-	write := fsutil.WriteNewFile
+	write := files.WriteNewFile
 	if overwrite {
-		write = fsutil.WriteFile
+		write = files.WriteFile
 	}
-	if err := write(outputPath, message, fsutil.Public); err != nil {
+	if err := write(outputPath, message, ports.Public); err != nil {
 		return EmailDraftResult{}, err
 	}
 
@@ -182,14 +184,14 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, 
 // CheckEmailDraftOutput returns an OutputIsDirError when outputPath is a
 // directory, and an error matching fs.ErrExist when a draft would replace an
 // existing outputPath and overwrite is not set.
-func CheckEmailDraftOutput(outputPath string, overwrite bool) error {
-	if err := refuseDirOutput(outputPath); err != nil {
+func CheckEmailDraftOutput(files ports.Files, outputPath string, overwrite bool) error {
+	if err := refuseDirOutput(files, outputPath); err != nil {
 		return err
 	}
 	if overwrite {
 		return nil
 	}
-	if _, err := os.Lstat(outputPath); err == nil {
+	if _, err := files.Lstat(outputPath); err == nil {
 		return &fs.PathError{Op: "write", Path: outputPath, Err: fs.ErrExist}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -212,7 +214,8 @@ type EmailParams struct {
 // recipient, subject, body and the PDF to attach. The invoice must be built
 // or archived.
 func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
-	ctx, err := LoadContext(p.CustomersPath, p.IssuerPath, p.InvoicePath)
+	files := h.files
+	ctx, err := LoadContext(files, p.CustomersPath, p.IssuerPath, p.InvoicePath)
 	if err != nil {
 		return EmailMessage{}, err
 	}
@@ -224,7 +227,7 @@ func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
 		}
 		return EmailMessage{}, fmt.Errorf("%s: invoice.status must be `built` or `archived` before creating an email draft, got `%s`", p.InvoicePath, status)
 	}
-	if _, err := os.Stat(p.PDFPath); err != nil {
+	if _, err := files.Stat(p.PDFPath); err != nil {
 		return EmailMessage{}, fmt.Errorf("read %s: %w", p.PDFPath, err)
 	}
 

@@ -138,7 +138,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
 	invoiceDisplay := invoice.DisplayPath(invoicePath, baseDir)
 
-	inv, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	inv, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 		}
 		return err
 	}
-	if err := invoice.MarkInvoiceBuilt(invoicePath); err != nil {
+	if err := invoice.MarkInvoiceBuilt(h.Files(), invoicePath); err != nil {
 		return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, err)
 	}
 	if !opts.Archive {
@@ -192,7 +192,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 // --archive, and prints what the build would do. It neither runs Tectonic
 // nor writes anything.
 func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
-	if _, err := invoice.RenderTeX(templatePath, inv); err != nil {
+	if _, err := invoice.RenderTeX(h.Files(), templatePath, inv); err != nil {
 		return err
 	}
 	var archived invoice.ArchiveResult

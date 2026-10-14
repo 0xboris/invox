@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func writeConfig(t *testing.T, source string) string {
@@ -90,7 +92,7 @@ func TestLoadReportsProblemsWithFileAndLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.source)
 
-			_, err := Load(path)
+			_, err := Load(fsutil.Files{}, path)
 			if err == nil {
 				t.Fatalf("Load returned nil error")
 			}
@@ -133,7 +135,7 @@ func TestLoadDecodesSettings(t *testing.T) {
 	template := filepath.Join(t.TempDir(), "t.tex")
 	path := writeConfig(t, "# comment\npaths:\n  customers: ' sub/c.yaml '\n  issuer: ~/i.yaml\n  template: '"+template+"'\narchive:\n  dir: null\nnumbering:\n  pattern: ' {counter} '\n  start: 7\nemail:\n  subject: Hi\n")
 
-	c, err := Load(path)
+	c, err := Load(fsutil.Files{}, path)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
@@ -162,18 +164,18 @@ func TestLoadDecodesSettings(t *testing.T) {
 func TestLoadEmptyFileIsTheZeroConfig(t *testing.T) {
 	for _, source := range []string{"", "# only a comment\n\n"} {
 		path := writeConfig(t, source)
-		c, err := Load(path)
+		c, err := Load(fsutil.Files{}, path)
 		if err != nil {
-			t.Fatalf("Load(%q) returned error: %v", source, err)
+			t.Fatalf("Load(fsutil.Files{}, %q) returned error: %v", source, err)
 		}
 		if *c != (Config{File: path}) {
-			t.Fatalf("Load(%q) = %+v, want the zero Config with File set", source, *c)
+			t.Fatalf("Load(fsutil.Files{}, %q) = %+v, want the zero Config with File set", source, *c)
 		}
 	}
 }
 
 func TestLoadMissingFileIsNotExist(t *testing.T) {
-	_, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	_, err := Load(fsutil.Files{}, filepath.Join(t.TempDir(), "missing.yaml"))
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Load error = %v, want fs.ErrNotExist", err)
 	}

@@ -7,7 +7,8 @@ import (
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/0xboris/invox/internal/adapters/archive"
+	"github.com/0xboris/invox/internal/domain/archive"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 type ArchivedInvoiceSummary struct {
@@ -69,7 +70,7 @@ func (h Host) archiveStore() (archive.Store, error) {
 	if err != nil {
 		return archive.Store{}, err
 	}
-	return archive.Store{Dir: archiveDir}, nil
+	return archive.Store{Dir: archiveDir, Files: h.files}, nil
 }
 
 func (h Host) collectArchivedInvoiceRecords() ([]archive.Entry, error) {
@@ -77,14 +78,14 @@ func (h Host) collectArchivedInvoiceRecords() ([]archive.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.List(readArchivedIdentity)
+	return store.List(func(path string) (archive.Identity, bool, error) { return readArchivedIdentity(h.files, path) })
 }
 
 // archivedInvoiceIdentity reads what the archive lists of the invoice at
 // path. ok is false for a file that is not an invoice: Markdown without
 // front matter, or a document whose invoice fields cannot be read.
-func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
-	document, ok, err := loadArchivedInvoiceDocument(path)
+func archivedInvoiceIdentity(files ports.Files, path string) (invoiceIdentity, bool, error) {
+	document, ok, err := loadArchivedInvoiceDocument(files, path)
 	if err != nil || !ok {
 		return invoiceIdentity{}, false, err
 	}
@@ -101,8 +102,8 @@ func archivedInvoiceIdentity(path string) (invoiceIdentity, bool, error) {
 
 // readArchivedIdentity is the archive.Reader for invoices. An archived
 // invoice without a status is listed as `archived`.
-func readArchivedIdentity(path string) (archive.Identity, bool, error) {
-	identity, ok, err := archivedInvoiceIdentity(path)
+func readArchivedIdentity(files ports.Files, path string) (archive.Identity, bool, error) {
+	identity, ok, err := archivedInvoiceIdentity(files, path)
 	if err != nil || !ok {
 		return archive.Identity{}, ok, err
 	}
@@ -147,7 +148,8 @@ func (e *DuplicateInvoiceNumberError) Error() string {
 // The archived file the invoice was opened from (`archive edit`) does not
 // count as a duplicate.
 func (h Host) CheckArchivedNumberUnique(invoicePath string) error {
-	document, err := loadYAMLDocument(invoicePath)
+	files := h.files
+	document, err := loadYAMLDocument(files, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -195,7 +197,7 @@ func (h Host) checkArchivedNumberUnique(invoicePath, invoiceNumber string, store
 		excluded[target.Path] = true
 	}
 
-	records, err := store.List(readArchivedIdentity)
+	records, err := store.List(func(path string) (archive.Identity, bool, error) { return readArchivedIdentity(h.files, path) })
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
@@ -12,7 +14,7 @@ func TestRenderInvoiceMatchesExistingOutput(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := LoadContext(fsutil.Files{},
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -52,7 +54,7 @@ func TestRenderInvoiceRendersSplitCityAndPostalCodePlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := LoadContext(fsutil.Files{},
 		customersPath,
 		issuerPath,
 		invoicePath,
@@ -103,7 +105,7 @@ func TestRenderInvoiceRendersVATSummaryRowsAndPerLineVATRows(t *testing.T) {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -154,7 +156,7 @@ func TestRenderInvoiceRendersCustomLineItemBlockWithoutDescriptionColumn(t *test
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -202,7 +204,7 @@ func TestRenderInvoiceCustomLineItemBlockDoesNotLeaveBlankLineBeforeFollowingCon
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -241,7 +243,7 @@ func TestRenderInvoiceInlineCustomLineItemBlockPreservesLeadingNewlineInBody(t *
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -283,7 +285,7 @@ func TestRenderInvoiceUsesCustomVATLabelInSummaryRows(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -322,7 +324,7 @@ func TestRenderInvoiceMigratesLegacyStarterVATRow(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -361,7 +363,7 @@ func TestRenderInvoiceRejectsLegacyVATPlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -391,7 +393,7 @@ func TestRenderInvoiceRejectsLegacyCityAndPostalCodePlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -421,7 +423,7 @@ func TestRenderInvoiceRejectsUnmatchedLineItemBlockPlaceholders(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -447,7 +449,7 @@ func TestRenderInvoiceRejectsLineItemPlaceholdersOutsideCustomBlock(t *testing.T
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

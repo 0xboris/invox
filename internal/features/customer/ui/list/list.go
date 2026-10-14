@@ -78,7 +78,7 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 
-	customers, err := invoice.ListCustomers(customersPath)
+	customers, err := invoice.ListCustomers(opts.Host().Files(), customersPath)
 	if err != nil {
 		return err
 	}

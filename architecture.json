@@ -78,8 +78,11 @@
   },
 
   "externalSets": {
-    "io-packages": ["net", "net/*", "os", "os/*", "io/fs", "io/ioutil", "database/*", "math/rand", "math/rand/*",
-                    "crypto/rand", "syscall", "log", "log/*", "embed", "runtime/debug", "plugin"],
+    // io/fs holds only interfaces, types and errors, which the domain's ports
+    // use; net/mail and net/textproto only parse and format messages.
+    "io-packages": ["net", "net/http", "net/http/*", "net/rpc", "net/rpc/*", "net/smtp", "os", "os/*", "io/ioutil",
+                    "database/*", "math/rand", "math/rand/*", "crypto/rand", "syscall", "log", "log/*", "embed",
+                    "runtime/debug", "plugin"],
     "cli-framework": ["github.com/spf13/cobra", "github.com/spf13/cobra/*", "github.com/spf13/pflag"]
   },
 

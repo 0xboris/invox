@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // maxYAMLAliasNodes caps how many nodes a document may reach through
@@ -221,8 +223,8 @@ func (e *DecodeError) Error() string {
 // decodeYAMLFile reads the YAML file at path and decodes its root mapping
 // into out, a pointer to a schema struct. Problems with values come back as
 // *DecodeError values, several joined with errors.Join in file order.
-func decodeYAMLFile(path string, out any, strict bool) error {
-	document, err := loadYAMLDocument(path)
+func decodeYAMLFile(files ports.Files, path string, out any, strict bool) error {
+	document, err := loadYAMLDocument(files, path)
 	if err != nil {
 		return err
 	}

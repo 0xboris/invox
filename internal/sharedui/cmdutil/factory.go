@@ -7,8 +7,10 @@ import (
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
 	"github.com/0xboris/invox/internal/adapters/editor"
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/utilities/env"
@@ -76,6 +78,8 @@ func newHost(e env.Env, configFile string) invoice.Host {
 		AppData:       absOnly(e.Getenv("APPDATA")),
 		ConfigDir:     absAgainst(cwd, e.Getenv("INVOX_CONFIG_DIR")),
 		ConfigFile:    absAgainst(cwd, configFile),
+		Files:         fsutil.Files{},
+		Starter:       starter.Files,
 	})
 }
 

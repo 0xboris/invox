@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -82,7 +85,7 @@ func configDirs(t *testing.T) (root string, in HostInputs) {
 	}
 	explicit := filepath.Join(root, "explicit.yaml")
 	writeFile(t, explicit, archiveConfig(filepath.Join(root, "explicit-archive")))
-	return root, HostInputs{GOOS: "linux", Home: filepath.Join(root, "home"), XDGConfigHome: configHome}
+	return root, HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: filepath.Join(root, "home"), XDGConfigHome: configHome}
 }
 
 func TestConfigFilePrecedence(t *testing.T) {
@@ -274,7 +277,7 @@ func TestUpwardSearchIsBounded(t *testing.T) {
 func TestUpwardSearchComparesHomeIgnoringCaseOnMacOS(t *testing.T) {
 	root := t.TempDir()
 	start := filepath.Join(root, "home", "a", "b")
-	h := NewHost(HostInputs{GOOS: "darwin", Home: filepath.Join(root, "HOME"), XDGConfigHome: filepath.Join(root, "config-home")})
+	h := NewHost(HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "darwin", Home: filepath.Join(root, "HOME"), XDGConfigHome: filepath.Join(root, "config-home")})
 
 	want := []string{start, filepath.Dir(start)}
 	if got := h.projectDirs(start); !reflect.DeepEqual(got, want) {

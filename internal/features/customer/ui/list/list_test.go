@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
@@ -67,7 +69,7 @@ func TestListRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(work, "c.yaml"), []byte("B-1:\n  name: Beta\n  status: inactive\nA-1:\n  name: Alpha\n  status: active\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
 
 	ios, _, out, errOut := iostreams.Test()
 	opts := &ListOptions{

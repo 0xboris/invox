@@ -1,18 +1,13 @@
 package invoice
 
 import (
-	"embed"
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
-
-//go:embed starter/customers.yaml starter/issuer.yaml starter/invoice_defaults.yaml starter/template.tex
-var starterFiles embed.FS
 
 type InitFileResult struct {
 	Path    string
@@ -20,17 +15,18 @@ type InitFileResult struct {
 }
 
 func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
+	files := h.files
 	configDir := h.ConfigDir()
 	if strings.TrimSpace(configDir) == "" {
 		return "", nil, errors.New("config directory is unavailable")
 	}
-	if err := fsutil.MkdirAll(configDir, fsutil.Private); err != nil {
+	if err := files.MkdirAll(configDir, ports.Private); err != nil {
 		return "", nil, err
 	}
 
 	results := make([]InitFileResult, 0, 5)
 
-	created, err := ensureStarterFile(h.GlobalConfigPath(), []byte(h.defaultConfigTemplate()), fsutil.Public)
+	created, err := ensureStarterFile(files, h.GlobalConfigPath(), []byte(h.defaultConfigTemplate()), ports.Public)
 	if err != nil {
 		return "", nil, err
 	}
@@ -39,18 +35,18 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 	for _, file := range []struct {
 		path string
 		name string
-		perm fsutil.Perm
+		perm ports.Perm
 	}{
-		{path: h.GlobalCustomersPath(), name: "starter/customers.yaml", perm: fsutil.Private},
-		{path: h.GlobalIssuerPath(), name: "starter/issuer.yaml", perm: fsutil.Private},
-		{path: h.GlobalInvoiceDefaultsPath(), name: "starter/invoice_defaults.yaml", perm: fsutil.Public},
-		{path: h.GlobalTemplatePath(), name: "starter/template.tex", perm: fsutil.Public},
+		{path: h.GlobalCustomersPath(), name: "customers.yaml", perm: ports.Private},
+		{path: h.GlobalIssuerPath(), name: "issuer.yaml", perm: ports.Private},
+		{path: h.GlobalInvoiceDefaultsPath(), name: "invoice_defaults.yaml", perm: ports.Public},
+		{path: h.GlobalTemplatePath(), name: "template.tex", perm: ports.Public},
 	} {
-		content, err := starterFiles.ReadFile(file.name)
+		content, err := fs.ReadFile(h.starter, file.name)
 		if err != nil {
 			return "", nil, err
 		}
-		created, err := ensureStarterFile(file.path, content, file.perm)
+		created, err := ensureStarterFile(files, file.path, content, file.perm)
 		if err != nil {
 			return "", nil, err
 		}
@@ -64,27 +60,27 @@ func (h Host) InitializeConfigDir() (string, []InitFileResult, error) {
 // reports whether it did. A dangling symlink at path counts as missing, and
 // its target is written. A file created by someone else in the meantime is
 // left alone.
-func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, error) {
-	info, err := os.Stat(path)
+func ensureStarterFile(files ports.Files, path string, content []byte, perm ports.Perm) (bool, error) {
+	info, err := files.Stat(path)
 	switch {
 	case err == nil && info.Size() > 0:
 		return false, nil
 	case err == nil:
-		if err := fsutil.WriteFile(path, content, perm); err != nil {
+		if err := files.WriteFile(path, content, perm); err != nil {
 			return false, err
 		}
 		return true, nil
-	case !errors.Is(err, os.ErrNotExist):
+	case !errors.Is(err, fs.ErrNotExist):
 		return false, err
 	}
-	if info, err := os.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
-		if err := fsutil.WriteFile(path, content, perm); err != nil {
+	if info, err := files.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		if err := files.WriteFile(path, content, perm); err != nil {
 			return false, err
 		}
 		return true, nil
 	}
 
-	err = fsutil.WriteNewFile(path, content, perm)
+	err = files.WriteNewFile(path, content, perm)
 	if errors.Is(err, fs.ErrExist) {
 		return false, nil
 	}
@@ -97,26 +93,27 @@ func ensureStarterFile(path string, content []byte, perm fsutil.Perm) (bool, err
 // LegacyFilesToCopy returns the files in the legacy config directory, relative
 // to it, that the config directory does not have yet.
 func (h Host) LegacyFilesToCopy() ([]string, error) {
+	files := h.files
 	legacyDir := h.LegacyConfigDir()
 	if legacyDir == "" {
 		return nil, nil
 	}
 	var missing []string
-	err := filepath.WalkDir(legacyDir, func(path string, entry fs.DirEntry, err error) error {
+	err := files.WalkDir(legacyDir, func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, fs.ErrNotExist) && path == legacyDir {
 			return filepath.SkipDir
 		}
 		if err != nil || entry.IsDir() {
 			return err
 		}
-		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		if info, err := files.Stat(path); err != nil || !info.Mode().IsRegular() {
 			return nil //nolint:nilerr // only regular files are copied; skip a link that does not resolve or cannot be read
 		}
 		rel, err := filepath.Rel(legacyDir, path)
 		if err != nil {
 			return err
 		}
-		if _, err := os.Lstat(filepath.Join(h.ConfigDir(), rel)); errors.Is(err, fs.ErrNotExist) {
+		if _, err := files.Lstat(filepath.Join(h.ConfigDir(), rel)); errors.Is(err, fs.ErrNotExist) {
 			missing = append(missing, rel)
 		}
 		return nil
@@ -129,6 +126,7 @@ func (h Host) LegacyFilesToCopy() ([]string, error) {
 // legacy directory as it is, so running it again copies only what is still
 // missing.
 func (h Host) CopyLegacyFiles() ([]string, error) {
+	files := h.files
 	missing, err := h.LegacyFilesToCopy()
 	if err != nil {
 		return nil, err
@@ -136,16 +134,16 @@ func (h Host) CopyLegacyFiles() ([]string, error) {
 	if len(missing) == 0 {
 		return nil, nil
 	}
-	if err := fsutil.MkdirAll(h.ConfigDir(), fsutil.Private); err != nil {
+	if err := files.MkdirAll(h.ConfigDir(), ports.Private); err != nil {
 		return nil, err
 	}
 	copied := make([]string, 0, len(missing))
 	for _, rel := range missing {
-		content, err := os.ReadFile(filepath.Join(h.LegacyConfigDir(), rel))
+		content, err := files.ReadFile(filepath.Join(h.LegacyConfigDir(), rel))
 		if err != nil {
 			return copied, err
 		}
-		err = fsutil.WriteNewFile(filepath.Join(h.ConfigDir(), rel), content, legacyFilePerm(rel))
+		err = files.WriteNewFile(filepath.Join(h.ConfigDir(), rel), content, legacyFilePerm(rel))
 		if errors.Is(err, fs.ErrExist) {
 			continue
 		}
@@ -159,10 +157,10 @@ func (h Host) CopyLegacyFiles() ([]string, error) {
 
 // legacyFilePerm gives customers.yaml and issuer.yaml the same private mode
 // that init gives their starter files.
-func legacyFilePerm(rel string) fsutil.Perm {
+func legacyFilePerm(rel string) ports.Perm {
 	switch rel {
 	case "customers.yaml", "issuer.yaml":
-		return fsutil.Private
+		return ports.Private
 	}
-	return fsutil.Public
+	return ports.Public
 }

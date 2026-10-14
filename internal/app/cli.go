@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/adapters/config"
+	"github.com/0xboris/invox/internal/domain/config"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 

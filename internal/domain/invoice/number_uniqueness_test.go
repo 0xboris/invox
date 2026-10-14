@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestArchiveInvoiceReturnsDuplicateInvoiceNumberError(t *testing.T) {
@@ -49,7 +51,7 @@ func TestArchiveInvoiceRefusesEditedCopyRenumberedToAnotherArchivedInvoice(t *te
 	if err != nil {
 		t.Fatalf("EditArchivedInvoice returned error: %v", err)
 	}
-	if err := writeInvoiceNumber(workingCopy, "CUST-001-002"); err != nil {
+	if err := writeInvoiceNumber(fsutil.Files{}, workingCopy, "CUST-001-002"); err != nil {
 		t.Fatalf("writeInvoiceNumber returned error: %v", err)
 	}
 

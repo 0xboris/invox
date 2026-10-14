@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 const (
@@ -25,18 +27,18 @@ var aliasLoaders = map[string]struct {
 	load     func(path string) error
 }{
 	"decodeYAMLFile": {load: func(path string) error {
-		return decodeYAMLFile(path, &invoiceIdentity{}, false)
+		return decodeYAMLFile(fsutil.Files{}, path, &invoiceIdentity{}, false)
 	}},
 	"loadYAMLDocument": {load: func(path string) error {
-		_, err := loadYAMLDocument(path)
+		_, err := loadYAMLDocument(fsutil.Files{}, path)
 		return err
 	}},
 	"archivedInvoiceIdentity": {markdown: true, load: func(path string) error {
-		_, _, err := archivedInvoiceIdentity(path)
+		_, _, err := archivedInvoiceIdentity(fsutil.Files{}, path)
 		return err
 	}},
 	"loadArchivedInvoiceDocument": {markdown: true, load: func(path string) error {
-		_, _, err := loadArchivedInvoiceDocument(path)
+		_, _, err := loadArchivedInvoiceDocument(fsutil.Files{}, path)
 		return err
 	}},
 }

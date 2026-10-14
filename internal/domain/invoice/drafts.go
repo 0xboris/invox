@@ -4,15 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/0xboris/invox/internal/adapters/archive"
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/archive"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 const (
@@ -26,8 +25,8 @@ func (h Host) GlobalInvoiceDefaultsPath() string {
 }
 
 // LoadCustomer decodes the entry of customerID in customers.yaml.
-func LoadCustomer(customersPath, customerID string) (Customer, error) {
-	customers, err := loadCustomerTable(customersPath)
+func LoadCustomer(files ports.Files, customersPath, customerID string) (Customer, error) {
+	customers, err := loadCustomerTable(files, customersPath)
 	if err != nil {
 		return Customer{}, err
 	}
@@ -39,9 +38,9 @@ func LoadCustomer(customersPath, customerID string) (Customer, error) {
 }
 
 // LoadIssuerPayment decodes issuer.yaml and returns its payment details.
-func LoadIssuerPayment(issuerPath string) (Payment, error) {
+func LoadIssuerPayment(files ports.Files, issuerPath string) (Payment, error) {
 	var issuer IssuerFile
-	if err := decodeYAMLFile(issuerPath, &issuer, true); err != nil {
+	if err := decodeYAMLFile(files, issuerPath, &issuer, true); err != nil {
 		return Payment{}, err
 	}
 	if issuer.Payment == nil {
@@ -81,20 +80,21 @@ type NewInvoiceParams struct {
 }
 
 func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
+	files := h.files
 	if strings.TrimSpace(p.OutputPath) != "" {
-		if err := refuseDirOutput(p.OutputPath); err != nil {
+		if err := refuseDirOutput(files, p.OutputPath); err != nil {
 			return NewInvoice{}, err
 		}
-		if !p.Overwrite && fileExists(p.OutputPath) {
+		if !p.Overwrite && fileExists(files, p.OutputPath) {
 			return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 		}
 	}
 
-	customer, err := LoadCustomer(p.CustomersPath, p.CustomerID)
+	customer, err := LoadCustomer(files, p.CustomersPath, p.CustomerID)
 	if err != nil {
 		return NewInvoice{}, err
 	}
-	issuerPayment, err := LoadIssuerPayment(p.IssuerPath)
+	issuerPayment, err := LoadIssuerPayment(files, p.IssuerPath)
 	if err != nil {
 		return NewInvoice{}, err
 	}
@@ -118,10 +118,10 @@ func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
 	if strings.TrimSpace(p.OutputPath) == "" {
 		p.OutputPath = filepath.Join(p.WorkDir, invoiceNumber+".yaml")
 	}
-	if err := refuseDirOutput(p.OutputPath); err != nil {
+	if err := refuseDirOutput(files, p.OutputPath); err != nil {
 		return NewInvoice{}, err
 	}
-	if !p.Overwrite && fileExists(p.OutputPath) {
+	if !p.Overwrite && fileExists(files, p.OutputPath) {
 		return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 	}
 	root, err := documentRootMapping(document, sourceLabel)
@@ -169,11 +169,11 @@ func (h Host) CreateNewInvoice(p NewInvoiceParams) (NewInvoice, error) {
 	if p.DryRun {
 		return created, nil
 	}
-	write := fsutil.WriteNewFile
+	write := files.WriteNewFile
 	if p.Overwrite {
-		write = fsutil.WriteFile
+		write = files.WriteFile
 	}
-	if err := write(p.OutputPath, data, fsutil.Public); err != nil {
+	if err := write(p.OutputPath, data, ports.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return NewInvoice{}, &OutputExistsError{Path: p.OutputPath}
 		}
@@ -194,8 +194,9 @@ func draftSearchDirs(workDir, outputPath string) []string {
 }
 
 func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast bool) (*yaml.Node, string, error) {
+	files := h.files
 	if !fromLast {
-		document, err := loadYAMLDocument(defaultsPath)
+		document, err := loadYAMLDocument(files, defaultsPath)
 		if err != nil {
 			return nil, "", err
 		}
@@ -210,7 +211,7 @@ func (h Host) loadNewInvoiceDocument(defaultsPath, customerID string, fromLast b
 		return nil, "", fmt.Errorf("no archived invoice found for customer_id `%s`", customerID)
 	}
 
-	document, ok, err := loadArchivedInvoiceDocument(archivePath)
+	document, ok, err := loadArchivedInvoiceDocument(files, archivePath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -232,12 +233,13 @@ type IncrementedInvoice struct {
 // IncrementInvoiceNumber writes the next invoice number into the invoice at
 // invoicePath. With dryRun it returns the same result and writes nothing.
 func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string, dryRun bool) (IncrementedInvoice, error) {
-	customerID, issueDate, oldInvoiceNumber, err := readInvoiceIdentity(invoicePath)
+	files := h.files
+	customerID, issueDate, oldInvoiceNumber, err := readInvoiceIdentity(files, invoicePath)
 	if err != nil {
 		return IncrementedInvoice{}, err
 	}
 
-	customer, err := LoadCustomer(customersPath, customerID)
+	customer, err := LoadCustomer(files, customersPath, customerID)
 	if err != nil {
 		return IncrementedInvoice{}, err
 	}
@@ -260,17 +262,17 @@ func (h Host) IncrementInvoiceNumber(invoicePath, customersPath string, dryRun b
 	if dryRun {
 		return incremented, nil
 	}
-	if err := writeInvoiceNumber(invoicePath, newInvoiceNumber); err != nil {
+	if err := writeInvoiceNumber(files, invoicePath, newInvoiceNumber); err != nil {
 		return IncrementedInvoice{}, err
 	}
 	return incremented, nil
 }
 
-func SetInvoiceStatus(invoicePath, status string) error {
+func SetInvoiceStatus(files ports.Files, invoicePath, status string) error {
 	if strings.TrimSpace(status) == "" {
 		return fmt.Errorf("invoice status must not be empty")
 	}
-	return writeInvoiceStringField(invoicePath, "status", status)
+	return writeInvoiceStringField(files, invoicePath, "status", status)
 }
 
 // EditArchiveOptions controls EditArchivedInvoice.
@@ -285,13 +287,14 @@ type EditArchiveOptions struct {
 // EditArchivedInvoice copies the archived invoice archiveName into workDir as
 // a working copy and returns its path and the archived invoice's path.
 func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveOptions) (string, string, error) {
+	files := h.files
 	target, err := h.resolveArchiveInputPath(archiveName)
 	if err != nil {
 		return "", "", err
 	}
 	archivePath := target.Path
 
-	document, ok, err := loadArchivedInvoiceDocument(archivePath)
+	document, ok, err := loadArchivedInvoiceDocument(files, archivePath)
 	if err != nil {
 		return "", "", err
 	}
@@ -315,10 +318,10 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 
 	edit := target.Edit()
 	outputPath := filepath.Join(workDir, edit.Filename)
-	if err := refuseDirOutput(outputPath); err != nil {
+	if err := refuseDirOutput(files, outputPath); err != nil {
 		return "", "", err
 	}
-	if !opts.Overwrite && fileExists(outputPath) {
+	if !opts.Overwrite && fileExists(files, outputPath) {
 		return "", "", &OutputExistsError{Path: outputPath}
 	}
 
@@ -335,11 +338,11 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 	if opts.DryRun {
 		return outputPath, archivePath, nil
 	}
-	write := fsutil.WriteNewFile
+	write := files.WriteNewFile
 	if opts.Overwrite {
-		write = fsutil.WriteFile
+		write = files.WriteFile
 	}
-	if err := write(outputPath, data, fsutil.Public); err != nil {
+	if err := write(outputPath, data, ports.Public); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return "", "", &OutputExistsError{Path: outputPath}
 		}
@@ -354,7 +357,8 @@ func (h Host) EditArchivedInvoice(archiveName, workDir string, opts EditArchiveO
 // is written, unless opts.Replace is set. With opts.Replace the replaced
 // files are first copied to the archive's history directory.
 func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOptions) (ArchiveResult, error) {
-	document, err := loadYAMLDocument(invoicePath)
+	files := h.files
+	document, err := loadYAMLDocument(files, invoicePath)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
@@ -405,7 +409,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		default:
 			return ArchiveResult{}, fmt.Errorf("%s: invoice.status must be `built` before archiving, got `%s`", invoicePath, status)
 		}
-		if fileExists(archivePath) {
+		if fileExists(files, archivePath) {
 			return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
 		}
 	}
@@ -431,7 +435,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 	}
 	var replaced []string
 	if editingArchive {
-		replaced, err = archive.ExistingFiles(archivePath, replacePath)
+		replaced, err = archive.ExistingFiles(files, archivePath, replacePath)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -450,7 +454,7 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		}
 		return result, nil
 	}
-	if err := fsutil.MkdirAll(store.Dir, fsutil.Private); err != nil {
+	if err := files.MkdirAll(store.Dir, ports.Private); err != nil {
 		return ArchiveResult{}, err
 	}
 	backups, err := store.Backup(replaced, now)
@@ -465,19 +469,19 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 		return ArchiveResult{}, err
 	}
 	if editingArchive {
-		err = fsutil.WriteFile(archivePath, data, fsutil.Private)
-	} else if err = fsutil.WriteNewFile(archivePath, data, fsutil.Private); errors.Is(err, fs.ErrExist) {
+		err = files.WriteFile(archivePath, data, ports.Private)
+	} else if err = files.WriteNewFile(archivePath, data, ports.Private); errors.Is(err, fs.ErrExist) {
 		return ArchiveResult{}, fmt.Errorf("%s already exists", archivePath)
 	}
 	if err != nil {
 		return ArchiveResult{}, err
 	}
 	if replacePath != "" {
-		if err := os.Remove(replacePath); err != nil && !os.IsNotExist(err) {
+		if err := files.Remove(replacePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return ArchiveResult{}, fmt.Errorf("remove %s: %w", replacePath, err)
 		}
 	}
-	if err := os.Remove(sourcePath); err != nil {
+	if err := files.Remove(sourcePath); err != nil {
 		return ArchiveResult{}, fmt.Errorf("remove %s: %w", sourcePath, err)
 	}
 	return ArchiveResult{Path: archivePath, Replaced: backups, HistoryDir: store.HistoryDir()}, nil
@@ -487,7 +491,8 @@ func (h Host) ArchiveInvoice(now time.Time, invoicePath string, opts ArchiveOpti
 // would replace an existing file inside the archive directory: an archived
 // invoice is replaced only by re-archiving, which keeps a backup.
 func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
-	if !overwrite || !fileExists(outputPath) {
+	files := h.files
+	if !overwrite || !fileExists(files, outputPath) {
 		return nil
 	}
 	store, err := h.archiveStore()
@@ -497,14 +502,14 @@ func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
 	if strings.TrimSpace(store.Dir) == "" {
 		return nil
 	}
-	archiveInfo, err := os.Stat(store.Dir)
+	archiveInfo, err := files.Stat(store.Dir)
 	if err != nil {
 		return nil //nolint:nilerr // no readable archive directory means no archived file to protect
 	}
-	if inDir(outputPath, archiveInfo) {
+	if inDir(files, outputPath, archiveInfo) {
 		return &ArchivedOutputError{Path: outputPath}
 	}
-	if resolved, err := filepath.EvalSymlinks(outputPath); err == nil && inDir(resolved, archiveInfo) {
+	if resolved, err := files.EvalSymlinks(outputPath); err == nil && inDir(files, resolved, archiveInfo) {
 		return &ArchivedOutputError{Path: outputPath}
 	}
 	return nil
@@ -513,9 +518,9 @@ func (h Host) refuseArchivedOverwrite(outputPath string, overwrite bool) error {
 // inDir reports whether one of path's parent directories is dir. It compares
 // files rather than names, so a differently cased path on a case-insensitive
 // file system, or a symlinked parent, still matches.
-func inDir(path string, dir os.FileInfo) bool {
+func inDir(files ports.Files, path string, dir fs.FileInfo) bool {
 	for parent := filepath.Dir(filepath.Clean(path)); ; parent = filepath.Dir(parent) {
-		if info, err := os.Stat(parent); err == nil && os.SameFile(info, dir) {
+		if info, err := files.Stat(parent); err == nil && files.SameFile(info, dir) {
 			return true
 		}
 		if filepath.Dir(parent) == parent {
@@ -526,9 +531,9 @@ func inDir(path string, dir os.FileInfo) bool {
 
 // readInvoiceIdentity reads the customer, issue date and number that
 // numbering needs from the invoice at invoicePath.
-func readInvoiceIdentity(invoicePath string) (string, string, string, error) {
+func readInvoiceIdentity(files ports.Files, invoicePath string) (string, string, string, error) {
 	var identity invoiceIdentity
-	if err := decodeYAMLFile(invoicePath, &identity, false); err != nil {
+	if err := decodeYAMLFile(files, invoicePath, &identity, false); err != nil {
 		return "", "", "", err
 	}
 
@@ -566,16 +571,16 @@ func issuerDueDays(issuerPath string, payment Payment) (int, error) {
 	return int(payment.DueDays.Int()), nil
 }
 
-func loadArchivedInvoiceDocument(path string) (*yaml.Node, bool, error) {
+func loadArchivedInvoiceDocument(files ports.Files, path string) (*yaml.Node, bool, error) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":
-		document, err := loadYAMLDocument(path)
+		document, err := loadYAMLDocument(files, path)
 		if err != nil {
 			return nil, true, err
 		}
 		return document, true, nil
 	case ".md", ".markdown":
-		source, err := os.ReadFile(path)
+		source, err := files.ReadFile(path)
 		if err != nil {
 			return nil, false, err
 		}
@@ -593,8 +598,8 @@ func loadArchivedInvoiceDocument(path string) (*yaml.Node, bool, error) {
 	}
 }
 
-func writeInvoiceStringField(path, key, value string) error {
-	document, err := loadYAMLDocument(path)
+func writeInvoiceStringField(files ports.Files, path, key, value string) error {
+	document, err := loadYAMLDocument(files, path)
 	if err != nil {
 		return err
 	}
@@ -610,7 +615,7 @@ func writeInvoiceStringField(path, key, value string) error {
 	}
 
 	setMappingString(invoiceNode, key, value)
-	return writeYAMLDocument(path, document)
+	return writeYAMLDocument(files, path, document)
 }
 
 func archiveMetadata(root *yaml.Node) (string, string) {

@@ -24,11 +24,12 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		flagValue, _ := cmd.Flags().GetString("customers")
-		path, err := SupportPath(completionHost(f, cmd), "", invoice.Customers, flagValue, cwd)
+		host := completionHost(f, cmd)
+		path, err := SupportPath(host, "", invoice.Customers, flagValue, cwd)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		customers, err := invoice.ListCustomers(path)
+		customers, err := invoice.ListCustomers(host.Files(), path)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}

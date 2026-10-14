@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "rewrite testdata/golden/*/want-* from the current code")
@@ -22,7 +25,7 @@ func TestGoldenInputs(t *testing.T) {
 	}
 	templates := map[string]string{
 		"want-all.tex":     filepath.Join(root, "all_placeholders.tex"),
-		"want-starter.tex": filepath.Join("starter", "template.tex"),
+		"want-starter.tex": filepath.Join("..", "..", "adapters", "starter", "files", "template.tex"),
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -39,9 +42,9 @@ func TestGoldenInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			tmp := t.TempDir()
-			h := NewHost(HostInputs{GOOS: "linux", Home: filepath.Join(tmp, "home"), XDGConfigHome: filepath.Join(tmp, "config"), ConfigFile: configFile})
+			h := NewHost(HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: filepath.Join(tmp, "home"), XDGConfigHome: filepath.Join(tmp, "config"), ConfigFile: configFile})
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 			if err != nil {
 				t.Fatalf("LoadContext: %v", err)
 			}

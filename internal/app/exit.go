@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/config"
+	"github.com/0xboris/invox/internal/domain/config"
 	"github.com/0xboris/invox/internal/adapters/tectonic"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"

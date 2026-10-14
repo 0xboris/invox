@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/0xboris/invox/internal/adapters/applemail"
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/opener"
 	"github.com/0xboris/invox/internal/adapters/run"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
@@ -21,14 +23,14 @@ import (
 // was given, which need not be the process's own.
 func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: work, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: filepath.Join(work, "inv.yaml"), CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := invoice.MarkInvoiceBuilt(filepath.Join(work, "inv.yaml")); err != nil {
+	if err := invoice.MarkInvoiceBuilt(fsutil.Files{}, filepath.Join(work, "inv.yaml")); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(work, "inv.pdf"), []byte("%PDF\n"), 0o644); err != nil {
@@ -70,7 +72,7 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 // compose anything.
 func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 	work := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "darwin", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "darwin", Home: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}

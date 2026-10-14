@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/0xboris/invox/internal/adapters/config"
+	"github.com/0xboris/invox/internal/domain/config"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // HostInputs are the parts of the environment the user directories come
@@ -24,6 +24,11 @@ type HostInputs struct {
 	AppData       string
 	ConfigDir     string
 	ConfigFile    string
+	// Files is the file system the Host and everything it loads uses.
+	Files ports.Files
+	// Starter holds the files InitializeConfigDir writes: customers.yaml,
+	// issuer.yaml, invoice_defaults.yaml and template.tex.
+	Starter fs.FS
 }
 
 // Host holds the user directories invox reads and writes, resolved once, and
@@ -38,10 +43,12 @@ type Host struct {
 	configFile string
 	legacy     *legacyUse
 	config     func() (*config.Config, error)
+	files      ports.Files
+	starter    fs.FS
 }
 
 func NewHost(in HostInputs) Host {
-	h := Host{goos: in.GOOS, home: in.Home, configFile: in.ConfigFile, legacy: &legacyUse{}}
+	h := Host{goos: in.GOOS, home: in.Home, configFile: in.ConfigFile, legacy: &legacyUse{}, files: in.Files, starter: in.Starter}
 	homeKnown := strings.TrimSpace(in.Home) != ""
 
 	if xdg := strings.TrimSpace(in.XDGConfigHome); xdg != "" {
@@ -79,6 +86,11 @@ func NewHost(in HostInputs) Host {
 	return h
 }
 
+// Files returns the file system the Host uses.
+func (h Host) Files() ports.Files {
+	return h.files
+}
+
 // Config returns the parsed config file, reading it on the first call only.
 // No config file gives the zero Config. It never returns nil with a nil
 // error.
@@ -94,7 +106,7 @@ func (h Host) loadConfig() (*config.Config, error) {
 	if file.Path == "" {
 		return &config.Config{}, nil
 	}
-	c, err := config.Load(file.Path)
+	c, err := config.Load(h.files, file.Path)
 	if file.Source == SourceExplicit && errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("config file %s does not exist", file.Path)
 	}
@@ -129,9 +141,10 @@ func (h Host) LegacyConfigDir() string {
 // legacy directory next, and a hit is recorded for LegacyFilesUsed. An
 // explicitly chosen config directory that does not exist is an error.
 func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
+	files := h.files
 	dir := h.configDir
 	if dir.Source == SourceEnvDir {
-		if info, err := os.Stat(dir.Path); err != nil || !info.IsDir() {
+		if info, err := files.Stat(dir.Path); err != nil || !info.IsDir() {
 			return Resolved{}, &ConfigDirNotFoundError{Dir: dir.Path}
 		}
 	}
@@ -145,7 +158,7 @@ func (h Host) findInConfigDir(isDir bool, names ...string) (Resolved, error) {
 		}
 		for _, name := range names {
 			candidate := filepath.Join(d.Path, name)
-			if !pathExists(candidate, isDir) {
+			if !pathExists(files, candidate, isDir) {
 				continue
 			}
 			if d.Source == SourceLegacy {
@@ -167,8 +180,8 @@ func (e *ConfigDirNotFoundError) Error() string {
 	return fmt.Sprintf("config directory %s does not exist", e.Dir)
 }
 
-func pathExists(path string, isDir bool) bool {
-	info, err := os.Stat(path)
+func pathExists(files ports.Files, path string, isDir bool) bool {
+	info, err := files.Stat(path)
 	return err == nil && info.IsDir() == isDir
 }
 

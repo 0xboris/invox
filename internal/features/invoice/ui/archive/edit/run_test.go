@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -15,7 +17,7 @@ import (
 func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	work := t.TempDir()
 	draft := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), XDGDataHome: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +25,7 @@ func TestEditRunCopiesIntoGetwd(t *testing.T) {
 	if _, err := host.CreateNewInvoice(invoice.NewInvoiceParams{Now: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC), WorkDir: draft, DefaultsPath: host.GlobalInvoiceDefaultsPath(), OutputPath: invoicePath, CustomersPath: host.GlobalCustomersPath(), IssuerPath: host.GlobalIssuerPath(), CustomerID: "CUST-001"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := invoice.MarkInvoiceBuilt(invoicePath); err != nil {
+	if err := invoice.MarkInvoiceBuilt(fsutil.Files{}, invoicePath); err != nil {
 		t.Fatal(err)
 	}
 	result, err := host.ArchiveInvoice(time.Now(), invoicePath, invoice.ArchiveOptions{})

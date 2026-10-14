@@ -9,34 +9,29 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
-// Perm is the mode of a file the writer creates and of the directories it
-// creates for it. The process umask is cleared from it, except for Private,
-// which is used as is.
-type Perm struct {
-	File, Dir fs.FileMode
-	exact     bool
-}
+// Perm is the domain's file mode policy, ports.Perm.
+type Perm = ports.Perm
 
 var (
-	// Private is for data that stays with its owner: issuer and customer
-	// details, archived invoices and their backups, the config and archive
-	// directories.
-	Private = Perm{File: 0o600, Dir: 0o700, exact: true}
-	// Public is for rendered outputs, invoice drafts and other config files.
-	Public = Perm{File: 0o644, Dir: 0o755}
+	// Private is ports.Private.
+	Private = ports.Private
+	// Public is ports.Public.
+	Public = ports.Public
 )
 
-func (p Perm) fileMode() fs.FileMode {
-	if p.exact {
+func fileMode(p Perm) fs.FileMode {
+	if p.Exact {
 		return p.File
 	}
 	return p.File &^ umask
 }
 
-func (p Perm) dirMode() fs.FileMode {
-	if p.exact {
+func dirMode(p Perm) fs.FileMode {
+	if p.Exact {
 		return p.Dir
 	}
 	return p.Dir &^ umask
@@ -62,14 +57,14 @@ func WriteFile(path string, data []byte, perm Perm) error {
 	if err != nil {
 		return err
 	}
-	mode := perm.fileMode()
+	mode := fileMode(perm)
 	if info, err := os.Stat(target); err == nil {
 		mode = info.Mode().Perm()
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	dir := filepath.Dir(target)
-	if err := mkdirAll(dir, perm.dirMode(), perm.dirMode()); err != nil {
+	if err := mkdirAll(dir, dirMode(perm), dirMode(perm)); err != nil {
 		return err
 	}
 	tempPath, err := writeTemp(dir, data, mode)
@@ -100,10 +95,10 @@ func WriteNewFile(path string, data []byte, perm Perm) error {
 		return err
 	}
 	dir := filepath.Dir(path)
-	if err := mkdirAll(dir, perm.dirMode(), perm.dirMode()); err != nil {
+	if err := mkdirAll(dir, dirMode(perm), dirMode(perm)); err != nil {
 		return err
 	}
-	tempPath, err := writeTemp(dir, data, perm.fileMode())
+	tempPath, err := writeTemp(dir, data, fileMode(perm))
 	if err != nil {
 		return err
 	}
@@ -117,7 +112,7 @@ func WriteNewFile(path string, data []byte, perm Perm) error {
 		if errors.Is(err, fs.ErrExist) {
 			return existsError(path)
 		}
-		if err := writeExclusive(path, data, perm.fileMode()); err != nil {
+		if err := writeExclusive(path, data, fileMode(perm)); err != nil {
 			return err
 		}
 	}
@@ -128,11 +123,11 @@ func WriteNewFile(path string, data []byte, perm Perm) error {
 // that Private gives the parents Public's mode. Directories that already
 // exist keep their mode.
 func MkdirAll(dir string, perm Perm) error {
-	parents := perm.dirMode()
-	if perm.exact {
-		parents = Public.dirMode()
+	parents := dirMode(perm)
+	if perm.Exact {
+		parents = dirMode(Public)
 	}
-	return mkdirAll(dir, perm.dirMode(), parents)
+	return mkdirAll(dir, dirMode(perm), parents)
 }
 
 // mkdirAll creates dir with mode leaf and any missing parents with mode

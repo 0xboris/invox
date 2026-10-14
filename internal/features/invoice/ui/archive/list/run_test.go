@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -15,8 +17,8 @@ func TestListRunEmptyHint(t *testing.T) {
 		in   invoice.HostInputs
 		want string
 	}{
-		{name: "archive directory", in: invoice.HostInputs{GOOS: "linux", XDGDataHome: dataHome}, want: "No archived invoices found in " + filepath.Join(dataHome, "invox", "invoices") + "\n"},
-		{name: "no archive directory", in: invoice.HostInputs{GOOS: "linux"}, want: "No archived invoices found\n"},
+		{name: "archive directory", in: invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", XDGDataHome: dataHome}, want: "No archived invoices found in " + filepath.Join(dataHome, "invox", "invoices") + "\n"},
+		{name: "no archive directory", in: invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux"}, want: "No archived invoices found\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

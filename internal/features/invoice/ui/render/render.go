@@ -119,7 +119,7 @@ func renderRun(opts *RenderOptions) error {
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func renderRun(opts *RenderOptions) error {
 	verb := "Rendered"
 	if opts.DryRun {
 		verb = "Would render"
-		if _, err := invoice.RenderTeX(templatePath, ctx); err != nil {
+		if _, err := invoice.RenderTeX(h.Files(), templatePath, ctx); err != nil {
 			return err
 		}
 	} else if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {

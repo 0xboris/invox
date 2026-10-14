@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestLoadContextValidatesPaidAmount(t *testing.T) {
@@ -37,7 +39,7 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 				t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 			}
 
-			ctx, err := LoadContext(customersPath, issuerPath, mutatedPath)
+			ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, mutatedPath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, want %q (outstanding %d)", tt.wantErr, ctx.OutstandingCents)
@@ -77,7 +79,7 @@ func TestLoadContextValidatesPaidAmount(t *testing.T) {
 
 func TestBuildEPCPayloadRejectsOutstandingAboveTotal(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

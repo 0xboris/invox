@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 // One LoadContext reports values that do not decode together with missing
@@ -20,7 +22,7 @@ func TestLoadContextReportsDecodeAndValidationProblemsTogether(t *testing.T) {
 	replaceInFixture(t, invoicePath, "  vat_percent: 20\n", "  vat_percent: twenty\n")
 	replaceInFixture(t, invoicePath, "  - name: Support\n    description: QA\n    unit_price: 10\n    quantity: 1\n", "  - just text\n  - name: Support\n    unit_price: 10\n    quantity: 0\n")
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	want := strings.Join([]string{
 		customersPath + ":2: customer.name: expected a string, got a list",
 		customersPath + `:13: unknown key "other" in customer.tax`,
@@ -44,7 +46,7 @@ func TestUnknownKeyWithAnchorIsRejectedBelowTheTopLevel(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	replaceInFixture(t, invoicePath, "  period: Leistungszeitraum\n", "  period: Leistungszeitraum\n  notes: &n hello\n")
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if want := invoicePath + `:7: unknown key "notes" in invoice`; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
 	}
@@ -59,7 +61,7 @@ func TestLoadContextReturnsTypedValidationProblems(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("error = %v, want a *ValidationError", err)

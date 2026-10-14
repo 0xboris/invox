@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
@@ -13,7 +15,7 @@ func TestLoadContextAppliesVATFromMergeKey(t *testing.T) {
 	replaceInFixture(t, invoicePath, "customer_id: CUST-001\n", "customer_id: CUST-001\nreduced: &reduced {vat_percent: 10}\n")
 	replaceInFixture(t, invoicePath, "  - name: Support\n", "  - <<: *reduced\n    name: Support\n")
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -207,7 +209,7 @@ func TestLoadYAMLDocumentRejectsDuplicateKeys(t *testing.T) {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
-	_, err := loadYAMLDocument(path)
+	_, err := loadYAMLDocument(fsutil.Files{}, path)
 	if err == nil {
 		t.Fatal("loadYAMLDocument returned nil error, want duplicate key error")
 	}
@@ -220,7 +222,7 @@ func TestLoadContextRejectsDuplicateKeyInCustomers(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	replaceInFixture(t, customersPath, "  status: active\n", "  status: active\n  status: inactive\n")
 
-	_, err := LoadContext(customersPath, issuerPath, invoicePath)
+	_, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err == nil {
 		t.Fatal("LoadContext returned nil error, want duplicate key error")
 	}
@@ -236,7 +238,7 @@ func TestArchivedInvoiceIdentityReportsMarkdownFileLines(t *testing.T) {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
-	_, _, err := archivedInvoiceIdentity(path)
+	_, _, err := archivedInvoiceIdentity(fsutil.Files{}, path)
 	if err == nil {
 		t.Fatal("archivedInvoiceIdentity returned nil error, want duplicate key error")
 	}
@@ -251,8 +253,8 @@ func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
 		name  string
 		write func(path string) error
 	}{
-		{name: "writeInvoiceNumber", write: func(path string) error { return writeInvoiceNumber(path, "A-2") }},
-		{name: "writeInvoiceStringField", write: func(path string) error { return writeInvoiceStringField(path, "status", "sent") }},
+		{name: "writeInvoiceNumber", write: func(path string) error { return writeInvoiceNumber(fsutil.Files{}, path, "A-2") }},
+		{name: "writeInvoiceStringField", write: func(path string) error { return writeInvoiceStringField(fsutil.Files{}, path, "status", "sent") }},
 	}
 
 	for _, tt := range tests {
@@ -272,7 +274,7 @@ func TestWriteInvoiceFieldsKeepMergeKeySyntax(t *testing.T) {
 			if strings.Contains(string(written), "!!merge") || !strings.Contains(string(written), "  <<: *d\n") {
 				t.Fatalf("written file does not keep `<<: *d`:\n%s", written)
 			}
-			document, err := loadYAMLDocument(path)
+			document, err := loadYAMLDocument(fsutil.Files{}, path)
 			if err != nil {
 				t.Fatalf("loadYAMLDocument returned error: %v", err)
 			}
@@ -293,7 +295,7 @@ func TestWriteInvoiceNumberRejectsDuplicateKeys(t *testing.T) {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
-	err := writeInvoiceNumber(path, "A-3")
+	err := writeInvoiceNumber(fsutil.Files{}, path, "A-3")
 	if want := path + `:3: duplicate key "number" (first defined on line 2)`; err == nil || err.Error() != want {
 		t.Fatalf("error = %v, want %q", err, want)
 	}

@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 // Private modes are exact whatever the umask, so this holds under 022 and 077
@@ -15,7 +18,7 @@ func TestCopyLegacyFilesUsesPrivateModes(t *testing.T) {
 	legacyDir := filepath.Join(configHome, "invoice-tool")
 	writeFile(t, filepath.Join(legacyDir, "customers.yaml"), "customers\n")
 	writeFile(t, filepath.Join(legacyDir, "invoice_defaults.yaml"), "defaults\n")
-	h := NewHost(HostInputs{GOOS: "linux", Home: t.TempDir(), XDGConfigHome: configHome})
+	h := NewHost(HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), XDGConfigHome: configHome})
 
 	if _, err := h.CopyLegacyFiles(); err != nil {
 		t.Fatalf("CopyLegacyFiles returned error: %v", err)

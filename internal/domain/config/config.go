@@ -7,13 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // Config is config.yaml. The zero value means no config file: every setting
@@ -159,8 +160,8 @@ func describe(n *yaml.Node) string {
 // errors.Is(err, fs.ErrNotExist) tells a missing file apart. Problems in the
 // file come back as *Error values, several joined with errors.Join in file
 // order.
-func Load(path string) (*Config, error) {
-	src, err := os.ReadFile(path)
+func Load(files ports.Files, path string) (*Config, error) {
+	src, err := files.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

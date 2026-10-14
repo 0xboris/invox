@@ -3,12 +3,11 @@ package invoice
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/config"
-	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/domain/config"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 const (
@@ -37,6 +36,7 @@ func (h Host) GlobalConfigPath() string {
 // config.yaml where Config reads it, else config.yaml in the config
 // directory.
 func (h Host) EditableConfigPath() (string, error) {
+	files := h.files
 	path := h.configFile
 	if path == "" {
 		found, err := h.findInConfigDir(false, "config.yaml")
@@ -52,7 +52,7 @@ func (h Host) EditableConfigPath() (string, error) {
 		}
 		path = h.GlobalConfigPath()
 	}
-	if err := fsutil.MkdirAll(filepath.Dir(path), fsutil.Private); err != nil {
+	if err := files.MkdirAll(filepath.Dir(path), ports.Private); err != nil {
 		return "", err
 	}
 	if err := h.ensureConfigTemplate(path); err != nil {
@@ -62,7 +62,8 @@ func (h Host) EditableConfigPath() (string, error) {
 }
 
 func (h Host) ensureConfigTemplate(path string) error {
-	_, err := ensureStarterFile(path, []byte(h.defaultConfigTemplate()), fsutil.Public)
+	files := h.files
+	_, err := ensureStarterFile(files, path, []byte(h.defaultConfigTemplate()), ports.Public)
 	return err
 }
 
@@ -156,8 +157,8 @@ func (h Host) configTemplatePath(path string) string {
 	if strings.TrimSpace(h.home) != "" {
 		if path == h.home {
 			path = "~"
-		} else if strings.HasPrefix(path, h.home+string(os.PathSeparator)) {
-			path = "~" + string(os.PathSeparator) + strings.TrimPrefix(path, h.home+string(os.PathSeparator))
+		} else if strings.HasPrefix(path, h.home+string(filepath.Separator)) {
+			path = "~" + string(filepath.Separator) + strings.TrimPrefix(path, h.home+string(filepath.Separator))
 		}
 	}
 
@@ -193,16 +194,16 @@ func ReplaceExt(path, ext string) string {
 	return strings.TrimSuffix(path, filepath.Ext(path)) + ext
 }
 
-func firstExistingPath(paths ...string) string {
+func firstExistingPath(files ports.Files, paths ...string) string {
 	for _, path := range paths {
-		if path != "" && fileExists(path) {
+		if path != "" && fileExists(files, path) {
 			return path
 		}
 	}
 	return ""
 }
 
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
+func fileExists(files ports.Files, path string) bool {
+	info, err := files.Stat(path)
 	return err == nil && !info.IsDir()
 }

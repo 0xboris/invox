@@ -3,12 +3,11 @@ package invoice
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/domain/latex"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 const (
@@ -21,11 +20,12 @@ const (
 const defaultEPCQRLabel = "Pay via EPC-QR"
 
 func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error {
-	rendered, err := RenderTeX(templatePath, ctx)
+	files := h.files
+	rendered, err := RenderTeX(files, templatePath, ctx)
 	if err != nil {
 		return err
 	}
-	if err := fsutil.WriteFile(outputPath, []byte(rendered), fsutil.Public); err != nil {
+	if err := files.WriteFile(outputPath, []byte(rendered), ports.Public); err != nil {
 		return err
 	}
 	return h.copyTemplateAssets(templatePath, outputPath, rendered)
@@ -33,8 +33,8 @@ func (h Host) RenderInvoice(templatePath, outputPath string, ctx *Context) error
 
 // RenderTeX checks the template at templatePath and fills it in with ctx.
 // It writes nothing.
-func RenderTeX(templatePath string, ctx *Context) (string, error) {
-	content, err := os.ReadFile(templatePath)
+func RenderTeX(files ports.Files, templatePath string, ctx *Context) (string, error) {
+	content, err := files.ReadFile(templatePath)
 	if err != nil {
 		return "", err
 	}
@@ -64,11 +64,12 @@ func RenderTeX(templatePath string, ctx *Context) (string, error) {
 // BuildInvoicePDF renders the invoice into a temporary directory, runs
 // compile on the .tex file there, and copies the PDF to outputPath.
 func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Context, texPath string) error, templatePath, outputPath string, inv *Context) error {
-	tempDir, err := os.MkdirTemp("", tempBuildDirPrefix)
+	files := h.files
+	tempDir, err := files.MkdirTemp("", tempBuildDirPrefix)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // best-effort cleanup of the scratch directory
+	defer files.RemoveAll(tempDir) //nolint:errcheck // best-effort cleanup of the scratch directory
 
 	renderPath := filepath.Join(
 		tempDir,
@@ -80,11 +81,11 @@ func (h Host) BuildInvoicePDF(ctx context.Context, compile func(ctx context.Cont
 	if err := compile(ctx, renderPath); err != nil {
 		return err
 	}
-	pdf, err := os.ReadFile(ReplaceExt(renderPath, ".pdf"))
+	pdf, err := files.ReadFile(ReplaceExt(renderPath, ".pdf"))
 	if err != nil {
 		return err
 	}
-	return fsutil.WriteFile(outputPath, pdf, fsutil.Public)
+	return files.WriteFile(outputPath, pdf, ports.Public)
 }
 
 func buildTemplateValues(ctx *Context) map[string]string {

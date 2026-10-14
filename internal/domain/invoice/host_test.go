@@ -3,6 +3,9 @@ package invoice
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 func TestNewHostResolvesUserDirectories(t *testing.T) {
@@ -87,7 +90,7 @@ func TestNewHostResolvesUserDirectories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			h := NewHost(HostInputs{
+			h := NewHost(HostInputs{Files: fsutil.Files{}, Starter: starter.Files,
 				GOOS:          tc.goos,
 				Home:          filepath.FromSlash(tc.home),
 				XDGConfigHome: filepath.FromSlash(tc.xdgConfig),

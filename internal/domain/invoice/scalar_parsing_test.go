@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestDecodeYAMLKeepsSourceTextOfNumericScalars(t *testing.T) {
@@ -39,7 +41,7 @@ func TestLoadContextKeepsLeadingZeroPostalCodeAndInvoiceNumber(t *testing.T) {
 	replaceInFixture(t, customersPath, "    postal_code: 1010\n", "    postal_code: 01067\n")
 	replaceInFixture(t, invoicePath, "  number: CUST-001-001\n", "  number: 0042\n")
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestLoadContextReadsLeadingZeroAmountsAsDecimal(t *testing.T) {
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 	replaceInFixture(t, invoicePath, "    unit_price: 100\n    quantity: 2\n", "    unit_price: 0100\n    quantity: 010\n")
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -92,7 +94,7 @@ func TestLoadContextAmountGrammar(t *testing.T) {
 			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 			replaceInFixture(t, invoicePath, "    unit_price: 100\n", "    unit_price: "+tt.unitPrice+"\n")
 
-			ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+			ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("LoadContext returned nil error, want %q", tt.wantErr)
@@ -130,7 +132,7 @@ func TestLoadContextQuantityAndPaidAmountGrammar(t *testing.T) {
 			customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
 			replaceInFixture(t, invoicePath, tt.from, tt.to)
 
-			_, err := LoadContext(customersPath, issuerPath, invoicePath)
+			_, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 			if err == nil {
 				t.Fatalf("LoadContext returned nil error, want %q", tt.wantErr)
 			}

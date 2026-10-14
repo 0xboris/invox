@@ -93,7 +93,7 @@ func validateRun(opts *ValidateOptions) error {
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
 	if err != nil {
 		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
 			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {

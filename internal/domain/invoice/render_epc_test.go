@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
@@ -12,7 +14,7 @@ func TestRenderInvoiceRendersEPCQRCode(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -63,7 +65,7 @@ func TestRenderInvoiceEscapesReservedQRCodeCharactersInDefaultReference(t *testi
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -100,7 +102,7 @@ func TestRenderInvoiceAllowsInlineEPCQRCodePlacement(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -147,7 +149,7 @@ func TestRenderInvoiceRendersEPCQRAvailableAndLabelWhenEligible(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, _, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -204,7 +206,7 @@ func TestRenderInvoiceUsesConfiguredEPCQRCodeLabel(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -249,7 +251,7 @@ func TestRenderInvoiceAcceptsUnicodeWhitespaceInEPCAccountIdentifiers(t *testing
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -293,7 +295,7 @@ func TestRenderInvoiceAcceptsGibraltarEligibleEPCQRCode(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -343,7 +345,7 @@ func TestRenderInvoiceUsesUTF8EPCQRCodeOverrides(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}

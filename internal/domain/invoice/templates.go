@@ -3,10 +3,12 @@ package invoice
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 type TemplateSummary struct {
@@ -15,13 +17,14 @@ type TemplateSummary struct {
 }
 
 func (h Host) ListTemplates() ([]TemplateSummary, error) {
+	files := h.files
 	templateDir, err := h.TemplateCatalogDir()
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(templateDir)
-	if errors.Is(err, os.ErrNotExist) {
+	entries, err := files.ReadDir(templateDir)
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -49,12 +52,13 @@ func (h Host) ListTemplates() ([]TemplateSummary, error) {
 }
 
 func (h Host) ResolveTemplateReference(start, reference string) (string, error) {
+	files := h.files
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
 		return "", nil
 	}
 
-	startDir, err := templateBaseDir(start)
+	startDir, err := templateBaseDir(files, start)
 	if err != nil {
 		return "", err
 	}
@@ -110,15 +114,15 @@ func (h Host) TemplateCatalogDir() (string, error) {
 	return h.ConfigDir(), nil
 }
 
-func templateBaseDir(start string) (string, error) {
+func templateBaseDir(files ports.Files, start string) (string, error) {
 	resolved := filepath.Clean(start)
-	info, err := os.Stat(resolved)
+	info, err := files.Stat(resolved)
 	switch {
 	case err == nil && info.IsDir():
 		return resolved, nil
 	case err == nil:
 		return filepath.Dir(resolved), nil
-	case errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, fs.ErrNotExist):
 		if strings.EqualFold(filepath.Ext(resolved), ".tex") {
 			return filepath.Dir(resolved), nil
 		}

@@ -196,7 +196,7 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 
 	if opts.DryRun {
 		if explicitOutput {
-			if err := outputExists(paths.OutputPath, invoice.CheckEmailDraftOutput(paths.OutputPath, opts.Force)); err != nil {
+			if err := outputExists(paths.OutputPath, invoice.CheckEmailDraftOutput(h.Files(), paths.OutputPath, opts.Force)); err != nil {
 				return err
 			}
 		}

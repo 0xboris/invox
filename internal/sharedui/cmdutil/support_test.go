@@ -6,13 +6,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 )
 
 func TestSupportPath(t *testing.T) {
 	work := t.TempDir()
 	configDir := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), ConfigDir: configDir})
 
 	got, err := SupportPath(host, "customer list", invoice.Customers, filepath.Join("sub", "c.yaml"), work)
 	if err != nil || got != filepath.Join(work, "sub", "c.yaml") {

@@ -1,10 +1,14 @@
 package invoice
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 )
 
 func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
@@ -21,7 +25,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyWhenInvoiceIsSettled(t *testing.T) {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -63,7 +67,7 @@ func TestRenderInvoiceLeavesEPCQRCodeEmptyForNonEURInvoices(t *testing.T) {
 		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -105,7 +109,7 @@ func TestRenderInvoiceSkipsEPCValidationWhenPlaceholderIsUnused(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -135,7 +139,7 @@ func TestRenderInvoiceLeavesEPCQRAvailabilityAndLabelInactiveWithoutQRCodePlaceh
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -189,7 +193,7 @@ func TestRenderInvoiceRejectsInvalidEligibleEPCQRCode(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -223,7 +227,7 @@ func TestRenderInvoiceRejectsNonSEPAEligibleEPCQRCode(t *testing.T) {
 		t.Fatalf("WriteFile(issuerPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
@@ -257,12 +261,12 @@ func TestStarterTemplateOmitsEPCSectionForNonEURInvoices(t *testing.T) {
 		t.Fatalf("WriteFile(customersPath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 
-	templateSource, err := starterFiles.ReadFile("starter/template.tex")
+	templateSource, err := fs.ReadFile(starter.Files, "template.tex")
 	if err != nil {
 		t.Fatalf("ReadFile(starter/template.tex) returned error: %v", err)
 	}
@@ -308,12 +312,12 @@ func TestStarterTemplateOmitsEPCSectionForSettledInvoices(t *testing.T) {
 		t.Fatalf("WriteFile(invoicePath) returned error: %v", err)
 	}
 
-	ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+	ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 	if err != nil {
 		t.Fatalf("LoadContext returned error: %v", err)
 	}
 
-	templateSource, err := starterFiles.ReadFile("starter/template.tex")
+	templateSource, err := fs.ReadFile(starter.Files, "template.tex")
 	if err != nil {
 		t.Fatalf("ReadFile(starter/template.tex) returned error: %v", err)
 	}

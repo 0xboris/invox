@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/domain/epc"
 	"github.com/0xboris/invox/internal/domain/money"
 )
@@ -168,7 +169,7 @@ func FuzzLoadContext(f *testing.F) {
 		if err := os.WriteFile(invoicePath, source, 0o644); err != nil {
 			t.Fatalf("WriteFile(invoice.yaml) returned error: %v", err)
 		}
-		ctx, err := LoadContext(customersPath, issuerPath, invoicePath)
+		ctx, err := LoadContext(fsutil.Files{}, customersPath, issuerPath, invoicePath)
 		if err != nil {
 			return
 		}

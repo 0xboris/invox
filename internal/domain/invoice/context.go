@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/0xboris/invox/internal/domain/money"
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 // Context is an invoice with its customer and issuer, validated, with its
@@ -50,18 +51,18 @@ type VATBreakdown struct {
 // decode (*DecodeError, with file and line), then an unknown customer_id
 // and the fields that are missing or out of range. Validation skips the
 // fields that did not decode.
-func LoadContext(customersPath, issuerPath, invoicePath string) (*Context, error) {
-	customers, err := loadCustomerTable(customersPath)
+func LoadContext(files ports.Files, customersPath, issuerPath, invoicePath string) (*Context, error) {
+	customers, err := loadCustomerTable(files, customersPath)
 	if err != nil {
 		return nil, err
 	}
 	var issuer IssuerFile
-	issuerErr := decodeYAMLFile(issuerPath, &issuer, true)
+	issuerErr := decodeYAMLFile(files, issuerPath, &issuer, true)
 	if issuerErr != nil && !isDecodeError(issuerErr) {
 		return nil, issuerErr
 	}
 	var invoiceFile InvoiceFile
-	invoiceErr := decodeYAMLFile(invoicePath, &invoiceFile, true)
+	invoiceErr := decodeYAMLFile(files, invoicePath, &invoiceFile, true)
 	if invoiceErr != nil && !isDecodeError(invoiceErr) {
 		return nil, invoiceErr
 	}

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
@@ -11,7 +13,7 @@ func TestRenderInvoiceCopiesTemplateAssetsToOutputDir(t *testing.T) {
 
 	h := isolatedHost(t)
 	customersPath, issuerPath, invoicePath, templatePath, _, _ := writeContextFixtures(t)
-	ctx, err := LoadContext(
+	ctx, err := LoadContext(fsutil.Files{},
 		customersPath,
 		issuerPath,
 		invoicePath,

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xboris/invox/internal/adapters/fsutil"
+	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -14,7 +16,7 @@ import (
 // the process's own.
 func TestValidateRunResolvesInputAgainstGetwd(t *testing.T) {
 	work := t.TempDir()
-	host := invoice.NewHost(invoice.HostInputs{GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
+	host := invoice.NewHost(invoice.HostInputs{Files: fsutil.Files{}, Starter: starter.Files, GOOS: "linux", Home: t.TempDir(), ConfigDir: t.TempDir()})
 	if _, _, err := host.InitializeConfigDir(); err != nil {
 		t.Fatal(err)
 	}

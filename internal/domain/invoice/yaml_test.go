@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/0xboris/invox/internal/adapters/fsutil"
 )
 
 func TestLoadYAMLPreservesNumericLookingMappingKeys(t *testing.T) {
@@ -13,7 +15,7 @@ func TestLoadYAMLPreservesNumericLookingMappingKeys(t *testing.T) {
 		t.Fatalf("WriteFile(customers.yaml) returned error: %v", err)
 	}
 
-	customers, err := loadCustomerTable(path)
+	customers, err := loadCustomerTable(fsutil.Files{}, path)
 	if err != nil {
 		t.Fatalf("loadCustomerTable returned error: %v", err)
 	}

@@ -5,6 +5,8 @@ import (
 	"sort"
 
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/0xboris/invox/internal/domain/ports"
 )
 
 type CustomerSummary struct {
@@ -16,8 +18,8 @@ type CustomerSummary struct {
 	Currency string
 }
 
-func ListCustomers(customersPath string) ([]CustomerSummary, error) {
-	customers, err := loadCustomerTable(customersPath)
+func ListCustomers(files ports.Files, customersPath string) ([]CustomerSummary, error) {
+	customers, err := loadCustomerTable(files, customersPath)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +58,8 @@ type customerTable struct {
 	entries map[string]*yaml.Node
 }
 
-func loadCustomerTable(path string) (customerTable, error) {
-	document, err := loadYAMLDocument(path)
+func loadCustomerTable(files ports.Files, path string) (customerTable, error) {
+	document, err := loadYAMLDocument(files, path)
 	if err != nil {
 		return customerTable{}, err
 	}
