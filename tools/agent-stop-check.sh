@@ -8,7 +8,7 @@ already_continued=$(printf '%s' "$input" | python3 -c 'import json, sys; print(j
 [ "$already_continued" = "True" ] && exit 0
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
-base=$(git merge-base HEAD main 2>/dev/null || git rev-parse HEAD 2>/dev/null) || exit 0
+base=$(git merge-base HEAD main 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD 2>/dev/null) || exit 0
 if git diff --quiet "$base" 2>/dev/null && [ -z "$(git status --porcelain 2>/dev/null)" ]; then
   exit 0
 fi
