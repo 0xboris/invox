@@ -22,7 +22,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/platform"
 	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/app"
-	"github.com/0xboris/invox/internal/domain/helptext"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -48,9 +48,10 @@ func main() {
 }
 
 func generate(dir string) error {
-	pages := commandPages(app.NewRootCmd(newDependencies()))
+	d := newDependencies()
+	pages := commandPages(app.NewRootCmd(d))
 	root := pages[0]
-	for _, topic := range helptext.Topics {
+	for _, topic := range app.HelpTopics(d) {
 		if topic.Print == nil {
 			continue
 		}
@@ -125,7 +126,7 @@ func (p *page) isTopic() bool {
 	if len(p.words) != 1 {
 		return false
 	}
-	topic, ok := helptext.LookupTopic(p.words[0])
+	topic, ok := cmdutil.LookupTopic(app.HelpTopics(newDependencies()), p.words[0])
 	return ok && topic.Print != nil
 }
 

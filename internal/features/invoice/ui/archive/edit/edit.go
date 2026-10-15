@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -50,8 +49,7 @@ Required inputs:
   FILENAME                  Required positional argument
 
 Default lookup:
-` +
-			helptext.LookupArchive +
+{{.LookupArchive}}` +
 			`
 Behavior:
   Copies the archived invoice from archive.dir into the current directory.

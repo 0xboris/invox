@@ -17,6 +17,7 @@ import (
 // exit codes, so cobra prints neither errors nor usage.
 func newRootCmd(f *Factory, commands []*cobra.Command) (*cobra.Command, func() error) {
 	ios := f.IOStreams
+	topics := Topics(f)
 	var helpErr error
 	root := &cobra.Command{
 		Use:   "invox",
@@ -72,10 +73,10 @@ $ invox archive edit 2026-0001.yaml
 		Use:    "help [command | topic]",
 		Hidden: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
-			return helpCompletions(root, args), cobra.ShellCompDirectiveNoFileComp
+			return helpCompletions(root, topics, args), cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return helpTopic(cmd.OutOrStdout(), root, f.Host(), args)
+			return helpTopic(cmd.OutOrStdout(), root, f.Host(), topics, args)
 		},
 	}
 	root.SetHelpCommand(help)
@@ -91,7 +92,7 @@ $ invox archive edit 2026-0001.yaml
 		if cmd == help {
 			cmd = root
 		}
-		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Host()); err != nil {
+		if err := writeHelp(cmd.OutOrStdout(), cmd, f.Host(), topics); err != nil {
 			helpErr = err
 		}
 	})

@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -53,10 +52,7 @@ Default output:
   invoice.tex in the current directory
 
 Default lookup:
-` +
-			helptext.LookupCustomers +
-			helptext.LookupIssuer +
-			helptext.LookupTemplate,
+{{.LookupCustomers}}{{.LookupIssuer}}{{.LookupTemplate}}`,
 		Example: `$ invox render invoice.yaml
 $ invox render invoices/2026-0021.yaml -o out/2026-0021.tex -c customers.yaml -u issuer.yaml -t template.tex
 $ invox render invoice.yaml --dry-run

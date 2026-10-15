@@ -5,9 +5,17 @@ import (
 
 	customer "github.com/0xboris/invox/internal/features/customer/ui"
 	customershared "github.com/0xboris/invox/internal/features/customer/ui/shared"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 
+func customerFactory(d *Dependencies) *customershared.Factory {
+	return &customershared.Factory{IOStreams: d.IOStreams, Env: d.Env, Hosts: d.Hosts, Editor: d.Editor}
+}
+
 func customerCommands(d *Dependencies) []*cobra.Command {
-	f := &customershared.Factory{IOStreams: d.IOStreams, Env: d.Env, Hosts: d.Hosts, Editor: d.Editor}
-	return []*cobra.Command{customer.NewCmdCustomer(f)}
+	return []*cobra.Command{customer.NewCmdCustomer(customerFactory(d))}
+}
+
+func customerTopics(d *Dependencies) []cmdutil.Topic {
+	return customershared.Topics(customerFactory(d))
 }

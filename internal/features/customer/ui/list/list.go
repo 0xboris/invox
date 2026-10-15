@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -43,8 +42,7 @@ func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command
 		Long: `List all customers from customers.yaml.
 
 Default lookup:
-` +
-			helptext.LookupCustomers,
+{{.LookupCustomers}}`,
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
 $ invox customer list --json id,email

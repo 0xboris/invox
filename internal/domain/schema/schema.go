@@ -1,43 +1,38 @@
-// Package helptext holds the help content that several commands and help
-// topics share: the reference tables for the support files and templates,
-// their YAML examples, the topic pages, and the Default lookup lines.
-package helptext
+// Package schema documents the files invox reads: the fields of
+// customers.yaml, issuer.yaml and invoice_defaults.yaml, their examples, and
+// the template placeholders. The help pages print it.
+package schema
 
-import (
-	"fmt"
-	"io"
-	"strings"
-)
+// Field is one documented key, written as a dotted path.
+type Field struct {
+	Path        string
+	Description string
+}
 
-const commandName = "invox"
+// FieldGroup is a titled list of fields.
+type FieldGroup struct {
+	Title  string
+	Fields []Field
+}
 
-type templatePlaceholder struct {
+// Placeholder is one template placeholder and what it is replaced with.
+type Placeholder struct {
 	Token       string
 	Description string
 }
 
-type customerField struct {
-	Path        string
-	Description string
+// PlaceholderGroup is a titled list of placeholders.
+type PlaceholderGroup struct {
+	Title        string
+	Placeholders []Placeholder
 }
 
-type issuerField struct {
-	Path        string
-	Description string
-}
-
-type invoiceDefaultsField struct {
-	Path        string
-	Description string
-}
-
-var templatePlaceholderGroups = []struct {
-	Title   string
-	Entries []templatePlaceholder
-}{
+// TemplatePlaceholders lists the placeholders a template may use, grouped
+// by what they show.
+var TemplatePlaceholders = []PlaceholderGroup{
 	{
 		Title: "Issuer",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@ISSUER_NAME@@", Description: "issuer.company.legal_company_name"},
 			{Token: "@@ISSUER_COMPANY_REG_NO@@", Description: "issuer.company.company_registration_number"},
 			{Token: "@@ISSUER_VAT_TAX_ID@@", Description: "issuer.company.vat_tax_id"},
@@ -51,7 +46,7 @@ var templatePlaceholderGroups = []struct {
 	},
 	{
 		Title: "Customer",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@CUSTOMER_NAME@@", Description: "Preferred customer name"},
 			{Token: "@@CUSTOMER_STREET@@", Description: "customer.address.street"},
 			{Token: "@@CUSTOMER_CITY@@", Description: "customer.address.city"},
@@ -63,7 +58,7 @@ var templatePlaceholderGroups = []struct {
 	},
 	{
 		Title: "Invoice metadata",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@INVOICE_NUMBER@@", Description: "invoice.number"},
 			{Token: "@@ISSUE_DATE@@", Description: "invoice.issue_date formatted as DD.MM.YYYY"},
 			{Token: "@@DUE_DATE@@", Description: "invoice.due_date formatted as DD.MM.YYYY"},
@@ -72,7 +67,7 @@ var templatePlaceholderGroups = []struct {
 	},
 	{
 		Title: "Line items",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@LINE_ITEMS_ROWS@@", Description: "Structured rows: name, description, unit price, quantity, line total"},
 			{Token: "@@LINE_ITEMS_ROWS_WITH_VAT@@", Description: "Structured rows: name, description, unit price, quantity, VAT rate, line total"},
 			{Token: "@@LINE_ITEMS_BEGIN@@", Description: "Begin custom line-item block; repeat enclosed snippet once per position"},
@@ -88,7 +83,7 @@ var templatePlaceholderGroups = []struct {
 	},
 	{
 		Title: "Totals",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@SUBTOTAL@@", Description: "Formatted net subtotal"},
 			{Token: "@@VAT_SUMMARY_ROWS@@", Description: "Structured VAT summary rows, one row per VAT bucket"},
 			{Token: "@@TOTAL@@", Description: "Formatted invoice total"},
@@ -100,7 +95,7 @@ var templatePlaceholderGroups = []struct {
 	},
 	{
 		Title: "Payment",
-		Entries: []templatePlaceholder{
+		Placeholders: []Placeholder{
 			{Token: "@@PAYMENT_TERMS_TEXT@@", Description: "issuer.payment.payment_terms_text"},
 			{Token: "@@VAT_LABEL@@", Description: "VAT label from issuer.payment.vat_label, defaults to VAT"},
 			{Token: "@@BANK_NAME@@", Description: "issuer.payment.bank_name"},
@@ -113,13 +108,11 @@ var templatePlaceholderGroups = []struct {
 	},
 }
 
-var customerFieldGroups = []struct {
-	Title   string
-	Entries []customerField
-}{
+// CustomerFields documents the fields of a customer in customers.yaml.
+var CustomerFields = []FieldGroup{
 	{
 		Title: "Preferred fields",
-		Entries: []customerField{
+		Fields: []Field{
 			{Path: "<customer>.name", Description: "Preferred display name used on invoices and in emails"},
 			{Path: "<customer>.status", Description: "Optional status shown by customer list"},
 			{Path: "<customer>.contact_person", Description: "Preferred contact used by email templates"},
@@ -139,7 +132,7 @@ var customerFieldGroups = []struct {
 	},
 	{
 		Title: "Alternate supported paths",
-		Entries: []customerField{
+		Fields: []Field{
 			{Path: "<customer>.legal_company_name", Description: "Alternate path for the customer display name"},
 			{Path: "<customer>.billing.email", Description: "Alternate path for the invoice email"},
 			{Path: "<customer>.billing.contact_person", Description: "Alternate path for the customer contact"},
@@ -149,13 +142,11 @@ var customerFieldGroups = []struct {
 	},
 }
 
-var issuerFieldGroups = []struct {
-	Title   string
-	Entries []issuerField
-}{
+// IssuerFields documents the fields of issuer.yaml.
+var IssuerFields = []FieldGroup{
 	{
 		Title: "Required company fields",
-		Entries: []issuerField{
+		Fields: []Field{
 			{Path: "company.legal_company_name", Description: "Company name used on invoices, in email placeholders, and as the default EPC QR recipient name"},
 			{Path: "company.company_registration_number", Description: "Company registration number shown on the invoice"},
 			{Path: "company.vat_tax_id", Description: "VAT/tax number shown on the invoice"},
@@ -169,7 +160,7 @@ var issuerFieldGroups = []struct {
 	},
 	{
 		Title: "Required payment fields",
-		Entries: []issuerField{
+		Fields: []Field{
 			{Path: "payment.bank_name", Description: "Bank name rendered into the invoice template"},
 			{Path: "payment.iban", Description: "Bank account IBAN used on the invoice and for EPC QR generation"},
 			{Path: "payment.bic", Description: "Bank identifier code shown on the invoice"},
@@ -179,7 +170,7 @@ var issuerFieldGroups = []struct {
 	},
 	{
 		Title: "Optional payment fields",
-		Entries: []issuerField{
+		Fields: []Field{
 			{Path: "payment.vat_label", Description: "Overrides the VAT label used by @@VAT_SUMMARY_ROWS@@, defaults to VAT"},
 			{Path: "payment.epc_qr.label", Description: "Overrides the EPC QR label, defaults to Pay via EPC-QR"},
 			{Path: "payment.epc_qr.name", Description: "Overrides the EPC QR recipient name, defaults to company.legal_company_name"},
@@ -190,20 +181,18 @@ var issuerFieldGroups = []struct {
 	},
 }
 
-var invoiceDefaultsFieldGroups = []struct {
-	Title   string
-	Entries []invoiceDefaultsField
-}{
+// InvoiceDefaultsFields documents the fields of invoice_defaults.yaml.
+var InvoiceDefaultsFields = []FieldGroup{
 	{
 		Title: "Top-level keys",
-		Entries: []invoiceDefaultsField{
+		Fields: []Field{
 			{Path: "invoice", Description: "Mapping of invoice defaults used as the source document for `new`"},
 			{Path: "positions", Description: "Line-item list copied into the created invoice; if omitted `new` creates an empty list"},
 		},
 	},
 	{
 		Title: "Invoice fields",
-		Entries: []invoiceDefaultsField{
+		Fields: []Field{
 			{Path: "invoice.number", Description: "Usually blank in defaults; `new` always replaces it with the next generated invoice number"},
 			{Path: "invoice.issue_date", Description: "Usually blank in defaults; `new` always replaces it with the current date"},
 			{Path: "invoice.due_date", Description: "Usually blank in defaults; `new` always replaces it using issuer.payment.due_days"},
@@ -215,7 +204,7 @@ var invoiceDefaultsFieldGroups = []struct {
 	},
 	{
 		Title: "Position fields",
-		Entries: []invoiceDefaultsField{
+		Fields: []Field{
 			{Path: "positions[].name", Description: "Line-item name"},
 			{Path: "positions[].description", Description: "Line-item description"},
 			{Path: "positions[].unit_price", Description: "Line-item net unit price; must be >= 0 on the final invoice"},
@@ -225,7 +214,7 @@ var invoiceDefaultsFieldGroups = []struct {
 	},
 	{
 		Title: "Unsupported legacy keys",
-		Entries: []invoiceDefaultsField{
+		Fields: []Field{
 			{Path: "line_items", Description: "Unsupported; use positions"},
 			{Path: "invoice.period_label", Description: "Unsupported; use invoice.period"},
 			{Path: "invoice.vat_rate_percent", Description: "Unsupported; use invoice.vat_percent"},
@@ -233,7 +222,8 @@ var invoiceDefaultsFieldGroups = []struct {
 	},
 }
 
-const customerYAMLExample = `CUST-001:
+// CustomerYAMLExample is a customers.yaml with one customer.
+const CustomerYAMLExample = `CUST-001:
   name: Appsters GmbH
   status: active
   contact_person: Jane Doe
@@ -260,7 +250,8 @@ const customerYAMLExample = `CUST-001:
   # currency: EUR
 `
 
-const issuerYAMLExample = `company:
+// IssuerYAMLExample is an issuer.yaml.
+const IssuerYAMLExample = `company:
   legal_company_name: Boris Consulting
   company_registration_number: FN 123456a
   vat_tax_id: ATU87654321
@@ -286,7 +277,8 @@ payment:
     # text: 2026-0001
 `
 
-const invoiceDefaultsYAMLExample = `invoice:
+// InvoiceDefaultsYAMLExample is an invoice_defaults.yaml.
+const InvoiceDefaultsYAMLExample = `invoice:
   number: ""
   issue_date: ""
   due_date: ""
@@ -301,95 +293,3 @@ positions:
     quantity: 1
     # vat_percent: 20
 `
-
-// CustomerFieldReference is the customers.yaml field table.
-func CustomerFieldReference() string {
-	return sprint(printCustomerFieldReference)
-}
-
-// CustomerYAMLExample is the titled customers.yaml example.
-func CustomerYAMLExample() string {
-	return sprint(printCustomerYAMLExample)
-}
-
-// TemplatePlaceholderReference is the table of template placeholders.
-func TemplatePlaceholderReference() string {
-	return sprint(printTemplatePlaceholderReference)
-}
-
-func sprint(write func(io.Writer)) string {
-	var b strings.Builder
-	write(&b)
-	return b.String()
-}
-
-func printCustomerFieldReference(w io.Writer) {
-	fmt.Fprintf(w, "Customer fields:\n")
-	fmt.Fprintf(w, "  customers.yaml maps CUSTOMER_ID keys to customer data.\n")
-	fmt.Fprintf(w, "  Use the preferred paths below unless you need an alternate supported path.\n\n")
-	for groupIndex, group := range customerFieldGroups {
-		if groupIndex > 0 {
-			fmt.Fprintf(w, "\n")
-		}
-		fmt.Fprintf(w, "%s:\n", group.Title)
-		for _, entry := range group.Entries {
-			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
-		}
-	}
-}
-
-func printIssuerFieldReference(w io.Writer) {
-	fmt.Fprintf(w, "Issuer fields:\n")
-	fmt.Fprintf(w, "  issuer.yaml contains your own company and payment details.\n")
-	fmt.Fprintf(w, "  Required fields are validated by new, validate, render, build, and email.\n\n")
-	for groupIndex, group := range issuerFieldGroups {
-		if groupIndex > 0 {
-			fmt.Fprintf(w, "\n")
-		}
-		fmt.Fprintf(w, "%s:\n", group.Title)
-		for _, entry := range group.Entries {
-			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
-		}
-	}
-}
-
-func printInvoiceDefaultsFieldReference(w io.Writer) {
-	fmt.Fprintf(w, "invoice_defaults.yaml fields:\n")
-	fmt.Fprintf(w, "  invoice_defaults.yaml is the source document for `invox new`.\n")
-	fmt.Fprintf(w, "  The created invoice later also gains a top-level customer_id.\n\n")
-	for groupIndex, group := range invoiceDefaultsFieldGroups {
-		if groupIndex > 0 {
-			fmt.Fprintf(w, "\n")
-		}
-		fmt.Fprintf(w, "%s:\n", group.Title)
-		for _, entry := range group.Entries {
-			fmt.Fprintf(w, "  %-35s %s\n", entry.Path, entry.Description)
-		}
-	}
-}
-
-func printCustomerYAMLExample(w io.Writer) {
-	fmt.Fprintf(w, "customers.yaml example:\n")
-	fmt.Fprint(w, customerYAMLExample)
-}
-
-func printIssuerYAMLExample(w io.Writer) {
-	fmt.Fprintf(w, "issuer.yaml example:\n")
-	fmt.Fprint(w, issuerYAMLExample)
-}
-
-func printInvoiceDefaultsYAMLExample(w io.Writer) {
-	fmt.Fprintf(w, "invoice_defaults.yaml example:\n")
-	fmt.Fprint(w, invoiceDefaultsYAMLExample)
-}
-
-func printTemplatePlaceholderReference(w io.Writer) {
-	fmt.Fprintf(w, "Available .tex placeholders:\n")
-	for _, group := range templatePlaceholderGroups {
-		fmt.Fprintf(w, "  %s:\n", group.Title)
-		for _, entry := range group.Entries {
-			fmt.Fprintf(w, "    %-32s %s\n", entry.Token, entry.Description)
-		}
-	}
-	fmt.Fprintf(w, "\n")
-}

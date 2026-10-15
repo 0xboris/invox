@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
@@ -15,14 +14,14 @@ import (
 // writeHelp writes the help page of cmd, all of it generated from the
 // command tree: the Long text (or the Short one), then usage, subcommands,
 // flags and examples. Command aliases are deprecated names, so it leaves
-// them out. The root page also lists the help topics.
-func writeHelp(w io.Writer, cmd *cobra.Command, h invoice.Host) error {
+// them out. The root page also lists topics.
+func writeHelp(w io.Writer, cmd *cobra.Command, h invoice.Host, topics []cmdutil.Topic) error {
 	description := cmd.Long
 	if description == "" {
 		description = cmd.Short + "."
 	}
 	var page strings.Builder
-	if err := helptext.Render(&page, description, h); err != nil {
+	if err := renderLong(&page, description, h); err != nil {
 		return fmt.Errorf("help for %s: %w", cmd.CommandPath(), err)
 	}
 	text := strings.TrimRight(page.String(), "\n") + "\n"
@@ -40,7 +39,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, h invoice.Host) error {
 			section(group.Title, commandList(cmd.Commands(), group.ID))
 		}
 		section("Additional commands", commandList(cmd.Commands(), ""))
-		section("Help topics", topicList())
+		section("Help topics", topicList(topics))
 	}
 	if cmd.HasParent() {
 		section("Flags", cmd.LocalFlags().FlagUsages())
@@ -91,13 +90,13 @@ func commandList(commands []*cobra.Command, group string) string {
 	return list.String()
 }
 
-func topicList() string {
+func topicList(topics []cmdutil.Topic) string {
 	width := 0
-	for _, topic := range helptext.Topics {
+	for _, topic := range topics {
 		width = max(width, len(topic.Name))
 	}
 	var list strings.Builder
-	for _, topic := range helptext.Topics {
+	for _, topic := range topics {
 		fmt.Fprintf(&list, "  %-*s  %s\n", width, topic.Name, topic.Short)
 	}
 	return list.String()
@@ -117,27 +116,27 @@ func indent(text string) string {
 	return out.String()
 }
 
-// helpTopic writes the page `invox help ARGS` names: a topic, or the help of
+// helpTopic writes the page `invox help ARGS` names: one of topics, or the help of
 // a command, including a hidden deprecated name such as `customer config`.
 // Anything else, including `help` itself, is an unknown topic.
-func helpTopic(w io.Writer, root *cobra.Command, h invoice.Host, args []string) error {
+func helpTopic(w io.Writer, root *cobra.Command, h invoice.Host, topics []cmdutil.Topic, args []string) error {
 	if len(args) == 0 {
-		return writeHelp(w, root, h)
+		return writeHelp(w, root, h, topics)
 	}
-	if topic, ok := helptext.LookupTopic(args[0]); ok && len(args) == 1 && topic.Print != nil {
-		topic.Print(w, h)
+	if topic, ok := cmdutil.LookupTopic(topics, args[0]); ok && len(args) == 1 && topic.Print != nil {
+		topic.Print(w)
 		return nil
 	}
 	cmd, rest, err := root.Find(args)
 	if err != nil || cmd == root || len(rest) > 0 || cmd.Parent() == root && cmd.Name() == "help" || !cmd.IsAvailableCommand() && !cmd.Hidden {
 		return cmdutil.FlagErrorf("", "unknown help topic %q", strings.Join(args, " "))
 	}
-	return writeHelp(w, cmd, h)
+	return writeHelp(w, cmd, h, topics)
 }
 
 // helpCompletions completes `invox help ARGS`: the subcommands of the
-// command ARGS names, and the help topics after `help` alone.
-func helpCompletions(root *cobra.Command, args []string) []cobra.Completion {
+// command ARGS names, and topics after `help` alone.
+func helpCompletions(root *cobra.Command, topics []cmdutil.Topic, args []string) []cobra.Completion {
 	cmd, rest, err := root.Find(args)
 	if err != nil || len(rest) > 0 {
 		return nil
@@ -149,7 +148,7 @@ func helpCompletions(root *cobra.Command, args []string) []cobra.Completion {
 		}
 	}
 	if cmd == root {
-		for _, topic := range helptext.Topics {
+		for _, topic := range topics {
 			if topic.Print != nil {
 				names = append(names, cobra.CompletionWithDesc(topic.Name, topic.Short))
 			}

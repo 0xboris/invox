@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
@@ -65,12 +64,9 @@ Default output:
   the input path with .pdf extension
 
 Default lookup:
+{{.LookupCustomers}}{{.LookupIssuer}}{{.LookupTemplate}}
 ` +
-			helptext.LookupCustomers +
-			helptext.LookupIssuer +
-			helptext.LookupTemplate +
-			"\n" +
-			helptext.ReplacingArchived(true),
+			shared.ReplacingArchived(true),
 		Example: `$ invox build invoice.yaml
 $ invox build invoice.yaml --archive
 $ invox build invoice.yaml --archive --dry-run

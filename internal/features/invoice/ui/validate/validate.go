@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/money"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
@@ -39,9 +38,7 @@ Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
-` +
-			helptext.LookupCustomers +
-			helptext.LookupIssuer +
+{{.LookupCustomers}}{{.LookupIssuer}}` +
 			`
 JSON output:
   --json prints one object, also when the invoice is invalid; invox then

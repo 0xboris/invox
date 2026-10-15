@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -47,8 +46,7 @@ Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
-` +
-			helptext.LookupCustomers,
+{{.LookupCustomers}}`,
 		Example: `$ invox increment invoice.yaml
 $ invox increment invoices/2026-0022.yaml -c customers.yaml
 $ invox increment invoice.yaml --dry-run

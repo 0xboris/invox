@@ -11,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/features/invoice/ui/render"
 	invoiceshared "github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/features/invoice/ui/validate"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 )
 
 func invoiceFactory(d *Dependencies) *invoiceshared.Factory {
@@ -36,4 +37,8 @@ func invoiceCommands(d *Dependencies) []*cobra.Command {
 		email.NewCmdEmail(f, nil),
 		archive.NewCmdArchive(f, nil),
 	}
+}
+
+func invoiceTopics(d *Dependencies) []cmdutil.Topic {
+	return invoiceshared.Topics(invoiceFactory(d))
 }

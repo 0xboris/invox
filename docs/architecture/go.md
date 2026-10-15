@@ -20,7 +20,7 @@ internal/domain/money/                 domain: decimals, cents, 1.234,56 formatt
 internal/domain/epc/                   domain: EPC QR code rules and payload
 internal/domain/email/                 domain: subject and body templates, the .eml MIME layout
 internal/domain/latex/                 domain: LaTeX escaping, rows, line item blocks, template checks
-internal/domain/helptext/              domain: help topics, reference tables and lookup lines
+internal/domain/schema/                domain: the documented fields of the support files, their examples, the template placeholders
 internal/adapters/fsutil/              adapter: ports.Files on the real file system
 internal/adapters/platform/            adapter: the process environment, streams, terminals and signals
 internal/adapters/programs/run/        adapter: run.Runner, the only package that starts programs
@@ -33,7 +33,7 @@ internal/utilities/proc/               utilities: ExitError, SignalError and the
 internal/docs/gen/                     tool: regenerates docs/cli and share/man; the release binary may not import it
 ```
 
-Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. `cli` is the application shell, not a capability: it owns the root command, help, exit codes and completion, and receives the other slices' commands. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
+Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. `cli` is the application shell, not a capability: it owns the root command, help rendering, exit codes and completion, and receives the other slices' commands and help topics. Help wording lives in the slice whose files it describes: each slice's `Topics` returns its `cmdutil.Topic` pages, and the domain's `schema` package holds only the field and placeholder data they print. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
 
 `app.Dependencies` holds the streams, the `env.Env`, the `invoice.HostSource` and the adapters behind their ports. Each `wire_<slice>.go` copies what its slice needs into that slice's `shared.Factory` and returns the slice's commands. `config.go` is the one composition file with decisions in it: Apple Mail exists only on macOS, and the user directories are resolved from the environment there, on first use, before the domain gets them as `invoice.HostInputs`.
 

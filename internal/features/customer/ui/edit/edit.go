@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
@@ -59,12 +58,11 @@ func newCmd(f *shared.Factory, runF func(context.Context, *EditOptions) error, n
 		Long: `Open customers.yaml in your editor.
 
 Default lookup:
+{{.LookupCustomers}}
 ` +
-			helptext.LookupCustomers +
+			shared.CustomerFieldReference() +
 			"\n" +
-			helptext.CustomerFieldReference() +
-			"\n" +
-			helptext.CustomerYAMLExample(),
+			shared.CustomerYAMLExample(),
 		Example: `$ invox customer edit
 $ invox customer edit -c customers.yaml
 `,

@@ -47,15 +47,19 @@ each directory to its module kind and says where new code goes.
   flag normaliser, help routing, help groups), exit codes (`exit.go`), the help page renderer
   (`usage.go`) and `completion.go`. It receives the other slices' commands from `app`. Help is
   generated from each command's `Short`, `Long` and `Example`; a `Long` is a text/template
-  filled in from the `invoice.Host`.
+  filled in from the `invoice.Host` and the `Lookup*` lines in `help.go`. The help topics are
+  `cmdutil.Topic` values: each slice declares the topics about its own files (`Topics` in
+  its `ui` or `ui/shared` package), `app` hands them to the cli slice in the order the root
+  help lists them, and the cli slice adds `environment` and `exit-codes`.
 - `internal/sharedui`: `cmdutil` (error types, `FlagErrorFunc`, prompts, the editor gate,
   deprecation warnings) and `tableprinter`. Shared UI imports no domain package.
 - `internal/domain`: `invoice` (loading and validation, VAT totals, numbering, the render, EPC,
   email and archive steps, `Host` and `HostSource`), `ports` (`Files`, `PDFCompiler`, `Editor`,
   `Opener`, `MailComposer`), `config` (the config.yaml schema), `archive` (the archive
   directory: walk, list, name resolution, `.history` backups), `money`, `epc`, `email`,
-  `latex` and `helptext` (help topics, reference tables, lookup lines). The domain reaches
-  files only through `ports.Files`, which the `Host` carries.
+  `latex` and `schema` (the documented fields of the support files, their examples and the
+  template placeholders). The domain reaches files only through `ports.Files`, which the
+  `Host` carries.
 - `internal/adapters`: `fsutil` implements `ports.Files`. `programs/run` is the only package
   that calls `os/exec`; `programs/tectonic`, `editor`, `opener` and `applemail` each wrap one
   program on top of a `run.Runner` and implement a port. `platform` reads the process: `Env`,

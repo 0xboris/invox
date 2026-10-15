@@ -4,7 +4,6 @@ package customer
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/customer/ui/edit"
 	"github.com/0xboris/invox/internal/features/customer/ui/list"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
@@ -26,9 +25,9 @@ Documentation:
   Run ` + "`" + `invox help customers` + "`" + ` for the customers.yaml schema reference.
 
 ` +
-			helptext.CustomerFieldReference() +
+			shared.CustomerFieldReference() +
 			"\n" +
-			helptext.CustomerYAMLExample(),
+			shared.CustomerYAMLExample(),
 		Example: `$ invox customer list
 $ invox customer list -c customers.yaml
 $ invox customer edit

@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -45,8 +44,7 @@ func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command
 		Long: `List archived invoices from the configured archive directory.
 
 Default lookup:
-` +
-			helptext.LookupArchive +
+{{.LookupArchive}}` +
 			`
 Output:
   One archived invoice per line as FILENAME<TAB>CUSTOMER_ID<TAB>ISSUE_DATE<TAB>STATUS

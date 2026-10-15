@@ -246,7 +246,7 @@ linters:
         text: G115
       # The template placeholder table names its column Token; the values
       # are placeholders such as @@EPC_QR_CODE@@, not credentials.
-      - path: ^internal/domain/helptext/reference\.go$
+      - path: ^internal/domain/schema/schema\.go$
         linters: [gosec]
         text: G101
       # SilentError and CancelError keep gh's cmdutil names.

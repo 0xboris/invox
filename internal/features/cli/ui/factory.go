@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -12,6 +13,9 @@ type Factory struct {
 	IOStreams *iostreams.IOStreams
 	Env       env.Env
 	Hosts     *invoice.HostSource
+	// Topics are the slices' help topics, in the order the root help lists
+	// them.
+	Topics []cmdutil.Topic
 }
 
 // Host returns the user directories, resolved on the first call.

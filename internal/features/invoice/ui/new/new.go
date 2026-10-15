@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
@@ -61,11 +60,7 @@ Default output:
   <invoice.number>.yaml in the current directory
 
 Default lookup:
-` +
-			helptext.LookupCustomers +
-			helptext.LookupIssuer +
-			helptext.LookupDefaults +
-			helptext.LookupArchive,
+{{.LookupCustomers}}{{.LookupIssuer}}{{.LookupDefaults}}{{.LookupArchive}}`,
 		Example: `$ invox new CUST-001
 $ invox new CUST-001 -e
 $ invox new CUST-001 --from-last

@@ -13,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
@@ -59,9 +58,7 @@ Default output:
   <input name>.eml in a new temporary directory, removed after 24 hours
 
 Default lookup:
-` +
-			helptext.LookupCustomers +
-			helptext.LookupIssuer +
+{{.LookupCustomers}}{{.LookupIssuer}}` +
 			`  invoice PDF: input path with .pdf extension by default, or the input itself when the input is a PDF
 
 Behavior:

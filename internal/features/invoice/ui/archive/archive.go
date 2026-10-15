@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/add"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/edit"
 	"github.com/0xboris/invox/internal/features/invoice/ui/archive/list"
@@ -23,7 +22,7 @@ func NewCmdArchive(f *shared.Factory, runF func(context.Context, *add.AddOptions
 		Long: `Archive invoices, and list or edit archived ones.
 
 Default lookup:
-` + helptext.LookupArchive,
+{{.LookupArchive}}`,
 		Example: `$ invox archive add invoice.yaml
 $ invox archive list
 $ invox archive edit 2026-03-06.yaml

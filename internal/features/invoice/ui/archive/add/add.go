@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -58,10 +57,9 @@ Required inputs:
   INVOICE.yaml or -i, --input PATH  Path to the invoice YAML file
 
 Default lookup:
+{{.LookupArchive}}
 ` +
-			helptext.LookupArchive +
-			"\n" +
-			helptext.ReplacingArchived(false),
+			shared.ReplacingArchived(false),
 		Example: `$ invox archive add invoice.yaml
 $ invox archive add invoices/2026-0021.yaml
 $ invox archive add 2026-03-06.yaml --yes

@@ -18,6 +18,7 @@ import (
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/ports"
 	cli "github.com/0xboris/invox/internal/features/cli/ui"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/env"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -73,6 +74,22 @@ func mainContext(ctx context.Context, args []string, d *Dependencies) int {
 // NewRootCmd returns the invox command tree.
 func NewRootCmd(d *Dependencies) *cobra.Command {
 	return cli.NewRootCmd(cliFactory(d), commands(d)...)
+}
+
+// HelpTopics returns the help topics in the order the root help lists them.
+func HelpTopics(d *Dependencies) []cmdutil.Topic {
+	return cli.Topics(cliFactory(d))
+}
+
+// topics returns the slices' help topics in the order the root help lists
+// them.
+func topics(d *Dependencies) []cmdutil.Topic {
+	var all []cmdutil.Topic
+	all = append(all, configTopics()...)
+	all = append(all, customerTopics(d)...)
+	all = append(all, invoiceTopics(d)...)
+	all = append(all, templateTopics()...)
+	return all
 }
 
 // commands returns the commands below the root.

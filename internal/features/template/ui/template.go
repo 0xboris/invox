@@ -4,7 +4,6 @@ package template
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/0xboris/invox/internal/domain/helptext"
 	"github.com/0xboris/invox/internal/features/template/ui/list"
 	"github.com/0xboris/invox/internal/features/template/ui/shared"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
@@ -51,7 +50,7 @@ Template workflow:
   Run ` + "`" + `invox template list` + "`" + ` to discover templates addressable by name with -t/--template.
 
 ` +
-			helptext.TemplatePlaceholderReference(),
+			templatePlaceholderReference(),
 		Example: `$ invox template list
 $ invox template list --names
 $ invox render -i invoice.yaml -t multi_vat.tex
