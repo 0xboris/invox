@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/domain/email"
 	"github.com/0xboris/invox/internal/domain/money"
 	"github.com/0xboris/invox/internal/domain/ports"
+	"github.com/0xboris/invox/internal/utilities/eml"
 )
 
 type EmailDraftResult struct {
@@ -24,7 +25,7 @@ type EmailDraftResult struct {
 
 // EmailMessage is the draft of an invoice email and the invoice it is for.
 type EmailMessage struct {
-	email.Draft
+	eml.Draft
 	CustomerID    string
 	InvoiceNumber string
 }
@@ -160,7 +161,7 @@ func (h Host) CreateInvoiceEmailDraft(now time.Time, emailMessage EmailMessage, 
 		return EmailDraftResult{}, fmt.Errorf("read %s: %w", emailMessage.AttachmentPath, err)
 	}
 
-	message, err := email.Build(emailMessage.Draft, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
+	message, err := eml.Build(emailMessage.Draft, pdfBytes, now, fmt.Sprintf("invox-boundary-%d", now.UnixNano()))
 	if err != nil {
 		return EmailDraftResult{}, err
 	}
@@ -249,7 +250,7 @@ func (h Host) PrepareInvoiceEmail(p EmailParams) (EmailMessage, error) {
 	}
 
 	return EmailMessage{
-		Draft: email.Draft{
+		Draft: eml.Draft{
 			Recipient:      recipient,
 			Subject:        subject,
 			Body:           body,

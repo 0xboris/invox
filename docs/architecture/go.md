@@ -18,7 +18,7 @@ internal/domain/config/                domain: the config.yaml schema
 internal/domain/archive/               domain: the archive directory: walk, list, name resolution, .history backups
 internal/domain/money/                 domain: decimals, cents, 1.234,56 formatting
 internal/domain/epc/                   domain: EPC QR code rules and payload
-internal/domain/email/                 domain: subject and body templates, the .eml MIME layout
+internal/domain/email/                 domain: the subject and body templates of the invoice email
 internal/domain/latex/                 domain: LaTeX escaping, rows, line item blocks, template checks
 internal/domain/schema/                domain: the documented fields of the support files, their examples, the template placeholders
 internal/adapters/fsutil/              adapter: ports.Files on the real file system
@@ -30,6 +30,7 @@ internal/adapters/buildinfo/           adapter: the version stamped in at link t
 internal/utilities/env/                utilities: env.Env (GOOS, Getenv, HomeDir, Getwd, Now)
 internal/utilities/iostreams/          utilities: stdin, stdout, stderr and TTY flags
 internal/utilities/proc/               utilities: ExitError, SignalError and the Ctrl-C hold
+internal/utilities/eml/                utilities: an unsent .eml message with one PDF attachment
 internal/docs/gen/                     tool: regenerates docs/cli and share/man; the release binary may not import it
 ```
 
