@@ -1,5 +1,6 @@
-// Package build is the `invox build` command.
-package build
+// Package buildcmd is the `invox build` command. The directory isn't named
+// build, because the architecture check skips directories with that name.
+package buildcmd
 
 import (
 	"context"
@@ -12,21 +13,23 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 	"github.com/0xboris/invox/internal/utilities/proc"
 )
 
-// BuildOptions is what build needs: its streams, the compiler, the user
+// BuildOptions is what build needs: its streams, the use cases, the user
 // directories and the parsed flags.
 type BuildOptions struct {
-	IO       *iostreams.IOStreams
-	Compiler ports.PDFCompiler
-	Host     func() invoice.Host
-	Getwd    func() (string, error)
-	Now      func() time.Time
+	IO          *iostreams.IOStreams
+	LoadInvoice usecases.LoadInvoice
+	RenderTeX   usecases.RenderTeX
+	BuildPDF    usecases.BuildPDF
+	Host        func() invoice.Host
+	Getwd       func() (string, error)
+	Now         func() time.Time
 
 	InvoicePath   string
 	OutputPath    string
@@ -51,7 +54,7 @@ type buildJSON struct {
 
 // NewCmdBuild returns the build command. runF replaces buildRun in tests.
 func NewCmdBuild(f *shared.Factory, runF func(context.Context, *BuildOptions) error) *cobra.Command {
-	opts := &BuildOptions{IO: f.IOStreams, Compiler: f.Compiler, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &BuildOptions{IO: f.IOStreams, LoadInvoice: f.LoadInvoice, RenderTeX: f.RenderTeX, BuildPDF: f.BuildPDF, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:   "build [INVOICE.yaml]",
 		Short: "Render and compile an invoice PDF with Tectonic",
@@ -134,7 +137,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	outputDisplay := invoice.DisplayPath(outputPath, baseDir)
 	invoiceDisplay := invoice.DisplayPath(invoicePath, baseDir)
 
-	inv, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
+	inv, err := opts.LoadInvoice.Run(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -149,15 +152,16 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 	if opts.DryRun {
 		return buildDryRun(opts, h, inv, templatePath, invoicePath, outputPath, baseDir, printResult)
 	}
-	if err := h.BuildInvoicePDF(ctx, opts.Compiler.Build, templatePath, outputPath, inv); err != nil {
+	if err := opts.BuildPDF.Run(ctx, templatePath, outputPath, invoicePath, inv); err != nil {
+		var markErr *usecases.MarkBuiltError
+		if errors.As(err, &markErr) {
+			return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, markErr.Err)
+		}
 		var execErr *proc.ExitError
 		if errors.As(err, &execErr) {
 			return &cmdutil.ExecError{Program: "tectonic", Code: execErr.Code, Err: err}
 		}
 		return err
-	}
-	if err := invoice.MarkInvoiceBuilt(h.Files(), invoicePath); err != nil {
-		return fmt.Errorf("built %s but failed to update %s: %w", outputDisplay, invoiceDisplay, err)
 	}
 	if !opts.Archive {
 		fmt.Fprintf(opts.IO.ErrOut, "Built %s for %s (%s)\n", outputDisplay, inv.CustomerID, inv.InvoiceNumber)
@@ -188,7 +192,7 @@ func buildRun(ctx context.Context, opts *BuildOptions) error {
 // --archive, and prints what the build would do. It neither runs Tectonic
 // nor writes anything.
 func buildDryRun(opts *BuildOptions, h invoice.Host, inv *invoice.Context, templatePath, invoicePath, outputPath, baseDir string, printResult func(archivedPath *string) error) error {
-	if _, err := invoice.RenderTeX(h.Files(), templatePath, inv); err != nil {
+	if _, err := opts.RenderTeX.Run(templatePath, inv); err != nil {
 		return err
 	}
 	var archived invoice.ArchiveResult

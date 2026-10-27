@@ -15,6 +15,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/programs/run"
 	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -44,9 +45,10 @@ func TestEmailRunResolvesPathsAgainstGetwd(t *testing.T) {
 		opened = cmd.Args[0]
 		return nil
 	})
+	hosts := invoice.NewHostSource(func(string) invoice.Host { return host })
 	opts := &EmailOptions{
 		IO:          ios,
-		Opener:      opener.New(stub, ios, "linux"),
+		OpenDraft:   usecases.NewOpenDraft(hosts, opener.New(stub, ios, "linux")),
 		Host:        func() invoice.Host { return host },
 		Getwd:       func() (string, error) { return work, nil },
 		Now:         time.Now,
@@ -86,14 +88,15 @@ func TestEmailRunDraftInvoiceNeverComposes(t *testing.T) {
 	ios, _, out, _ := iostreams.Test()
 	// Nothing is registered, so a Compose call would fail the test.
 	stub := run.NewStub(t)
+	hosts := invoice.NewHostSource(func(string) invoice.Host { return host })
 	opts := &EmailOptions{
-		IO:          ios,
-		Mailer:      applemail.New(stub, ios),
-		Opener:      opener.New(stub, ios, "darwin"),
-		Host:        func() invoice.Host { return host },
-		Getwd:       func() (string, error) { return work, nil },
-		Now:         time.Now,
-		InvoicePath: "inv.yaml",
+		IO:            ios,
+		ComposeEmail:  usecases.NewComposeEmail(applemail.New(stub, ios)),
+		OpenTempDraft: usecases.NewOpenTempDraft(hosts, opener.New(stub, ios, "darwin")),
+		Host:          func() invoice.Host { return host },
+		Getwd:         func() (string, error) { return work, nil },
+		Now:           time.Now,
+		InvoicePath:   "inv.yaml",
 	}
 	err := emailRun(context.Background(), opts, false)
 	const want = "invoice.status must be `built` or `archived` before creating an email draft, got `draft`"

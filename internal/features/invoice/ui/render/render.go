@@ -10,14 +10,17 @@ import (
 
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 type RenderOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO          *iostreams.IOStreams
+	LoadInvoice usecases.LoadInvoice
+	RenderTeX   usecases.RenderTeX
+	Host        func() invoice.Host
+	Getwd       func() (string, error)
 
 	InvoicePath   string
 	OutputPath    string
@@ -39,7 +42,7 @@ type renderJSON struct {
 
 // NewCmdRender returns the render command. runF replaces renderRun in tests.
 func NewCmdRender(f *shared.Factory, runF func(*RenderOptions) error) *cobra.Command {
-	opts := &RenderOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &RenderOptions{IO: f.IOStreams, LoadInvoice: f.LoadInvoice, RenderTeX: f.RenderTeX, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "render [INVOICE.yaml]",
 		Short: "Render a LaTeX invoice file from YAML data",
@@ -115,7 +118,7 @@ func renderRun(opts *RenderOptions) error {
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
+	ctx, err := opts.LoadInvoice.Run(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		return err
 	}
@@ -123,7 +126,7 @@ func renderRun(opts *RenderOptions) error {
 	verb := "Rendered"
 	if opts.DryRun {
 		verb = "Would render"
-		if _, err := invoice.RenderTeX(h.Files(), templatePath, ctx); err != nil {
+		if _, err := opts.RenderTeX.Run(templatePath, ctx); err != nil {
 			return err
 		}
 	} else if err := h.RenderInvoice(templatePath, outputPath, ctx); err != nil {

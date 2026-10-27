@@ -9,6 +9,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/fsutil"
 	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -25,8 +26,10 @@ func TestValidateRunResolvesInputAgainstGetwd(t *testing.T) {
 	}
 
 	ios, _, out, errOut := iostreams.Test()
+	hosts := invoice.NewHostSource(func(string) invoice.Host { return host })
 	opts := &ValidateOptions{
 		IO:          ios,
+		LoadInvoice: usecases.NewLoadInvoice(hosts),
 		Host:        func() invoice.Host { return host },
 		Getwd:       func() (string, error) { return work, nil },
 		InvoicePath: "inv.yaml",

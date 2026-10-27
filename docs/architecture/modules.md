@@ -8,9 +8,17 @@ May import: utilities.
 
 - `domain`: `internal/domain`
 
+## usecases
+
+May import: domain, utilities.
+
+- `config/usecases`, slice config: `internal/features/config/usecases`
+- `customer/usecases`, slice customer: `internal/features/customer/usecases`
+- `invoice/usecases`, slice invoice: `internal/features/invoice/usecases`
+
 ## ui
 
-May import: its own slice's usecases, domain, shared-ui, utilities.
+May import: its own slice's usecases, domain, shared-ui, utilities. Uses no ports.
 
 - `cli/ui`, slice cli: `internal/features/cli/ui`
 - `config/ui`, slice config: `internal/features/config/ui`
@@ -54,4 +62,10 @@ May import: domain, usecases, ui, shared-ui, adapter, composition, utilities.
 May import: nothing in the project.
 
 - `utilities`: `internal/utilities`
+
+## test-support
+
+May import: domain, utilities.
+
+- `testsupport`: `internal/testsupport`
 

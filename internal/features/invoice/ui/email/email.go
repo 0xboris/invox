@@ -14,22 +14,23 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
-// EmailOptions is what email needs: its streams, the programs that show the
+// EmailOptions is what email needs: its streams, the use cases that show the
 // draft, the user directories and the parsed flags.
 type EmailOptions struct {
-	IO     *iostreams.IOStreams
-	Opener ports.Opener
-	// Mailer is nil where Apple Mail is not available.
-	Mailer ports.MailComposer
-	Host   func() invoice.Host
-	Getwd  func() (string, error)
-	Now    func() time.Time
+	IO               *iostreams.IOStreams
+	CheckDraftOutput usecases.CheckDraftOutput
+	ComposeEmail     usecases.ComposeEmail
+	OpenDraft        usecases.OpenDraft
+	OpenTempDraft    usecases.OpenTempDraft
+	Host             func() invoice.Host
+	Getwd            func() (string, error)
+	Now              func() time.Time
 
 	InvoicePath   string
 	PDFPath       string
@@ -44,7 +45,7 @@ type EmailOptions struct {
 
 // NewCmdEmail returns the email command. runF replaces emailRun in tests.
 func NewCmdEmail(f *shared.Factory, runF func(context.Context, *EmailOptions) error) *cobra.Command {
-	opts := &EmailOptions{IO: f.IOStreams, Opener: f.Opener, Mailer: f.Mailer, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &EmailOptions{IO: f.IOStreams, CheckDraftOutput: f.CheckDraftOutput, ComposeEmail: f.ComposeEmail, OpenDraft: f.OpenDraft, OpenTempDraft: f.OpenTempDraft, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:     "email [INVOICE.yaml | INVOICE.pdf]",
 		Aliases: []string{"send"},
@@ -133,13 +134,6 @@ func validate(opts *EmailOptions) error {
 	return nil
 }
 
-const (
-	draftDirPrefix = "invox-email-"
-	// draftMaxAge is how long a temporary draft stays for the mail app
-	// before a later run of invox email removes it.
-	draftMaxAge = 24 * time.Hour
-)
-
 func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) error {
 	cwd, err := opts.Getwd()
 	if err != nil {
@@ -184,14 +178,9 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		}
 		return err
 	}
-	draft := func(outputPath string, overwrite bool) error {
-		_, err := h.CreateInvoiceEmailDraft(opts.Now(), message, outputPath, overwrite)
-		return outputExists(outputPath, err)
-	}
-
 	if opts.DryRun {
 		if explicitOutput {
-			if err := outputExists(paths.OutputPath, invoice.CheckEmailDraftOutput(h.Files(), paths.OutputPath, opts.Force)); err != nil {
+			if err := outputExists(paths.OutputPath, opts.CheckDraftOutput.Run(paths.OutputPath, opts.Force)); err != nil {
 				return err
 			}
 		}
@@ -204,42 +193,30 @@ func emailRun(ctx context.Context, opts *EmailOptions, explicitOutput bool) erro
 		return nil
 	}
 
+	var openErr *usecases.OpenError
 	switch {
-	case opts.Mailer != nil && !explicitOutput:
-		if err := opts.Mailer.Compose(ctx, ports.MailMessage{
-			To:         message.Recipient,
-			Subject:    message.Subject,
-			Body:       message.Body,
-			Attachment: message.AttachmentPath,
-			Sender:     message.SenderAddress,
-		}); err != nil {
+	case opts.ComposeEmail.Available() && !explicitOutput:
+		if err := opts.ComposeEmail.Run(ctx, message); err != nil {
 			return fmt.Errorf("failed to open editable email draft: %w", err)
 		}
 	case explicitOutput:
-		if err := draft(paths.OutputPath, opts.Force); err != nil {
-			return err
+		err := opts.OpenDraft.Run(ctx, opts.Now(), message, paths.OutputPath, opts.Force)
+		if errors.As(err, &openErr) {
+			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, baseDir), openErr.Err)
 		}
-		if err := opts.Opener.Open(ctx, paths.OutputPath); err != nil {
-			return fmt.Errorf("created %s but failed to open it: %w", invoice.DisplayPath(paths.OutputPath, baseDir), err)
+		if err != nil {
+			return outputExists(paths.OutputPath, err)
 		}
 	default:
-		files := h.Files()
-		pruneEmailDrafts(files, files.TempDir(), opts.Now().Add(-draftMaxAge))
-		draftDir, err := files.MkdirTemp("", draftDirPrefix+"*")
-		if err != nil {
-			return fmt.Errorf("create temporary draft directory: %w", err)
+		draftPath, err := opts.OpenTempDraft.Run(ctx, opts.Now(), message, filepath.Base(paths.OutputPath))
+		if errors.As(err, &openErr) {
+			return fmt.Errorf("failed to open email draft: %w", openErr.Err)
 		}
-		draftPath := filepath.Join(draftDir, filepath.Base(paths.OutputPath))
-		if err := draft(draftPath, false); err != nil {
-			_ = files.RemoveAll(draftDir)
+		if err != nil && draftPath == "" {
 			return err
 		}
-		// The draft stays in its temporary directory: the mail app can read it
-		// after the opener returns, so invox cannot know when to delete it.
-		// pruneEmailDrafts removes it on a run a day later.
-		if err := opts.Opener.Open(ctx, draftPath); err != nil {
-			_ = files.RemoveAll(draftDir)
-			return fmt.Errorf("failed to open email draft: %w", err)
+		if err != nil {
+			return outputExists(draftPath, err)
 		}
 	}
 
@@ -255,24 +232,4 @@ func orDefault(value, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-// pruneEmailDrafts removes the temporary draft directories in dir that earlier
-// runs left behind and that were last modified before cutoff. It skips
-// anything that is not a directory, so a symlink is never followed.
-func pruneEmailDrafts(files ports.Files, dir string, cutoff time.Time) {
-	entries, err := files.ReadDir(dir)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), draftDirPrefix) {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil || !info.ModTime().Before(cutoff) {
-			continue
-		}
-		_ = files.RemoveAll(filepath.Join(dir, entry.Name()))
-	}
 }

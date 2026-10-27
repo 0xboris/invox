@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/config/ui/edit"
 	"github.com/0xboris/invox/internal/features/config/ui/shared"
+	"github.com/0xboris/invox/internal/features/config/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -34,8 +35,8 @@ func TestNewCmdConfigParsing(t *testing.T) {
 			ios, _, _, _ := iostreams.Test()
 			ran := false
 			root := &cobra.Command{Use: "invox", SilenceErrors: true, SilenceUsage: true}
-			root.AddCommand(NewCmdConfig(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), Editor: stubEditor{}}, func(_ context.Context, opts *edit.EditOptions) error {
-				ran = opts.Editor != nil
+			root.AddCommand(NewCmdConfig(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), EditConfig: usecases.NewEditConfig(stubEditor{})}, func(_ context.Context, opts *edit.EditOptions) error {
+				ran = opts.EditConfig == usecases.NewEditConfig(stubEditor{})
 				return nil
 			}))
 			root.SetOut(io.Discard)

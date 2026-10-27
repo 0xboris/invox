@@ -12,6 +12,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+	"github.com/0xboris/invox/internal/features/customer/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -74,6 +75,7 @@ func TestListRun(t *testing.T) {
 	ios, _, out, errOut := iostreams.Test()
 	opts := &ListOptions{
 		IO:            ios,
+		ListCustomers: usecases.NewListCustomers(invoice.NewHostSource(func(string) invoice.Host { return host })),
 		Host:          func() invoice.Host { return host },
 		Getwd:         func() (string, error) { return work, nil },
 		CustomersPath: "c.yaml",

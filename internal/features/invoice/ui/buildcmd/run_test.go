@@ -1,4 +1,4 @@
-package build
+package buildcmd
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/programs/tectonic"
 	"github.com/0xboris/invox/internal/adapters/starter"
 	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
@@ -47,9 +48,12 @@ func TestBuildRunResolvesPathsAgainstGetwd(t *testing.T) {
 				pdf := strings.TrimSuffix(cmd.Args[0], ".tex") + ".pdf"
 				return os.WriteFile(filepath.Join(cmd.Dir, pdf), []byte("%PDF\n"), 0o644)
 			})
+			hosts := invoice.NewHostSource(func(string) invoice.Host { return host })
 			opts := &BuildOptions{
 				IO:          ios,
-				Compiler:    tectonic.New(stub, ios),
+				LoadInvoice: usecases.NewLoadInvoice(hosts),
+				RenderTeX:   usecases.NewRenderTeX(hosts),
+				BuildPDF:    usecases.NewBuildPDF(hosts, tectonic.New(stub, ios)),
 				Host:        func() invoice.Host { return host },
 				Getwd:       func() (string, error) { return work, nil },
 				Now:         time.Now,

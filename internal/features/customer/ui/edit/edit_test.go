@@ -11,6 +11,7 @@ import (
 	"github.com/0xboris/invox/internal/adapters/platform"
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+	"github.com/0xboris/invox/internal/features/customer/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
@@ -41,7 +42,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 			t.Run(form.name+"/"+tc.name, func(t *testing.T) {
 				ios, _, _, errOut := iostreams.Test()
 				var got *EditOptions
-				cmd := form.newCmd(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), Editor: stubEditor{}}, func(_ context.Context, opts *EditOptions) error {
+				cmd := form.newCmd(&shared.Factory{IOStreams: ios, Env: platform.Env(), Hosts: invoice.NewHostSource(func(string) invoice.Host { return invoice.Host{} }), EditCustomers: usecases.NewEditCustomers(stubEditor{})}, func(_ context.Context, opts *EditOptions) error {
 					got = opts
 					return nil
 				})
@@ -61,7 +62,7 @@ func TestNewCmdEditParsing(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Execute returned error: %v", err)
 				}
-				if got == nil || got.CustomersPath != tc.wantCustomers || got.Editor == nil || got.Command != command {
+				if got == nil || got.CustomersPath != tc.wantCustomers || got.EditCustomers != usecases.NewEditCustomers(stubEditor{}) || got.Command != command {
 					t.Fatalf("opts = %+v, want CustomersPath %q, an editor and Command %q", got, tc.wantCustomers, command)
 				}
 				if errOut.String() != form.wantWarning {

@@ -29,7 +29,7 @@ func CompleteCustomerIDs(f *Factory) cobra.CompletionFunc {
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		customers, err := invoice.ListCustomers(host.Files(), path)
+		customers, err := f.ListCustomers.Run(path)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}

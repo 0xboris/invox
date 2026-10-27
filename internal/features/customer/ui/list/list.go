@@ -9,15 +9,17 @@ import (
 
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+	"github.com/0xboris/invox/internal/features/customer/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/sharedui/tableprinter"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 type ListOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO            *iostreams.IOStreams
+	ListCustomers usecases.ListCustomers
+	Host          func() invoice.Host
+	Getwd         func() (string, error)
 
 	CustomersPath string
 	Exporter      *cmdutil.Exporter
@@ -34,7 +36,7 @@ type customerJSON struct {
 
 // NewCmdList returns the customer list command. runF replaces listRun in tests.
 func NewCmdList(f *shared.Factory, runF func(*ListOptions) error) *cobra.Command {
-	opts := &ListOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &ListOptions{IO: f.IOStreams, ListCustomers: f.ListCustomers, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List all customers from customers.yaml",
@@ -77,7 +79,7 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 
-	customers, err := invoice.ListCustomers(opts.Host().Files(), customersPath)
+	customers, err := opts.ListCustomers.Run(customersPath)
 	if err != nil {
 		return err
 	}

@@ -6,8 +6,10 @@
   "language": "go",
   "sourceRoots": ["."],
   "testFiles": ["**/*_test.go"],
+  "scriptFiles": ["scripts/**", "checks/**"],
   "ignore": [],
   "glossary": "GLOSSARY.md",
+  "portFiles": ["internal/domain/ports/*.go"],
 
   "modules": [
     {"path": "cmd/*", "kind": "composition", "name": "cmd/{1}"},
@@ -35,6 +37,7 @@
     },
     "ui": {
       "mayImport": ["usecases@same-slice", "domain", "shared-ui", "utilities"],
+      "forbidPorts": true,
       "external": {"allow": ["std", "@cli-framework"], "deny": ["os", "os/*", "database/*", "math/rand", "math/rand/*", "crypto/rand", "syscall"]},
       "forbiddenCalls": ["@io", "@http-client"]
     },

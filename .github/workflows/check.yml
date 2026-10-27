@@ -19,11 +19,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
+      - name: Fail a loosened check that has no approved exception
+        if: github.event_name == 'pull_request'
+        run: python3 tools/gateguard.py HEAD^1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - name: Run the existing project checks as the base branch has them
+        if: github.event_name == 'pull_request'
+        run: python3 tools/gateguard.py --base-checks HEAD^1
       - name: Run the check
         run: ./check
+      - name: Fail if ./check changed or added a file, such as a check or an out-of-date module map
+        run: |
+          git status --short
+          test -z "$(git status --porcelain)"
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -1,60 +1,72 @@
-# The architecture in invox
+# The architecture in Go
 
-This guide shows where each part of `docs/ARCHITECTURE.md` sits in invox. `architecture.json` maps each directory to a module kind, and `docs/architecture/modules.md` lists the result. The code has no accepted violations, so there is no baseline file: `python3 tools/archcheck.py` fails on any violation.
+This guide shows how each part of `docs/ARCHITECTURE.md` looks in Go. It holds the rules that come from the language. `docs/architecture/stack.md` names the libraries this project uses, such as the HTTP router and the logger, and how the reference slice uses them.
+
+This guide belongs to the kit, and a kit upgrade replaces it, so the project does not edit it. Its examples name the kit's Notes slice. Once Notes is gone, the reference slice that `AGENTS.md` names shows the same patterns.
 
 ## Layout
 
 ```
-cmd/invox/main.go                      composition: os.Exit(app.Main(os.Args[1:], app.Live()))
-internal/app/                          composition root: Dependencies, the adapters, one wire_<slice>.go per slice
-internal/features/<slice>/ui/          UI of a slice: one cobra command per package, NewCmdX(f, runF)
-internal/features/<slice>/ui/shared/   the slice's Factory and what its commands share
-internal/features/cli/ui/              the cli slice: cli.Main, the cobra root, global flags, exit codes, help rendering, completion
-internal/sharedui/cmdutil/             shared UI: error types, FlagErrorFunc, prompts, the editor gate
-internal/sharedui/tableprinter/        shared UI: table output
-internal/domain/invoice/               domain: loading, validation, VAT totals, numbering, the render, email and archive steps, HostSource
-internal/domain/ports/                 domain: the ports (Files, PDFCompiler, Editor, Opener, MailComposer)
-internal/domain/config/                domain: the config.yaml schema
-internal/domain/archive/               domain: the archive directory: walk, list, name resolution, .history backups
-internal/domain/money/                 domain: decimals, cents, 1.234,56 formatting
-internal/domain/epc/                   domain: EPC QR code rules and payload
-internal/domain/email/                 domain: the subject and body templates of the invoice email
-internal/domain/latex/                 domain: LaTeX escaping, rows, line item blocks, template checks
-internal/domain/schema/                domain: the documented fields of the support files, their examples, the template placeholders
-internal/adapters/fsutil/              adapter: ports.Files on the real file system
-internal/adapters/platform/            adapter: the process environment, streams, terminals and signals
-internal/adapters/programs/run/        adapter: run.Runner, the only package that starts programs
-internal/adapters/programs/<name>/     adapters: tectonic, editor, opener and applemail on top of run.Runner
-internal/adapters/starter/             adapter: the files invox init writes, embedded
-internal/adapters/buildinfo/           adapter: the version stamped in at link time
-internal/utilities/env/                utilities: env.Env (GOOS, Getenv, HomeDir, Getwd, Now)
-internal/utilities/iostreams/          utilities: stdin, stdout, stderr and TTY flags
-internal/utilities/proc/               utilities: ExitError, SignalError and the Ctrl-C hold
-internal/utilities/eml/                utilities: an unsent .eml message with one PDF attachment
-internal/docs/gen/                     tool: regenerates docs/cli and share/man; the release binary may not import it
+cmd/server/main.go                    composition root: entry point
+internal/app/                         composition root: app.go, config.go, live.go, wire_<slice>.go
+internal/domain/                      domain: model, rules, ports
+internal/domain/middleware/           domain: middleware
+internal/features/<slice>/ui/         UI of a slice
+internal/features/<slice>/usecases/   use cases of a slice
+internal/sharedui/                    shared UI
+internal/adapters/<name>/             one directory per adapter
+internal/utilities/
+internal/testsupport/
 ```
 
-Slices are the command nouns: `config`, `customer`, `init`, `invoice`, `template` and `version`. `cli` is the application shell, not a capability: it owns the root command, help rendering, exit codes and completion, and receives the other slices' commands and help topics. Help wording lives in the slice whose files it describes: each slice's `Topics` returns its `cmdutil.Topic` pages, and the domain's `schema` package holds only the field and placeholder data they print. A slice's UI module is its whole `internal/features/<slice>/ui` tree. invox has no use case modules yet: commands call `internal/domain/invoice` directly, which holds the render, email and archive steps.
+A module is a directory and every package below it. `internal/domain/middleware` belongs to the domain module. Slice directories use lowercase names without separators, such as `recurringtransactions`. A new slice copies the files of the reference slice: its `ui` and `usecases` packages, their tests, and `internal/app/wire_<slice>.go`, which `New` in `internal/app/app.go` calls.
 
-`app.Dependencies` holds the streams, the `env.Env`, the `invoice.HostSource` and the adapters behind their ports. Each `wire_<slice>.go` copies what its slice needs into that slice's `shared.Factory` and returns the slice's commands. `config.go` is the one composition file with decisions in it: Apple Mail exists only on macOS, and the user directories are resolved from the environment there, on first use, before the domain gets them as `invoice.HostInputs`.
+## Domain
 
-## Where new code goes
+- **Model.** Structs and named types. A value with rules has unexported fields and a constructor that returns an error, like `NewNoteTitle`. Treat its zero value as invalid.
+- **Rules.** Plain functions, like `NewestFirst`.
+- **Errors.** Exported sentinel errors or error types, like `ErrTitleEmpty`. Callers check them with `errors.Is` or `errors.As`, and code wraps underlying errors with `fmt.Errorf("...: %w", err)`. A port documents the errors it returns, so callers and their tests can handle each one.
+- **Ports.** Interfaces in `ports.go` or in a file per port. Methods that may do I/O take a `context.Context` first.
+- **Middleware.** A struct in `domain/middleware` that wraps a port and implements it, like `LoggingNoteStore`.
 
-`tools/new.py` generates use cases and HTTP handlers, which invox does not use. Do not run it here. Build by hand and copy the closest existing code:
+The domain may import the standard library except the I/O packages that `architecture.json` lists under `io-packages`, such as `net/...`, `os`, and `database/sql`. It may use the `time.Time` type but must not call `time.Now`, `time.Sleep`, or similar functions. Take the time from the `Clock` port.
 
-- **A new command.** A package under `internal/features/<noun>/ui/<verb>` with an Options struct, `NewCmdX(f, runF)` and a run function, like `internal/features/invoice/ui/validate`. Register it in its noun's parent command, or in the slice's `wire_<noun>.go` for a top-level command. A new noun is a new slice, with its own `ui/shared.Factory` and `internal/app/wire_<noun>.go`, and an entry in `commandGroups` in `internal/features/cli/ui/root.go`.
-- **A business rule or value.** A function or type in the domain module that owns the concept, with its name in `GLOSSARY.md`. A rule that only one command uses still goes into the domain.
-- **File access.** Through `ports.Files`, which the `invoice.Host` carries (`h.Files()`). Domain code never imports `os`. `Files` mirrors `os` and `filepath` because it replaced direct calls one for one; prefer adding a purpose-named port (an archive store, the support files) over widening it.
-- **A program invox runs.** A port in `internal/domain/ports`, and an adapter under `internal/adapters/programs/<name>` that implements it on top of `run.Runner`, like `internal/adapters/programs/tectonic`. `internal/app` builds it into `Dependencies` and copies it into the slices' Factories.
-- **Output.** Commands write to the `IOStreams` they are given. The domain returns data and typed errors and never prints.
-- **The environment, the clock or the platform.** Read them from the `env.Env` that the caller passes in. Only `platform.Env()` and `platform.Streams()` touch the process.
+## Slices
 
-## Other checks of the same layers
+- **Use cases** are structs with unexported port fields, a `NewX` constructor, and a `Run(ctx, ...)` method. Settings are plain values, such as a retention period, that `config.go` reads and the wiring file passes to the constructor.
+- **The UI package** takes the slice's use cases and a logger in its constructor. Request and response types stay in the UI package and map to and from domain types.
+- The UI package logs the errors it handles and maps domain errors to output with `errors.Is`.
 
-`./check` runs `tools/archcheck.py`. Two older checks state parts of the same rules and stay in place: depguard and forbidigo in `.golangci.yml` check each file's imports and calls, and `internal/archtest` checks the transitive import graph. `internal/adapters/platform` holds the tests that only `platform` reads the process environment and streams. A change to the layering updates all of them in the same pull request.
+UI code may not make outgoing requests or touch the file system. Put that behind a port.
+
+## Other entry points
+
+- A background job or a scheduled task is an entry point of its slice, like a handler. Its code lives in the slice's UI package and calls the slice's use cases.
+- The queue or scheduler that runs jobs is an adapter. The composition root registers each slice's jobs with it and sets their schedules from configuration.
+- A use case that puts work on a queue does so through a port, which the queue adapter implements.
+- When the service runs as more than one process, such as an API and a worker, each process gets its own directory under `cmd/`, such as `cmd/server` and `cmd/worker`.
+- When an adapter holds a resource that must be closed, such as a database pool, `live.go` returns it with the dependencies, and `main.go` closes it on shutdown. Migrations run before the process serves, at start or from their own command under `cmd/`.
+
+## Adapters
+
+An adapter package imports the domain and whatever libraries it needs. It keeps its stored or wire records unexported and maps them to domain types. Guard mutable state with a `sync.Mutex`.
+
+For SQL databases, keep numbered migrations in the adapter, and never edit a migration that has shipped. A helper that creates a real database for tests lives in the adapter package, next to the adapter's tests, because test support may not import adapters.
+
+## Composition root
+
+- `app.go` defines `Dependencies` and `New`. `New` applies the mandatory middleware and calls one `wireX` method per slice.
+- `wire_<slice>.go` builds the slice's use cases and UI, and decides which optional middleware the slice gets.
+- `live.go` creates the real adapters, and `config.go` reads the environment.
+- `cmd/server/main.go` reads the config, builds the app, and starts it.
+- Control flow is allowed in `config.go`. Elsewhere the check allows only `if err != nil {` and `if err := ...; err != nil {`, for error handling.
 
 ## Tests
 
-- `go test -race -shuffle=on ./...` runs in `./check`, so tests must pass in any order and without data races.
-- CLI tests in `internal/app` use `captureRun` and `testFactory`, which return a `*app.Dependencies`. The e2e suite in `cmd/invox/testdata/script` pins every command's stdout, stderr and exit code. CLAUDE.md's Testing section has the details.
-- `./check` runs gofmt, `go mod tidy -diff`, vet, build and the tests. CI also runs golangci-lint, govulncheck, fuzzing and the tests on macOS and Windows.
+- Tests use the standard `testing` package. Domain and middleware tests that need test support live in external test packages, such as `domain_test`, to avoid an import cycle.
+- Use case, UI, middleware, and composition tests use the real adapter, such as `filestore.New(filepath.Join(t.TempDir(), "notes.json"))`, and assert what the store returns afterwards.
+- Test support holds sample data, like `SampleNote`, small fakes for ports whose state a test drives, like `FakeClock`, and implementations that fail, like `FailingNoteStore`. Each asserts at compile time that it implements the port: `var _ domain.NoteStore = FailingNoteStore{}`.
+- The adapter's own tests run against the real system, such as a real database or `t.TempDir()`. A stored format has a file in the adapter's `testdata/`, like `notes-v1.json`, and a test that loads it.
+- `internal/app/app_test.go` is the composition test. It builds the app on a temporary store and checks which middleware the slices receive.
+
+Tests must pass in any order and without data races.

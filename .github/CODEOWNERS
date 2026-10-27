@@ -1,6 +1,5 @@
-# Gate files: they define the checks, so changes need the owner's review.
+# Gate files define the checks. A change to them can loosen a check, so the owner reviews it.
 /architecture.json            @0xboris
-/architecture-baseline.json   @0xboris
 /check                        @0xboris
 /tools/                       @0xboris
 /.claude/                     @0xboris
@@ -10,9 +9,18 @@
 /docs/ARCHITECTURE.md         @0xboris
 /docs/architecture/           @0xboris
 
-# The module map is generated, so it needs no owner.
+# Compiler, linter, and test runner settings.
+**/go.mod                     @0xboris
+/go.work                      @0xboris
+**/.golangci.yml              @0xboris
+**/.golangci.yaml             @0xboris
+
+# The baseline, checks/, GLOSSARY.md, and the source files need no owner. tools/gateguard.py fails a
+# pull request that loosens a check through them, such as by raising the baseline or adding a
+# suppression comment, unless it records an exception in AGENTS.md. The module map is generated.
 /docs/architecture/modules.md
 
-# The composition root: legitimate changes are a few lines of wiring, so they are cheap to review.
+# The composition root decides which middleware each slice receives, such as authentication.
+# Its changes are a few lines of wiring, so they are cheap to review.
 /cmd/                         @0xboris
 /internal/app/                @0xboris

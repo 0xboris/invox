@@ -111,8 +111,8 @@ func TestImportRules(t *testing.T) {
 }
 
 // TestCommandsImportOnlyTheirOwnSubcommands keeps commands independent: a
-// command may import the packages below it and a shared package beside or
-// above it, never another command.
+// command may import the packages below it, a shared package beside or
+// above it and its slice's use cases, never another command.
 func TestCommandsImportOnlyTheirOwnSubcommands(t *testing.T) {
 	t.Parallel()
 
@@ -126,6 +126,9 @@ func TestCommandsImportOnlyTheirOwnSubcommands(t *testing.T) {
 				continue
 			}
 			if path.Base(imp) == "shared" && strings.HasPrefix(p.ImportPath, path.Dir(imp)+"/") {
+				continue
+			}
+			if slice := strings.TrimSuffix(imp, "/usecases"); slice != imp && (p.ImportPath == slice+"/ui" || strings.HasPrefix(p.ImportPath, slice+"/ui/")) {
 				continue
 			}
 			violations = append(violations, p.ImportPath+" imports "+imp)

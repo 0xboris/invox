@@ -26,3 +26,5 @@ node_modules/
 
 # ./check logs
 /.check/
+.scratch/
+.verify/

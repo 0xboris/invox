@@ -24,13 +24,20 @@ minimum in `go.mod`) and stable, and gofmt/vet/tidy, golangci-lint and govulnche
 `.github/workflows/check.yml` runs `./check`. Keep all of it green.
 
 A Stop hook (`tools/agent-stop-check.sh`, wired in `.claude/settings.json`) runs `./check`
-before an agent ends a turn that changed files, and sends failures back once. Before opening a
-PR, ask the `architecture-reviewer` subagent to review the change.
+before an agent ends a turn that changed files, and sends failures back once. On a pull request,
+`check.yml` also runs `tools/gateguard.py`, which fails a loosened check that has no row in the
+exceptions table of `AGENTS.md`. Every review answers the questions in
+`docs/architecture/review.md`, and the `verify-invox` skill shows a change working in the built
+binary.
 
 ## Layout
 
-The code follows the kit's layout in `docs/ARCHITECTURE.md`; `docs/architecture/go.md` maps
-each directory to its module kind and says where new code goes.
+The code follows the kit's architecture in `docs/ARCHITECTURE.md`. `docs/architecture/stack.md`
+maps each invox directory to its module kind, and `docs/architecture/where-code-goes.md` says
+where new code goes. The kit owns `docs/ARCHITECTURE.md`, `docs/architecture/go.md`,
+`where-code-goes.md`, `review.md`, `tools/archcheck.py`, `tools/gateguard.py`,
+`tools/agent-stop-check.sh` and `.claude/skills/deslop/`; a kit upgrade replaces them, so invox
+doesn't edit them.
 
 - `cmd/invox/main.go`: shim. It exits with `app.Main(os.Args[1:], app.Live())`.
 - `internal/app`: the composition root. `Dependencies` holds the streams, the `env.Env`, the
@@ -42,7 +49,12 @@ each directory to its module kind and says where new code goes.
 - `internal/features/<slice>/ui`: one slice per command noun (`config`, `customer`, `init`,
   `invoice`, `template`, `version`). Each verb is a package with an Options struct,
   `NewCmdX(f, runF)` and a run function; parse-only tests pass a `runF`. `ui/shared` holds the
-  slice's `Factory`, with only the fields its commands use, and what its commands share.
+  slice's `Factory`, with only the fields its commands use, and what its commands share. The
+  `build` command lives in `ui/buildcmd`, because the architecture check skips directories
+  named `build`.
+- `internal/features/<slice>/usecases`: the slice's use cases, the only way from its commands to
+  the ports. `wire_<slice>.go` builds them from `Dependencies` and puts them into the Factory.
+  `customer` is the reference slice.
 - `internal/features/cli/ui`: `Main`, the cobra root (`root.go`: global flags, the single-dash
   flag normaliser, help routing, help groups), exit codes (`exit.go`), the help page renderer
   (`usage.go`) and `completion.go`. It receives the other slices' commands from `app`. Help is
@@ -67,7 +79,8 @@ each directory to its module kind and says where new code goes.
   `invox init`, and `buildinfo` holds the version stamped in at link time.
 - `internal/utilities`: `env.Env` (`GOOS`, `Getenv`, `HomeDir`, `Getwd`, `Now`), `iostreams`
   (stdin, stdout, stderr and TTY flags), `proc` (`ExitError`, `SignalError`, the Ctrl-C
-  hold) and `eml` (an unsent .eml message with one PDF attachment). Only `platform.Env` and
+  hold) and `eml` (an unsent .eml message with one PDF attachment). `internal/testsupport`
+  holds port implementations that fail, for tests. Only `platform.Env` and
   `platform.Streams` touch the process; everything else uses what it is given. `internal/adapters/platform/ambient_test.go` fails on any other read of
   the environment, apart from `run.Exec.Run`, whose child processes inherit it, and
   `process_streams_test.go` on any other use of the process streams.

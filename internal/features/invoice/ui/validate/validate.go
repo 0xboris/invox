@@ -10,14 +10,16 @@ import (
 	"github.com/0xboris/invox/internal/domain/invoice"
 	"github.com/0xboris/invox/internal/domain/money"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 type ValidateOptions struct {
-	IO    *iostreams.IOStreams
-	Host  func() invoice.Host
-	Getwd func() (string, error)
+	IO          *iostreams.IOStreams
+	LoadInvoice usecases.LoadInvoice
+	Host        func() invoice.Host
+	Getwd       func() (string, error)
 
 	InvoicePath   string
 	CustomersPath string
@@ -28,7 +30,7 @@ type ValidateOptions struct {
 // NewCmdValidate returns the validate command. runF replaces validateRun in
 // tests.
 func NewCmdValidate(f *shared.Factory, runF func(*ValidateOptions) error) *cobra.Command {
-	opts := &ValidateOptions{IO: f.IOStreams, Host: f.Host, Getwd: f.Env.Getwd}
+	opts := &ValidateOptions{IO: f.IOStreams, LoadInvoice: f.LoadInvoice, Host: f.Host, Getwd: f.Env.Getwd}
 	cmd := &cobra.Command{
 		Use:   "validate [INVOICE.yaml]",
 		Short: "Validate invoice YAML against customers and issuer data",
@@ -90,7 +92,7 @@ func validateRun(opts *ValidateOptions) error {
 	}
 	invoicePath := invoice.AbsPath(baseDir, opts.InvoicePath)
 
-	ctx, err := invoice.LoadContext(h.Files(), customersPath, issuerPath, invoicePath)
+	ctx, err := opts.LoadInvoice.Run(customersPath, issuerPath, invoicePath)
 	if err != nil {
 		if problems, ok := invalidInvoiceProblems(err); ok && opts.Exporter != nil {
 			if writeErr := opts.Exporter.Write(opts.IO, validationJSON{Errors: problems}); writeErr != nil {

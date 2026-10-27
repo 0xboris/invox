@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # The one command that verifies the project. Agents run it after every step.
-# It prints only failures; full logs go to .check/ .
+# It prints only failures. Full logs go to .check/.
+#
+# Bash reads a script while it runs it, so a step could rewrite the lines after it.
+# All the work sits in main, which bash reads in full before it runs any of it.
 set -uo pipefail
-cd "$(dirname "$0")"
-mkdir -p .check
-status=0
 
 step() {
   local name="$1"; shift
@@ -23,18 +23,26 @@ gofmt_clean() {
   [ -z "$unformatted" ] || { echo "Run gofmt -w on:"; echo "$unformatted"; return 1; }
 }
 
-module_map_current() {
-  python3 tools/archcheck.py --module-map .check/modules.md &&
-    diff -u docs/architecture/modules.md .check/modules.md ||
-    { echo "Run: python3 tools/archcheck.py --module-map docs/architecture/modules.md"; return 1; }
+main() {
+  cd "$(dirname "$0")"
+  mkdir -p .check
+  status=0
+
+  step architecture python3 tools/archcheck.py
+  step module-map python3 tools/archcheck.py --module-map docs/architecture/modules.md
+  step format gofmt_clean
+  step tidy go mod tidy -diff
+  step vet go vet ./...
+  step build go build ./...
+  step test go test -race -shuffle=on -timeout=10m ./...
+
+  # Each executable file in checks/ is one step. Other files and folders there are helpers.
+  for project_check in checks/*; do
+    [ -f "$project_check" ] && [ -x "$project_check" ] || continue
+    step "$(basename "$project_check")" "./$project_check"
+  done
+
+  return $status
 }
 
-step architecture python3 tools/archcheck.py
-step module-map module_map_current
-step format gofmt_clean
-step tidy go mod tidy -diff
-step vet go vet ./...
-step build go build ./...
-step test go test -race -shuffle=on -timeout=10m ./...
-
-exit $status
+main "$@"; exit

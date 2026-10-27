@@ -13,18 +13,18 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/invoice/ui/shared"
+	"github.com/0xboris/invox/internal/features/invoice/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
 type NewOptions struct {
-	IO     *iostreams.IOStreams
-	Editor ports.Editor
-	Host   func() invoice.Host
-	Getwd  func() (string, error)
-	Now    func() time.Time
+	IO          *iostreams.IOStreams
+	EditInvoice usecases.EditInvoice
+	Host        func() invoice.Host
+	Getwd       func() (string, error)
+	Now         func() time.Time
 
 	CustomerID    string
 	OutputPath    string
@@ -47,7 +47,7 @@ type newJSON struct {
 
 // NewCmdNew returns the new command. runF replaces newRun in tests.
 func NewCmdNew(f *shared.Factory, runF func(context.Context, *NewOptions) error) *cobra.Command {
-	opts := &NewOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
+	opts := &NewOptions{IO: f.IOStreams, EditInvoice: f.EditInvoice, Host: f.Host, Getwd: f.Env.Getwd, Now: f.Env.Now}
 	cmd := &cobra.Command{
 		Use:   "new CUSTOMER_ID",
 		Short: "Create a new invoice YAML file with a generated number and prefilled defaults",
@@ -166,7 +166,7 @@ func newRun(ctx context.Context, opts *NewOptions) error {
 	displayPath := invoice.DisplayPath(created.Path, baseDir)
 	if opts.Edit && !opts.DryRun {
 		nextStep := fmt.Sprintf("edit it and run 'invox validate -i %s'", displayPath)
-		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, "new", created.Path, nextStep)
+		err := cmdutil.OpenInEditor(ctx, opts.IO, opts.EditInvoice.Run, "new", created.Path, nextStep)
 		var flagErr *cmdutil.FlagError
 		if errors.As(err, &flagErr) {
 			return &cmdutil.FlagError{Command: flagErr.Command, Err: fmt.Errorf("created %s but %w", displayPath, flagErr.Err)}

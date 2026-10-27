@@ -11,20 +11,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/0xboris/invox/internal/domain/invoice"
-	"github.com/0xboris/invox/internal/domain/ports"
 	"github.com/0xboris/invox/internal/features/customer/ui/shared"
+	"github.com/0xboris/invox/internal/features/customer/usecases"
 	"github.com/0xboris/invox/internal/sharedui/cmdutil"
 	"github.com/0xboris/invox/internal/utilities/iostreams"
 )
 
-// EditOptions is what customer edit needs: its streams, the editor, the user
-// directories and the parsed flags. Command names the command in its
-// messages.
+// EditOptions is what customer edit needs: its streams, the use case that
+// opens the editor, the user directories and the parsed flags. Command names
+// the command in its messages.
 type EditOptions struct {
-	IO     *iostreams.IOStreams
-	Editor ports.Editor
-	Host   func() invoice.Host
-	Getwd  func() (string, error)
+	IO            *iostreams.IOStreams
+	EditCustomers usecases.EditCustomers
+	Host          func() invoice.Host
+	Getwd         func() (string, error)
 
 	Command       string
 	CustomersPath string
@@ -50,7 +50,7 @@ func NewCmdConfig(f *shared.Factory, runF func(context.Context, *EditOptions) er
 }
 
 func newCmd(f *shared.Factory, runF func(context.Context, *EditOptions) error, name string) *cobra.Command {
-	opts := &EditOptions{IO: f.IOStreams, Editor: f.Editor, Host: f.Host, Getwd: f.Env.Getwd, Command: "customer " + name}
+	opts := &EditOptions{IO: f.IOStreams, EditCustomers: f.EditCustomers, Host: f.Host, Getwd: f.Env.Getwd, Command: "customer " + name}
 	cmd := &cobra.Command{
 		Use:               name,
 		Short:             "Open customers.yaml in your editor",
@@ -96,7 +96,7 @@ func editRun(ctx context.Context, opts *EditOptions) error {
 	}
 
 	displayPath := invoice.DisplayPath(customersPath, baseDir)
-	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.Editor, opts.Command, customersPath, "edit "+displayPath+" directly"); err != nil {
+	if err := cmdutil.OpenInEditor(ctx, opts.IO, opts.EditCustomers.Run, opts.Command, customersPath, "edit "+displayPath+" directly"); err != nil {
 		return fmt.Errorf("failed to open %s: %w", customersPath, err)
 	}
 
