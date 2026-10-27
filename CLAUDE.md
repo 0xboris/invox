@@ -107,48 +107,28 @@ Settled decisions (#9):
 
 ## Agent workflow: poteto-mode (pstack)
 
-`.claude/skills/` vendors all of [pstack](https://github.com/backnotprop/pstack)'s `skills/`
-at `124f622` (MIT, `.claude/skills/PSTACK-LICENSE`). `quality-cli` is this repo's own skill.
-`agents/comment-sicko.md` is left out of `.claude/agents/`: "Comment Sicko" isn't a valid
-Claude Code agent name, and `no-comments` falls back to a general subagent with its bundled
-prompt.
+pstack comes from the `pstack@cursor-plugins` plugin (MIT), which `.claude/settings.json`
+enables. Its skills and agents carry the `pstack:` prefix. `.claude/skills/quality-cli` is this
+repo's own skill.
 
-Local edits, all so pstack's GitHub calls work in Claude Code cloud sessions (REST only):
+Upstream pstack reads GitHub through `gh pr`, `gh issue` and `gh api graphql`, which Claude Code
+cloud sessions refuse. Where a pstack skill, playbook or script does that, use the matching REST
+command from `.claude/github-rest.md` or the GitHub MCP tools instead. Don't run
+`poteto-mode/scripts/watch-pr`, `orch` or `worktree-audit.sh` in a cloud session; read the PR's
+checks, reviews and threads with the REST commands.
 
-- `poteto-mode/scripts/watch-pr/github.ts` reads PRs, checks, reviews and threads through
-  `gh api` REST and the `/ccr/review_threads` route; `github.test.ts` covers it. The check
-  source labels `gh-pr-checks` and `graphql-rollup` in `types.ts` are kept unchanged on purpose:
-  they are part of the verdict JSON, and renaming them would edit more upstream files.
-- `poteto-mode/scripts/orch/`: `frontier set --source rest` reads the open-PR list through
-  `gh api`, with tests in `orch.test.ts`.
-- `poteto-mode/scripts/worktree-audit.sh` lists PRs through `gh api`, paged by hand.
-- The playbooks `shipping`, `babysit`, `opening-a-pr`, `multi-phase-plan`, `autopilot-full`,
-  `autopilot-stack` and `orchestrate`, plus `why/SKILL.md` and
-  `why/references/sources/code-archaeology.md`, use `gh api` REST commands.
-- New: `poteto-mode/references/github-rest.md`, the REST and `/ccr/` command sheet.
+Every task in this repo runs in poteto-mode. Before any work, read the plugin's
+`skills/poteto-mode/SKILL.md` in full (it can't be invoked as a skill by the model), then
+follow it: match a playbook, and read each `principle-*` leaf you apply. Subagents use
+`subagent_type: pstack:poteto-agent`. Models per role come from `.claude/pstack-models.md`,
+which is the source of truth. The session-start hook copies it over
+`~/.cursor/rules/pstack-models.mdc` at every cloud session start, so anything `/setup-pstack`
+writes there is lost in the next session. To change models, run `/setup-pstack`, then copy
+`~/.cursor/rules/pstack-models.mdc` back into `.claude/pstack-models.md` and commit it in its
+own PR. Or edit the repo file directly. Locally, copy it to `~/.cursor/rules/` once, as the
+hook does in the cloud.
 
-To update to a newer pstack commit:
-
-1. Clone pstack at the old and the new commit. `diff -ruN -x quality-cli -x PSTACK-LICENSE
-   -x node_modules <old>/skills .claude/skills` must show only the local edits above.
-2. Copy `<new>/skills/` over `.claude/skills/`, keeping `quality-cli` and `PSTACK-LICENSE`.
-3. Re-apply each local edit. `git diff HEAD -- <path>` shows what the copy reverted.
-4. Check: the diff against the new commit shows only the list above;
-   `grep -rnE 'gh (pr|issue) |graphql' .claude/` finds only notes that explain the ban; and
-   `bun install --frozen-lockfile && bun test orch watch-pr && bun run typecheck` pass in
-   `.claude/skills/poteto-mode/scripts`. Bump the commit here.
-
-Every task in this repo runs in poteto-mode. Before any work, read
-`.claude/skills/poteto-mode/SKILL.md` in full (it can't be invoked as a skill by the model),
-then follow it: match a playbook, and read each `principle-*` leaf you apply. Subagents use
-`subagent_type: poteto-agent`. Models per role come from `.claude/pstack-models.md`, which is
-the source of truth. The session-start hook copies it over `~/.agents/pstack-models.md` at
-every cloud session start, so anything `/setup-pstack` writes there is lost in the next session.
-To change models, run `/setup-pstack`, then copy `~/.agents/pstack-models.md` back into
-`.claude/pstack-models.md` and commit it in its own PR. Or edit the repo file directly. Locally,
-copy it to `~/.agents/` once, as the hook does in the cloud.
-
-This file and the harness instructions take precedence over every vendored skill, playbook
+This file and the harness instructions take precedence over every pstack skill, playbook
 and agent. When they conflict, follow this file and say which rule you overrode:
 
 - Never merge, auto-merge or arm merge-when-ready without the maintainer's explicit go-ahead
@@ -159,7 +139,7 @@ and agent. When they conflict, follow this file and say which rule you overrode:
 - Never force-push, rebase or `git reset --hard` a branch you didn't create.
 - Commit and PR attribution comes from the harness. Playbook title and body formats (for
   example Conventional Commits) don't replace it or `Fixes #N`.
-- For GitHub, use `gh api` REST calls (`.claude/skills/poteto-mode/references/github-rest.md`)
+- For GitHub, use `gh api` REST calls (`.claude/github-rest.md`)
   or the GitHub MCP tools. Cloud sessions refuse GraphQL, so no `gh pr`, `gh issue` or
   `gh api graphql`. Page lists by hand (`per_page=100&page=N`); `gh api --paginate` fails
   there past the first page. The `/ccr/` routes exist only in cloud sessions.
@@ -180,5 +160,5 @@ and agent. When they conflict, follow this file and say which rule you overrode:
     are squash merges with `sha=<verified head>`.
   - Local subagents replace their Cursor cloud agents.
   - Autopilot-stack's stacked delivery isn't used here, because PRs aren't stacked.
-- Run the `poteto-mode/scripts/` tools (`watch-pr`, `check-plan.mjs`, `orch`) with `bun` from
-  that directory. This repo doesn't use Graphite, so `orch frontier set` takes `--source rest`.
+- Run `check-plan.mjs` with `bun` from the plugin's `poteto-mode/scripts/` directory. This repo
+  doesn't use Graphite.

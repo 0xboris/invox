@@ -12,22 +12,8 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
 
 # pstack skills read their per-role model choices from here. Home doesn't
 # persist between cloud sessions, so install the repo's copy every time.
-mkdir -p "$HOME/.agents"
-cp .claude/pstack-models.md "$HOME/.agents/pstack-models.md"
-
-# pstack's watch-pr and orch run on bun. Install their pinned deps, then run
-# watch-pr once so bootstrap.ts records its install key and later runs skip
-# their own `bun install`. A failure here must not stop the Go setup below, and
-# bun's output goes to stderr because hook stdout becomes session context.
-if command -v bun >/dev/null 2>&1; then
-  (
-    cd .claude/skills/poteto-mode/scripts &&
-      bun install --frozen-lockfile >&2 &&
-      bun watch-pr/watch-pr --help >/dev/null
-  ) || echo "session-start: pstack deps install failed; watch-pr and orch may not run" >&2
-else
-  echo "session-start: bun not found; pstack's watch-pr and orch are unavailable" >&2
-fi
+mkdir -p "$HOME/.cursor/rules"
+cp .claude/pstack-models.md "$HOME/.cursor/rules/pstack-models.mdc"
 
 go mod download
 # Compile packages and test binaries without running any tests.
