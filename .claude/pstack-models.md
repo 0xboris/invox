@@ -1,7 +1,7 @@
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
 # `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit the subagent `model`). Alias entries in a panel list still count toward its fan-out.
 # Claude Code cloud sessions offer only the Agent tool's model aliases (opus, sonnet, haiku, fable), so every role maps to one of those.
-# The session-start hook copies this file to ~/.agents/pstack-models.md, where pstack skills look for it.
+# The session-start hook copies this file to ~/.cursor/rules/pstack-models.mdc, where pstack skills look for it.
 # budget: unlimited (max)
 feature, refactoring: inherit-parent
 bug-fix: inherit-parent
