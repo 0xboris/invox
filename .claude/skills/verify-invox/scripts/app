@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Builds invox, runs it against a disposable config directory and work directory, and keeps the evidence.
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage, from the repository root:
+  app start [--fake-tectonic]        build invox, create an empty config and work directory, print the run id
+  app doctor <run>                   check that the run's binary works, and say whether tectonic is on PATH
+  app run <run> <name> [args...]     run invox with args in the work directory, save it as evidence/<name>.txt
+  app show <run> <name> <path>       print a file of the work directory, save it as evidence/<name>.txt
+  app stop <run>                     delete the run's binary and directories, keep the evidence
+USAGE
+}
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
+runs="$root/.verify"
+
+run_dir() {
+  [ -d "$runs/$1" ] || { echo "There is no run $1 in $runs." >&2; exit 2; }
+  echo "$runs/$1"
+}
+
+start() {
+  local fake_tectonic=${1-} run dir
+  run="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  dir="$runs/$run"
+  mkdir -p "$dir/bin" "$dir/stubs" "$dir/home" "$dir/config" "$dir/work" "$dir/evidence"
+  if ! (cd "$root" && go build -o "$dir/bin/invox" ./cmd/invox) > "$dir/build.log" 2>&1; then
+    echo "go build ./cmd/invox failed. Its log:" >&2
+    cat "$dir/build.log" >&2
+    rm -rf "$dir"
+    return 1
+  fi
+  # The programs that would open a window record what they were asked to open instead.
+  for program in xdg-open open osascript; do
+    printf '#!/bin/sh\nprintf "%%s %%s\\n" "%s" "$*" >> "%s/opened.log"\n' "$program" "$dir" > "$dir/stubs/$program"
+    chmod +x "$dir/stubs/$program"
+  done
+  : > "$dir/opened.log"
+  if [ "$fake_tectonic" = "--fake-tectonic" ]; then
+    # Writes a placeholder PDF next to the .tex file, as tectonic would. It proves invox's side of a build, not the typesetting.
+    printf '#!/bin/sh\nprintf "%%%%PDF-1.4\\nplaceholder\\n" > "${1%%.tex}.pdf"\n' > "$dir/stubs/tectonic"
+    chmod +x "$dir/stubs/tectonic"
+  fi
+  echo "$run"
+}
+
+doctor() {
+  local dir
+  dir=$(run_dir "$1")
+  if [ ! -x "$dir/bin/invox" ]; then
+    echo "FAIL run $1 has no invox binary. Start a new run."
+    return 1
+  fi
+  if ! version=$(in_run "$dir" version 2>&1); then
+    echo "FAIL invox version failed: $version"
+    return 1
+  fi
+  local tectonic="tectonic=missing (build cannot be verified)"
+  if [ -x "$dir/stubs/tectonic" ]; then
+    tectonic="tectonic=fake (writes a placeholder PDF)"
+  elif command -v tectonic > /dev/null; then
+    tectonic="tectonic=$(command -v tectonic)"
+  fi
+  echo "ok $version config=$dir/config work=$dir/work evidence=$dir/evidence $tectonic"
+}
+
+# in_run runs invox in the run's work directory, with the run's own home and config directory.
+in_run() {
+  local dir=$1; shift
+  (cd "$dir/work" && env HOME="$dir/home" XDG_CONFIG_HOME="$dir/home/.config" XDG_DATA_HOME="$dir/home/.local/share" \
+    INVOX_CONFIG_DIR="$dir/config" INVOX_PROMPT_DISABLED=1 VISUAL= EDITOR=true PATH="$dir/stubs:$PATH" \
+    "$dir/bin/invox" "$@")
+}
+
+run_invox() {
+  local dir=$1 name=$2; shift 2
+  local out err code=0
+  out=$(mktemp) err=$(mktemp)
+  in_run "$dir" "$@" > "$out" 2> "$err" || code=$?
+  {
+    echo "> invox $*"
+    sed 's/^/stdout: /' "$out"
+    sed 's/^/stderr: /' "$err"
+    echo "< exit $code"
+  } | tee "$dir/evidence/$name.txt"
+  rm -f "$out" "$err"
+}
+
+show() {
+  local dir=$1 name=$2 path=$3
+  {
+    echo "> cat $path"
+    cat "$dir/work/$path"
+  } | tee "$dir/evidence/$name.txt"
+}
+
+stop() {
+  local dir
+  dir=$(run_dir "$1")
+  rm -rf "$dir/bin" "$dir/stubs" "$dir/home" "$dir/config" "$dir/work"
+  echo "Stopped run $1. The evidence is in $dir/evidence."
+}
+
+case "${1-}" in
+  start)
+    [ $# -eq 1 ] || { [ $# -eq 2 ] && [ "$2" = "--fake-tectonic" ]; } || { usage >&2; exit 2; }
+    start "${2-}"
+    ;;
+  doctor) [ $# -eq 2 ] || { usage >&2; exit 2; }; doctor "$2" ;;
+  run)
+    [ $# -ge 3 ] || { usage >&2; exit 2; }
+    dir=$(run_dir "$2") || exit 2
+    name=$3; shift 3
+    run_invox "$dir" "$name" "$@"
+    ;;
+  show)
+    [ $# -eq 4 ] || { usage >&2; exit 2; }
+    dir=$(run_dir "$2") || exit 2
+    show "$dir" "$3" "$4"
+    ;;
+  stop) [ $# -eq 2 ] || { usage >&2; exit 2; }; stop "$2" ;;
+  -h | --help | help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

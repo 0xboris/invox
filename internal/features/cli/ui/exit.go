@@ -1,0 +1,134 @@
+package cli
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/0xboris/invox/internal/domain/config"
+	"github.com/0xboris/invox/internal/domain/invoice"
+	"github.com/0xboris/invox/internal/domain/ports"
+	"github.com/0xboris/invox/internal/sharedui/cmdutil"
+	"github.com/0xboris/invox/internal/utilities/env"
+	"github.com/0xboris/invox/internal/utilities/iostreams"
+	"github.com/0xboris/invox/internal/utilities/proc"
+)
+
+// exitCode reports err on ios.ErrOut, with paths below the working directory
+// of e made relative, and returns the code invox exits with. It is the only
+// place that maps errors to exit codes.
+func exitCode(ios *iostreams.IOStreams, e env.Env, err error) int {
+	var flagErr *cmdutil.FlagError
+	var sigErr *proc.SignalError
+	switch {
+	case err == nil, err == flag.ErrHelp:
+		return 0
+	case errors.Is(err, cmdutil.SilentError):
+		return 1
+	case errors.Is(err, cmdutil.CancelError):
+		return 2
+	case errors.As(err, &sigErr):
+		return 128 + sigErr.Number
+	case errors.As(err, &flagErr):
+		command := commandName
+		if flagErr.Command != "" {
+			command += " " + flagErr.Command
+		}
+		printError(ios.ErrOut, e.Getwd, fmt.Sprintf("%s\nRun '%s --help' for usage.", flagErr.Err, command))
+		return 2
+	}
+	message := err.Error()
+	if hint := errorHint(err, e.GOOS); hint != "" {
+		message += "\n" + hint
+	}
+	printError(ios.ErrOut, e.Getwd, message)
+	return 1
+}
+
+// printError prints message with the error prefix, and with paths under the
+// working directory made relative to it. A path counts only where it starts:
+// at the start of the message or after a space, quote or parenthesis.
+func printError(w io.Writer, getwd func() (string, error), message string) {
+	if cwd, err := getwd(); err == nil && filepath.Dir(cwd) != cwd {
+		pathStart := regexp.MustCompile("(^|[\\s'\"`(])" + regexp.QuoteMeta(cwd+string(filepath.Separator)))
+		message = pathStart.ReplaceAllString(message, "${1}")
+	}
+	fmt.Fprintf(w, "error: %s\n", message)
+}
+
+// errorHint returns the next step that fixes err on the OS goos, or "" when
+// there is none.
+func errorHint(err error, goos string) string {
+	var unknownCustomer *invoice.UnknownCustomerError
+	var configErr *config.Error
+	var duplicate *invoice.DuplicateInvoiceNumberError
+	var noTectonic *ports.CompilerNotInstalledError
+	var configFlag *configFlagError
+	switch {
+	case errors.As(err, &configFlag):
+		return fmt.Sprintf("Run '%s --config %s config' to open and fix the config file.", commandName, configFlag.path)
+	case errors.As(err, &unknownCustomer):
+		return fmt.Sprintf("Run '%s customer list' to see the customer IDs.", commandName)
+	case len(unknownKeyHelpTopics(err)) > 0:
+		var commands []string
+		for _, topic := range unknownKeyHelpTopics(err) {
+			commands = append(commands, fmt.Sprintf("'%s help %s'", commandName, topic))
+		}
+		return fmt.Sprintf("Remove the unknown keys or fix their spelling; %s lists the supported fields.", strings.Join(commands, " or "))
+	case errors.As(err, &configErr):
+		return fmt.Sprintf("Run '%s config' to open and fix the config file.", commandName)
+	case errors.As(err, &duplicate):
+		return fmt.Sprintf("Run '%s increment -i %s' to give it the next free number, then archive it again.", commandName, duplicate.InvoicePath)
+	case errors.As(err, &noTectonic):
+		return tectonicInstallHint(goos)
+	}
+	return ""
+}
+
+// tectonicInstallHint tells the user how to install tectonic on the OS goos.
+func tectonicInstallHint(goos string) string {
+	if goos == "darwin" {
+		return "Install it with 'brew install tectonic', then rerun this command."
+	}
+	return "Install it from https://tectonic-typesetting.github.io, then rerun this command."
+}
+
+// configFlagError is a config error in the file named with --config, whose
+// hint must name that file: `invox config` alone opens the default one.
+type configFlagError struct {
+	err  error
+	path string
+}
+
+func (e *configFlagError) Error() string { return e.err.Error() }
+func (e *configFlagError) Unwrap() error { return e.err }
+
+// unknownKeyHelpTopics returns the help topics that document the files in
+// which err reports unknown keys, in the order the files first appear.
+func unknownKeyHelpTopics(err error) []string {
+	topicOf := map[string]string{"customers": "customers", "issuer": "issuer", "invoice": "defaults"}
+	var topics []string
+	seen := map[string]bool{}
+	var walk func(error)
+	walk = func(err error) {
+		switch e := err.(type) {
+		case *invoice.DecodeError:
+			if topic := topicOf[e.Schema]; e.UnknownKey && topic != "" && !seen[topic] {
+				seen[topic] = true
+				topics = append(topics, topic)
+			}
+		case interface{ Unwrap() []error }:
+			for _, inner := range e.Unwrap() {
+				walk(inner)
+			}
+		case interface{ Unwrap() error }:
+			walk(e.Unwrap())
+		}
+	}
+	walk(err)
+	return topics
+}

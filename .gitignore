@@ -23,3 +23,8 @@ node_modules/
 
 # GoReleaser: shell completions generated at release time
 /completions/
+
+# ./check logs
+/.check/
+.scratch/
+.verify/

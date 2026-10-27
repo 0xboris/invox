@@ -44,39 +44,44 @@ var rules = []rule{
 	{
 		name:   "nothing below the command layer depends on commands, the CLI or flag parsing",
 		pkgs:   []string{mod + "..."},
-		except: []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", mod + "internal/docs/gen/...", mod + "internal/archtest"},
-		deny:   []string{mod + "cmd/...", mod + "internal/cli/...", mod + "internal/cmd/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
+		except: []string{mod + "cmd/...", mod + "internal/app/...", mod + "internal/features/...", mod + "internal/sharedui/cmdutil", mod + "internal/docs/gen/...", mod + "internal/archtest"},
+		deny:   []string{mod + "cmd/...", mod + "internal/app/...", mod + "internal/features/...", "github.com/spf13/cobra/...", "github.com/spf13/pflag/...", "flag"},
 	},
 	{
 		name: "the domain neither writes to the terminal nor runs programs",
-		pkgs: []string{mod + "internal/archive", mod + "internal/config", mod + "internal/email", mod + "internal/epc", mod + "internal/invoice/...", mod + "internal/money", mod + "internal/render/..."},
-		deny: []string{mod + "internal/iostreams", mod + "internal/tableprinter", mod + "internal/adapters/..."},
+		pkgs: []string{mod + "internal/domain/..."},
+		deny: []string{mod + "internal/utilities/iostreams", mod + "internal/sharedui/...", mod + "internal/adapters/..."},
 	},
 	{
-		name: "adapters import only run and iostreams",
-		pkgs: []string{mod + "internal/adapters/...", mod + "internal/tableprinter"},
-		only: []string{mod + "internal/adapters/run", mod + "internal/iostreams"},
+		name: "adapters import only the domain's ports, run and the utilities",
+		pkgs: []string{mod + "internal/adapters/..."},
+		only: []string{mod + "internal/domain/ports", mod + "internal/adapters/programs/run", mod + "internal/utilities/..."},
 	},
 	{
-		name:        "only internal/adapters/run starts programs",
+		name: "shared UI imports only the utilities",
+		pkgs: []string{mod + "internal/sharedui/..."},
+		only: []string{mod + "internal/utilities/...", "github.com/spf13/cobra", "github.com/spf13/pflag"},
+	},
+	{
+		name:        "only internal/adapters/programs/run starts programs",
 		pkgs:        []string{mod + "..."},
-		except:      []string{mod + "internal/adapters/run"},
+		except:      []string{mod + "internal/adapters/programs/run"},
 		denyImports: []string{"os/exec"},
 	},
 	{
 		name: "leaf packages import only the standard library",
-		pkgs: []string{mod + "internal/build", mod + "internal/email", mod + "internal/env", mod + "internal/epc", mod + "internal/fsutil", mod + "internal/iostreams", mod + "internal/money"},
+		pkgs: []string{mod + "internal/adapters/buildinfo", mod + "internal/domain/email", mod + "internal/domain/epc", mod + "internal/domain/money", mod + "internal/domain/ports", mod + "internal/utilities/..."},
 		only: []string{},
 	},
 	{
-		name: "internal/render/latex imports only money",
-		pkgs: []string{mod + "internal/render/latex"},
-		only: []string{mod + "internal/money"},
+		name: "internal/domain/latex imports only money",
+		pkgs: []string{mod + "internal/domain/latex"},
+		only: []string{mod + "internal/domain/money"},
 	},
 	{
-		name: "internal/archive imports only fsutil",
-		pkgs: []string{mod + "internal/archive"},
-		only: []string{mod + "internal/fsutil"},
+		name: "internal/domain/archive imports only the ports",
+		pkgs: []string{mod + "internal/domain/archive"},
+		only: []string{mod + "internal/domain/ports"},
 	},
 }
 
@@ -106,21 +111,24 @@ func TestImportRules(t *testing.T) {
 }
 
 // TestCommandsImportOnlyTheirOwnSubcommands keeps commands independent: a
-// command may import the packages below it and a shared package beside or
-// above it, never another command.
+// command may import the packages below it, a shared package beside or
+// above it and its slice's use cases, never another command.
 func TestCommandsImportOnlyTheirOwnSubcommands(t *testing.T) {
 	t.Parallel()
 
 	var violations []string
 	for _, p := range loadGraph(t) {
-		if !matches(mod+"internal/cmd/...", p.ImportPath) {
+		if !matches(mod+"internal/features/...", p.ImportPath) {
 			continue
 		}
 		for _, imp := range p.Imports {
-			if !matches(mod+"internal/cmd/...", imp) || matches(p.ImportPath+"/...", imp) {
+			if !matches(mod+"internal/features/...", imp) || matches(p.ImportPath+"/...", imp) {
 				continue
 			}
 			if path.Base(imp) == "shared" && strings.HasPrefix(p.ImportPath, path.Dir(imp)+"/") {
+				continue
+			}
+			if slice := strings.TrimSuffix(imp, "/usecases"); slice != imp && (p.ImportPath == slice+"/ui" || strings.HasPrefix(p.ImportPath, slice+"/ui/")) {
 				continue
 			}
 			violations = append(violations, p.ImportPath+" imports "+imp)

@@ -20,8 +20,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/0xboris/invox/internal/build.Version={{ .Version }}
-      - -X github.com/0xboris/invox/internal/build.Date={{ slice .CommitDate 0 10 }}
+      - -X github.com/0xboris/invox/internal/adapters/buildinfo.Version={{ .Version }}
+      - -X github.com/0xboris/invox/internal/adapters/buildinfo.Date={{ slice .CommitDate 0 10 }}
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]

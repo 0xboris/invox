@@ -11,7 +11,7 @@ BINARY_PATH ?= $(BIN_DIR)/$(BINARY_NAME)
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo DEV)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%d)
-BUILD_PKG := github.com/0xboris/invox/internal/build
+BUILD_PKG := github.com/0xboris/invox/internal/adapters/buildinfo
 LDFLAGS := -X $(BUILD_PKG).Version=$(VERSION) -X $(BUILD_PKG).Date=$(BUILD_DATE)
 
 .PHONY: help build test fuzz vet lint vulncheck fmt tidy docs install release-snapshot clean
